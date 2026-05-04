@@ -724,14 +724,16 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
     near = p(ox + 19, oy + 10, start[2])
     center = p(ox + 26, oy + 14, 28)
     safe = p(ox - 5, oy + 25, 34)
+    approach_mid = q(near[0] - 4, near[1] - 2, near[2])
+    avoidance_hold = q(near[0] - 6, near[1] + 4, near[2] + 4)
     asset = "trigger.no_fly.box.v1" if scenario_id.startswith(("L1-1", "L1-3")) else "trigger.hazard.generic.box.v1"
     add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 35, "patrol", route=[near, safe]))
     if scenario_id.startswith("L1-1"):
         polygon = [
-            p(center[0] - 9, center[1] - 7, 22),
-            p(center[0] + 11, center[1] - 6, 22),
-            p(center[0] + 12, center[1] + 8, 22),
-            p(center[0] - 8, center[1] + 9, 22),
+            q(center[0] - 9, center[1] - 7, 22),
+            q(center[0] + 11, center[1] - 6, 22),
+            q(center[0] + 12, center[1] + 8, 22),
+            q(center[0] - 8, center[1] + 9, 22),
         ]
         add(specs, scenes, polygon_entity(zone, asset, "airspace_constraint", polygon, 20.0, 26.0, center))
     else:
@@ -740,7 +742,7 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
         event(
             "approach_boundary",
             tick(220),
-            [move("move_boundary_approach", uav, [start, p(near[0] - 4, near[1] - 2, near[2]), near], 8.0)],
+            [move("move_boundary_approach", uav, [start, approach_mid, near], 8.0)],
             1,
             scenario_id,
             "UAV approaches constrained airspace",
@@ -752,7 +754,7 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
             "boundary_conflict",
             prox(uav, zone, 14.0, 3),
             [
-                move("move_boundary_avoidance", uav, [near, p(near[0] - 6, near[1] + 4, near[2] + 4)], 3.0),
+                move("move_boundary_avoidance", uav, [near, avoidance_hold], 3.0),
                 visual("hover_boundary_hold", uav, "hover"),
             ],
             2,
@@ -765,7 +767,7 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
         event(
             "return_safe_airspace",
             fired("boundary_conflict"),
-            [move("move_boundary_return_safe", uav, [p(near[0] - 6, near[1] + 4, near[2] + 4), safe], 9.0)],
+            [move("move_boundary_return_safe", uav, [avoidance_hold, safe], 9.0)],
             3,
             scenario_id,
             "UAV returns to safe airspace",
@@ -777,7 +779,7 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
     if scenario_id.startswith("L1-3"):
         intruder = f"intruder_{scenario_id.lower().replace('-', '_')}"
         intr_start = p(ox + 38, oy + 6, 29)
-        intr_near = p(center[0] + 3, center[1] - 2, 29)
+        intr_near = q(center[0] + 3, center[1] - 2, 29)
         add(specs, scenes, world_entity(intruder, "uav.airsim.flying_pawn.v1", "uav", intr_start, 215, "noncooperative", route=[intr_near]))
         events[0]["actions"].append(move("move_intruder_converge", intruder, [intr_start, intr_near], 10.0))
         events[1]["log_target_ids"].append(intruder)
@@ -786,16 +788,18 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
         uav_c = f"uav_{scenario_id.lower().replace('-', '_')}_tertiary"
         add(specs, scenes, world_entity(uav_b, "uav.airsim.cv_pawn.v1", "uav", p(ox + 6, oy - 18, 32), 20, "patrol"))
         add(specs, scenes, world_entity(uav_c, "uav.airsim.flying_pawn.v1", "uav", p(ox - 12, oy - 10, 34), 45, "patrol"))
+        secondary_conflict = q(center[0] - 4, center[1] - 2, 32)
+        tertiary_conflict = q(center[0] - 2, center[1] + 1, 34)
         events[0]["actions"].extend(
             [
-                move("move_corridor_secondary", uav_b, [p(ox + 6, oy - 18, 32), p(center[0] - 4, center[1] - 2, 32)], 7.0),
-                move("move_corridor_tertiary", uav_c, [p(ox - 12, oy - 10, 34), p(center[0] - 2, center[1] + 1, 34)], 6.5),
+                move("move_corridor_secondary", uav_b, [p(ox + 6, oy - 18, 32), secondary_conflict], 7.0),
+                move("move_corridor_tertiary", uav_c, [p(ox - 12, oy - 10, 34), tertiary_conflict], 6.5),
             ]
         )
-        events[1]["actions"].append(move("move_corridor_reroute_secondary", uav_b, [p(center[0] - 4, center[1] - 2, 32), p(center[0] + 16, center[1] + 16, 38)], 8.5))
-        events[2]["actions"].append(move("move_corridor_resume_tertiary", uav_c, [p(center[0] - 2, center[1] + 1, 34), p(center[0] - 18, center[1] + 14, 34)], 7.5))
+        events[1]["actions"].append(move("move_corridor_reroute_secondary", uav_b, [secondary_conflict, q(center[0] + 16, center[1] + 16, 38)], 8.5))
+        events[2]["actions"].append(move("move_corridor_resume_tertiary", uav_c, [tertiary_conflict, q(center[0] - 18, center[1] + 14, 34)], 7.5))
     if scenario_id.startswith("L1-2"):
-        events[1]["actions"][0] = move("move_altitude_recover", uav, [near, p(near[0] - 3, near[1] + 4, 42), p(near[0] - 8, near[1] + 8, 34)], 4.0)
+        events[1]["actions"][0] = move("move_altitude_recover", uav, [near, q(near[0] - 3, near[1] + 4, 42), q(near[0] - 8, near[1] + 8, 34)], 4.0)
         events[1]["log_title"] = "Altitude deviation from assigned corridor"
     return make_bundle(
         scenario_id,
@@ -846,10 +850,11 @@ def build_l2(scenario_id: str, idx: int) -> ScenarioBundle:
         home = p(ox - 11, oy + 2, 31)
         add(specs, scenes, world_entity(tower, "facility.radio.base_tower.v1", "facility", p(ox + 6, oy + 4, 0), 0, "online"))
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 30, "patrol", route=[degraded, home]))
+        degraded_loiter = q(degraded[0] + 3, degraded[1] + 5, 34)
         events = [
             event("station_degraded", tick(260), [visual("set_tower_degraded", tower, "degraded")], 1, scenario_id, "Communication station degraded", "infrastructure", [tower], "warning"),
-            event("uav_link_response", fired("station_degraded"), [move("move_uav_backup_loiter", uav, [start, degraded, p(degraded[0] + 3, degraded[1] + 5, 34)], 4.0)], 2, scenario_id, "UAV changes behavior under degraded C2", "uav_mission", [uav, tower], "warning"),
-            event("backup_link_restore", fired("uav_link_response"), [visual("set_tower_backup", tower, "backup_link"), move("move_uav_resume_patrol", uav, [p(degraded[0] + 3, degraded[1] + 5, 34), home], 7.0)], 3, scenario_id, "Backup link restores service", "infrastructure", [uav, tower], "info"),
+            event("uav_link_response", fired("station_degraded"), [move("move_uav_backup_loiter", uav, [start, degraded, degraded_loiter], 4.0)], 2, scenario_id, "UAV changes behavior under degraded C2", "uav_mission", [uav, tower], "warning"),
+            event("backup_link_restore", fired("uav_link_response"), [visual("set_tower_backup", tower, "backup_link"), move("move_uav_resume_patrol", uav, [degraded_loiter, home], 7.0)], 3, scenario_id, "Backup link restores service", "infrastructure", [uav, tower], "info"),
         ]
         desc = "Communication station failure with backup link recovery"
     elif scenario_id.startswith("L2-2"):
@@ -1092,8 +1097,8 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         landing_y = (ped_a_start[1] + ped_b_start[1]) / 2.0
         low = q(landing_x, landing_y, 8)
         land = q(landing_x, landing_y, 3)
-        ped_a_evade = shifted_sidewalk_point(ped_a_start, -12, 12, GATHERING_MIN_OFFSET_FROM_CURB_M)
-        ped_b_evade = shifted_sidewalk_point(ped_b_start, 12, 12, GATHERING_MIN_OFFSET_FROM_CURB_M)
+        ped_a_evade = shifted_sidewalk_point(ped_a_start, -8, 8, GATHERING_MIN_OFFSET_FROM_CURB_M)
+        ped_b_evade = shifted_sidewalk_point(ped_b_start, 8, 8, GATHERING_MIN_OFFSET_FROM_CURB_M)
         events = [
             event("forced_landing_fault", tick(230), [visual("set_uav_forced_landing_fault", uav, "propulsion_fault"), crowd("spawn_landing_crowd", f"crowd_{sid}", 8, crowd_origin, [650, 420, 0], 700 + idx)], 1, scenario_id, "UAV fault appears near a ground crowd", "uav_mission", [uav, ped_a, ped_b], "critical"),
             event("descent_to_low_altitude", fired("forced_landing_fault"), [move("move_uav_forced_descent", uav, [start, p(ox - 3, oy - 4, 18), low, land], 3.0)], 2, scenario_id, "UAV descends from 30m to low height", "uav_mission", [uav], "critical"),
@@ -1472,9 +1477,28 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
         ped_start = scene_pos(ped_scene)
         uav_start = p(ox - 15, oy - 8, 32)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", uav_start, 60, "patrol"))
-        _, ambulance_scene = add(specs, scenes, lane_entity(ambulance, "vehicle.emergency.ambulance.v1", "vehicle", "cg_edge_33", 35, 0.0, p(ox - 32, oy - 15, 0), 70, "response", visual_state={"mode": "response", "lights_on": True}))
-        ambulance_start = scene_pos(ambulance_scene)
         ambulance_arrival = road_center_point(ped_start)
+        arrival_sample = LANES.nearest_to_xy(ambulance_arrival[0], ambulance_arrival[1])
+        ambulance_s = max(0.0, arrival_sample.s_m - 60.0)
+        ambulance_start_hint = _offset_from_lane(LANES.resolve_edge_s(arrival_sample.edge_id, ambulance_s), 0.0, GROUND_Z_M)
+        _, ambulance_scene = add(
+            specs,
+            scenes,
+            lane_entity(
+                ambulance,
+                "vehicle.emergency.ambulance.v1",
+                "vehicle",
+                arrival_sample.edge_id,
+                ambulance_s,
+                0.0,
+                ambulance_start_hint,
+                70,
+                "response",
+                visual_state={"mode": "response", "lights_on": True},
+                prefer_edge_hint=True,
+            ),
+        )
+        ambulance_start = scene_pos(ambulance_scene)
         uav_observe = q(ped_start[0], ped_start[1], 16)
         _, tape_scene = add(specs, scenes, world_entity(tape, "prop.incident.police_tape.v1", "prop", shifted_sidewalk_point(ped_start, 1.5, 1.0, 1.5), 0, "staged", activation_tick=420))
         tape_pos = scene_pos(tape_scene)

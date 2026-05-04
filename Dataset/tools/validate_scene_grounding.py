@@ -29,6 +29,13 @@ CROWD_ROAD_BUFFER_M = 0.5
 POSITION_MATCH_TOLERANCE_M = 1.25
 MOVE_START_TOLERANCE_GROUND_M = 8.0
 MOVE_START_TOLERANCE_UAV_M = 18.0
+ROI_MARGIN_M = 1000.0
+MAX_WAYPOINT_SEGMENT_M = {
+    "uav": 300.0,
+    "vehicle": 80.0,
+    "pedestrian": 20.0,
+    "asset": 120.0,
+}
 
 
 @dataclass(frozen=True)
@@ -67,6 +74,14 @@ class LaneResolver:
                 self.by_edge.setdefault(sample.edge_id, []).append(sample)
         for edge_samples in self.by_edge.values():
             edge_samples.sort(key=lambda item: item.s_m)
+        if not self.samples:
+            raise ValueError(f"{lane_samples_csv} contains no lane samples")
+        xs = [sample.x_m for sample in self.samples]
+        ys = [sample.y_m for sample in self.samples]
+        self.x_min = min(xs) - ROI_MARGIN_M
+        self.x_max = max(xs) + ROI_MARGIN_M
+        self.y_min = min(ys) - ROI_MARGIN_M
+        self.y_max = max(ys) + ROI_MARGIN_M
 
     def nearest(self, pos: list[float]) -> LaneSample:
         return min(self.samples, key=lambda item: (item.x_m - pos[0]) ** 2 + (item.y_m - pos[1]) ** 2)
@@ -75,6 +90,12 @@ class LaneResolver:
         if edge_id not in self.by_edge:
             raise KeyError(edge_id)
         return min(self.by_edge[edge_id], key=lambda item: abs(item.s_m - s_m))
+
+    def in_roi(self, pos: list[float]) -> bool:
+        return self.x_min <= pos[0] <= self.x_max and self.y_min <= pos[1] <= self.y_max
+
+    def roi_label(self) -> str:
+        return f"x=[{self.x_min:.1f},{self.x_max:.1f}], y=[{self.y_min:.1f},{self.y_max:.1f}]"
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -126,6 +147,31 @@ def dist_xy(a: list[float], b: list[float]) -> float:
 
 def dist3(a: list[float], b: list[float]) -> float:
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
+
+
+def polygon_centroid(points: list[list[float]]) -> list[float] | None:
+    if not points:
+        return None
+    return [
+        sum(point[0] for point in points) / len(points),
+        sum(point[1] for point in points) / len(points),
+        sum(point[2] for point in points) / len(points),
+    ]
+
+
+def motion_class(asset_id: str) -> str:
+    if asset_id.startswith("uav."):
+        return "uav"
+    if asset_id.startswith("vehicle."):
+        return "vehicle"
+    if asset_id.startswith("pedestrian."):
+        return "pedestrian"
+    return "asset"
+
+
+def check_roi_point(scenario_id: str, label: str, point: list[float] | None, lanes: LaneResolver, issues: list[str]) -> None:
+    if point and not lanes.in_roi(point):
+        issues.append(f"{scenario_id}: {label} outside traffic_bundle ROI {lanes.roi_label()}: {point}")
 
 
 def lane_normal(sample: LaneSample) -> tuple[float, float]:
@@ -198,6 +244,7 @@ def check_placements(scene: dict[str, Any], lanes: LaneResolver, known_buildings
         if position is None:
             issues.append(f"{scene['scenario_id']}: {entity['entity_id']} has no resolved position")
             continue
+        check_roi_point(scene["scenario_id"], f"entity {entity['entity_id']} position", position, lanes, issues)
         asset_id = entity.get("logical_asset_id", "")
         category = entity.get("category", "")
         if asset_id.startswith("uav.") and position[2] < 20.0:
@@ -242,6 +289,8 @@ def check_placements(scene: dict[str, Any], lanes: LaneResolver, known_buildings
             start = pos3(placement.get("resolved_position_enu_m"))
             road = pos3(placement.get("roadway_center_position_enu_m"))
             opposite = pos3(placement.get("opposite_curb_position_enu_m"))
+            check_roi_point(scene["scenario_id"], f"crosswalk {entity['entity_id']} roadway point", road, lanes, issues)
+            check_roi_point(scene["scenario_id"], f"crosswalk {entity['entity_id']} opposite curb", opposite, lanes, issues)
             if not (start and road and opposite):
                 issues.append(f"{scene['scenario_id']}: crosswalk_anchor {entity['entity_id']} lacks start/road/opposite resolved positions")
             elif nearest_lane_clearance(lanes, start) <= LANE_HALF_WIDTH_M:
@@ -253,6 +302,21 @@ def check_placements(scene: dict[str, Any], lanes: LaneResolver, known_buildings
                 issues.append(f"{scene['scenario_id']}: facade_anchor {entity['entity_id']} uses unknown building_id {building_id}")
             if not placement.get("building_source"):
                 issues.append(f"{scene['scenario_id']}: facade_anchor {entity['entity_id']} lacks building_source")
+
+        if mode == "polygon_prism":
+            polygon = [pos3(point) for point in placement.get("polygon_enu_m", [])]
+            polygon = [point for point in polygon if point]
+            if len(polygon) < 3:
+                issues.append(f"{scene['scenario_id']}: polygon_prism {entity['entity_id']} has fewer than 3 valid vertices")
+            else:
+                for index, point in enumerate(polygon):
+                    check_roi_point(scene["scenario_id"], f"polygon {entity['entity_id']} vertex {index}", point, lanes, issues)
+                centroid = polygon_centroid(polygon)
+                resolved = pos3(placement.get("resolved_position_enu_m"))
+                if centroid and resolved and dist_xy(centroid, resolved) > 5.0:
+                    issues.append(
+                        f"{scene['scenario_id']}: polygon_prism {entity['entity_id']} centroid is {dist_xy(centroid, resolved):.1f}m from resolved_position_enu_m"
+                    )
 
     if roadwork_laterals and len({1 if item > 0 else -1 for item in roadwork_laterals}) > 1:
         issues.append(f"{scene['scenario_id']}: roadwork props are split across both lane sides")
@@ -269,6 +333,7 @@ def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: 
         if action_type == "spawn_entity" and entity_id in entities:
             spawn_pos = pos3(action.get("position_enu_m"))
             expected = entity_pos(entities[entity_id])
+            check_roi_point(script["scenario_id"], f"spawn_entity {entity_id} position", spawn_pos, lanes, issues)
             if spawn_pos and expected and dist3(spawn_pos, expected) > POSITION_MATCH_TOLERANCE_M:
                 issues.append(f"{script['scenario_id']}: spawn_entity {entity_id} position diverges from scene_setup resolved position")
             current[entity_id] = spawn_pos or expected
@@ -279,6 +344,15 @@ def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: 
             if not waypoints:
                 issues.append(f"{script['scenario_id']}: move_entity {action.get('action_id')} has no valid waypoints")
                 continue
+            for index, point in enumerate(waypoints):
+                check_roi_point(script["scenario_id"], f"move_entity {action.get('action_id')} waypoint {index}", point, lanes, issues)
+            max_segment = MAX_WAYPOINT_SEGMENT_M[motion_class(asset[entity_id])]
+            for index, (a, b) in enumerate(zip(waypoints, waypoints[1:])):
+                segment_m = dist_xy(a, b)
+                if segment_m > max_segment:
+                    issues.append(
+                        f"{script['scenario_id']}: move_entity {action.get('action_id')} segment {index}->{index + 1} is {segment_m:.1f}m, exceeds {motion_class(asset[entity_id])} limit {max_segment:.1f}m"
+                    )
             expected_start = current.get(entity_id)
             if expected_start:
                 tolerance = MOVE_START_TOLERANCE_UAV_M if asset[entity_id].startswith("uav.") else MOVE_START_TOLERANCE_GROUND_M
@@ -309,12 +383,20 @@ def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: 
         if action_type == "spawn_crowd":
             origin = pos3(action.get("spawn_origin_enu_m"))
             extent = action.get("spawn_box_extent_cm") or [0, 0, 0]
+            check_roi_point(script["scenario_id"], f"spawn_crowd {action.get('group_id')} origin", origin, lanes, issues)
             if origin:
                 half_extent = max(float(extent[0]), float(extent[1])) / 200.0
                 required = LANE_HALF_WIDTH_M + half_extent + CROWD_ROAD_BUFFER_M
                 clearance = nearest_lane_clearance(lanes, origin)
                 if clearance < required:
                     issues.append(f"{script['scenario_id']}: spawn_crowd {action.get('group_id')} overlaps roadway clearance ({clearance:.2f}m < {required:.2f}m)")
+
+
+def check_cameras(scene: dict[str, Any], lanes: LaneResolver, issues: list[str]) -> None:
+    for camera in scene.get("cameras", []):
+        placement = camera.get("placement", {})
+        position = pos3(placement.get("position_enu_m") or placement.get("resolved_position_enu_m"))
+        check_roi_point(scene["scenario_id"], f"camera {camera.get('camera_id')} position", position, lanes, issues)
 
 
 def check_weather_bootstrap(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
@@ -449,6 +531,7 @@ def validate_scenario(scene_path: Path, lanes: LaneResolver, known_assets: set[s
     check_entity_references(scene, script, issues)
     check_assets(scene, known_assets, issues)
     check_placements(scene, lanes, known_buildings, issues)
+    check_cameras(scene, lanes, issues)
     check_event_positions(scene, script, lanes, issues)
     check_weather_bootstrap(scene, script, issues)
     check_proximity_metrics(scene, script, issues)
