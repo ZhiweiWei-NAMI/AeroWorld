@@ -3515,10 +3515,17 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             import uuid as _uuid
             entity_id = f"event_{_uuid.uuid4().hex[:8]}"
         asset_instance_id = self._script_asset_instance_id(action, entity_id)
+        raw_position = [
+            float(action["position_enu_m"][0]),
+            float(action["position_enu_m"][1]),
+            float(action["position_enu_m"][2] if len(action["position_enu_m"]) > 2 else 0.0),
+        ]
         position = self._script_transform_position(action["position_enu_m"])
         rotation = self._script_transform_rotation(action)
         self.event_entity_assets[entity_id] = logical_asset_id
-        self.event_entity_initial_positions[entity_id] = list(position)
+        self.event_entity_initial_positions[entity_id] = list(raw_position)
+        if self.event_interpreter is not None:
+            self.event_interpreter.update_entity_state(entity_id, raw_position, rotation_deg=dict(action.get("rotation_deg") or {}))
         asset_kind = self._script_asset_kind(logical_asset_id)
         if asset_kind == "pedestrian":
             response = self.client.ped_spawn(
@@ -3557,11 +3564,19 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         logical_asset_id = self._script_entity_logical_asset_id(entity_id, action)
         asset_kind = self._script_asset_kind(logical_asset_id)
         transformed_waypoints: list[list[float]] = []
+        raw_position_for_interpreter: list[float] | None = None
         if action.get("waypoints_enu_m") is not None or action.get("waypoints") is not None:
-            transformed_waypoints = self._script_transform_waypoints(action.get("waypoints_enu_m", action.get("waypoints")))
+            raw_waypoints = action.get("waypoints_enu_m", action.get("waypoints")) or []
+            transformed_waypoints = self._script_transform_waypoints(raw_waypoints)
             if not transformed_waypoints:
                 return {"status": "skipped", "reason": "no waypoints", "entity_id": entity_id}
             position = list(transformed_waypoints[-1])
+            raw_last = raw_waypoints[-1]
+            raw_position_for_interpreter = [
+                float(raw_last[0]),
+                float(raw_last[1]),
+                float(raw_last[2] if len(raw_last) > 2 else 0.0),
+            ]
             fallback_yaw = (
                 self._yaw_from_points(transformed_waypoints[-2], transformed_waypoints[-1])
                 if len(transformed_waypoints) >= 2
@@ -3569,6 +3584,11 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             )
         elif "position_enu_m" in action:
             position = self._script_transform_position(action["position_enu_m"])
+            raw_position_for_interpreter = [
+                float(action["position_enu_m"][0]),
+                float(action["position_enu_m"][1]),
+                float(action["position_enu_m"][2] if len(action["position_enu_m"]) > 2 else 0.0),
+            ]
             fallback_yaw = None
         else:
             raise ValueError("move_entity requires position_enu_m or waypoints_enu_m")
@@ -3594,6 +3614,10 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         if transformed_waypoints:
             payload["waypoints_enu_m"] = transformed_waypoints
             payload["velocity_mps"] = float(action.get("velocity_mps", 5.0))
+        if raw_position_for_interpreter is not None:
+            self.event_entity_initial_positions[entity_id] = list(raw_position_for_interpreter)
+            if self.event_interpreter is not None:
+                self.event_interpreter.update_entity_state(entity_id, raw_position_for_interpreter, rotation_deg=dict(action.get("rotation_deg") or {}))
         if asset_kind == "pedestrian":
             response = self.client.ped_set_target(
                 entity_id,

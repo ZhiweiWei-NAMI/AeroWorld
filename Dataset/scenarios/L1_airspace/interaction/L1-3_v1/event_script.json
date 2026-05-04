@@ -16,7 +16,7 @@
     {
       "trigger_id": "trig_boundary_conflict",
       "type": "entity_proximity",
-      "entity_a": "uav_l1_3_v1_primary",
+      "entity_a": "intruder_l1_3_v1",
       "entity_b": "nfz_l1_3_v1",
       "distance_m": 14.0,
       "operator": "lte",
@@ -24,10 +24,10 @@
       "min_true_ticks": 3
     },
     {
-      "trigger_id": "trig_after_boundary_conflict_delay_30",
+      "trigger_id": "trig_after_boundary_conflict_delay_31",
       "type": "event_fired_after",
       "event_id": "boundary_conflict",
-      "delay_ticks": 30
+      "delay_ticks": 31
     }
   ],
   "events": [
@@ -127,7 +127,7 @@
       "log_event": {
         "topic": "evt_L1-3_v1_boundary_conflict",
         "category": "airspace",
-        "title": "Airspace boundary conflict detected",
+        "title": "Noncooperative intruder enters constrained airspace",
         "severity": "warning",
         "overlay": "airspace",
         "target_ids": [
@@ -139,7 +139,7 @@
     },
     {
       "event_id": "return_safe_airspace",
-      "trigger_ref": "trig_after_boundary_conflict_delay_30",
+      "trigger_ref": "trig_after_boundary_conflict_delay_31",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [

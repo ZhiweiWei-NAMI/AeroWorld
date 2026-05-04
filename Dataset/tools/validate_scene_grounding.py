@@ -30,6 +30,8 @@ POSITION_MATCH_TOLERANCE_M = 1.25
 MOVE_START_TOLERANCE_GROUND_M = 8.0
 MOVE_START_TOLERANCE_UAV_M = 18.0
 ROI_MARGIN_M = 1000.0
+SCRIPT_TICK_HZ = 10.0
+DELAY_SAFETY_FACTOR = 1.1
 MAX_WAYPOINT_SEGMENT_M = {
     "uav": 300.0,
     "vehicle": 80.0,
@@ -149,6 +151,18 @@ def dist3(a: list[float], b: list[float]) -> float:
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
 
 
+def yaw_delta_deg(a: float, b: float) -> float:
+    return abs((a - b + 180.0) % 360.0 - 180.0)
+
+
+def rotation_yaw(rotation: dict[str, Any] | None) -> float | None:
+    if not isinstance(rotation, dict):
+        return None
+    if "yaw_deg" in rotation or "yaw" in rotation:
+        return float(rotation.get("yaw_deg", rotation.get("yaw", 0.0)))
+    return None
+
+
 def polygon_centroid(points: list[list[float]]) -> list[float] | None:
     if not points:
         return None
@@ -167,6 +181,19 @@ def motion_class(asset_id: str) -> str:
     if asset_id.startswith("pedestrian."):
         return "pedestrian"
     return "asset"
+
+
+def path_length_m(waypoints: list[list[float]]) -> float:
+    return sum(dist3(a, b) for a, b in zip(waypoints, waypoints[1:]))
+
+
+def action_move_duration_ticks(action: dict[str, Any]) -> int:
+    waypoints = [pos3(item) for item in action.get("waypoints_enu_m", [])]
+    waypoints = [item for item in waypoints if item]
+    if len(waypoints) < 2:
+        return 0
+    velocity = max(0.1, float(action.get("velocity_mps", 1.0)))
+    return int(math.ceil(path_length_m(waypoints) / velocity * SCRIPT_TICK_HZ * DELAY_SAFETY_FACTOR))
 
 
 def check_roi_point(scenario_id: str, label: str, point: list[float] | None, lanes: LaneResolver, issues: list[str]) -> None:
@@ -233,6 +260,48 @@ def check_assets(scene: dict[str, Any], known_assets: set[str], issues: list[str
         asset_id = entity.get("logical_asset_id")
         if asset_id not in known_assets:
             issues.append(f"{scene['scenario_id']}: unknown logical_asset_id {asset_id} on {entity.get('entity_id')}")
+
+
+def check_dynamic_spawn_policy(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    spawned_ids = {
+        str(action.get("entity_id"))
+        for _, action in action_iter(script)
+        if action.get("type") == "spawn_entity" and action.get("entity_id")
+    }
+    for entity in scene.get("entities", []):
+        activation_tick = int(entity.get("activation_tick", 0) or 0)
+        if activation_tick <= 0:
+            continue
+        entity_id = entity["entity_id"]
+        if entity.get("enabled") is not False:
+            issues.append(f"{scene['scenario_id']}: dynamic entity {entity_id} activation_tick={activation_tick} must set enabled=false")
+        if entity.get("spawn_policy") != "event_script_only":
+            issues.append(f"{scene['scenario_id']}: dynamic entity {entity_id} must set spawn_policy=event_script_only")
+        if entity_id not in spawned_ids:
+            issues.append(f"{scene['scenario_id']}: dynamic entity {entity_id} has no spawn_entity action")
+
+
+def check_spawn_schema(scene: dict[str, Any], script: dict[str, Any], known_assets: set[str], issues: list[str]) -> None:
+    entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
+    for _, action in action_iter(script):
+        if action.get("type") != "spawn_entity":
+            continue
+        action_id = action.get("action_id")
+        entity_id = str(action.get("entity_id") or "")
+        asset_id = str(action.get("asset_id") or "")
+        if asset_id not in known_assets:
+            issues.append(f"{script['scenario_id']}: spawn_entity {action_id} asset_id is not a catalog logical_asset_id: {asset_id}")
+        entity = entities.get(entity_id)
+        if not entity:
+            continue
+        if entity.get("logical_asset_id") != asset_id:
+            issues.append(f"{script['scenario_id']}: spawn_entity {action_id} asset_id {asset_id} does not match scene_setup logical_asset_id {entity.get('logical_asset_id')}")
+        if int(entity.get("activation_tick", 0) or 0) <= 0:
+            issues.append(f"{script['scenario_id']}: spawn_entity {action_id} targets non-dynamic scene entity {entity_id}")
+        scene_yaw = rotation_yaw((entity.get("placement") or {}).get("rotation_deg"))
+        action_yaw = rotation_yaw(action.get("rotation_deg"))
+        if scene_yaw is not None and action_yaw is not None and yaw_delta_deg(scene_yaw, action_yaw) > 1.0:
+            issues.append(f"{script['scenario_id']}: spawn_entity {action_id} yaw {action_yaw:.1f} differs from scene_setup yaw {scene_yaw:.1f}")
 
 
 def check_placements(scene: dict[str, Any], lanes: LaneResolver, known_buildings: set[str], issues: list[str]) -> None:
@@ -399,6 +468,70 @@ def check_cameras(scene: dict[str, Any], lanes: LaneResolver, issues: list[str])
         check_roi_point(scene["scenario_id"], f"camera {camera.get('camera_id')} position", position, lanes, issues)
 
 
+def check_event_delay_physics(script: dict[str, Any], issues: list[str]) -> None:
+    events = {event["event_id"]: event for event in script.get("events", [])}
+    for trigger in script.get("triggers", []):
+        if trigger.get("type") != "event_fired_after":
+            continue
+        prior_event = events.get(trigger.get("event_id"))
+        if not prior_event:
+            continue
+        required_ticks = max(
+            (action_move_duration_ticks(action) for action in prior_event.get("actions", []) if action.get("type") == "move_entity"),
+            default=0,
+        )
+        delay_ticks = int(trigger.get("delay_ticks", 0) or 0)
+        if required_ticks > delay_ticks:
+            issues.append(
+                f"{script['scenario_id']}: trigger {trigger.get('trigger_id')} delay_ticks={delay_ticks} is shorter than prior move duration {required_ticks} ticks"
+            )
+
+
+def collect_scene_points(scene: dict[str, Any], script: dict[str, Any]) -> list[tuple[str, list[float]]]:
+    points: list[tuple[str, list[float]]] = []
+    for entity in scene.get("entities", []):
+        position = entity_pos(entity)
+        if position:
+            points.append((f"entity {entity['entity_id']}", position))
+        for waypoint in entity.get("route_waypoints_enu_m") or []:
+            found = pos3(waypoint)
+            if found:
+                points.append((f"entity {entity['entity_id']} route waypoint", found))
+        placement = entity.get("placement") or {}
+        for index, vertex in enumerate(placement.get("polygon_enu_m") or []):
+            found = pos3(vertex)
+            if found:
+                points.append((f"polygon {entity['entity_id']} vertex {index}", found))
+    for camera in scene.get("cameras", []):
+        placement = camera.get("placement", {})
+        found = pos3(placement.get("position_enu_m") or placement.get("resolved_position_enu_m"))
+        if found:
+            points.append((f"camera {camera.get('camera_id')}", found))
+    for _, action in action_iter(script):
+        for key in ("position_enu_m", "spawn_origin_enu_m"):
+            found = pos3(action.get(key))
+            if found:
+                points.append((f"action {action.get('action_id') or action.get('group_id')} {key}", found))
+        for index, waypoint in enumerate(action.get("waypoints_enu_m") or []):
+            found = pos3(waypoint)
+            if found:
+                points.append((f"action {action.get('action_id')} waypoint {index}", found))
+    return points
+
+
+def check_local_bounds(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    bounds = scene.get("local_bounds") or {}
+    center = pos3(bounds.get("center_enu_m"))
+    radius = float(bounds.get("radius_m", 0.0) or 0.0)
+    if not center or radius <= 0.0:
+        issues.append(f"{scene['scenario_id']}: scene_setup missing local_bounds.center_enu_m/radius_m")
+        return
+    for label, point in collect_scene_points(scene, script):
+        distance = dist_xy(center, point)
+        if distance > radius:
+            issues.append(f"{scene['scenario_id']}: {label} is outside local_bounds radius {radius:.1f}m by {distance - radius:.1f}m")
+
+
 def check_weather_bootstrap(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
     weather_triggers = [trigger for trigger in script.get("triggers", []) if trigger.get("type") == "weather_state"]
     if not weather_triggers:
@@ -530,9 +663,13 @@ def validate_scenario(scene_path: Path, lanes: LaneResolver, known_assets: set[s
     issues: list[str] = []
     check_entity_references(scene, script, issues)
     check_assets(scene, known_assets, issues)
+    check_dynamic_spawn_policy(scene, script, issues)
+    check_spawn_schema(scene, script, known_assets, issues)
     check_placements(scene, lanes, known_buildings, issues)
     check_cameras(scene, lanes, issues)
     check_event_positions(scene, script, lanes, issues)
+    check_event_delay_physics(script, issues)
+    check_local_bounds(scene, script, issues)
     check_weather_bootstrap(scene, script, issues)
     check_proximity_metrics(scene, script, issues)
     execute_validation_rules(scene, script, known_assets, issues)

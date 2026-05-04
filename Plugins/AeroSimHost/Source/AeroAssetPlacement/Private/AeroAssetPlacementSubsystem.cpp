@@ -697,6 +697,16 @@ bool UAeroAssetPlacementSubsystem::ParseScenarioObject(const TSharedPtr<FJsonObj
 	}
 
 	OutInstance.bEnabled = Object->HasField(TEXT("enabled")) ? Object->GetBoolField(TEXT("enabled")) : true;
+	double ActivationTickValue = 0.0;
+	if (Object->TryGetNumberField(TEXT("activation_tick"), ActivationTickValue))
+	{
+		OutInstance.ActivationTick = FMath::Max(0, static_cast<int32>(FMath::RoundToInt(ActivationTickValue)));
+	}
+	Object->TryGetStringField(TEXT("spawn_policy"), OutInstance.SpawnPolicy);
+	if (OutInstance.ActivationTick > 0 || OutInstance.SpawnPolicy.Equals(TEXT("event_script_only"), ESearchCase::IgnoreCase))
+	{
+		OutInstance.bEnabled = false;
+	}
 	OutInstance.QueryTags = ReadStringArray(Object, TEXT("query_tags"));
 	Object->TryGetStringField(TEXT("entity_id"), OutInstance.EntityId);
 	if (OutInstance.EntityId.IsEmpty())

@@ -45,6 +45,8 @@ struct FAeroAssetInstanceState
 	TArray<FString> QueryTags;
 	bool bEnabled = true;
 	bool bDynamic = false;
+	int32 ActivationTick = 0;
+	FString SpawnPolicy;
 	bool bReserved = false;
 	FString ReservedBy;
 	FString EntityId;
