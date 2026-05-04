@@ -135,20 +135,26 @@ def validate_scene(scene_path: Path) -> list[str]:
     ):
         interpreter.register_handler(action_type, handler)
 
-    fired_events: set[str] = set()
     for tick in range(horizon_ticks(script) + 1):
         for transition in transitions_by_tick.get(tick, []):
             weather.update(weather_payload_from_profile(str(transition.get("profile") or "clear"), dict(transition.get("overrides") or {})))
         for entity_id in list(positions):
             sync_entity(entity_id)
         interpreter.update_weather_state(weather)
-        for result in interpreter.tick(tick):
-            if result.get("event_id"):
-                fired_events.add(str(result["event_id"]))
-            for action_result in result.get("actions", []):
-                if action_result.get("status") == "skipped":
-                    skipped_actions.append(action_result)
+        for entry in interpreter.tick(tick):
+            if (entry.get("result") or {}).get("status") == "skipped":
+                skipped_actions.append(entry)
 
+    fired_events = {
+        event_id
+        for event_id, state in interpreter.event_states.items()
+        if state.fired
+    }
+    fired_events.update(
+        str(row.get("event_id"))
+        for row in interpreter.get_event_log()
+        if row.get("event_id")
+    )
     expected_events = {str(event["event_id"]) for event in script.get("events", [])}
     missing = sorted(expected_events - fired_events)
     issues: list[str] = []

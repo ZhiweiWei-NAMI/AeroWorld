@@ -264,6 +264,13 @@ TSharedPtr<FJsonObject> UAeroAssetPlacementSubsystem::SpawnAsset(const TSharedPt
 		InstanceId = FString::Printf(TEXT("dyn_asset_%s"), *FGuid::NewGuid().ToString(EGuidFormats::Digits));
 	}
 
+	const FAeroAssetInstanceState* ExistingBeforeSpawn = FindInstance(InstanceId);
+	const bool bActivatedFromEventOnly =
+		ExistingBeforeSpawn != nullptr &&
+		(!ExistingBeforeSpawn->bEnabled ||
+		 ExistingBeforeSpawn->SpawnPolicy.Equals(TEXT("event_script_only"), ESearchCase::IgnoreCase) ||
+		 ExistingBeforeSpawn->ActivationTick > 0);
+
 	if (!SpawnOrUpdateProxy(InstanceId, TemplateId, PositionEnuM, RotationDeg, QueryTags, EntityId, bHasVisualState ? &VisualState : nullptr, OutError))
 	{
 		return nullptr;
@@ -275,6 +282,7 @@ TSharedPtr<FJsonObject> UAeroAssetPlacementSubsystem::SpawnAsset(const TSharedPt
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetStringField(TEXT("asset_id"), InstanceId);
 	Result->SetStringField(TEXT("logical_asset_id"), TemplateId);
+	Result->SetBoolField(TEXT("activated_from_event_only"), bActivatedFromEventOnly);
 	WriteVectorArrayField(Result, TEXT("position_enu_m"), ResolvedEnuM);
 	WriteVectorObjectField(Result, TEXT("position_world_cm"), ResolvedWorldCm);
 	WriteRotatorField(Result, TEXT("rotation_deg"), RotationDeg);
@@ -566,12 +574,21 @@ bool UAeroAssetPlacementSubsystem::SpawnOrUpdateProxy(
 	}
 	else
 	{
+		const bool bWasEventOnly =
+			!Existing->bEnabled ||
+			Existing->SpawnPolicy.Equals(TEXT("event_script_only"), ESearchCase::IgnoreCase) ||
+			Existing->ActivationTick > 0;
 		Existing->LogicalAssetId = LogicalAssetId;
 		Existing->PositionEnuM = PositionEnuM;
 		Existing->RotationDeg = RotationDeg;
 		Existing->QueryTags = QueryTags;
 		Existing->EntityId = EntityId;
 		Existing->MovementMode = TemplateDef->MovementMode;
+		Existing->bEnabled = true;
+		if (bWasEventOnly)
+		{
+			Existing->bDynamic = true;
+		}
 		if (VisualState != nullptr)
 		{
 			Existing->VisualState = *VisualState;
