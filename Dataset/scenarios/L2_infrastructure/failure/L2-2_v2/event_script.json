@@ -1,87 +1,172 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L2-2_v2",
-  "description": "Sudden GNSS denial (urban interference)",
+  "description": "GNSS urban canyon multipath drift and visual correction",
   "parameters": {
-    "failure_tick": 400
+    "failure_tick": 260,
+    "resolution_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_infra_failure",
+      "trigger_id": "trig_gnss_anomaly",
       "type": "tick",
-      "tick": 400
+      "tick": 250
     },
     {
-      "trigger_id": "trig_after_infra_failure",
+      "trigger_id": "trig_after_gnss_anomaly",
       "type": "event_fired",
-      "event_id": "infra_failure"
+      "event_id": "gnss_anomaly"
+    },
+    {
+      "trigger_id": "trig_visual_relocalization",
+      "type": "entity_proximity",
+      "entity_a": "uav_l2_2_v2",
+      "entity_b": "facade_l2_2_v2",
+      "distance_m": 8.0,
+      "operator": "lte",
+      "min_true_ticks": 3
+    },
+    {
+      "trigger_id": "trig_after_visual_relocalization",
+      "type": "event_fired",
+      "event_id": "visual_relocalization"
     }
   ],
   "events": [
     {
-      "event_id": "infra_failure",
-      "trigger_ref": "trig_infra_failure",
+      "event_id": "gnss_anomaly",
+      "trigger_ref": "trig_gnss_anomaly",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "set_visual_state",
-          "action_id": "vis_004",
-          "entity_id": "infra_station_01",
+          "action_id": "set_tower_multipath",
+          "entity_id": "tower_l2_2_v2",
           "visual_state": {
-            "mode": "disabled"
+            "mode": "multipath_warning"
           }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "service_degraded"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L2-2_v2_failure",
-        "category": "infrastructure",
-        "title": "Sudden GNSS denial (urban interference) — 基础设施故障",
+        "topic": "evt_L2-2_v2_gnss_anomaly",
+        "category": "digital_layer",
+        "title": "GNSS multipath anomaly in urban canyon",
         "severity": "warning",
-        "overlay": "infrastructure",
+        "overlay": "digital_layer",
         "target_ids": [
-          "infra_station_01"
+          "uav_l2_2_v2",
+          "tower_l2_2_v2"
         ]
       }
     },
     {
-      "event_id": "service_degraded",
-      "trigger_ref": "trig_after_infra_failure",
+      "event_id": "route_drift",
+      "trigger_ref": "trig_after_gnss_anomaly",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_018",
-          "entity_id": "uav_ops_01",
+          "action_id": "move_uav_multipath_drift",
+          "entity_id": "uav_l2_2_v2",
           "waypoints_enu_m": [
             [
-              50,
-              20,
+              69.0,
+              -1.5,
               30
             ],
             [
-              48,
-              22,
-              20
+              83.0,
+              2.5,
+              28
+            ],
+            [
+              97.0,
+              12.5,
+              24
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 6.0
         }
       ],
       "log_event": {
-        "topic": "evt_L2-2_v2_degraded",
+        "topic": "evt_L2-2_v2_route_drift",
         "category": "uav_mission",
-        "title": "服务降级 — UAV 调整运行模式",
+        "title": "UAV drifts off planned route by more than 10m",
         "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_ops_01"
+          "uav_l2_2_v2",
+          "facade_l2_2_v2"
+        ]
+      }
+    },
+    {
+      "event_id": "visual_relocalization",
+      "trigger_ref": "trig_visual_relocalization",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_uav_visual_reloc",
+          "entity_id": "uav_l2_2_v2",
+          "visual_state": {
+            "mode": "visual_relocalization"
+          }
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_gnss_drift",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L2-2_v2_visual_relocalization",
+        "category": "uav_mission",
+        "title": "Visual relocalization engages near facade",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_l2_2_v2",
+          "facade_l2_2_v2"
+        ]
+      }
+    },
+    {
+      "event_id": "route_corrected",
+      "trigger_ref": "trig_after_visual_relocalization",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_corrected_route",
+          "entity_id": "uav_l2_2_v2",
+          "waypoints_enu_m": [
+            [
+              97.0,
+              12.5,
+              24
+            ],
+            [
+              87.0,
+              18.5,
+              30
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L2-2_v2_route_corrected",
+        "category": "uav_mission",
+        "title": "UAV corrects the route after visual relocalization",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_l2_2_v2"
         ]
       }
     }

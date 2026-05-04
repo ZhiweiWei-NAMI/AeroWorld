@@ -1,84 +1,58 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L1-1_v1",
-  "description": "Single boundary breach, immediate RTH",
+  "description": "Geofence boundary approach and RTH",
   "parameters": {
-    "violation_tick": 400
+    "approach_tick": 220,
+    "conflict_distance_m": 14.0,
+    "resolution_tick": 420
   },
   "triggers": [
     {
-      "trigger_id": "trig_zone_approach",
+      "trigger_id": "trig_approach_boundary",
       "type": "tick",
-      "tick": 400
+      "tick": 220
     },
     {
-      "trigger_id": "trig_after_zone_approach",
+      "trigger_id": "trig_boundary_conflict",
+      "type": "entity_proximity",
+      "entity_a": "uav_l1_1_v1_primary",
+      "entity_b": "nfz_l1_1_v1",
+      "distance_m": 14.0,
+      "operator": "lte",
+      "min_true_ticks": 3
+    },
+    {
+      "trigger_id": "trig_after_boundary_conflict",
       "type": "event_fired",
-      "event_id": "zone_approach"
+      "event_id": "boundary_conflict"
     }
   ],
   "events": [
     {
-      "event_id": "zone_approach",
-      "trigger_ref": "trig_zone_approach",
+      "event_id": "approach_boundary",
+      "trigger_ref": "trig_approach_boundary",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_001",
-          "entity_id": "uav_delivery_01",
+          "action_id": "move_boundary_approach",
+          "entity_id": "uav_l1_1_v1_primary",
           "waypoints_enu_m": [
             [
-              60,
-              25,
-              25
+              38.0,
+              12.0,
+              30
             ],
             [
-              52,
-              20,
-              25
-            ]
-          ],
-          "velocity_mps": 6.0
-        }
-      ],
-      "on_fire": {
-        "emit_events": [
-          "zone_breach"
-        ]
-      },
-      "log_event": {
-        "topic": "evt_L1-1_v1_approach",
-        "category": "uav_mission",
-        "title": "UAV 接近限制空域",
-        "severity": "warning",
-        "overlay": "uav_mission",
-        "target_ids": [
-          "uav_delivery_01",
-          "nfz_critical_01"
-        ]
-      }
-    },
-    {
-      "event_id": "zone_breach",
-      "trigger_ref": "trig_after_zone_approach",
-      "priority": 2,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "move_entity",
-          "action_id": "move_002",
-          "entity_id": "uav_delivery_01",
-          "waypoints_enu_m": [
-            [
-              52,
-              20,
-              25
+              53.0,
+              20.0,
+              30
             ],
             [
-              58,
-              25,
+              57.0,
+              22.0,
               30
             ]
           ],
@@ -86,14 +60,96 @@
         }
       ],
       "log_event": {
-        "topic": "evt_L1-1_v1_breach",
+        "topic": "evt_L1-1_v1_approach_boundary",
         "category": "uav_mission",
-        "title": "空域违规 — 强制返航",
-        "severity": "critical",
+        "title": "UAV approaches constrained airspace",
+        "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_delivery_01",
-          "nfz_critical_01"
+          "uav_l1_1_v1_primary",
+          "nfz_l1_1_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "boundary_conflict",
+      "trigger_ref": "trig_boundary_conflict",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_boundary_avoidance",
+          "entity_id": "uav_l1_1_v1_primary",
+          "waypoints_enu_m": [
+            [
+              57.0,
+              22.0,
+              30
+            ],
+            [
+              51.0,
+              26.0,
+              34
+            ]
+          ],
+          "velocity_mps": 3.0
+        },
+        {
+          "type": "set_visual_state",
+          "action_id": "hover_boundary_hold",
+          "entity_id": "uav_l1_1_v1_primary",
+          "visual_state": {
+            "mode": "hover"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L1-1_v1_boundary_conflict",
+        "category": "airspace",
+        "title": "Airspace boundary conflict detected",
+        "severity": "warning",
+        "overlay": "airspace",
+        "target_ids": [
+          "uav_l1_1_v1_primary",
+          "nfz_l1_1_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "return_safe_airspace",
+      "trigger_ref": "trig_after_boundary_conflict",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_boundary_return_safe",
+          "entity_id": "uav_l1_1_v1_primary",
+          "waypoints_enu_m": [
+            [
+              51.0,
+              26.0,
+              34
+            ],
+            [
+              33.0,
+              37.0,
+              34
+            ]
+          ],
+          "velocity_mps": 9.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L1-1_v1_return_safe_airspace",
+        "category": "uav_mission",
+        "title": "UAV returns to safe airspace",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_l1_1_v1_primary",
+          "nfz_l1_1_v1"
         ]
       }
     }

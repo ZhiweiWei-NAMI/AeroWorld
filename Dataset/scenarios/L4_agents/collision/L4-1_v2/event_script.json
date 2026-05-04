@@ -1,124 +1,200 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L4-1_v2",
-  "description": "Actual mid-air collision, debris fall",
+  "description": "UAV-UAV converging conflict and separation",
   "parameters": {
-    "approach_tick": 400,
-    "conflict_tick": 450,
-    "resolution_tick": 480
+    "incident_tick": 260,
+    "resolution_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_approach_phase",
+      "trigger_id": "trig_converging_approach",
       "type": "tick",
-      "tick": 400
+      "tick": 240
     },
     {
-      "trigger_id": "trig_proximity_alert",
-      "type": "tick",
-      "tick": 450
+      "trigger_id": "trig_uav_conflict_resolution",
+      "type": "entity_proximity",
+      "entity_a": "uav_conflict_l4_1_v2_a",
+      "entity_b": "uav_conflict_l4_1_v2_b",
+      "distance_m": 8.0,
+      "operator": "lte",
+      "min_true_ticks": 2
+    },
+    {
+      "trigger_id": "trig_after_uav_conflict_resolution",
+      "type": "event_fired",
+      "event_id": "uav_conflict_resolution"
     }
   ],
   "events": [
     {
-      "event_id": "approach_phase",
-      "trigger_ref": "trig_approach_phase",
+      "event_id": "converging_approach",
+      "trigger_ref": "trig_converging_approach",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_040",
-          "entity_id": "uav_a",
+          "action_id": "move_uav_a_converge",
+          "entity_id": "uav_conflict_l4_1_v2_a",
           "waypoints_enu_m": [
             [
-              55,
-              18,
-              30.0
+              27.5,
+              85.0,
+              25
             ],
             [
-              50,
-              20,
-              30.0
+              42.5,
+              89.0,
+              25
+            ],
+            [
+              47.5,
+              91.0,
+              28
             ]
           ],
           "velocity_mps": 8.0
         },
         {
           "type": "move_entity",
-          "action_id": "move_041",
-          "entity_id": "uav_b",
+          "action_id": "move_uav_b_converge",
+          "entity_id": "uav_conflict_l4_1_v2_b",
           "waypoints_enu_m": [
             [
-              48,
-              22,
-              25.0
+              65.5,
+              97.0,
+              30
             ],
             [
-              50,
-              20,
-              25.0
+              53.5,
+              93.0,
+              30
+            ],
+            [
+              47.5,
+              91.0,
+              28
+            ]
+          ],
+          "velocity_mps": 7.5
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-1_v2_converging_approach",
+        "category": "uav_mission",
+        "title": "Two UAVs converge from separated starts",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_conflict_l4_1_v2_a",
+          "uav_conflict_l4_1_v2_b"
+        ]
+      }
+    },
+    {
+      "event_id": "uav_conflict_resolution",
+      "trigger_ref": "trig_uav_conflict_resolution",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_uav_a_hover",
+          "entity_id": "uav_conflict_l4_1_v2_a",
+          "visual_state": {
+            "mode": "hover"
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_b_altitude_reroute",
+          "entity_id": "uav_conflict_l4_1_v2_b",
+          "waypoints_enu_m": [
+            [
+              47.5,
+              91.0,
+              28
+            ],
+            [
+              59.5,
+              103.0,
+              36
+            ]
+          ],
+          "velocity_mps": 9.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_uav_conflict",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-1_v2_uav_conflict_resolution",
+        "category": "uav_mission",
+        "title": "UAV-UAV proximity conflict triggers separation",
+        "severity": "critical",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_conflict_l4_1_v2_a",
+          "uav_conflict_l4_1_v2_b"
+        ]
+      }
+    },
+    {
+      "event_id": "resume_patrols",
+      "trigger_ref": "trig_after_uav_conflict_resolution",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_a_resume",
+          "entity_id": "uav_conflict_l4_1_v2_a",
+          "waypoints_enu_m": [
+            [
+              47.5,
+              91.0,
+              28
+            ],
+            [
+              29.5,
+              105.0,
+              27
+            ]
+          ],
+          "velocity_mps": 6.0
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_b_resume",
+          "entity_id": "uav_conflict_l4_1_v2_b",
+          "waypoints_enu_m": [
+            [
+              59.5,
+              103.0,
+              36
+            ],
+            [
+              71.5,
+              107.0,
+              32
             ]
           ],
           "velocity_mps": 7.0
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "proximity_alert"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L4-1_v2_approach",
+        "topic": "evt_L4-1_v2_resume_patrols",
         "category": "uav_mission",
-        "title": "两实体正在接近",
+        "title": "UAVs separate and resume patrol",
         "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_a",
-          "uav_b"
-        ]
-      }
-    },
-    {
-      "event_id": "proximity_alert",
-      "trigger_ref": "trig_proximity_alert",
-      "priority": 2,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "move_entity",
-          "action_id": "move_039",
-          "entity_id": "uav_a",
-          "waypoints_enu_m": [
-            [
-              55,
-              18,
-              30
-            ],
-            [
-              58,
-              16,
-              30
-            ]
-          ],
-          "velocity_mps": 10.0
-        },
-        {
-          "type": "capture_screenshot",
-          "action_id": "cap_005",
-          "camera_id": "demo_overview"
-        }
-      ],
-      "log_event": {
-        "topic": "evt_L4-1_v2_conflict",
-        "category": "uav_mission",
-        "title": "冲突检测 — 避让动作触发",
-        "severity": "critical",
-        "overlay": "uav_mission",
-        "target_ids": [
-          "uav_a",
-          "uav_b"
+          "uav_conflict_l4_1_v2_a",
+          "uav_conflict_l4_1_v2_b"
         ]
       }
     }

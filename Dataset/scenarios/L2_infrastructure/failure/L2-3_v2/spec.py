@@ -1,50 +1,228 @@
-"""
-Auto-generated P0 scenario spec for: L2-3_v2
-Event type: L2-3 — Charging Station Unavailable
-Category: failure
-CAAC ref: Non-emergency (facility issue)
-SORA SAIL: II
-Severity: major
+"""Concrete ScenarioSpec for L2-3_v2.
+
+Generated from Dataset/tools/regenerate_boundary_scenarios.py.
+This file is intentionally self-contained: running it recompiles
+event_script.json from the ScenarioSpec below.
 """
 
-import json, sys
+from __future__ import annotations
+
+import json
+import sys
 from pathlib import Path
 
-# Ensure Dataset/tools is on the path
-_TOOLS = Path(__file__).resolve().parent.parent.parent.parent.parent / "tools"
+_TOOLS = Path(__file__).resolve()
+while _TOOLS.name != "Dataset" and _TOOLS.parent != _TOOLS:
+    _TOOLS = _TOOLS.parent
+_TOOLS = _TOOLS / "tools"
 sys.path.insert(0, str(_TOOLS))
 
-from spec_compiler import ScenarioSpec, EventStepSpec, ActionSpec, SpecCompiler, WaypointSpec
-from action_templates import ActionTemplates as AT
+from spec_compiler import (
+    ActionSpec,
+    EntitySpec,
+    EventStepSpec,
+    ScenarioSpec,
+    SpecCompiler,
+    TriggerSpec,
+    WaypointSpec,
+)
+
+
+SCENE_SETUP = {'$schema': 'scene_setup_v1',
+ 'cameras': [{'camera_id': 'demo_high_overview',
+              'fov_deg': 90.0,
+              'placement': {'position_enu_m': [90.667, 16.167, 75.0],
+                            'rotation_deg': {'pitch_deg': -70.0, 'yaw_deg': 0.0}},
+              'placement_mode': 'world_pose'}],
+ 'description': 'Charger unavailable with reroute to backup charger',
+ 'entities': [{'activation_tick': 0,
+               'category': 'facility',
+               'entity_id': 'charger_primary_l2_3_v2',
+               'initial_state': {'mode': 'available'},
+               'logical_asset_id': 'facility.charger.cityops.v1',
+               'placement': {'position_enu_m': [85.0, 9.5, 0], 'rotation_deg': {'yaw_deg': 90}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'facility',
+               'entity_id': 'charger_backup_l2_3_v2',
+               'initial_state': {'mode': 'available'},
+               'logical_asset_id': 'facility.charger.cityops.v1',
+               'placement': {'position_enu_m': [110.0, 21.5, 0], 'rotation_deg': {'yaw_deg': 90}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'uav',
+               'entity_id': 'uav_l2_3_v2',
+               'initial_state': {'mode': 'low_battery'},
+               'logical_asset_id': 'uav.inspect.quad.v1',
+               'placement': {'position_enu_m': [77.0, 17.5, 28], 'rotation_deg': {'yaw_deg': 110}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': [[86.0, 10.5, 10], [108.0, 19.5, 10]]}],
+ 'map_ref': {'coordinate_frame': 'ENU',
+             'geo_reference': {'alt': 24.0, 'lat': 30.5609, 'lon': 114.3627},
+             'map_id': 'donghu_road_topo'},
+ 'scenario_id': 'L2-3_v2',
+ 'spawn_sequencing': [{'entity_id': 'charger_primary_l2_3_v2', 'tick': 0},
+                      {'entity_id': 'charger_backup_l2_3_v2', 'tick': 0},
+                      {'entity_id': 'uav_l2_3_v2', 'tick': 0}],
+ 'validation_rules': [{'description': 'charger_primary_l2_3_v2 is declared before event_script references it in '
+                                      'L2-3_v2',
+                       'entity_id': 'charger_primary_l2_3_v2',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'charger_backup_l2_3_v2 is declared before event_script references it in '
+                                      'L2-3_v2',
+                       'entity_id': 'charger_backup_l2_3_v2',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'charger_primary_l2_3_v2',
+                       'logical_asset_id': 'facility.charger.cityops.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'charger_backup_l2_3_v2',
+                       'logical_asset_id': 'facility.charger.cityops.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'description': 'Infrastructure scenarios include fault, agent response, and recovery or '
+                                      'control',
+                       'min_count': 3,
+                       'rule': 'event_chain_min'}],
+ 'weather_profile': {'initial': 'clear', 'transitions': []}}
+
+
+SPEC_DATA = {'category': 'infrastructure',
+ 'description': 'Charger unavailable with reroute to backup charger',
+ 'duration_ticks': 900,
+ 'entities': [{'asset_id': 'facility.charger.cityops.v1',
+               'entity_id': 'charger_primary_l2_3_v2',
+               'initial_pos_enu': [85.0, 9.5, 0],
+               'initial_rotation_deg': [0.0, 0.0, 90],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'available'}},
+              {'asset_id': 'facility.charger.cityops.v1',
+               'entity_id': 'charger_backup_l2_3_v2',
+               'initial_pos_enu': [110.0, 21.5, 0],
+               'initial_rotation_deg': [0.0, 0.0, 90],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'available'}},
+              {'asset_id': 'uav.inspect.quad.v1',
+               'entity_id': 'uav_l2_3_v2',
+               'initial_pos_enu': [77.0, 17.5, 28],
+               'initial_rotation_deg': [0.0, 0.0, 110],
+               'movement_waypoints': [[86.0, 10.5, 10], [108.0, 19.5, 10]],
+               'visual_state': {'mode': 'low_battery'}}],
+ 'event_chain': [{'actions': [{'params': {'action_id': 'set_primary_charger_offline',
+                                          'entity_id': 'charger_primary_l2_3_v2',
+                                          'visual_state': {'mode': 'unavailable'}},
+                               'type': 'set_visual_state'}],
+                  'event_id': 'charger_unavailable',
+                  'log_category': 'infrastructure',
+                  'log_overlay': 'infrastructure',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['charger_primary_l2_3_v2'],
+                  'log_title': 'Primary charger becomes unavailable',
+                  'log_topic': 'evt_L2-3_v2_charger_unavailable',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 1,
+                  'trigger': {'tick': 240, 'type': 'tick'}},
+                 {'actions': [{'params': {'action_id': 'move_uav_charger_inspection',
+                                          'entity_id': 'uav_l2_3_v2',
+                                          'velocity_mps': 4.0,
+                                          'waypoints_enu_m': [[77.0, 17.5, 28], [83.0, 12.5, 18], [86.0, 10.5, 10]]},
+                               'type': 'move_entity'},
+                              {'params': {'action_id': 'capture_charger_fault', 'camera_id': 'demo_high_overview'},
+                               'type': 'capture_screenshot'}],
+                  'event_id': 'uav_inspects_charger',
+                  'log_category': 'uav_mission',
+                  'log_overlay': 'uav_mission',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['uav_l2_3_v2', 'charger_primary_l2_3_v2'],
+                  'log_title': 'UAV checks the unavailable charger',
+                  'log_topic': 'evt_L2-3_v2_uav_inspects_charger',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 2,
+                  'trigger': {'event_ref': 'charger_unavailable', 'type': 'event_fired'}},
+                 {'actions': [{'params': {'action_id': 'move_uav_backup_charger',
+                                          'entity_id': 'uav_l2_3_v2',
+                                          'velocity_mps': 6.0,
+                                          'waypoints_enu_m': [[86.0, 10.5, 10], [97.0, 15.5, 18], [108.0, 19.5, 10]]},
+                               'type': 'move_entity'},
+                              {'params': {'action_id': 'set_backup_charger_reserved',
+                                          'entity_id': 'charger_backup_l2_3_v2',
+                                          'visual_state': {'mode': 'reserved'}},
+                               'type': 'set_visual_state'}],
+                  'event_id': 'reroute_backup_charger',
+                  'log_category': 'uav_mission',
+                  'log_overlay': 'uav_mission',
+                  'log_severity': 'info',
+                  'log_target_ids': ['uav_l2_3_v2', 'charger_backup_l2_3_v2'],
+                  'log_title': 'UAV reroutes to backup charger',
+                  'log_topic': 'evt_L2-3_v2_reroute_backup_charger',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 3,
+                  'trigger': {'event_ref': 'uav_inspects_charger', 'type': 'event_fired'}}],
+ 'parameters': {'failure_tick': 260, 'resolution_tick': 520},
+ 'scenario_id': 'L2-3_v2'}
+
+
+def _trigger(data):
+    return TriggerSpec(**data)
+
+
+def _action(data):
+    return ActionSpec(data["type"], data.get("params", {}))
+
+
+def _event(data):
+    return EventStepSpec(
+        event_id=data["event_id"],
+        trigger=_trigger(data["trigger"]),
+        actions=[_action(a) for a in data.get("actions", [])],
+        on_fire_emit=data.get("on_fire_emit", []),
+        priority=data.get("priority", 10),
+        max_fire_count=data.get("max_fire_count", 1),
+        cooldown_ticks=data.get("cooldown_ticks", 0),
+        require_conditions=data.get("require_conditions", []),
+        log_topic=data.get("log_topic", ""),
+        log_category=data.get("log_category", ""),
+        log_title=data.get("log_title", ""),
+        log_severity=data.get("log_severity", "info"),
+        log_overlay=data.get("log_overlay", ""),
+        log_target_ids=data.get("log_target_ids", []),
+    )
 
 
 def build_spec():
-    """Build and return the ScenarioSpec. Edit this function to customize."""
-    # This spec is rebuilt from the archetype in generate_p0_scenarios.py.
-    # Load the compiled event_script.json for reference, or customize below.
-    script_path = Path(__file__).resolve().parent / "event_script.json"
-    if script_path.exists():
-        print(f"Loading compiled spec from {script_path}")
-        print("To customize: edit build_spec() above, or modify the archetype and re-run generate_p0_scenarios.py")
-        return None  # Signal that event_script.json is the authoritative source
-
-    # Fallback: define spec manually here (copy from archetype output)
     return ScenarioSpec(
-        scenario_id="L2-3_v2",
-        category="failure.l2-3",
-        description="No charger available, emergency landing",
-        duration_ticks=900,
+        scenario_id=SPEC_DATA["scenario_id"],
+        category=SPEC_DATA["category"],
+        description=SPEC_DATA["description"],
+        duration_ticks=SPEC_DATA["duration_ticks"],
+        parameters=SPEC_DATA["parameters"],
+        entities=[
+            EntitySpec(
+                entity_id=e["entity_id"],
+                asset_id=e["asset_id"],
+                initial_pos_enu=e["initial_pos_enu"],
+                initial_rotation_deg=e.get("initial_rotation_deg", [0.0, 0.0, 0.0]),
+                movement_waypoints=[WaypointSpec(w) for w in e.get("movement_waypoints", [])],
+                visual_state=e.get("visual_state"),
+            )
+            for e in SPEC_DATA["entities"]
+        ],
+        event_chain=[_event(e) for e in SPEC_DATA["event_chain"]],
     )
 
 
 if __name__ == "__main__":
+    here = Path(__file__).resolve().parent
     spec = build_spec()
-    if spec is not None:
-        compiler = SpecCompiler()
-        compiled = compiler.compile(spec)
-        out_path = Path(__file__).resolve().parent / "event_script.json"
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(compiled, f, indent=2, ensure_ascii=False)
-        print(f"Compiled spec -> {out_path}")
-    else:
-        print("event_script.json is the authoritative source. No recompilation needed.")
+    compiled = SpecCompiler().compile(spec)
+    with open(here / "event_script.json", "w", encoding="utf-8") as f:
+        json.dump(compiled, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    with open(here / "scene_setup.json", "w", encoding="utf-8") as f:
+        json.dump(SCENE_SETUP, f, indent=2, ensure_ascii=False)
+        f.write("\n")

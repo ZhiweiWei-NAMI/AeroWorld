@@ -1,50 +1,244 @@
-"""
-Auto-generated P0 scenario spec for: L2-4_v2
-Event type: L2-4 — Landing Pad Contention
-Category: failure
-CAAC ref: CAAC-12 related (emergency response at landing site)
-SORA SAIL: III
-Severity: major
+"""Concrete ScenarioSpec for L2-4_v2.
+
+Generated from Dataset/tools/regenerate_boundary_scenarios.py.
+This file is intentionally self-contained: running it recompiles
+event_script.json from the ScenarioSpec below.
 """
 
-import json, sys
+from __future__ import annotations
+
+import json
+import sys
 from pathlib import Path
 
-# Ensure Dataset/tools is on the path
-_TOOLS = Path(__file__).resolve().parent.parent.parent.parent.parent / "tools"
+_TOOLS = Path(__file__).resolve()
+while _TOOLS.name != "Dataset" and _TOOLS.parent != _TOOLS:
+    _TOOLS = _TOOLS.parent
+_TOOLS = _TOOLS / "tools"
 sys.path.insert(0, str(_TOOLS))
 
-from spec_compiler import ScenarioSpec, EventStepSpec, ActionSpec, SpecCompiler, WaypointSpec
-from action_templates import ActionTemplates as AT
+from spec_compiler import (
+    ActionSpec,
+    EntitySpec,
+    EventStepSpec,
+    ScenarioSpec,
+    SpecCompiler,
+    TriggerSpec,
+    WaypointSpec,
+)
+
+
+SCENE_SETUP = {'$schema': 'scene_setup_v1',
+ 'cameras': [{'camera_id': 'demo_high_overview',
+              'fov_deg': 90.0,
+              'placement': {'position_enu_m': [99.667, 21.833, 75.0],
+                            'rotation_deg': {'pitch_deg': -70.0, 'yaw_deg': 0.0}},
+              'placement_mode': 'world_pose'}],
+ 'description': 'Landing pad emergency contention and priority diversion',
+ 'entities': [{'activation_tick': 0,
+               'category': 'facility',
+               'entity_id': 'pad_shared_l2_4_v2',
+               'initial_state': {'mode': 'available'},
+               'logical_asset_id': 'facility.landing_pad.visible.v1',
+               'placement': {'approach_side': 'east',
+                             'pad_instance_id': 'pad_l2_4_v2',
+                             'position_enu_m': [99.0, 22.5, 0],
+                             'rotation_deg': {'yaw_deg': 0.0}},
+               'placement_mode': 'pad_anchor',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'uav',
+               'entity_id': 'uav_priority_l2_4_v2',
+               'initial_state': {'mode': 'emergency_landing'},
+               'logical_asset_id': 'uav.inspect.quad.v1',
+               'placement': {'position_enu_m': [85.0, 32.5, 32], 'rotation_deg': {'yaw_deg': 75}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': [[99.0, 22.5, 5]]},
+              {'activation_tick': 0,
+               'category': 'uav',
+               'entity_id': 'uav_divert_l2_4_v2',
+               'initial_state': {'mode': 'landing_request'},
+               'logical_asset_id': 'uav.airsim.flying_pawn.v1',
+               'placement': {'position_enu_m': [115.0, 10.5, 30], 'rotation_deg': {'yaw_deg': 295}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': [[111.0, 34.5, 36]]}],
+ 'map_ref': {'coordinate_frame': 'ENU',
+             'geo_reference': {'alt': 24.0, 'lat': 30.5609, 'lon': 114.3627},
+             'map_id': 'donghu_road_topo'},
+ 'scenario_id': 'L2-4_v2',
+ 'spawn_sequencing': [{'entity_id': 'pad_shared_l2_4_v2', 'tick': 0},
+                      {'entity_id': 'uav_priority_l2_4_v2', 'tick': 0},
+                      {'entity_id': 'uav_divert_l2_4_v2', 'tick': 0}],
+ 'validation_rules': [{'description': 'pad_shared_l2_4_v2 is declared before event_script references it in L2-4_v2',
+                       'entity_id': 'pad_shared_l2_4_v2',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'uav_priority_l2_4_v2 is declared before event_script references it in L2-4_v2',
+                       'entity_id': 'uav_priority_l2_4_v2',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'pad_shared_l2_4_v2',
+                       'logical_asset_id': 'facility.landing_pad.visible.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'uav_priority_l2_4_v2',
+                       'logical_asset_id': 'uav.inspect.quad.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'description': 'Infrastructure scenarios include fault, agent response, and recovery or '
+                                      'control',
+                       'min_count': 3,
+                       'rule': 'event_chain_min'}],
+ 'weather_profile': {'initial': 'clear', 'transitions': []}}
+
+
+SPEC_DATA = {'category': 'infrastructure',
+ 'description': 'Landing pad emergency contention and priority diversion',
+ 'duration_ticks': 900,
+ 'entities': [{'asset_id': 'facility.landing_pad.visible.v1',
+               'entity_id': 'pad_shared_l2_4_v2',
+               'initial_pos_enu': [99.0, 22.5, 0],
+               'initial_rotation_deg': [0.0, 0.0, 0.0],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'available'}},
+              {'asset_id': 'uav.inspect.quad.v1',
+               'entity_id': 'uav_priority_l2_4_v2',
+               'initial_pos_enu': [85.0, 32.5, 32],
+               'initial_rotation_deg': [0.0, 0.0, 75],
+               'movement_waypoints': [[99.0, 22.5, 5]],
+               'visual_state': {'mode': 'emergency_landing'}},
+              {'asset_id': 'uav.airsim.flying_pawn.v1',
+               'entity_id': 'uav_divert_l2_4_v2',
+               'initial_pos_enu': [115.0, 10.5, 30],
+               'initial_rotation_deg': [0.0, 0.0, 295],
+               'movement_waypoints': [[111.0, 34.5, 36]],
+               'visual_state': {'mode': 'landing_request'}}],
+ 'event_chain': [{'actions': [{'params': {'action_id': 'move_priority_uav_to_pad',
+                                          'entity_id': 'uav_priority_l2_4_v2',
+                                          'velocity_mps': 5.0,
+                                          'waypoints_enu_m': [[85.0, 32.5, 32], [93.0, 26.5, 22], [99.0, 22.5, 5]]},
+                               'type': 'move_entity'},
+                              {'params': {'action_id': 'move_second_uav_to_pad_hold',
+                                          'entity_id': 'uav_divert_l2_4_v2',
+                                          'velocity_mps': 5.5,
+                                          'waypoints_enu_m': [[115.0, 10.5, 30],
+                                                              [103.0, 18.5, 24],
+                                                              [111.0, 34.5, 36]]},
+                               'type': 'move_entity'}],
+                  'event_id': 'dual_pad_approach',
+                  'log_category': 'uav_mission',
+                  'log_overlay': 'uav_mission',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['uav_priority_l2_4_v2', 'uav_divert_l2_4_v2', 'pad_shared_l2_4_v2'],
+                  'log_title': 'Two UAVs request the same landing pad',
+                  'log_topic': 'evt_L2-4_v2_dual_pad_approach',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 1,
+                  'trigger': {'tick': 230, 'type': 'tick'}},
+                 {'actions': [{'params': {'action_id': 'set_pad_reserved_priority',
+                                          'entity_id': 'pad_shared_l2_4_v2',
+                                          'visual_state': {'mode': 'reserved'}},
+                               'type': 'set_visual_state'},
+                              {'params': {'action_id': 'set_second_uav_hold',
+                                          'entity_id': 'uav_divert_l2_4_v2',
+                                          'visual_state': {'mode': 'hold'}},
+                               'type': 'set_visual_state'}],
+                  'event_id': 'priority_arbitration',
+                  'log_category': 'infrastructure',
+                  'log_overlay': 'infrastructure',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['uav_priority_l2_4_v2', 'uav_divert_l2_4_v2', 'pad_shared_l2_4_v2'],
+                  'log_title': 'Pad priority arbitration reserves pad for emergency UAV',
+                  'log_topic': 'evt_L2-4_v2_priority_arbitration',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 2,
+                  'trigger': {'distance_m': 7.0,
+                              'entity_a': 'uav_priority_l2_4_v2',
+                              'entity_b': 'pad_shared_l2_4_v2',
+                              'min_true_ticks': 2,
+                              'proximity_operator': 'lte',
+                              'type': 'entity_proximity'}},
+                 {'actions': [{'params': {'action_id': 'move_second_uav_diversion',
+                                          'entity_id': 'uav_divert_l2_4_v2',
+                                          'velocity_mps': 8.0,
+                                          'waypoints_enu_m': [[111.0, 34.5, 36], [131.0, 42.5, 34]]},
+                               'type': 'move_entity'},
+                              {'params': {'action_id': 'move_priority_uav_landing',
+                                          'entity_id': 'uav_priority_l2_4_v2',
+                                          'velocity_mps': 1.5,
+                                          'waypoints_enu_m': [[99.0, 22.5, 5], [99.0, 22.5, 1.2]]},
+                               'type': 'move_entity'}],
+                  'event_id': 'second_uav_diverted',
+                  'log_category': 'uav_mission',
+                  'log_overlay': 'uav_mission',
+                  'log_severity': 'info',
+                  'log_target_ids': ['uav_priority_l2_4_v2', 'uav_divert_l2_4_v2', 'pad_shared_l2_4_v2'],
+                  'log_title': 'Second UAV diverts while priority UAV lands',
+                  'log_topic': 'evt_L2-4_v2_second_uav_diverted',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 3,
+                  'trigger': {'event_ref': 'priority_arbitration', 'type': 'event_fired'}}],
+ 'parameters': {'contention_distance_m': 7.0, 'failure_tick': 260, 'resolution_tick': 520},
+ 'scenario_id': 'L2-4_v2'}
+
+
+def _trigger(data):
+    return TriggerSpec(**data)
+
+
+def _action(data):
+    return ActionSpec(data["type"], data.get("params", {}))
+
+
+def _event(data):
+    return EventStepSpec(
+        event_id=data["event_id"],
+        trigger=_trigger(data["trigger"]),
+        actions=[_action(a) for a in data.get("actions", [])],
+        on_fire_emit=data.get("on_fire_emit", []),
+        priority=data.get("priority", 10),
+        max_fire_count=data.get("max_fire_count", 1),
+        cooldown_ticks=data.get("cooldown_ticks", 0),
+        require_conditions=data.get("require_conditions", []),
+        log_topic=data.get("log_topic", ""),
+        log_category=data.get("log_category", ""),
+        log_title=data.get("log_title", ""),
+        log_severity=data.get("log_severity", "info"),
+        log_overlay=data.get("log_overlay", ""),
+        log_target_ids=data.get("log_target_ids", []),
+    )
 
 
 def build_spec():
-    """Build and return the ScenarioSpec. Edit this function to customize."""
-    # This spec is rebuilt from the archetype in generate_p0_scenarios.py.
-    # Load the compiled event_script.json for reference, or customize below.
-    script_path = Path(__file__).resolve().parent / "event_script.json"
-    if script_path.exists():
-        print(f"Loading compiled spec from {script_path}")
-        print("To customize: edit build_spec() above, or modify the archetype and re-run generate_p0_scenarios.py")
-        return None  # Signal that event_script.json is the authoritative source
-
-    # Fallback: define spec manually here (copy from archetype output)
     return ScenarioSpec(
-        scenario_id="L2-4_v2",
-        category="failure.l2-4",
-        description="Emergency UAV preempts scheduled landing",
-        duration_ticks=900,
+        scenario_id=SPEC_DATA["scenario_id"],
+        category=SPEC_DATA["category"],
+        description=SPEC_DATA["description"],
+        duration_ticks=SPEC_DATA["duration_ticks"],
+        parameters=SPEC_DATA["parameters"],
+        entities=[
+            EntitySpec(
+                entity_id=e["entity_id"],
+                asset_id=e["asset_id"],
+                initial_pos_enu=e["initial_pos_enu"],
+                initial_rotation_deg=e.get("initial_rotation_deg", [0.0, 0.0, 0.0]),
+                movement_waypoints=[WaypointSpec(w) for w in e.get("movement_waypoints", [])],
+                visual_state=e.get("visual_state"),
+            )
+            for e in SPEC_DATA["entities"]
+        ],
+        event_chain=[_event(e) for e in SPEC_DATA["event_chain"]],
     )
 
 
 if __name__ == "__main__":
+    here = Path(__file__).resolve().parent
     spec = build_spec()
-    if spec is not None:
-        compiler = SpecCompiler()
-        compiled = compiler.compile(spec)
-        out_path = Path(__file__).resolve().parent / "event_script.json"
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(compiled, f, indent=2, ensure_ascii=False)
-        print(f"Compiled spec -> {out_path}")
-    else:
-        print("event_script.json is the authoritative source. No recompilation needed.")
+    compiled = SpecCompiler().compile(spec)
+    with open(here / "event_script.json", "w", encoding="utf-8") as f:
+        json.dump(compiled, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    with open(here / "scene_setup.json", "w", encoding="utf-8") as f:
+        json.dump(SCENE_SETUP, f, indent=2, ensure_ascii=False)
+        f.write("\n")

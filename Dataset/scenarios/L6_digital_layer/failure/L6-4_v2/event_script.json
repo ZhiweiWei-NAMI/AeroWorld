@@ -1,103 +1,189 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L6-4_v2",
-  "description": "Wideband jamming, all UAVs in area affected",
+  "description": "Wideband jamming affecting multiple UAVs",
   "parameters": {
-    "failure_tick": 400
+    "anomaly_tick": 240,
+    "recovery_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_failure_detected",
+      "trigger_id": "trig_wideband_jamming",
       "type": "tick",
-      "tick": 400
+      "tick": 240
     },
     {
-      "trigger_id": "trig_after_failure_detected",
+      "trigger_id": "trig_after_wideband_jamming",
       "type": "event_fired",
-      "event_id": "failure_detected"
+      "event_id": "wideband_jamming"
+    },
+    {
+      "trigger_id": "trig_after_multi_uav_safe_hold",
+      "type": "event_fired",
+      "event_id": "multi_uav_safe_hold"
     }
   ],
   "events": [
     {
-      "event_id": "failure_detected",
-      "trigger_ref": "trig_failure_detected",
+      "event_id": "wideband_jamming",
+      "trigger_ref": "trig_wideband_jamming",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "move_entity",
-          "action_id": "move_126",
-          "entity_id": "uav_ops_01",
-          "waypoints_enu_m": [
-            [
-              50,
-              20,
-              35
-            ],
-            [
-              46,
-              16,
-              15
-            ]
-          ],
-          "velocity_mps": 4.0
+          "type": "set_visual_state",
+          "action_id": "set_tower_jamming",
+          "entity_id": "tower_l6_4_v2",
+          "visual_state": {
+            "mode": "jammed"
+          }
+        },
+        {
+          "type": "set_visual_state",
+          "action_id": "set_uav_a_jammed",
+          "entity_id": "uav_digital_l6_4_v2",
+          "visual_state": {
+            "mode": "jammed"
+          }
+        },
+        {
+          "type": "set_visual_state",
+          "action_id": "set_uav_b_jammed",
+          "entity_id": "uav_digital_l6_4_v2_secondary",
+          "visual_state": {
+            "mode": "jammed"
+          }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "emergency_landing"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L6-4_v2_failure",
-        "category": "uav_mission",
-        "title": "Wideband jamming, all UAVs in area affected — 系统失效检测",
+        "topic": "evt_L6-4_v2_wideband_jamming",
+        "category": "digital_layer",
+        "title": "Wideband jamming affects two UAVs",
         "severity": "critical",
-        "overlay": "uav_mission",
+        "overlay": "digital_layer",
         "target_ids": [
-          "uav_ops_01"
+          "uav_digital_l6_4_v2",
+          "uav_digital_l6_4_v2_secondary",
+          "tower_l6_4_v2"
         ]
       }
     },
     {
-      "event_id": "emergency_landing",
-      "trigger_ref": "trig_after_failure_detected",
+      "event_id": "multi_uav_safe_hold",
+      "trigger_ref": "trig_after_wideband_jamming",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_127",
-          "entity_id": "uav_ops_01",
+          "action_id": "move_uav_a_jam_hold",
+          "entity_id": "uav_digital_l6_4_v2",
           "waypoints_enu_m": [
             [
-              46,
-              16,
-              15
+              90.0,
+              218.4,
+              32
             ],
             [
-              45,
-              15,
-              0.5
+              94.0,
+              222.4,
+              35
             ]
           ],
           "velocity_mps": 2.0
         },
         {
-          "type": "capture_screenshot",
-          "action_id": "cap_035",
-          "camera_id": "demo_overview"
+          "type": "move_entity",
+          "action_id": "move_uav_b_jam_hold",
+          "entity_id": "uav_digital_l6_4_v2_secondary",
+          "waypoints_enu_m": [
+            [
+              78.0,
+              225.4,
+              34
+            ],
+            [
+              83.0,
+              230.4,
+              36
+            ]
+          ],
+          "velocity_mps": 2.0
         }
       ],
       "log_event": {
-        "topic": "evt_L6-4_v2_landing",
+        "topic": "evt_L6-4_v2_multi_uav_safe_hold",
         "category": "uav_mission",
-        "title": "紧急迫降执行",
-        "severity": "critical",
+        "title": "Both UAVs enter safe hold under jamming",
+        "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_ops_01",
-          "pad_emergency_01"
+          "uav_digital_l6_4_v2",
+          "uav_digital_l6_4_v2_secondary"
+        ]
+      }
+    },
+    {
+      "event_id": "alternate_channel",
+      "trigger_ref": "trig_after_multi_uav_safe_hold",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_tower_alternate_channel",
+          "entity_id": "tower_l6_4_v2",
+          "visual_state": {
+            "mode": "alternate_channel"
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_a_channel_recover",
+          "entity_id": "uav_digital_l6_4_v2",
+          "waypoints_enu_m": [
+            [
+              94.0,
+              222.4,
+              35
+            ],
+            [
+              105.0,
+              230.4,
+              33
+            ]
+          ],
+          "velocity_mps": 5.5
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_b_channel_recover",
+          "entity_id": "uav_digital_l6_4_v2_secondary",
+          "waypoints_enu_m": [
+            [
+              83.0,
+              230.4,
+              36
+            ],
+            [
+              72.0,
+              236.4,
+              34
+            ]
+          ],
+          "velocity_mps": 5.5
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L6-4_v2_alternate_channel",
+        "category": "digital_layer",
+        "title": "Alternate channel recovers both UAVs",
+        "severity": "info",
+        "overlay": "digital_layer",
+        "target_ids": [
+          "uav_digital_l6_4_v2",
+          "uav_digital_l6_4_v2_secondary",
+          "tower_l6_4_v2"
         ]
       }
     }

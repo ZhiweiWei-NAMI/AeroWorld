@@ -1,156 +1,205 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L3-3_v1",
-  "description": "Small isolation zone, local rerouting",
+  "description": "Hazmat leak isolation, evacuation, and UAV monitoring",
   "parameters": {
-    "incident_tick": 400
+    "incident_tick": 240
   },
   "triggers": [
     {
-      "trigger_id": "trig_incident_occurred",
+      "trigger_id": "trig_hazmat_leak",
       "type": "tick",
-      "tick": 400
+      "tick": 240
     },
     {
-      "trigger_id": "trig_after_incident_occurred",
+      "trigger_id": "trig_after_hazmat_leak",
       "type": "event_fired",
-      "event_id": "incident_occurred"
+      "event_id": "hazmat_leak"
     },
     {
-      "trigger_id": "trig_after_dispatch_responder",
+      "trigger_id": "trig_after_pedestrian_evacuation",
       "type": "event_fired",
-      "event_id": "dispatch_responder"
+      "event_id": "pedestrian_evacuation"
+    },
+    {
+      "trigger_id": "trig_after_ambulance_arrival",
+      "type": "event_fired",
+      "event_id": "ambulance_arrival"
     }
   ],
   "events": [
     {
-      "event_id": "incident_occurred",
-      "trigger_ref": "trig_incident_occurred",
+      "event_id": "hazmat_leak",
+      "trigger_ref": "trig_hazmat_leak",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "play_animation",
-          "action_id": "anim_002",
-          "ped_id": "ped_victim_01",
-          "animation_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
-          "start_section": "Start",
-          "play_rate": 1.0,
-          "loop_count": 1
-        },
-        {
-          "type": "move_entity",
-          "action_id": "move_030",
-          "entity_id": "uav_patrol_01",
-          "waypoints_enu_m": [
-            [
-              60,
-              25,
-              30
-            ],
-            [
-              52,
-              20,
-              15
-            ]
+          "type": "spawn_entity",
+          "action_id": "spawn_hazmat_zone",
+          "entity_id": "hazmat_zone_l3_3_v1",
+          "asset_id": "trigger.hazard.generic.box.v1",
+          "position_enu_m": [
+            80.0,
+            65.0,
+            3
           ],
-          "velocity_mps": 5.0
+          "rotation_deg": {
+            "yaw_deg": 0
+          },
+          "visual_state": {
+            "mode": "isolation_active"
+          }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "dispatch_responder"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L3-3_v1_incident",
-        "category": "pedestrian",
-        "title": "Small isolation zone, local rerouting — 事件检测",
-        "severity": "warning",
-        "overlay": "pedestrian",
+        "topic": "evt_L3-3_v1_hazmat_leak",
+        "category": "dynamic_constraint",
+        "title": "Hazmat leak declares isolation zone",
+        "severity": "critical",
+        "overlay": "dynamic_constraint",
         "target_ids": [
-          "ped_victim_01"
+          "hazmat_zone_l3_3_v1"
         ]
       }
     },
     {
-      "event_id": "dispatch_responder",
-      "trigger_ref": "trig_after_incident_occurred",
+      "event_id": "pedestrian_evacuation",
+      "trigger_ref": "trig_after_hazmat_leak",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "spawn_entity",
-          "action_id": "spawn_002",
-          "asset_id": "vehicle.emergency.ambulance.v1",
-          "entity_id": "ambulance_response_01",
-          "position_enu_m": [
-            80,
-            40,
-            0
-          ],
-          "visual_state": {
-            "mode": "response",
-            "lights_on": true
-          }
-        },
-        {
           "type": "move_entity",
-          "action_id": "move_031",
-          "entity_id": "ambulance_response_01",
+          "action_id": "move_ped_a_safe",
+          "entity_id": "ped_hazmat_l3_3_v1_a",
           "waypoints_enu_m": [
             [
-              80,
-              40,
+              77.0,
+              62.0,
               0
             ],
             [
-              52,
-              19,
+              66.0,
+              73.0,
               0
             ]
           ],
-          "velocity_mps": 12.0
+          "velocity_mps": 1.6
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_ped_b_safe",
+          "entity_id": "ped_hazmat_l3_3_v1_b",
+          "waypoints_enu_m": [
+            [
+              83.0,
+              63.0,
+              0
+            ],
+            [
+              94.0,
+              74.0,
+              0
+            ]
+          ],
+          "velocity_mps": 1.4
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "responder_arrived"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L3-3_v1_dispatch",
-        "category": "vehicle",
-        "title": "应急响应派遣",
+        "topic": "evt_L3-3_v1_pedestrian_evacuation",
+        "category": "pedestrian",
+        "title": "Pedestrians evacuate from hazmat zone",
         "severity": "warning",
-        "overlay": "vehicle",
+        "overlay": "pedestrian",
         "target_ids": [
-          "ambulance_response_01"
+          "ped_hazmat_l3_3_v1_a",
+          "ped_hazmat_l3_3_v1_b",
+          "hazmat_zone_l3_3_v1"
         ]
       }
     },
     {
-      "event_id": "responder_arrived",
-      "trigger_ref": "trig_after_dispatch_responder",
+      "event_id": "ambulance_arrival",
+      "trigger_ref": "trig_after_pedestrian_evacuation",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "capture_screenshot",
-          "action_id": "cap_002",
-          "camera_id": "demo_overview"
+          "type": "move_entity",
+          "action_id": "move_ambulance_hazmat",
+          "entity_id": "ambulance_l3_3_v1",
+          "waypoints_enu_m": [
+            [
+              46.0,
+              49.0,
+              0
+            ],
+            [
+              68.0,
+              57.0,
+              0
+            ]
+          ],
+          "velocity_mps": 11.0
         }
       ],
       "log_event": {
-        "topic": "evt_L3-3_v1_arrival",
+        "topic": "evt_L3-3_v1_ambulance_arrival",
+        "category": "vehicle",
+        "title": "Ambulance arrives at isolation perimeter",
+        "severity": "warning",
+        "overlay": "vehicle",
+        "target_ids": [
+          "ambulance_l3_3_v1",
+          "hazmat_zone_l3_3_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "uav_external_monitor",
+      "trigger_ref": "trig_after_ambulance_arrival",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_hazmat_orbit",
+          "entity_id": "uav_l3_3_v1",
+          "waypoints_enu_m": [
+            [
+              64.0,
+              44.0,
+              33
+            ],
+            [
+              74.0,
+              54.0,
+              30
+            ],
+            [
+              90.0,
+              77.0,
+              30
+            ]
+          ],
+          "velocity_mps": 5.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_hazmat_monitor",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v1_uav_external_monitor",
         "category": "uav_mission",
-        "title": "应急响应到达确认",
+        "title": "UAV monitors hazmat zone from outside",
         "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_patrol_01",
-          "ambulance_response_01",
-          "ped_victim_01"
+          "uav_l3_3_v1",
+          "hazmat_zone_l3_3_v1"
         ]
       }
     }

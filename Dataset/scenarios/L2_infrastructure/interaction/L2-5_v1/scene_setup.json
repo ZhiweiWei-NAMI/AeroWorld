@@ -1,0 +1,180 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L2-5_v1",
+  "description": "Traffic signal all-red fault with police intervention",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "traffic_signal_l2_5_v1",
+      "logical_asset_id": "prop.traffic_control.signal_light.v1",
+      "category": "traffic_signal",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          104.0,
+          26.0,
+          4
+        ],
+        "rotation_deg": {
+          "yaw_deg": 0
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "green_cycle"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "civilian_car_l2_5_a",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_7",
+        "lane_index": 0,
+        "longitudinal_s": 82,
+        "lateral_offset_m": 0.0
+      },
+      "route_waypoints_enu_m": [
+        [
+          98.0,
+          26.0,
+          0
+        ],
+        [
+          112.0,
+          27.0,
+          0
+        ]
+      ],
+      "initial_state": {
+        "mode": "moving"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "civilian_car_l2_5_b",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_8",
+        "lane_index": 0,
+        "longitudinal_s": 54,
+        "lateral_offset_m": 0.0
+      },
+      "route_waypoints_enu_m": [
+        [
+          106.0,
+          21.0,
+          0
+        ],
+        [
+          106.0,
+          35.0,
+          0
+        ]
+      ],
+      "initial_state": {
+        "mode": "moving"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "police_unit_l2_5_v1",
+      "logical_asset_id": "vehicle.emergency.police_suv.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_12",
+        "lane_index": 0,
+        "longitudinal_s": 38,
+        "lateral_offset_m": 0.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "response",
+        "lights_on": true
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "traffic_signal_l2_5_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "civilian_car_l2_5_a",
+      "tick": 0
+    },
+    {
+      "entity_id": "civilian_car_l2_5_b",
+      "tick": 0
+    },
+    {
+      "entity_id": "police_unit_l2_5_v1",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          89.75,
+          16.0,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "traffic_signal_l2_5_v1",
+      "description": "traffic_signal_l2_5_v1 is declared before event_script references it in L2-5_v1"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "civilian_car_l2_5_a",
+      "description": "civilian_car_l2_5_a is declared before event_script references it in L2-5_v1"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "traffic_signal_l2_5_v1",
+      "logical_asset_id": "prop.traffic_control.signal_light.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "civilian_car_l2_5_a",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "event_chain_min",
+      "min_count": 3,
+      "description": "Infrastructure scenarios include fault, agent response, and recovery or control"
+    }
+  ]
+}

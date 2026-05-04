@@ -1,156 +1,309 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L3-1_v1",
-  "description": "Partial lane closure with detour",
+  "description": "Road construction lane closure with vehicle detour",
   "parameters": {
-    "incident_tick": 400
+    "incident_tick": 220
   },
   "triggers": [
     {
-      "trigger_id": "trig_incident_occurred",
+      "trigger_id": "trig_roadwork_barriers_spawn",
       "type": "tick",
-      "tick": 400
+      "tick": 220
     },
     {
-      "trigger_id": "trig_after_incident_occurred",
+      "trigger_id": "trig_after_roadwork_barriers_spawn",
       "type": "event_fired",
-      "event_id": "incident_occurred"
+      "event_id": "roadwork_barriers_spawn"
     },
     {
-      "trigger_id": "trig_after_dispatch_responder",
+      "trigger_id": "trig_after_lane_closure_active",
       "type": "event_fired",
-      "event_id": "dispatch_responder"
+      "event_id": "lane_closure_active"
+    },
+    {
+      "trigger_id": "trig_after_vehicle_detour",
+      "type": "event_fired",
+      "event_id": "vehicle_detour"
     }
   ],
   "events": [
     {
-      "event_id": "incident_occurred",
-      "trigger_ref": "trig_incident_occurred",
+      "event_id": "roadwork_barriers_spawn",
+      "trigger_ref": "trig_roadwork_barriers_spawn",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "play_animation",
-          "action_id": "anim_001",
-          "ped_id": "ped_victim_01",
-          "animation_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
-          "start_section": "Start",
-          "play_rate": 1.0,
-          "loop_count": 1
+          "type": "spawn_entity",
+          "action_id": "spawn_barrier_l3_1_01",
+          "entity_id": "barrier_l3_1_01",
+          "asset_id": "prop.roadwork.barrier.v1",
+          "position_enu_m": [
+            36.0,
+            44.0,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
         },
         {
-          "type": "move_entity",
-          "action_id": "move_024",
-          "entity_id": "uav_patrol_01",
-          "waypoints_enu_m": [
-            [
-              60,
-              25,
-              30
-            ],
-            [
-              52,
-              20,
-              15
-            ]
+          "type": "spawn_entity",
+          "action_id": "spawn_barrier_l3_1_02",
+          "entity_id": "barrier_l3_1_02",
+          "asset_id": "prop.roadwork.barrier.v1",
+          "position_enu_m": [
+            40.5,
+            44.0,
+            0
           ],
-          "velocity_mps": 5.0
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_barrier_l3_1_03",
+          "entity_id": "barrier_l3_1_03",
+          "asset_id": "prop.roadwork.barrier.v1",
+          "position_enu_m": [
+            45.0,
+            44.0,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_fence_l3_1_01",
+          "entity_id": "fence_l3_1_01",
+          "asset_id": "prop.roadwork.construction_fence.v1",
+          "position_enu_m": [
+            33.0,
+            45.6,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_fence_l3_1_02",
+          "entity_id": "fence_l3_1_02",
+          "asset_id": "prop.roadwork.construction_fence.v1",
+          "position_enu_m": [
+            48.5,
+            45.6,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_cone_l3_1_01",
+          "entity_id": "cone_l3_1_01",
+          "asset_id": "prop.roadwork.traffic_cone.v1",
+          "position_enu_m": [
+            34.0,
+            41.6,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_cone_l3_1_02",
+          "entity_id": "cone_l3_1_02",
+          "asset_id": "prop.roadwork.traffic_cone.v1",
+          "position_enu_m": [
+            37.6,
+            41.6,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_cone_l3_1_03",
+          "entity_id": "cone_l3_1_03",
+          "asset_id": "prop.roadwork.traffic_cone.v1",
+          "position_enu_m": [
+            41.2,
+            41.6,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_cone_l3_1_04",
+          "entity_id": "cone_l3_1_04",
+          "asset_id": "prop.roadwork.traffic_cone.v1",
+          "position_enu_m": [
+            44.8,
+            41.6,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_cone_l3_1_05",
+          "entity_id": "cone_l3_1_05",
+          "asset_id": "prop.roadwork.traffic_cone.v1",
+          "position_enu_m": [
+            48.4,
+            41.6,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 90
+          }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "dispatch_responder"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L3-1_v1_incident",
-        "category": "pedestrian",
-        "title": "Partial lane closure with detour — 事件检测",
+        "topic": "evt_L3-1_v1_roadwork_barriers_spawn",
+        "category": "dynamic_constraint",
+        "title": "Roadwork barriers and cones appear",
         "severity": "warning",
-        "overlay": "pedestrian",
+        "overlay": "dynamic_constraint",
         "target_ids": [
-          "ped_victim_01"
+          "barrier_l3_1_01",
+          "barrier_l3_1_02",
+          "barrier_l3_1_03",
+          "fence_l3_1_01"
         ]
       }
     },
     {
-      "event_id": "dispatch_responder",
-      "trigger_ref": "trig_after_incident_occurred",
+      "event_id": "lane_closure_active",
+      "trigger_ref": "trig_after_roadwork_barriers_spawn",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "spawn_entity",
-          "action_id": "spawn_001",
-          "asset_id": "vehicle.emergency.ambulance.v1",
-          "entity_id": "ambulance_response_01",
-          "position_enu_m": [
-            80,
-            40,
-            0
-          ],
+          "type": "set_visual_state",
+          "action_id": "set_blocked_car_waiting",
+          "entity_id": "blocked_car_l3_1",
           "visual_state": {
-            "mode": "response",
-            "lights_on": true
+            "mode": "blocked"
           }
         },
         {
-          "type": "move_entity",
-          "action_id": "move_025",
-          "entity_id": "ambulance_response_01",
-          "waypoints_enu_m": [
-            [
-              80,
-              40,
-              0
-            ],
-            [
-              52,
-              19,
-              0
-            ]
-          ],
-          "velocity_mps": 12.0
+          "type": "capture_screenshot",
+          "action_id": "capture_lane_closure",
+          "camera_id": "demo_high_overview"
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "responder_arrived"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L3-1_v1_dispatch",
+        "topic": "evt_L3-1_v1_lane_closure_active",
         "category": "vehicle",
-        "title": "应急响应派遣",
+        "title": "Lane closure becomes active",
         "severity": "warning",
         "overlay": "vehicle",
         "target_ids": [
-          "ambulance_response_01"
+          "blocked_car_l3_1"
         ]
       }
     },
     {
-      "event_id": "responder_arrived",
-      "trigger_ref": "trig_after_dispatch_responder",
+      "event_id": "vehicle_detour",
+      "trigger_ref": "trig_after_lane_closure_active",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "capture_screenshot",
-          "action_id": "cap_001",
-          "camera_id": "demo_overview"
+          "type": "move_entity",
+          "action_id": "move_blocked_car_detour",
+          "entity_id": "blocked_car_l3_1",
+          "waypoints_enu_m": [
+            [
+              40.0,
+              39.0,
+              0
+            ],
+            [
+              38.0,
+              30.0,
+              0
+            ],
+            [
+              58.0,
+              26.0,
+              0
+            ]
+          ],
+          "velocity_mps": 6.0
         }
       ],
       "log_event": {
-        "topic": "evt_L3-1_v1_arrival",
+        "topic": "evt_L3-1_v1_vehicle_detour",
+        "category": "vehicle",
+        "title": "Blocked vehicle detours around construction",
+        "severity": "info",
+        "overlay": "vehicle",
+        "target_ids": [
+          "blocked_car_l3_1"
+        ]
+      }
+    },
+    {
+      "event_id": "uav_inspection_report",
+      "trigger_ref": "trig_after_vehicle_detour",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_roadwork_scan",
+          "entity_id": "uav_roadwork_inspector_l3_1",
+          "waypoints_enu_m": [
+            [
+              18.0,
+              32.0,
+              32
+            ],
+            [
+              40.0,
+              40.0,
+              28
+            ],
+            [
+              51.0,
+              47.0,
+              28
+            ]
+          ],
+          "velocity_mps": 5.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_roadwork_report",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L3-1_v1_uav_inspection_report",
         "category": "uav_mission",
-        "title": "应急响应到达确认",
+        "title": "UAV reports lane closure geometry",
         "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_patrol_01",
-          "ambulance_response_01",
-          "ped_victim_01"
+          "uav_roadwork_inspector_l3_1"
         ]
       }
     }

@@ -1,0 +1,155 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L2-3_v1",
+  "description": "Charger unavailable with reroute to backup charger",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "charger_primary_l2_3_v1",
+      "logical_asset_id": "facility.charger.cityops.v1",
+      "category": "facility",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          78.0,
+          4.0,
+          0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 90
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "charger_backup_l2_3_v1",
+      "logical_asset_id": "facility.charger.cityops.v1",
+      "category": "facility",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          103.0,
+          16.0,
+          0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 90
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "uav_l2_3_v1",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          70.0,
+          12.0,
+          28
+        ],
+        "rotation_deg": {
+          "yaw_deg": 110
+        }
+      },
+      "route_waypoints_enu_m": [
+        [
+          79.0,
+          5.0,
+          10
+        ],
+        [
+          101.0,
+          14.0,
+          10
+        ]
+      ],
+      "initial_state": {
+        "mode": "low_battery"
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "charger_primary_l2_3_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "charger_backup_l2_3_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_l2_3_v1",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          83.667,
+          10.667,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "charger_primary_l2_3_v1",
+      "description": "charger_primary_l2_3_v1 is declared before event_script references it in L2-3_v1"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "charger_backup_l2_3_v1",
+      "description": "charger_backup_l2_3_v1 is declared before event_script references it in L2-3_v1"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "charger_primary_l2_3_v1",
+      "logical_asset_id": "facility.charger.cityops.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "charger_backup_l2_3_v1",
+      "logical_asset_id": "facility.charger.cityops.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "event_chain_min",
+      "min_count": 3,
+      "description": "Infrastructure scenarios include fault, agent response, and recovery or control"
+    }
+  ]
+}

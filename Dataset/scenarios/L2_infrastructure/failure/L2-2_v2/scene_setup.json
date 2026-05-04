@@ -1,0 +1,162 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L2-2_v2",
+  "description": "GNSS urban canyon multipath drift and visual correction",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "tower_l2_2_v2",
+      "logical_asset_id": "facility.radio.base_tower.v1",
+      "category": "facility",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          73.0,
+          0.5,
+          0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 0
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "online"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "facade_l2_2_v2",
+      "logical_asset_id": "semantic.asset_anchor",
+      "category": "facade_anchor",
+      "placement_mode": "facade_anchor",
+      "placement": {
+        "building_id": "urban_canyon_block_3",
+        "outward_normal_enu": [
+          0.8,
+          -0.6,
+          0.0
+        ],
+        "stand_off_m": 1.0,
+        "position_enu_m": [
+          99.0,
+          14.5,
+          18
+        ]
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {},
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "uav_l2_2_v2",
+      "logical_asset_id": "uav.airsim.cv_pawn.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          69.0,
+          -1.5,
+          30
+        ],
+        "rotation_deg": {
+          "yaw_deg": 45
+        }
+      },
+      "route_waypoints_enu_m": [
+        [
+          83.0,
+          2.5,
+          28
+        ],
+        [
+          97.0,
+          12.5,
+          24
+        ],
+        [
+          87.0,
+          18.5,
+          30
+        ]
+      ],
+      "initial_state": {
+        "mode": "corridor_follow"
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "tower_l2_2_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "facade_l2_2_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_l2_2_v2",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          80.333,
+          4.5,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "tower_l2_2_v2",
+      "description": "tower_l2_2_v2 is declared before event_script references it in L2-2_v2"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "facade_l2_2_v2",
+      "description": "facade_l2_2_v2 is declared before event_script references it in L2-2_v2"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "tower_l2_2_v2",
+      "logical_asset_id": "facility.radio.base_tower.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "facade_l2_2_v2",
+      "logical_asset_id": "semantic.asset_anchor",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "event_chain_min",
+      "min_count": 3,
+      "description": "Infrastructure scenarios include fault, agent response, and recovery or control"
+    }
+  ]
+}

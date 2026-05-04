@@ -1,0 +1,138 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L4-3_v2",
+  "description": "UAV forced landing near crowd",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "uav_forced_landing_l4_3_v2",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          57.5,
+          85.0,
+          30
+        ],
+        "rotation_deg": {
+          "yaw_deg": 45
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "fault"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "ped_landing_l4_3_v2_a",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_19",
+        "longitudinal_s": 24,
+        "offset_from_curb_m": 1.4
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "standing"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "ped_landing_l4_3_v2_b",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_19",
+        "longitudinal_s": 28,
+        "offset_from_curb_m": 1.4
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "standing"
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "uav_forced_landing_l4_3_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "ped_landing_l4_3_v2_a",
+      "tick": 0
+    },
+    {
+      "entity_id": "ped_landing_l4_3_v2_b",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          68.5,
+          94.333,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "uav_forced_landing_l4_3_v2",
+      "description": "uav_forced_landing_l4_3_v2 is declared before event_script references it in L4-3_v2"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "ped_landing_l4_3_v2_a",
+      "description": "ped_landing_l4_3_v2_a is declared before event_script references it in L4-3_v2"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "uav_forced_landing_l4_3_v2",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "ped_landing_l4_3_v2_a",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "forced_landing_descent_profile",
+      "z_sequence": [
+        30,
+        8,
+        3
+      ],
+      "description": "UAV descends through low-altitude forced landing profile"
+    }
+  ]
+}

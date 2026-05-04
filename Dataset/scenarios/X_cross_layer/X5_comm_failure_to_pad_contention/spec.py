@@ -1,0 +1,316 @@
+"""Concrete ScenarioSpec for X5_comm_failure_to_pad_contention.
+
+Generated from Dataset/tools/regenerate_boundary_scenarios.py.
+This file is intentionally self-contained: running it recompiles
+event_script.json from the ScenarioSpec below.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+_TOOLS = Path(__file__).resolve()
+while _TOOLS.name != "Dataset" and _TOOLS.parent != _TOOLS:
+    _TOOLS = _TOOLS.parent
+_TOOLS = _TOOLS / "tools"
+sys.path.insert(0, str(_TOOLS))
+
+from spec_compiler import (
+    ActionSpec,
+    EntitySpec,
+    EventStepSpec,
+    ScenarioSpec,
+    SpecCompiler,
+    TriggerSpec,
+    WaypointSpec,
+)
+
+
+SCENE_SETUP = {'$schema': 'scene_setup_v1',
+ 'cameras': [{'camera_id': 'demo_high_overview',
+              'fov_deg': 90.0,
+              'placement': {'position_enu_m': [112.6, 274.6, 75.0],
+                            'rotation_deg': {'pitch_deg': -70.0, 'yaw_deg': 0.0}},
+              'placement_mode': 'world_pose'}],
+ 'description': 'Communication failure to pad contention chain',
+ 'entities': [{'activation_tick': 0,
+               'category': 'facility',
+               'entity_id': 'tower_x5_comm',
+               'initial_state': {'mode': 'online'},
+               'logical_asset_id': 'facility.radio.base_tower.v1',
+               'placement': {'position_enu_m': [111.0, 273.0, 0], 'rotation_deg': {'yaw_deg': 0}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'facility',
+               'entity_id': 'pad_x5_primary',
+               'initial_state': {'mode': 'available'},
+               'logical_asset_id': 'facility.landing_pad.visible.v1',
+               'placement': {'approach_side': 'north',
+                             'pad_instance_id': 'pad_x5_a',
+                             'position_enu_m': [108.0, 276.0, 0],
+                             'rotation_deg': {'yaw_deg': 0.0}},
+               'placement_mode': 'pad_anchor',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'facility',
+               'entity_id': 'pad_x5_backup',
+               'initial_state': {'mode': 'available'},
+               'logical_asset_id': 'facility.landing_pad.visible.v1',
+               'placement': {'approach_side': 'east',
+                             'pad_instance_id': 'pad_x5_b',
+                             'position_enu_m': [132.0, 280.0, 0],
+                             'rotation_deg': {'yaw_deg': 0.0}},
+               'placement_mode': 'pad_anchor',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'uav',
+               'entity_id': 'uav_x5_priority',
+               'initial_state': {'mode': 'landing_request'},
+               'logical_asset_id': 'uav.inspect.quad.v1',
+               'placement': {'position_enu_m': [88.0, 284.0, 33], 'rotation_deg': {'yaw_deg': 60}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'uav',
+               'entity_id': 'uav_x5_second',
+               'initial_state': {'mode': 'landing_request'},
+               'logical_asset_id': 'uav.airsim.flying_pawn.v1',
+               'placement': {'position_enu_m': [124.0, 260.0, 31], 'rotation_deg': {'yaw_deg': 280}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': []}],
+ 'map_ref': {'coordinate_frame': 'ENU',
+             'geo_reference': {'alt': 24.0, 'lat': 30.5609, 'lon': 114.3627},
+             'map_id': 'donghu_road_topo'},
+ 'scenario_id': 'X5_comm_failure_to_pad_contention',
+ 'spawn_sequencing': [{'entity_id': 'tower_x5_comm', 'tick': 0},
+                      {'entity_id': 'pad_x5_primary', 'tick': 0},
+                      {'entity_id': 'pad_x5_backup', 'tick': 0},
+                      {'entity_id': 'uav_x5_priority', 'tick': 0},
+                      {'entity_id': 'uav_x5_second', 'tick': 0}],
+ 'validation_rules': [{'description': 'tower_x5_comm is declared before event_script references it in '
+                                      'X5_comm_failure_to_pad_contention',
+                       'entity_id': 'tower_x5_comm',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'pad_x5_primary is declared before event_script references it in '
+                                      'X5_comm_failure_to_pad_contention',
+                       'entity_id': 'pad_x5_primary',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'tower_x5_comm',
+                       'logical_asset_id': 'facility.radio.base_tower.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'pad_x5_primary',
+                       'logical_asset_id': 'facility.landing_pad.visible.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'description': 'Cross-layer scenario has at least five causal steps',
+                       'min_count': 5,
+                       'rule': 'cross_layer_event_chain_min'}],
+ 'weather_profile': {'initial': 'clear', 'transitions': []}}
+
+
+SPEC_DATA = {'category': 'cross_layer',
+ 'description': 'Communication failure to pad contention chain',
+ 'duration_ticks': 900,
+ 'entities': [{'asset_id': 'facility.radio.base_tower.v1',
+               'entity_id': 'tower_x5_comm',
+               'initial_pos_enu': [111.0, 273.0, 0],
+               'initial_rotation_deg': [0.0, 0.0, 0],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'online'}},
+              {'asset_id': 'facility.landing_pad.visible.v1',
+               'entity_id': 'pad_x5_primary',
+               'initial_pos_enu': [108.0, 276.0, 0],
+               'initial_rotation_deg': [0.0, 0.0, 0.0],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'available'}},
+              {'asset_id': 'facility.landing_pad.visible.v1',
+               'entity_id': 'pad_x5_backup',
+               'initial_pos_enu': [132.0, 280.0, 0],
+               'initial_rotation_deg': [0.0, 0.0, 0.0],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'available'}},
+              {'asset_id': 'uav.inspect.quad.v1',
+               'entity_id': 'uav_x5_priority',
+               'initial_pos_enu': [88.0, 284.0, 33],
+               'initial_rotation_deg': [0.0, 0.0, 60],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'landing_request'}},
+              {'asset_id': 'uav.airsim.flying_pawn.v1',
+               'entity_id': 'uav_x5_second',
+               'initial_pos_enu': [124.0, 260.0, 31],
+               'initial_rotation_deg': [0.0, 0.0, 280],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'landing_request'}}],
+ 'event_chain': [{'actions': [{'params': {'action_id': 'set_x5_tower_failed',
+                                          'entity_id': 'tower_x5_comm',
+                                          'visual_state': {'mode': 'failed'}},
+                               'type': 'set_visual_state'}],
+                  'event_id': 'station_failure',
+                  'log_category': 'infrastructure',
+                  'log_overlay': 'infrastructure',
+                  'log_severity': 'critical',
+                  'log_target_ids': ['tower_x5_comm'],
+                  'log_title': 'Communication station failure',
+                  'log_topic': 'evt_X5_comm_failure_to_pad_contention_station_failure',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 1,
+                  'trigger': {'tick': 220, 'type': 'tick'}},
+                 {'actions': [{'params': {'action_id': 'set_x5_backup_pad_unavailable',
+                                          'entity_id': 'pad_x5_backup',
+                                          'visual_state': {'mode': 'unavailable'}},
+                               'type': 'set_visual_state'}],
+                  'event_id': 'backup_pad_unavailable',
+                  'log_category': 'infrastructure',
+                  'log_overlay': 'infrastructure',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['pad_x5_primary', 'pad_x5_backup'],
+                  'log_title': 'Only one landing pad remains available',
+                  'log_topic': 'evt_X5_comm_failure_to_pad_contention_backup_pad_unavailable',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 2,
+                  'trigger': {'event_ref': 'station_failure', 'type': 'event_fired'}},
+                 {'actions': [{'params': {'action_id': 'move_x5_uav_a_to_pad',
+                                          'entity_id': 'uav_x5_priority',
+                                          'velocity_mps': 5.0,
+                                          'waypoints_enu_m': [[88.0, 284.0, 33], [108.0, 276.0, 6]]},
+                               'type': 'move_entity'},
+                              {'params': {'action_id': 'move_x5_uav_b_to_pad_hold',
+                                          'entity_id': 'uav_x5_second',
+                                          'velocity_mps': 5.0,
+                                          'waypoints_enu_m': [[124.0, 260.0, 31], [114.0, 282.0, 34]]},
+                               'type': 'move_entity'}],
+                  'event_id': 'dual_uav_pad_contention',
+                  'log_category': 'uav_mission',
+                  'log_overlay': 'uav_mission',
+                  'log_severity': 'critical',
+                  'log_target_ids': ['uav_x5_priority', 'uav_x5_second', 'pad_x5_primary'],
+                  'log_title': 'Two UAVs contend for one available pad',
+                  'log_topic': 'evt_X5_comm_failure_to_pad_contention_dual_uav_pad_contention',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 3,
+                  'trigger': {'event_ref': 'backup_pad_unavailable', 'type': 'event_fired'}},
+                 {'actions': [{'params': {'action_id': 'set_x5_pad_reserved',
+                                          'entity_id': 'pad_x5_primary',
+                                          'visual_state': {'mode': 'reserved'}},
+                               'type': 'set_visual_state'},
+                              {'params': {'action_id': 'set_x5_uav_b_hold',
+                                          'entity_id': 'uav_x5_second',
+                                          'visual_state': {'mode': 'hold'}},
+                               'type': 'set_visual_state'}],
+                  'event_id': 'pad_priority_arbitration',
+                  'log_category': 'infrastructure',
+                  'log_overlay': 'infrastructure',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['uav_x5_priority', 'uav_x5_second', 'pad_x5_primary'],
+                  'log_title': 'Priority arbitration reserves pad for first UAV',
+                  'log_topic': 'evt_X5_comm_failure_to_pad_contention_pad_priority_arbitration',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 4,
+                  'trigger': {'distance_m': 7.0,
+                              'entity_a': 'uav_x5_priority',
+                              'entity_b': 'pad_x5_primary',
+                              'min_true_ticks': 2,
+                              'proximity_operator': 'lte',
+                              'type': 'entity_proximity'}},
+                 {'actions': [{'params': {'action_id': 'move_x5_uav_b_reroute',
+                                          'entity_id': 'uav_x5_second',
+                                          'velocity_mps': 8.0,
+                                          'waypoints_enu_m': [[114.0, 282.0, 34], [140.0, 296.0, 34]]},
+                               'type': 'move_entity'}],
+                  'event_id': 'second_uav_reroute',
+                  'log_category': 'uav_mission',
+                  'log_overlay': 'uav_mission',
+                  'log_severity': 'info',
+                  'log_target_ids': ['uav_x5_second'],
+                  'log_title': 'Second UAV reroutes after contention',
+                  'log_topic': 'evt_X5_comm_failure_to_pad_contention_second_uav_reroute',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 5,
+                  'trigger': {'event_ref': 'pad_priority_arbitration', 'type': 'event_fired'}},
+                 {'actions': [{'params': {'action_id': 'set_x5_tower_restored',
+                                          'entity_id': 'tower_x5_comm',
+                                          'visual_state': {'mode': 'online'}},
+                               'type': 'set_visual_state'}],
+                  'event_id': 'station_recovered',
+                  'log_category': 'infrastructure',
+                  'log_overlay': 'infrastructure',
+                  'log_severity': 'info',
+                  'log_target_ids': ['tower_x5_comm'],
+                  'log_title': 'Communication station recovers',
+                  'log_topic': 'evt_X5_comm_failure_to_pad_contention_station_recovered',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 6,
+                  'trigger': {'event_ref': 'second_uav_reroute', 'type': 'event_fired'}}],
+ 'parameters': {'cross_layer': True},
+ 'scenario_id': 'X5_comm_failure_to_pad_contention'}
+
+
+def _trigger(data):
+    return TriggerSpec(**data)
+
+
+def _action(data):
+    return ActionSpec(data["type"], data.get("params", {}))
+
+
+def _event(data):
+    return EventStepSpec(
+        event_id=data["event_id"],
+        trigger=_trigger(data["trigger"]),
+        actions=[_action(a) for a in data.get("actions", [])],
+        on_fire_emit=data.get("on_fire_emit", []),
+        priority=data.get("priority", 10),
+        max_fire_count=data.get("max_fire_count", 1),
+        cooldown_ticks=data.get("cooldown_ticks", 0),
+        require_conditions=data.get("require_conditions", []),
+        log_topic=data.get("log_topic", ""),
+        log_category=data.get("log_category", ""),
+        log_title=data.get("log_title", ""),
+        log_severity=data.get("log_severity", "info"),
+        log_overlay=data.get("log_overlay", ""),
+        log_target_ids=data.get("log_target_ids", []),
+    )
+
+
+def build_spec():
+    return ScenarioSpec(
+        scenario_id=SPEC_DATA["scenario_id"],
+        category=SPEC_DATA["category"],
+        description=SPEC_DATA["description"],
+        duration_ticks=SPEC_DATA["duration_ticks"],
+        parameters=SPEC_DATA["parameters"],
+        entities=[
+            EntitySpec(
+                entity_id=e["entity_id"],
+                asset_id=e["asset_id"],
+                initial_pos_enu=e["initial_pos_enu"],
+                initial_rotation_deg=e.get("initial_rotation_deg", [0.0, 0.0, 0.0]),
+                movement_waypoints=[WaypointSpec(w) for w in e.get("movement_waypoints", [])],
+                visual_state=e.get("visual_state"),
+            )
+            for e in SPEC_DATA["entities"]
+        ],
+        event_chain=[_event(e) for e in SPEC_DATA["event_chain"]],
+    )
+
+
+if __name__ == "__main__":
+    here = Path(__file__).resolve().parent
+    spec = build_spec()
+    compiled = SpecCompiler().compile(spec)
+    with open(here / "event_script.json", "w", encoding="utf-8") as f:
+        json.dump(compiled, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    with open(here / "scene_setup.json", "w", encoding="utf-8") as f:
+        json.dump(SCENE_SETUP, f, indent=2, ensure_ascii=False)
+        f.write("\n")

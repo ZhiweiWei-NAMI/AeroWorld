@@ -1,50 +1,277 @@
-"""
-Auto-generated P0 scenario spec for: L3-3_v1
-Event type: L3-3 — Emergency Isolation Zone
-Category: operational
-CAAC ref: CAAC-12 (emergency response activation)
-SORA SAIL: III-IV
-Severity: major
+"""Concrete ScenarioSpec for L3-3_v1.
+
+Generated from Dataset/tools/regenerate_boundary_scenarios.py.
+This file is intentionally self-contained: running it recompiles
+event_script.json from the ScenarioSpec below.
 """
 
-import json, sys
+from __future__ import annotations
+
+import json
+import sys
 from pathlib import Path
 
-# Ensure Dataset/tools is on the path
-_TOOLS = Path(__file__).resolve().parent.parent.parent.parent.parent / "tools"
+_TOOLS = Path(__file__).resolve()
+while _TOOLS.name != "Dataset" and _TOOLS.parent != _TOOLS:
+    _TOOLS = _TOOLS.parent
+_TOOLS = _TOOLS / "tools"
 sys.path.insert(0, str(_TOOLS))
 
-from spec_compiler import ScenarioSpec, EventStepSpec, ActionSpec, SpecCompiler, WaypointSpec
-from action_templates import ActionTemplates as AT
+from spec_compiler import (
+    ActionSpec,
+    EntitySpec,
+    EventStepSpec,
+    ScenarioSpec,
+    SpecCompiler,
+    TriggerSpec,
+    WaypointSpec,
+)
+
+
+SCENE_SETUP = {'$schema': 'scene_setup_v1',
+ 'cameras': [{'camera_id': 'demo_high_overview',
+              'fov_deg': 90.0,
+              'placement': {'position_enu_m': [70.0, 56.6, 75.0],
+                            'rotation_deg': {'pitch_deg': -70.0, 'yaw_deg': 0.0}},
+              'placement_mode': 'world_pose'}],
+ 'description': 'Hazmat leak isolation, evacuation, and UAV monitoring',
+ 'entities': [{'activation_tick': 240,
+               'category': 'hazard_zone',
+               'entity_id': 'hazmat_zone_l3_3_v1',
+               'initial_state': {},
+               'logical_asset_id': 'trigger.hazard.generic.box.v1',
+               'placement': {'center_enu_m': [80.0, 65.0, 3], 'extent_m': [13, 10, 4]},
+               'placement_mode': 'box_volume',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'pedestrian',
+               'entity_id': 'ped_hazmat_l3_3_v1_a',
+               'initial_state': {'mode': 'walking'},
+               'logical_asset_id': 'pedestrian.cityops.basic.v1',
+               'placement': {'lane_edge_id': 'cg_edge_15', 'longitudinal_s': 48, 'offset_from_curb_m': 1.2},
+               'placement_mode': 'sidewalk_anchor',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'pedestrian',
+               'entity_id': 'ped_hazmat_l3_3_v1_b',
+               'initial_state': {'mode': 'walking'},
+               'logical_asset_id': 'pedestrian.cityops.basic.v1',
+               'placement': {'lane_edge_id': 'cg_edge_15', 'longitudinal_s': 54, 'offset_from_curb_m': 1.2},
+               'placement_mode': 'sidewalk_anchor',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'vehicle',
+               'entity_id': 'ambulance_l3_3_v1',
+               'initial_state': {'lights_on': True, 'mode': 'response'},
+               'logical_asset_id': 'vehicle.emergency.ambulance.v1',
+               'placement': {'edge_id': 'cg_edge_16', 'lane_index': 0, 'lateral_offset_m': 0.0, 'longitudinal_s': 26},
+               'placement_mode': 'lane_anchor',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'uav',
+               'entity_id': 'uav_l3_3_v1',
+               'initial_state': {'mode': 'monitor'},
+               'logical_asset_id': 'uav.inspect.quad.v1',
+               'placement': {'position_enu_m': [64.0, 44.0, 33], 'rotation_deg': {'yaw_deg': 45}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': []}],
+ 'map_ref': {'coordinate_frame': 'ENU',
+             'geo_reference': {'alt': 24.0, 'lat': 30.5609, 'lon': 114.3627},
+             'map_id': 'donghu_road_topo'},
+ 'scenario_id': 'L3-3_v1',
+ 'spawn_sequencing': [{'entity_id': 'hazmat_zone_l3_3_v1', 'tick': 240},
+                      {'entity_id': 'ped_hazmat_l3_3_v1_a', 'tick': 0},
+                      {'entity_id': 'ped_hazmat_l3_3_v1_b', 'tick': 0},
+                      {'entity_id': 'ambulance_l3_3_v1', 'tick': 0},
+                      {'entity_id': 'uav_l3_3_v1', 'tick': 0}],
+ 'validation_rules': [{'description': 'hazmat_zone_l3_3_v1 is declared before event_script references it in L3-3_v1',
+                       'entity_id': 'hazmat_zone_l3_3_v1',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'ped_hazmat_l3_3_v1_a is declared before event_script references it in L3-3_v1',
+                       'entity_id': 'ped_hazmat_l3_3_v1_a',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'hazmat_zone_l3_3_v1',
+                       'logical_asset_id': 'trigger.hazard.generic.box.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'ped_hazmat_l3_3_v1_a',
+                       'logical_asset_id': 'pedestrian.cityops.basic.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'ambulance_min': 1,
+                       'description': 'Hazmat scenario includes pedestrians, ambulance, and UAV',
+                       'pedestrian_min': 2,
+                       'rule': 'hazmat_min_entities',
+                       'uav_min': 1}],
+ 'weather_profile': {'initial': 'clear', 'transitions': []}}
+
+
+SPEC_DATA = {'category': 'dynamic_constraints',
+ 'description': 'Hazmat leak isolation, evacuation, and UAV monitoring',
+ 'duration_ticks': 900,
+ 'entities': [{'asset_id': 'trigger.hazard.generic.box.v1',
+               'entity_id': 'hazmat_zone_l3_3_v1',
+               'initial_pos_enu': [80.0, 65.0, 3],
+               'initial_rotation_deg': [0.0, 0.0, 0.0],
+               'movement_waypoints': [],
+               'visual_state': None},
+              {'asset_id': 'pedestrian.cityops.basic.v1',
+               'entity_id': 'ped_hazmat_l3_3_v1_a',
+               'initial_pos_enu': [77.0, 62.0, 0],
+               'initial_rotation_deg': [0.0, 0.0, 0],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'walking'}},
+              {'asset_id': 'pedestrian.cityops.basic.v1',
+               'entity_id': 'ped_hazmat_l3_3_v1_b',
+               'initial_pos_enu': [83.0, 63.0, 0],
+               'initial_rotation_deg': [0.0, 0.0, 180],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'walking'}},
+              {'asset_id': 'vehicle.emergency.ambulance.v1',
+               'entity_id': 'ambulance_l3_3_v1',
+               'initial_pos_enu': [46.0, 49.0, 0],
+               'initial_rotation_deg': [0.0, 0.0, 70],
+               'movement_waypoints': [],
+               'visual_state': {'lights_on': True, 'mode': 'response'}},
+              {'asset_id': 'uav.inspect.quad.v1',
+               'entity_id': 'uav_l3_3_v1',
+               'initial_pos_enu': [64.0, 44.0, 33],
+               'initial_rotation_deg': [0.0, 0.0, 45],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'monitor'}}],
+ 'event_chain': [{'actions': [{'params': {'action_id': 'spawn_hazmat_zone',
+                                          'asset_id': 'trigger.hazard.generic.box.v1',
+                                          'entity_id': 'hazmat_zone_l3_3_v1',
+                                          'position_enu_m': [80.0, 65.0, 3],
+                                          'rotation_deg': {'yaw_deg': 0},
+                                          'visual_state': {'mode': 'isolation_active'}},
+                               'type': 'spawn_entity'}],
+                  'event_id': 'hazmat_leak',
+                  'log_category': 'dynamic_constraint',
+                  'log_overlay': 'dynamic_constraint',
+                  'log_severity': 'critical',
+                  'log_target_ids': ['hazmat_zone_l3_3_v1'],
+                  'log_title': 'Hazmat leak declares isolation zone',
+                  'log_topic': 'evt_L3-3_v1_hazmat_leak',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 1,
+                  'trigger': {'tick': 240, 'type': 'tick'}},
+                 {'actions': [{'params': {'action_id': 'move_ped_a_safe',
+                                          'entity_id': 'ped_hazmat_l3_3_v1_a',
+                                          'velocity_mps': 1.6,
+                                          'waypoints_enu_m': [[77.0, 62.0, 0], [66.0, 73.0, 0]]},
+                               'type': 'move_entity'},
+                              {'params': {'action_id': 'move_ped_b_safe',
+                                          'entity_id': 'ped_hazmat_l3_3_v1_b',
+                                          'velocity_mps': 1.4,
+                                          'waypoints_enu_m': [[83.0, 63.0, 0], [94.0, 74.0, 0]]},
+                               'type': 'move_entity'}],
+                  'event_id': 'pedestrian_evacuation',
+                  'log_category': 'pedestrian',
+                  'log_overlay': 'pedestrian',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['ped_hazmat_l3_3_v1_a', 'ped_hazmat_l3_3_v1_b', 'hazmat_zone_l3_3_v1'],
+                  'log_title': 'Pedestrians evacuate from hazmat zone',
+                  'log_topic': 'evt_L3-3_v1_pedestrian_evacuation',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 2,
+                  'trigger': {'event_ref': 'hazmat_leak', 'type': 'event_fired'}},
+                 {'actions': [{'params': {'action_id': 'move_ambulance_hazmat',
+                                          'entity_id': 'ambulance_l3_3_v1',
+                                          'velocity_mps': 11.0,
+                                          'waypoints_enu_m': [[46.0, 49.0, 0], [68.0, 57.0, 0]]},
+                               'type': 'move_entity'}],
+                  'event_id': 'ambulance_arrival',
+                  'log_category': 'vehicle',
+                  'log_overlay': 'vehicle',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['ambulance_l3_3_v1', 'hazmat_zone_l3_3_v1'],
+                  'log_title': 'Ambulance arrives at isolation perimeter',
+                  'log_topic': 'evt_L3-3_v1_ambulance_arrival',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 3,
+                  'trigger': {'event_ref': 'pedestrian_evacuation', 'type': 'event_fired'}},
+                 {'actions': [{'params': {'action_id': 'move_uav_hazmat_orbit',
+                                          'entity_id': 'uav_l3_3_v1',
+                                          'velocity_mps': 5.0,
+                                          'waypoints_enu_m': [[64.0, 44.0, 33], [74.0, 54.0, 30], [90.0, 77.0, 30]]},
+                               'type': 'move_entity'},
+                              {'params': {'action_id': 'capture_hazmat_monitor', 'camera_id': 'demo_high_overview'},
+                               'type': 'capture_screenshot'}],
+                  'event_id': 'uav_external_monitor',
+                  'log_category': 'uav_mission',
+                  'log_overlay': 'uav_mission',
+                  'log_severity': 'info',
+                  'log_target_ids': ['uav_l3_3_v1', 'hazmat_zone_l3_3_v1'],
+                  'log_title': 'UAV monitors hazmat zone from outside',
+                  'log_topic': 'evt_L3-3_v1_uav_external_monitor',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 4,
+                  'trigger': {'event_ref': 'ambulance_arrival', 'type': 'event_fired'}}],
+ 'parameters': {'incident_tick': 240},
+ 'scenario_id': 'L3-3_v1'}
+
+
+def _trigger(data):
+    return TriggerSpec(**data)
+
+
+def _action(data):
+    return ActionSpec(data["type"], data.get("params", {}))
+
+
+def _event(data):
+    return EventStepSpec(
+        event_id=data["event_id"],
+        trigger=_trigger(data["trigger"]),
+        actions=[_action(a) for a in data.get("actions", [])],
+        on_fire_emit=data.get("on_fire_emit", []),
+        priority=data.get("priority", 10),
+        max_fire_count=data.get("max_fire_count", 1),
+        cooldown_ticks=data.get("cooldown_ticks", 0),
+        require_conditions=data.get("require_conditions", []),
+        log_topic=data.get("log_topic", ""),
+        log_category=data.get("log_category", ""),
+        log_title=data.get("log_title", ""),
+        log_severity=data.get("log_severity", "info"),
+        log_overlay=data.get("log_overlay", ""),
+        log_target_ids=data.get("log_target_ids", []),
+    )
 
 
 def build_spec():
-    """Build and return the ScenarioSpec. Edit this function to customize."""
-    # This spec is rebuilt from the archetype in generate_p0_scenarios.py.
-    # Load the compiled event_script.json for reference, or customize below.
-    script_path = Path(__file__).resolve().parent / "event_script.json"
-    if script_path.exists():
-        print(f"Loading compiled spec from {script_path}")
-        print("To customize: edit build_spec() above, or modify the archetype and re-run generate_p0_scenarios.py")
-        return None  # Signal that event_script.json is the authoritative source
-
-    # Fallback: define spec manually here (copy from archetype output)
     return ScenarioSpec(
-        scenario_id="L3-3_v1",
-        category="operational.l3-3",
-        description="Small isolation zone, local rerouting",
-        duration_ticks=900,
+        scenario_id=SPEC_DATA["scenario_id"],
+        category=SPEC_DATA["category"],
+        description=SPEC_DATA["description"],
+        duration_ticks=SPEC_DATA["duration_ticks"],
+        parameters=SPEC_DATA["parameters"],
+        entities=[
+            EntitySpec(
+                entity_id=e["entity_id"],
+                asset_id=e["asset_id"],
+                initial_pos_enu=e["initial_pos_enu"],
+                initial_rotation_deg=e.get("initial_rotation_deg", [0.0, 0.0, 0.0]),
+                movement_waypoints=[WaypointSpec(w) for w in e.get("movement_waypoints", [])],
+                visual_state=e.get("visual_state"),
+            )
+            for e in SPEC_DATA["entities"]
+        ],
+        event_chain=[_event(e) for e in SPEC_DATA["event_chain"]],
     )
 
 
 if __name__ == "__main__":
+    here = Path(__file__).resolve().parent
     spec = build_spec()
-    if spec is not None:
-        compiler = SpecCompiler()
-        compiled = compiler.compile(spec)
-        out_path = Path(__file__).resolve().parent / "event_script.json"
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(compiled, f, indent=2, ensure_ascii=False)
-        print(f"Compiled spec -> {out_path}")
-    else:
-        print("event_script.json is the authoritative source. No recompilation needed.")
+    compiled = SpecCompiler().compile(spec)
+    with open(here / "event_script.json", "w", encoding="utf-8") as f:
+        json.dump(compiled, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    with open(here / "scene_setup.json", "w", encoding="utf-8") as f:
+        json.dump(SCENE_SETUP, f, indent=2, ensure_ascii=False)
+        f.write("\n")

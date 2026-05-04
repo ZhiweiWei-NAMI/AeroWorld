@@ -1,88 +1,204 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L5-3_v2",
-  "description": "Sudden gust, payload swing, loss of stability",
+  "description": "Crosswind payload swing and UAV attitude anomaly",
   "parameters": {
-    "weather_onset_tick": 300
+    "weather_threshold_tick": 180
   },
   "triggers": [
     {
-      "trigger_id": "trig_weather_onset",
-      "type": "tick",
-      "tick": 300
+      "trigger_id": "trig_wind_condition_met",
+      "type": "weather_state",
+      "parameter": "wind_speed",
+      "operator": "gte",
+      "value": 12.0,
+      "sustain_ticks": 4
     },
     {
-      "trigger_id": "trig_after_weather_onset",
+      "trigger_id": "trig_after_wind_condition_met",
       "type": "event_fired",
-      "event_id": "weather_onset"
+      "event_id": "wind_condition_met"
+    },
+    {
+      "trigger_id": "trig_after_payload_swing",
+      "type": "event_fired",
+      "event_id": "payload_swing"
+    },
+    {
+      "trigger_id": "trig_after_wind_gust_intensifies",
+      "type": "event_fired",
+      "event_id": "wind_gust_intensifies"
     }
   ],
   "events": [
     {
-      "event_id": "weather_onset",
-      "trigger_ref": "trig_weather_onset",
+      "event_id": "wind_condition_met",
+      "trigger_ref": "trig_wind_condition_met",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "set_weather",
-          "action_id": "set_weather_007",
+          "action_id": "set_crosswind",
           "profile": "wind",
           "overrides": {
-            "wind_speed": 24.0,
-            "gust_factor": 1.95
+            "wind_speed": 12.5
           }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "uav_reaction"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L5-3_v2_onset",
+        "topic": "evt_L5-3_v2_wind_condition_met",
         "category": "weather",
-        "title": "Sudden gust, payload swing, loss of stability — 天气变化开始",
+        "title": "Crosswind threshold reached",
         "severity": "warning",
         "overlay": "weather",
         "target_ids": [
-          "weather_global"
+          "uav_weather_l5_3_v2",
+          "payload_bag_l5_3_v2"
         ]
       }
     },
     {
-      "event_id": "uav_reaction",
-      "trigger_ref": "trig_after_weather_onset",
+      "event_id": "payload_swing",
+      "trigger_ref": "trig_after_wind_condition_met",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_109",
-          "entity_id": "uav_patrol_01",
+          "action_id": "move_payload_swing_path",
+          "entity_id": "payload_bag_l5_3_v2",
           "waypoints_enu_m": [
             [
-              50,
-              20,
-              30
+              79.0,
+              168.0,
+              28
             ],
             [
-              40,
-              15,
-              30
+              82.0,
+              164.0,
+              27
+            ],
+            [
+              76.0,
+              172.0,
+              29
             ]
           ],
-          "velocity_mps": 3.0
+          "velocity_mps": 2.0
+        },
+        {
+          "type": "set_visual_state",
+          "action_id": "set_uav_attitude_unstable",
+          "entity_id": "uav_weather_l5_3_v2",
+          "visual_state": {
+            "mode": "attitude_unstable"
+          }
         }
       ],
       "log_event": {
-        "topic": "evt_L5-3_v2_uav_react",
+        "topic": "evt_L5-3_v2_payload_swing",
         "category": "uav_mission",
-        "title": "UAV 因天气变化调整航线",
+        "title": "Payload swings and UAV attitude becomes abnormal",
         "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_patrol_01"
+          "uav_weather_l5_3_v2",
+          "payload_bag_l5_3_v2"
+        ]
+      }
+    },
+    {
+      "event_id": "wind_gust_intensifies",
+      "trigger_ref": "trig_after_payload_swing",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_weather",
+          "action_id": "set_wind_gust",
+          "profile": "wind",
+          "overrides": {
+            "wind_speed": 18.0
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_wind_hold",
+          "entity_id": "uav_weather_l5_3_v2",
+          "waypoints_enu_m": [
+            [
+              78.0,
+              167.0,
+              32
+            ],
+            [
+              81.0,
+              172.0,
+              33
+            ]
+          ],
+          "velocity_mps": 2.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_wind_payload",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-3_v2_wind_gust_intensifies",
+        "category": "weather",
+        "title": "Crosswind intensifies into gust",
+        "severity": "critical",
+        "overlay": "weather",
+        "target_ids": [
+          "uav_weather_l5_3_v2",
+          "payload_bag_l5_3_v2"
+        ]
+      }
+    },
+    {
+      "event_id": "wind_recovery",
+      "trigger_ref": "trig_after_wind_gust_intensifies",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_wind_recovery",
+          "entity_id": "uav_weather_l5_3_v2",
+          "waypoints_enu_m": [
+            [
+              81.0,
+              172.0,
+              33
+            ],
+            [
+              70.0,
+              177.0,
+              34
+            ]
+          ],
+          "velocity_mps": 5.0
+        },
+        {
+          "type": "set_weather",
+          "action_id": "set_wind_recover",
+          "profile": "clear",
+          "overrides": {
+            "wind_speed": 6.0
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-3_v2_wind_recovery",
+        "category": "uav_mission",
+        "title": "Wind eases and UAV exits gust corridor",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_weather_l5_3_v2"
         ]
       }
     }

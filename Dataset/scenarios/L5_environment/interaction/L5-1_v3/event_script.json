@@ -1,90 +1,189 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L5-1_v3",
-  "description": "Rain stops, wet ground + post-rain recovery",
+  "description": "Rain cascade with UAV and ground traffic slowdown",
   "parameters": {
-    "weather_onset_tick": 300
+    "weather_threshold_tick": 180
   },
   "triggers": [
     {
-      "trigger_id": "trig_weather_onset",
-      "type": "tick",
-      "tick": 300
+      "trigger_id": "trig_rain_condition_met",
+      "type": "weather_state",
+      "parameter": "rain",
+      "operator": "gte",
+      "value": 0.5,
+      "sustain_ticks": 5
     },
     {
-      "trigger_id": "trig_after_weather_onset",
+      "trigger_id": "trig_after_rain_condition_met",
       "type": "event_fired",
-      "event_id": "weather_onset"
+      "event_id": "rain_condition_met"
+    },
+    {
+      "trigger_id": "trig_after_rain_speed_reduction",
+      "type": "event_fired",
+      "event_id": "rain_speed_reduction"
+    },
+    {
+      "trigger_id": "trig_after_rain_intensifies",
+      "type": "event_fired",
+      "event_id": "rain_intensifies"
     }
   ],
   "events": [
     {
-      "event_id": "weather_onset",
-      "trigger_ref": "trig_weather_onset",
+      "event_id": "rain_condition_met",
+      "trigger_ref": "trig_rain_condition_met",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "set_weather",
-          "action_id": "set_weather_003",
+          "action_id": "set_rain_moderate",
           "profile": "rain",
           "overrides": {
-            "rain": 0.4,
-            "visibility_m": 14000.0,
-            "wetness": 0.36000000000000004,
-            "wind_speed": 9.0
+            "rain": 0.55,
+            "visibility_m": 2200.0
           }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "uav_reaction"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L5-1_v3_onset",
+        "topic": "evt_L5-1_v3_rain_condition_met",
         "category": "weather",
-        "title": "Rain stops, wet ground + post-rain recovery — 天气变化开始",
+        "title": "Rain threshold reached",
         "severity": "warning",
         "overlay": "weather",
         "target_ids": [
-          "weather_global"
+          "uav_weather_l5_1_v3",
+          "weather_car_l5_1_v3"
         ]
       }
     },
     {
-      "event_id": "uav_reaction",
-      "trigger_ref": "trig_after_weather_onset",
+      "event_id": "rain_speed_reduction",
+      "trigger_ref": "trig_after_rain_condition_met",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_105",
-          "entity_id": "uav_patrol_01",
+          "action_id": "move_uav_rain_slowdown",
+          "entity_id": "uav_weather_l5_1_v3",
           "waypoints_enu_m": [
             [
-              50,
-              20,
-              30
+              46.0,
+              153.0,
+              32
             ],
             [
-              40,
-              15,
-              30
+              56.0,
+              161.0,
+              32
+            ]
+          ],
+          "velocity_mps": 3.0
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_car_wet_slowdown",
+          "entity_id": "weather_car_l5_1_v3",
+          "waypoints_enu_m": [
+            [
+              54.0,
+              145.0,
+              0
+            ],
+            [
+              61.0,
+              146.0,
+              0
             ]
           ],
           "velocity_mps": 3.0
         }
       ],
       "log_event": {
-        "topic": "evt_L5-1_v3_uav_react",
+        "topic": "evt_L5-1_v3_rain_speed_reduction",
         "category": "uav_mission",
-        "title": "UAV 因天气变化调整航线",
-        "severity": "info",
+        "title": "UAV and vehicle slow under rain",
+        "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_patrol_01"
+          "uav_weather_l5_1_v3",
+          "weather_car_l5_1_v3"
+        ]
+      }
+    },
+    {
+      "event_id": "rain_intensifies",
+      "trigger_ref": "trig_after_rain_speed_reduction",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_weather",
+          "action_id": "set_rain_heavy_visibility",
+          "profile": "rain",
+          "overrides": {
+            "rain": 0.82,
+            "visibility_m": 900.0
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-1_v3_rain_intensifies",
+        "category": "weather",
+        "title": "Rain intensifies and visibility drops",
+        "severity": "critical",
+        "overlay": "weather",
+        "target_ids": [
+          "uav_weather_l5_1_v3",
+          "weather_car_l5_1_v3"
+        ]
+      }
+    },
+    {
+      "event_id": "rain_recovery",
+      "trigger_ref": "trig_after_rain_intensifies",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_rain_recover",
+          "entity_id": "uav_weather_l5_1_v3",
+          "waypoints_enu_m": [
+            [
+              56.0,
+              161.0,
+              32
+            ],
+            [
+              40.0,
+              169.0,
+              34
+            ]
+          ],
+          "velocity_mps": 5.0
+        },
+        {
+          "type": "set_weather",
+          "action_id": "set_rain_recovering",
+          "profile": "clear",
+          "overrides": {
+            "rain": 0.2,
+            "visibility_m": 5000.0
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-1_v3_rain_recovery",
+        "category": "weather",
+        "title": "Rain recovers and UAV exits degraded area",
+        "severity": "info",
+        "overlay": "weather",
+        "target_ids": [
+          "uav_weather_l5_1_v3"
         ]
       }
     }

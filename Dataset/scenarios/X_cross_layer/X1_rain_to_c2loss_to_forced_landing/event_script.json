@@ -1,128 +1,291 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "X1_rain_to_c2loss_to_forced_landing",
-  "description": "L5-1(rain) -> L6-1(C2 loss) -> L4-3(forced landing)",
-  "parameters": {},
+  "description": "Rain to C2 loss to forced landing cross-layer chain",
+  "parameters": {
+    "cross_layer": true
+  },
   "triggers": [
     {
-      "trigger_id": "trig_rain_onset",
+      "trigger_id": "trig_rain_threshold",
+      "type": "weather_state",
+      "parameter": "rain",
+      "operator": "gte",
+      "value": 0.5,
+      "sustain_ticks": 5
+    },
+    {
+      "trigger_id": "trig_c2_loss_tick",
       "type": "tick",
-      "tick": 300
+      "tick": 260
     },
     {
-      "trigger_id": "trig_after_rain_onset",
-      "type": "event_fired",
-      "event_id": "rain_onset"
+      "trigger_id": "trig_c2_loss_after_rain",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_rain_threshold",
+        "trig_c2_loss_tick"
+      ]
     },
     {
-      "trigger_id": "trig_after_c2_degradation",
+      "trigger_id": "trig_after_c2_loss_after_rain",
       "type": "event_fired",
-      "event_id": "c2_degradation"
+      "event_id": "c2_loss_after_rain"
+    },
+    {
+      "trigger_id": "trig_crowd_reacts_to_landing",
+      "type": "entity_proximity",
+      "entity_a": "uav_x1_forced_landing",
+      "entity_b": "ped_x1_crowd_anchor",
+      "distance_m": 5.0,
+      "operator": "lte",
+      "min_true_ticks": 2
+    },
+    {
+      "trigger_id": "trig_after_crowd_reacts_to_landing",
+      "type": "event_fired",
+      "event_id": "crowd_reacts_to_landing"
     }
   ],
   "events": [
     {
-      "event_id": "rain_onset",
-      "trigger_ref": "trig_rain_onset",
+      "event_id": "rain_threshold",
+      "trigger_ref": "trig_rain_threshold",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a1",
           "type": "set_weather",
+          "action_id": "set_x1_rain",
           "profile": "rain",
           "overrides": {
-            "rain": 0.8,
-            "visibility_m": 1500.0,
-            "wind_speed": 8.0
+            "rain": 0.65,
+            "visibility_m": 1500.0
           }
         }
       ],
       "log_event": {
-        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_rain_onset",
+        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_rain_threshold",
         "category": "weather",
-        "title": "降雨开始",
+        "title": "Rain threshold triggers L5 degradation",
         "severity": "warning",
         "overlay": "weather",
         "target_ids": [
-          "weather_global"
-        ]
-      },
-      "on_fire": {
-        "emit_events": [
-          "c2_degradation"
+          "uav_x1_forced_landing",
+          "tower_x1_c2"
         ]
       }
     },
     {
-      "event_id": "c2_degradation",
-      "trigger_ref": "trig_after_rain_onset",
+      "event_id": "c2_loss_tick",
+      "trigger_ref": "trig_c2_loss_tick",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a2",
           "type": "set_visual_state",
-          "entity_id": "tower_01",
+          "action_id": "set_x1_tower_stressed",
+          "entity_id": "tower_x1_c2",
           "visual_state": {
-            "mode": "disabled"
+            "mode": "rain_stressed"
           }
-        },
-        {
-          "action_id": "a3",
-          "type": "capture_screenshot",
-          "camera_id": "demo_overview"
         }
       ],
       "log_event": {
-        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_c2_degradation",
-        "category": "infrastructure",
-        "title": "C2链路退化",
-        "severity": "critical",
-        "overlay": "infrastructure",
+        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_c2_loss_tick",
+        "category": "digital_layer",
+        "title": "C2 loss timing condition becomes true",
+        "severity": "warning",
+        "overlay": "digital_layer",
         "target_ids": [
-          "tower_01"
-        ]
-      },
-      "on_fire": {
-        "emit_events": [
-          "forced_landing"
+          "tower_x1_c2"
         ]
       }
     },
     {
-      "event_id": "forced_landing",
-      "trigger_ref": "trig_after_c2_degradation",
+      "event_id": "c2_loss_after_rain",
+      "trigger_ref": "trig_c2_loss_after_rain",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a4",
+          "type": "set_visual_state",
+          "action_id": "set_x1_tower_c2_loss",
+          "entity_id": "tower_x1_c2",
+          "visual_state": {
+            "mode": "link_lost"
+          }
+        },
+        {
           "type": "move_entity",
-          "entity_id": "uav_01",
+          "action_id": "move_x1_uav_degraded",
+          "entity_id": "uav_x1_forced_landing",
           "waypoints_enu_m": [
             [
-              50,
-              20,
-              35
+              42.0,
+              244.0,
+              32
             ],
             [
-              45,
-              15,
-              0.5
+              51.0,
+              248.0,
+              26
             ]
           ],
           "velocity_mps": 3.0
         }
       ],
       "log_event": {
-        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_forced_landing",
+        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_c2_loss_after_rain",
+        "category": "digital_layer",
+        "title": "Rain and C2 condition combine into C2 loss",
+        "severity": "critical",
+        "overlay": "digital_layer",
+        "target_ids": [
+          "uav_x1_forced_landing",
+          "tower_x1_c2"
+        ]
+      }
+    },
+    {
+      "event_id": "forced_landing_descent",
+      "trigger_ref": "trig_after_c2_loss_after_rain",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_x1_forced_landing",
+          "entity_id": "uav_x1_forced_landing",
+          "waypoints_enu_m": [
+            [
+              51.0,
+              248.0,
+              26
+            ],
+            [
+              57.0,
+              252.0,
+              8
+            ],
+            [
+              58.0,
+              253.0,
+              3
+            ]
+          ],
+          "velocity_mps": 2.5
+        },
+        {
+          "type": "spawn_crowd",
+          "action_id": "spawn_x1_crowd",
+          "group_id": "crowd_x1",
+          "count": 10,
+          "spawn_origin_enu_m": [
+            58.0,
+            253.0,
+            0
+          ],
+          "spawn_box_extent_cm": [
+            800,
+            500,
+            0
+          ],
+          "seed": 1101
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_forced_landing_descent",
         "category": "uav_mission",
-        "title": "紧急迫降",
+        "title": "C2 loss causes forced landing near crowd",
         "severity": "critical",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_01"
+          "uav_x1_forced_landing",
+          "ped_x1_crowd_anchor"
+        ]
+      }
+    },
+    {
+      "event_id": "crowd_reacts_to_landing",
+      "trigger_ref": "trig_crowd_reacts_to_landing",
+      "priority": 5,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_x1_ped_evade",
+          "entity_id": "ped_x1_crowd_anchor",
+          "waypoints_enu_m": [
+            [
+              58.0,
+              253.0,
+              0
+            ],
+            [
+              69.0,
+              262.0,
+              0
+            ]
+          ],
+          "velocity_mps": 2.0
+        },
+        {
+          "type": "clear_crowd",
+          "action_id": "clear_x1_crowd",
+          "group_id": "crowd_x1"
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_x1_forced_landing",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_crowd_reacts_to_landing",
+        "category": "pedestrian",
+        "title": "Crowd reacts to forced landing",
+        "severity": "warning",
+        "overlay": "pedestrian",
+        "target_ids": [
+          "uav_x1_forced_landing",
+          "ped_x1_crowd_anchor"
+        ]
+      }
+    },
+    {
+      "event_id": "x1_recovery",
+      "trigger_ref": "trig_after_crowd_reacts_to_landing",
+      "priority": 6,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_x1_tower_restored",
+          "entity_id": "tower_x1_c2",
+          "visual_state": {
+            "mode": "online"
+          }
+        },
+        {
+          "type": "set_visual_state",
+          "action_id": "set_x1_uav_landed",
+          "entity_id": "uav_x1_forced_landing",
+          "visual_state": {
+            "mode": "landed_safe"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_x1_recovery",
+        "category": "digital_layer",
+        "title": "Cross-layer chain recovers",
+        "severity": "info",
+        "overlay": "digital_layer",
+        "target_ids": [
+          "uav_x1_forced_landing",
+          "tower_x1_c2"
         ]
       }
     }

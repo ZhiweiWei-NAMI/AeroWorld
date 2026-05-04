@@ -1,124 +1,150 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L4-2_v2",
-  "description": "Actual building strike, UAV destroyed",
+  "description": "UAV building facade near strike",
   "parameters": {
-    "approach_tick": 400,
-    "conflict_tick": 450,
-    "resolution_tick": 480
+    "incident_tick": 260,
+    "resolution_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_approach_phase",
+      "trigger_id": "trig_facade_approach",
       "type": "tick",
-      "tick": 400
+      "tick": 250
     },
     {
-      "trigger_id": "trig_proximity_alert",
-      "type": "tick",
-      "tick": 450
+      "trigger_id": "trig_facade_proximity",
+      "type": "entity_proximity",
+      "entity_a": "uav_facade_l4_2_v2",
+      "entity_b": "facade_anchor_l4_2_v2",
+      "distance_m": 8.0,
+      "operator": "lte",
+      "min_true_ticks": 3
+    },
+    {
+      "trigger_id": "trig_after_facade_proximity",
+      "type": "event_fired",
+      "event_id": "facade_proximity"
     }
   ],
   "events": [
     {
-      "event_id": "approach_phase",
-      "trigger_ref": "trig_approach_phase",
+      "event_id": "facade_approach",
+      "trigger_ref": "trig_facade_approach",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_046",
-          "entity_id": "uav_01",
+          "action_id": "move_uav_facade_approach",
+          "entity_id": "uav_facade_l4_2_v2",
           "waypoints_enu_m": [
             [
-              55,
-              18,
-              30.0
+              33.5,
+              82.0,
+              31
             ],
             [
-              50,
-              20,
-              30.0
-            ]
-          ],
-          "velocity_mps": 8.0
-        },
-        {
-          "type": "move_entity",
-          "action_id": "move_047",
-          "entity_id": "ped_01",
-          "waypoints_enu_m": [
-            [
-              48,
-              22,
-              0.0
+              46.5,
+              89.0,
+              26
             ],
             [
-              50,
-              20,
-              0.0
+              60.5,
+              97.0,
+              18
             ]
           ],
           "velocity_mps": 7.0
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "proximity_alert"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L4-2_v2_approach",
+        "topic": "evt_L4-2_v2_facade_approach",
         "category": "uav_mission",
-        "title": "两实体正在接近",
-        "severity": "info",
+        "title": "UAV approaches building facade on faulty route",
+        "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_01",
-          "ped_01"
+          "uav_facade_l4_2_v2",
+          "facade_anchor_l4_2_v2"
         ]
       }
     },
     {
-      "event_id": "proximity_alert",
-      "trigger_ref": "trig_proximity_alert",
+      "event_id": "facade_proximity",
+      "trigger_ref": "trig_facade_proximity",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_045",
-          "entity_id": "uav_01",
+          "action_id": "move_uav_facade_evasion",
+          "entity_id": "uav_facade_l4_2_v2",
           "waypoints_enu_m": [
             [
-              55,
-              18,
-              30
+              60.5,
+              97.0,
+              18
             ],
             [
-              58,
-              16,
-              30
+              54.5,
+              105.0,
+              34
             ]
           ],
           "velocity_mps": 10.0
         },
         {
           "type": "capture_screenshot",
-          "action_id": "cap_007",
-          "camera_id": "demo_overview"
+          "action_id": "capture_facade_evasion",
+          "camera_id": "demo_high_overview"
         }
       ],
       "log_event": {
-        "topic": "evt_L4-2_v2_conflict",
+        "topic": "evt_L4-2_v2_facade_proximity",
         "category": "uav_mission",
-        "title": "冲突检测 — 避让动作触发",
+        "title": "Emergency evasion near facade",
         "severity": "critical",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_01",
-          "ped_01"
+          "uav_facade_l4_2_v2",
+          "facade_anchor_l4_2_v2"
+        ]
+      }
+    },
+    {
+      "event_id": "facade_recovery",
+      "trigger_ref": "trig_after_facade_proximity",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_facade_recover",
+          "entity_id": "uav_facade_l4_2_v2",
+          "waypoints_enu_m": [
+            [
+              54.5,
+              105.0,
+              34
+            ],
+            [
+              36.5,
+              109.0,
+              32
+            ]
+          ],
+          "velocity_mps": 7.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-2_v2_facade_recovery",
+        "category": "uav_mission",
+        "title": "UAV recovers after facade near strike",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_facade_l4_2_v2"
         ]
       }
     }

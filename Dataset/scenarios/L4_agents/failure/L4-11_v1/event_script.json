@@ -1,103 +1,175 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L4-11_v1",
-  "description": "AV sensor failure, safe stop in lane",
+  "description": "AV sensor failure, safe stop, and UAV report",
   "parameters": {
-    "failure_tick": 400
+    "incident_tick": 260,
+    "resolution_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_failure_detected",
+      "trigger_id": "trig_av_sensor_fault",
       "type": "tick",
-      "tick": 400
+      "tick": 230
     },
     {
-      "trigger_id": "trig_after_failure_detected",
+      "trigger_id": "trig_after_av_sensor_fault",
       "type": "event_fired",
-      "event_id": "failure_detected"
+      "event_id": "av_sensor_fault"
+    },
+    {
+      "trigger_id": "trig_after_av_safe_stop",
+      "type": "event_fired",
+      "event_id": "av_safe_stop"
+    },
+    {
+      "trigger_id": "trig_after_lane_blockage_report",
+      "type": "event_fired",
+      "event_id": "lane_blockage_report"
     }
   ],
   "events": [
     {
-      "event_id": "failure_detected",
-      "trigger_ref": "trig_failure_detected",
+      "event_id": "av_sensor_fault",
+      "trigger_ref": "trig_av_sensor_fault",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "move_entity",
-          "action_id": "move_099",
-          "entity_id": "uav_ops_01",
-          "waypoints_enu_m": [
-            [
-              50,
-              20,
-              35
-            ],
-            [
-              46,
-              16,
-              15
-            ]
-          ],
-          "velocity_mps": 4.0
+          "type": "set_visual_state",
+          "action_id": "set_av_sensor_fault",
+          "entity_id": "av_fault_l4_11_v1",
+          "visual_state": {
+            "mode": "sensor_fault"
+          }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "emergency_landing"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L4-11_v1_failure",
-        "category": "uav_mission",
-        "title": "AV sensor failure, safe stop in lane — 系统失效检测",
-        "severity": "critical",
-        "overlay": "uav_mission",
+        "topic": "evt_L4-11_v1_av_sensor_fault",
+        "category": "vehicle",
+        "title": "Autonomous vehicle sensor fault detected",
+        "severity": "warning",
+        "overlay": "vehicle",
         "target_ids": [
-          "uav_ops_01"
+          "av_fault_l4_11_v1"
         ]
       }
     },
     {
-      "event_id": "emergency_landing",
-      "trigger_ref": "trig_after_failure_detected",
+      "event_id": "av_safe_stop",
+      "trigger_ref": "trig_after_av_sensor_fault",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_100",
-          "entity_id": "uav_ops_01",
+          "action_id": "move_av_safe_stop",
+          "entity_id": "av_fault_l4_11_v1",
           "waypoints_enu_m": [
             [
-              46,
-              16,
-              15
+              147.0,
+              147.0,
+              0
             ],
             [
-              45,
-              15,
-              0.5
+              158.0,
+              147.6,
+              0
+            ],
+            [
+              165.0,
+              148.0,
+              0
             ]
           ],
           "velocity_mps": 2.0
         },
         {
-          "type": "capture_screenshot",
-          "action_id": "cap_026",
-          "camera_id": "demo_overview"
+          "type": "set_visual_state",
+          "action_id": "set_av_safe_stop",
+          "entity_id": "av_fault_l4_11_v1",
+          "visual_state": {
+            "mode": "safe_stop"
+          }
         }
       ],
       "log_event": {
-        "topic": "evt_L4-11_v1_landing",
-        "category": "uav_mission",
-        "title": "紧急迫降执行",
+        "topic": "evt_L4-11_v1_av_safe_stop",
+        "category": "vehicle",
+        "title": "AV performs safe stop in lane",
         "severity": "critical",
+        "overlay": "vehicle",
+        "target_ids": [
+          "av_fault_l4_11_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "lane_blockage_report",
+      "trigger_ref": "trig_after_av_safe_stop",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_blockage_report",
+          "entity_id": "uav_av_report_l4_11_v1",
+          "waypoints_enu_m": [
+            [
+              143.0,
+              159.0,
+              33
+            ],
+            [
+              163.0,
+              154.0,
+              25
+            ]
+          ],
+          "velocity_mps": 5.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_av_lane_blockage",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-11_v1_lane_blockage_report",
+        "category": "uav_mission",
+        "title": "UAV reports lane blockage",
+        "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_ops_01",
-          "pad_emergency_01"
+          "uav_av_report_l4_11_v1",
+          "av_fault_l4_11_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "av_recovery_hold",
+      "trigger_ref": "trig_after_lane_blockage_report",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_av_hazard_lights",
+          "entity_id": "av_fault_l4_11_v1",
+          "visual_state": {
+            "mode": "blocked_lane",
+            "lights_on": true
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-11_v1_av_recovery_hold",
+        "category": "vehicle",
+        "title": "AV remains in safe stop with hazard state",
+        "severity": "info",
+        "overlay": "vehicle",
+        "target_ids": [
+          "av_fault_l4_11_v1"
         ]
       }
     }

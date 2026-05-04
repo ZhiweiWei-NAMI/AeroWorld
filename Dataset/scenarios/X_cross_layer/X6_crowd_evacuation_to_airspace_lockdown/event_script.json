@@ -1,18 +1,35 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "X6_crowd_evacuation_to_airspace_lockdown",
-  "description": "L4-8(crowd evacuation) -> L3-2(temp NFZ activation)",
-  "parameters": {},
+  "description": "Crowd evacuation to airspace lockdown chain",
+  "parameters": {
+    "cross_layer": true
+  },
   "triggers": [
     {
       "trigger_id": "trig_crowd_evacuation",
       "type": "tick",
-      "tick": 400
+      "tick": 220
     },
     {
       "trigger_id": "trig_after_crowd_evacuation",
       "type": "event_fired",
       "event_id": "crowd_evacuation"
+    },
+    {
+      "trigger_id": "trig_after_crowd_safe_zone_move",
+      "type": "event_fired",
+      "event_id": "crowd_safe_zone_move"
+    },
+    {
+      "trigger_id": "trig_after_airspace_lockdown",
+      "type": "event_fired",
+      "event_id": "airspace_lockdown"
+    },
+    {
+      "trigger_id": "trig_after_uav_reroute_lockdown",
+      "type": "event_fired",
+      "event_id": "uav_reroute_lockdown"
     }
   ],
   "events": [
@@ -23,75 +40,185 @@
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a1",
           "type": "spawn_crowd",
-          "group_id": "crowd_evac",
-          "count": 30,
+          "action_id": "spawn_x6_crowd",
+          "group_id": "crowd_x6",
+          "count": 14,
           "spawn_origin_enu_m": [
-            52,
-            20,
+            126.0,
+            282.0,
             0
           ],
           "spawn_box_extent_cm": [
-            1000,
-            1000,
+            900,
+            600,
             0
           ],
-          "seed": 123
-        },
-        {
-          "action_id": "a2",
-          "type": "capture_screenshot",
-          "camera_id": "demo_overview"
+          "seed": 1606
         }
       ],
       "log_event": {
         "topic": "evt_X6_crowd_evacuation_to_airspace_lockdown_crowd_evacuation",
         "category": "pedestrian",
-        "title": "人群紧急疏散",
-        "severity": "critical",
+        "title": "Crowd evacuation begins",
+        "severity": "warning",
         "overlay": "pedestrian",
         "target_ids": [
-          "crowd_evac"
-        ]
-      },
-      "on_fire": {
-        "emit_events": [
-          "nfz_activation"
+          "crowd_anchor_x6"
         ]
       }
     },
     {
-      "event_id": "nfz_activation",
+      "event_id": "crowd_safe_zone_move",
       "trigger_ref": "trig_after_crowd_evacuation",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a3",
-          "type": "spawn_entity",
-          "asset_id": "trigger.no_fly.box.v1",
-          "entity_id": "nfz_emergency",
-          "position_enu_m": [
-            52,
-            20,
-            15
-          ]
+          "type": "clear_crowd",
+          "action_id": "clear_x6_origin_crowd",
+          "group_id": "crowd_x6"
         },
         {
-          "action_id": "a4",
-          "type": "clear_crowd",
-          "group_id": "crowd_evac"
+          "type": "spawn_crowd",
+          "action_id": "spawn_x6_safe_crowd",
+          "group_id": "crowd_x6_safe",
+          "count": 14,
+          "spawn_origin_enu_m": [
+            150.0,
+            297.0,
+            0
+          ],
+          "spawn_box_extent_cm": [
+            900,
+            500,
+            0
+          ],
+          "seed": 1607
         }
       ],
       "log_event": {
-        "topic": "evt_X6_crowd_evacuation_to_airspace_lockdown_nfz_activation",
-        "category": "infrastructure",
-        "title": "紧急禁飞区激活-空域封锁",
-        "severity": "critical",
-        "overlay": "infrastructure",
+        "topic": "evt_X6_crowd_evacuation_to_airspace_lockdown_crowd_safe_zone_move",
+        "category": "pedestrian",
+        "title": "Crowd moves to safe zone",
+        "severity": "warning",
+        "overlay": "pedestrian",
         "target_ids": [
-          "nfz_emergency"
+          "crowd_anchor_x6"
+        ]
+      }
+    },
+    {
+      "event_id": "airspace_lockdown",
+      "trigger_ref": "trig_after_crowd_safe_zone_move",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_x6_nfz",
+          "entity_id": "nfz_x6_lockdown",
+          "asset_id": "trigger.no_fly.box.v1",
+          "position_enu_m": [
+            128.0,
+            283.0,
+            28
+          ],
+          "rotation_deg": {
+            "yaw_deg": 0
+          },
+          "visual_state": {
+            "mode": "active"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X6_crowd_evacuation_to_airspace_lockdown_airspace_lockdown",
+        "category": "dynamic_constraint",
+        "title": "Airspace lockdown declares temporary NFZ",
+        "severity": "critical",
+        "overlay": "dynamic_constraint",
+        "target_ids": [
+          "nfz_x6_lockdown"
+        ]
+      }
+    },
+    {
+      "event_id": "uav_reroute_lockdown",
+      "trigger_ref": "trig_after_airspace_lockdown",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_x6_uav_avoid_nfz",
+          "entity_id": "uav_x6_monitor",
+          "waypoints_enu_m": [
+            [
+              104.0,
+              269.0,
+              34
+            ],
+            [
+              117.0,
+              293.0,
+              36
+            ],
+            [
+              144.0,
+              307.0,
+              36
+            ]
+          ],
+          "velocity_mps": 7.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_x6_lockdown",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X6_crowd_evacuation_to_airspace_lockdown_uav_reroute_lockdown",
+        "category": "uav_mission",
+        "title": "UAV reroutes around lockdown NFZ",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_x6_monitor",
+          "nfz_x6_lockdown"
+        ]
+      }
+    },
+    {
+      "event_id": "lockdown_cleared",
+      "trigger_ref": "trig_after_uav_reroute_lockdown",
+      "priority": 5,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "clear_crowd",
+          "action_id": "clear_x6_safe_crowd",
+          "group_id": "crowd_x6_safe"
+        },
+        {
+          "type": "set_visual_state",
+          "action_id": "set_x6_nfz_standdown",
+          "entity_id": "nfz_x6_lockdown",
+          "visual_state": {
+            "mode": "standdown"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X6_crowd_evacuation_to_airspace_lockdown_lockdown_cleared",
+        "category": "dynamic_constraint",
+        "title": "Crowd evacuation and airspace lockdown clear",
+        "severity": "info",
+        "overlay": "dynamic_constraint",
+        "target_ids": [
+          "uav_x6_monitor",
+          "nfz_x6_lockdown"
         ]
       }
     }

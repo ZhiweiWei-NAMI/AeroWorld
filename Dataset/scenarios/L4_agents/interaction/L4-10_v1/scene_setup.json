@@ -1,0 +1,137 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L4-10_v1",
+  "description": "Ambulance priority passage with civilian yield",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "ambulance_priority_l4_10_v1",
+      "logical_asset_id": "vehicle.emergency.ambulance.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_27",
+        "lane_index": 0,
+        "longitudinal_s": 42,
+        "lateral_offset_m": 0.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "response",
+        "lights_on": true
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "civilian_yield_l4_10_v1",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_27",
+        "lane_index": 0,
+        "longitudinal_s": 58,
+        "lateral_offset_m": 0.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "moving"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "uav_priority_monitor_l4_10_v1",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          140.0,
+          154.0,
+          32
+        ],
+        "rotation_deg": {
+          "yaw_deg": 60
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "monitor"
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "ambulance_priority_l4_10_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "civilian_yield_l4_10_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_priority_monitor_l4_10_v1",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          136.667,
+          144.0,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "ambulance_priority_l4_10_v1",
+      "description": "ambulance_priority_l4_10_v1 is declared before event_script references it in L4-10_v1"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "civilian_yield_l4_10_v1",
+      "description": "civilian_yield_l4_10_v1 is declared before event_script references it in L4-10_v1"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "ambulance_priority_l4_10_v1",
+      "logical_asset_id": "vehicle.emergency.ambulance.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "civilian_yield_l4_10_v1",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "ambulance_lights_on",
+      "entity_id": "ambulance_priority_l4_10_v1",
+      "description": "Ambulance starts and moves with lights_on true"
+    }
+  ]
+}

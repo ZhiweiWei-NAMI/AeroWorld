@@ -1,0 +1,106 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L4-9_v1",
+  "description": "Vehicle-vehicle intersection conflict",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "car_intersection_l4_9_v1_a",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_25",
+        "lane_index": 0,
+        "longitudinal_s": 65,
+        "lateral_offset_m": 0.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "moving"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "car_intersection_l4_9_v1_b",
+      "logical_asset_id": "vehicle.emergency.suv.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_26",
+        "lane_index": 0,
+        "longitudinal_s": 40,
+        "lateral_offset_m": 0.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "moving"
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "car_intersection_l4_9_v1_a",
+      "tick": 0
+    },
+    {
+      "entity_id": "car_intersection_l4_9_v1_b",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          130.0,
+          148.0,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "car_intersection_l4_9_v1_a",
+      "description": "car_intersection_l4_9_v1_a is declared before event_script references it in L4-9_v1"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "car_intersection_l4_9_v1_b",
+      "description": "car_intersection_l4_9_v1_b is declared before event_script references it in L4-9_v1"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "car_intersection_l4_9_v1_a",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "car_intersection_l4_9_v1_b",
+      "logical_asset_id": "vehicle.emergency.suv.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    }
+  ]
+}

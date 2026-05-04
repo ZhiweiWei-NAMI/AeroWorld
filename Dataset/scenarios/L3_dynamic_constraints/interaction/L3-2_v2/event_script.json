@@ -1,99 +1,148 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L3-2_v2",
-  "description": "Immediate TFR, UAV must emergency land",
+  "description": "Temporary no-fly zone activation and UAV reroute",
   "parameters": {
-    "violation_tick": 400
+    "incident_tick": 220
   },
   "triggers": [
     {
-      "trigger_id": "trig_zone_approach",
+      "trigger_id": "trig_temporary_nfz_declared",
       "type": "tick",
-      "tick": 400
+      "tick": 280
     },
     {
-      "trigger_id": "trig_after_zone_approach",
+      "trigger_id": "trig_after_temporary_nfz_declared",
       "type": "event_fired",
-      "event_id": "zone_approach"
+      "event_id": "temporary_nfz_declared"
+    },
+    {
+      "trigger_id": "trig_nfz_proximity_alert",
+      "type": "entity_proximity",
+      "entity_a": "uav_l3_2_v2",
+      "entity_b": "temporary_nfz_l3_2_v2",
+      "distance_m": 12.0,
+      "operator": "lte",
+      "min_true_ticks": 3
     }
   ],
   "events": [
     {
-      "event_id": "zone_approach",
-      "trigger_ref": "trig_zone_approach",
+      "event_id": "temporary_nfz_declared",
+      "trigger_ref": "trig_temporary_nfz_declared",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "move_entity",
-          "action_id": "move_028",
-          "entity_id": "uav_delivery_01",
-          "waypoints_enu_m": [
-            [
-              60,
-              25,
-              25
-            ],
-            [
-              52,
-              20,
-              25
-            ]
+          "type": "spawn_entity",
+          "action_id": "spawn_temporary_nfz",
+          "entity_id": "temporary_nfz_l3_2_v2",
+          "asset_id": "trigger.no_fly.box.v1",
+          "position_enu_m": [
+            74.0,
+            59.0,
+            28
           ],
-          "velocity_mps": 6.0
+          "rotation_deg": {
+            "yaw_deg": 0
+          },
+          "visual_state": {
+            "mode": "active"
+          }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "zone_breach"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L3-2_v2_approach",
-        "category": "uav_mission",
-        "title": "UAV 接近限制空域",
+        "topic": "evt_L3-2_v2_temporary_nfz_declared",
+        "category": "dynamic_constraint",
+        "title": "Temporary no-fly zone declared mid-operation",
         "severity": "warning",
-        "overlay": "uav_mission",
+        "overlay": "dynamic_constraint",
         "target_ids": [
-          "uav_delivery_01",
-          "nfz_critical_01"
+          "temporary_nfz_l3_2_v2"
         ]
       }
     },
     {
-      "event_id": "zone_breach",
-      "trigger_ref": "trig_after_zone_approach",
+      "event_id": "uav_approaches_temporary_nfz",
+      "trigger_ref": "trig_after_temporary_nfz_declared",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_029",
-          "entity_id": "uav_delivery_01",
+          "action_id": "move_uav_to_nfz_edge",
+          "entity_id": "uav_l3_2_v2",
           "waypoints_enu_m": [
             [
-              52,
-              20,
-              25
+              50.0,
+              42.0,
+              31
             ],
             [
-              58,
-              25,
-              30
+              68.0,
+              56.0,
+              31
             ]
           ],
-          "velocity_mps": 8.0
+          "velocity_mps": 7.0
         }
       ],
       "log_event": {
-        "topic": "evt_L3-2_v2_breach",
+        "topic": "evt_L3-2_v2_uav_approaches_temporary_nfz",
         "category": "uav_mission",
-        "title": "空域违规 — 强制返航",
-        "severity": "critical",
+        "title": "UAV approaches newly declared NFZ",
+        "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_delivery_01",
-          "nfz_critical_01"
+          "uav_l3_2_v2",
+          "temporary_nfz_l3_2_v2"
+        ]
+      }
+    },
+    {
+      "event_id": "nfz_proximity_alert",
+      "trigger_ref": "trig_nfz_proximity_alert",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_nfz_reroute",
+          "entity_id": "uav_l3_2_v2",
+          "waypoints_enu_m": [
+            [
+              68.0,
+              56.0,
+              31
+            ],
+            [
+              58.0,
+              72.0,
+              34
+            ],
+            [
+              84.0,
+              82.0,
+              34
+            ]
+          ],
+          "velocity_mps": 8.5
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_temporary_nfz",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L3-2_v2_nfz_proximity_alert",
+        "category": "uav_mission",
+        "title": "UAV reroutes around temporary NFZ",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_l3_2_v2",
+          "temporary_nfz_l3_2_v2"
         ]
       }
     }

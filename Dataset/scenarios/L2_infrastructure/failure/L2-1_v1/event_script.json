@@ -1,87 +1,139 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L2-1_v1",
-  "description": "Single station failure, graceful degradation",
+  "description": "Communication station failure with backup link recovery",
   "parameters": {
-    "failure_tick": 400
+    "failure_tick": 260,
+    "resolution_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_infra_failure",
+      "trigger_id": "trig_station_degraded",
       "type": "tick",
-      "tick": 400
+      "tick": 260
     },
     {
-      "trigger_id": "trig_after_infra_failure",
+      "trigger_id": "trig_after_station_degraded",
       "type": "event_fired",
-      "event_id": "infra_failure"
+      "event_id": "station_degraded"
+    },
+    {
+      "trigger_id": "trig_after_uav_link_response",
+      "type": "event_fired",
+      "event_id": "uav_link_response"
     }
   ],
   "events": [
     {
-      "event_id": "infra_failure",
-      "trigger_ref": "trig_infra_failure",
+      "event_id": "station_degraded",
+      "trigger_ref": "trig_station_degraded",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "set_visual_state",
-          "action_id": "vis_001",
-          "entity_id": "infra_station_01",
+          "action_id": "set_tower_degraded",
+          "entity_id": "tower_l2_1_v1",
           "visual_state": {
-            "mode": "disabled"
+            "mode": "degraded"
           }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "service_degraded"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L2-1_v1_failure",
+        "topic": "evt_L2-1_v1_station_degraded",
         "category": "infrastructure",
-        "title": "Single station failure, graceful degradation — 基础设施故障",
+        "title": "Communication station degraded",
         "severity": "warning",
         "overlay": "infrastructure",
         "target_ids": [
-          "infra_station_01"
+          "tower_l2_1_v1"
         ]
       }
     },
     {
-      "event_id": "service_degraded",
-      "trigger_ref": "trig_after_infra_failure",
+      "event_id": "uav_link_response",
+      "trigger_ref": "trig_after_station_degraded",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_015",
-          "entity_id": "uav_ops_01",
+          "action_id": "move_uav_backup_loiter",
+          "entity_id": "uav_l2_1_v1",
           "waypoints_enu_m": [
             [
-              50,
-              20,
+              48.0,
+              -18.0,
+              31
+            ],
+            [
+              58.0,
+              -8.0,
               30
             ],
             [
-              48,
-              22,
-              20
+              61.0,
+              -3.0,
+              34
             ]
           ],
           "velocity_mps": 4.0
         }
       ],
       "log_event": {
-        "topic": "evt_L2-1_v1_degraded",
+        "topic": "evt_L2-1_v1_uav_link_response",
         "category": "uav_mission",
-        "title": "服务降级 — UAV 调整运行模式",
-        "severity": "info",
+        "title": "UAV changes behavior under degraded C2",
+        "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_ops_01"
+          "uav_l2_1_v1",
+          "tower_l2_1_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "backup_link_restore",
+      "trigger_ref": "trig_after_uav_link_response",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_tower_backup",
+          "entity_id": "tower_l2_1_v1",
+          "visual_state": {
+            "mode": "backup_link"
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_resume_patrol",
+          "entity_id": "uav_l2_1_v1",
+          "waypoints_enu_m": [
+            [
+              61.0,
+              -3.0,
+              34
+            ],
+            [
+              37.0,
+              -16.0,
+              31
+            ]
+          ],
+          "velocity_mps": 7.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L2-1_v1_backup_link_restore",
+        "category": "infrastructure",
+        "title": "Backup link restores service",
+        "severity": "info",
+        "overlay": "infrastructure",
+        "target_ids": [
+          "uav_l2_1_v1",
+          "tower_l2_1_v1"
         ]
       }
     }

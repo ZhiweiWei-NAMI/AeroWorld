@@ -1,0 +1,301 @@
+"""Concrete ScenarioSpec for X1_rain_to_c2loss_to_forced_landing.
+
+Generated from Dataset/tools/regenerate_boundary_scenarios.py.
+This file is intentionally self-contained: running it recompiles
+event_script.json from the ScenarioSpec below.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+_TOOLS = Path(__file__).resolve()
+while _TOOLS.name != "Dataset" and _TOOLS.parent != _TOOLS:
+    _TOOLS = _TOOLS.parent
+_TOOLS = _TOOLS / "tools"
+sys.path.insert(0, str(_TOOLS))
+
+from spec_compiler import (
+    ActionSpec,
+    EntitySpec,
+    EventStepSpec,
+    ScenarioSpec,
+    SpecCompiler,
+    TriggerSpec,
+    WaypointSpec,
+)
+
+
+SCENE_SETUP = {'$schema': 'scene_setup_v1',
+ 'cameras': [{'camera_id': 'demo_high_overview',
+              'fov_deg': 90.0,
+              'placement': {'position_enu_m': [50.0, 247.667, 75.0],
+                            'rotation_deg': {'pitch_deg': -70.0, 'yaw_deg': 0.0}},
+              'placement_mode': 'world_pose'}],
+ 'description': 'Rain to C2 loss to forced landing cross-layer chain',
+ 'entities': [{'activation_tick': 0,
+               'category': 'facility',
+               'entity_id': 'tower_x1_c2',
+               'initial_state': {'mode': 'online'},
+               'logical_asset_id': 'facility.radio.base_tower.v1',
+               'placement': {'position_enu_m': [50.0, 246.0, 0], 'rotation_deg': {'yaw_deg': 0}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'uav',
+               'entity_id': 'uav_x1_forced_landing',
+               'initial_state': {'mode': 'rain_patrol'},
+               'logical_asset_id': 'uav.inspect.quad.v1',
+               'placement': {'position_enu_m': [42.0, 244.0, 32], 'rotation_deg': {'yaw_deg': 30}},
+               'placement_mode': 'world_pose',
+               'route_waypoints_enu_m': []},
+              {'activation_tick': 0,
+               'category': 'pedestrian',
+               'entity_id': 'ped_x1_crowd_anchor',
+               'initial_state': {'mode': 'standing'},
+               'logical_asset_id': 'pedestrian.cityops.basic.v1',
+               'placement': {'lane_edge_id': 'cg_edge_31', 'longitudinal_s': 42, 'offset_from_curb_m': 1.2},
+               'placement_mode': 'sidewalk_anchor',
+               'route_waypoints_enu_m': []}],
+ 'map_ref': {'coordinate_frame': 'ENU',
+             'geo_reference': {'alt': 24.0, 'lat': 30.5609, 'lon': 114.3627},
+             'map_id': 'donghu_road_topo'},
+ 'scenario_id': 'X1_rain_to_c2loss_to_forced_landing',
+ 'spawn_sequencing': [{'entity_id': 'tower_x1_c2', 'tick': 0},
+                      {'entity_id': 'uav_x1_forced_landing', 'tick': 0},
+                      {'entity_id': 'ped_x1_crowd_anchor', 'tick': 0}],
+ 'validation_rules': [{'description': 'tower_x1_c2 is declared before event_script references it in '
+                                      'X1_rain_to_c2loss_to_forced_landing',
+                       'entity_id': 'tower_x1_c2',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'uav_x1_forced_landing is declared before event_script references it in '
+                                      'X1_rain_to_c2loss_to_forced_landing',
+                       'entity_id': 'uav_x1_forced_landing',
+                       'rule': 'entity_resolvable'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'tower_x1_c2',
+                       'logical_asset_id': 'facility.radio.base_tower.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'description': 'Asset ID must match Config/LowAltitude/asset_catalog.json',
+                       'entity_id': 'uav_x1_forced_landing',
+                       'logical_asset_id': 'uav.inspect.quad.v1',
+                       'rule': 'asset_in_catalog'},
+                      {'description': 'Cross-layer scenario has at least five causal steps',
+                       'min_count': 5,
+                       'rule': 'cross_layer_event_chain_min'}],
+ 'weather_profile': {'initial': 'clear',
+                     'transitions': [{'overrides': {'rain': 0.62, 'visibility_m': 1600.0},
+                                      'profile': 'rain',
+                                      'tick': 180}]}}
+
+
+SPEC_DATA = {'category': 'cross_layer',
+ 'description': 'Rain to C2 loss to forced landing cross-layer chain',
+ 'duration_ticks': 900,
+ 'entities': [{'asset_id': 'facility.radio.base_tower.v1',
+               'entity_id': 'tower_x1_c2',
+               'initial_pos_enu': [50.0, 246.0, 0],
+               'initial_rotation_deg': [0.0, 0.0, 0],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'online'}},
+              {'asset_id': 'uav.inspect.quad.v1',
+               'entity_id': 'uav_x1_forced_landing',
+               'initial_pos_enu': [42.0, 244.0, 32],
+               'initial_rotation_deg': [0.0, 0.0, 30],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'rain_patrol'}},
+              {'asset_id': 'pedestrian.cityops.basic.v1',
+               'entity_id': 'ped_x1_crowd_anchor',
+               'initial_pos_enu': [58.0, 253.0, 0],
+               'initial_rotation_deg': [0.0, 0.0, 0],
+               'movement_waypoints': [],
+               'visual_state': {'mode': 'standing'}}],
+ 'event_chain': [{'actions': [{'params': {'action_id': 'set_x1_rain',
+                                          'overrides': {'rain': 0.65, 'visibility_m': 1500.0},
+                                          'profile': 'rain'},
+                               'type': 'set_weather'}],
+                  'event_id': 'rain_threshold',
+                  'log_category': 'weather',
+                  'log_overlay': 'weather',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['uav_x1_forced_landing', 'tower_x1_c2'],
+                  'log_title': 'Rain threshold triggers L5 degradation',
+                  'log_topic': 'evt_X1_rain_to_c2loss_to_forced_landing_rain_threshold',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 1,
+                  'trigger': {'sustain_ticks': 5,
+                              'type': 'weather_state',
+                              'weather_operator': 'gte',
+                              'weather_parameter': 'rain',
+                              'weather_value': 0.5}},
+                 {'actions': [{'params': {'action_id': 'set_x1_tower_stressed',
+                                          'entity_id': 'tower_x1_c2',
+                                          'visual_state': {'mode': 'rain_stressed'}},
+                               'type': 'set_visual_state'}],
+                  'event_id': 'c2_loss_tick',
+                  'log_category': 'digital_layer',
+                  'log_overlay': 'digital_layer',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['tower_x1_c2'],
+                  'log_title': 'C2 loss timing condition becomes true',
+                  'log_topic': 'evt_X1_rain_to_c2loss_to_forced_landing_c2_loss_tick',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 2,
+                  'trigger': {'tick': 260, 'type': 'tick'}},
+                 {'actions': [{'params': {'action_id': 'set_x1_tower_c2_loss',
+                                          'entity_id': 'tower_x1_c2',
+                                          'visual_state': {'mode': 'link_lost'}},
+                               'type': 'set_visual_state'},
+                              {'params': {'action_id': 'move_x1_uav_degraded',
+                                          'entity_id': 'uav_x1_forced_landing',
+                                          'velocity_mps': 3.0,
+                                          'waypoints_enu_m': [[42.0, 244.0, 32], [51.0, 248.0, 26]]},
+                               'type': 'move_entity'}],
+                  'event_id': 'c2_loss_after_rain',
+                  'log_category': 'digital_layer',
+                  'log_overlay': 'digital_layer',
+                  'log_severity': 'critical',
+                  'log_target_ids': ['uav_x1_forced_landing', 'tower_x1_c2'],
+                  'log_title': 'Rain and C2 condition combine into C2 loss',
+                  'log_topic': 'evt_X1_rain_to_c2loss_to_forced_landing_c2_loss_after_rain',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 3,
+                  'trigger': {'composite_children': ['rain_threshold', 'c2_loss_tick'],
+                              'composite_operator': 'AND',
+                              'type': 'composite'}},
+                 {'actions': [{'params': {'action_id': 'move_x1_forced_landing',
+                                          'entity_id': 'uav_x1_forced_landing',
+                                          'velocity_mps': 2.5,
+                                          'waypoints_enu_m': [[51.0, 248.0, 26], [57.0, 252.0, 8], [58.0, 253.0, 3]]},
+                               'type': 'move_entity'},
+                              {'params': {'action_id': 'spawn_x1_crowd',
+                                          'count': 10,
+                                          'group_id': 'crowd_x1',
+                                          'seed': 1101,
+                                          'spawn_box_extent_cm': [800, 500, 0],
+                                          'spawn_origin_enu_m': [58.0, 253.0, 0]},
+                               'type': 'spawn_crowd'}],
+                  'event_id': 'forced_landing_descent',
+                  'log_category': 'uav_mission',
+                  'log_overlay': 'uav_mission',
+                  'log_severity': 'critical',
+                  'log_target_ids': ['uav_x1_forced_landing', 'ped_x1_crowd_anchor'],
+                  'log_title': 'C2 loss causes forced landing near crowd',
+                  'log_topic': 'evt_X1_rain_to_c2loss_to_forced_landing_forced_landing_descent',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 4,
+                  'trigger': {'event_ref': 'c2_loss_after_rain', 'type': 'event_fired'}},
+                 {'actions': [{'params': {'action_id': 'move_x1_ped_evade',
+                                          'entity_id': 'ped_x1_crowd_anchor',
+                                          'velocity_mps': 2.0,
+                                          'waypoints_enu_m': [[58.0, 253.0, 0], [69.0, 262.0, 0]]},
+                               'type': 'move_entity'},
+                              {'params': {'action_id': 'clear_x1_crowd', 'group_id': 'crowd_x1'},
+                               'type': 'clear_crowd'},
+                              {'params': {'action_id': 'capture_x1_forced_landing',
+                                          'camera_id': 'demo_high_overview'},
+                               'type': 'capture_screenshot'}],
+                  'event_id': 'crowd_reacts_to_landing',
+                  'log_category': 'pedestrian',
+                  'log_overlay': 'pedestrian',
+                  'log_severity': 'warning',
+                  'log_target_ids': ['uav_x1_forced_landing', 'ped_x1_crowd_anchor'],
+                  'log_title': 'Crowd reacts to forced landing',
+                  'log_topic': 'evt_X1_rain_to_c2loss_to_forced_landing_crowd_reacts_to_landing',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 5,
+                  'trigger': {'distance_m': 5.0,
+                              'entity_a': 'uav_x1_forced_landing',
+                              'entity_b': 'ped_x1_crowd_anchor',
+                              'min_true_ticks': 2,
+                              'proximity_operator': 'lte',
+                              'type': 'entity_proximity'}},
+                 {'actions': [{'params': {'action_id': 'set_x1_tower_restored',
+                                          'entity_id': 'tower_x1_c2',
+                                          'visual_state': {'mode': 'online'}},
+                               'type': 'set_visual_state'},
+                              {'params': {'action_id': 'set_x1_uav_landed',
+                                          'entity_id': 'uav_x1_forced_landing',
+                                          'visual_state': {'mode': 'landed_safe'}},
+                               'type': 'set_visual_state'}],
+                  'event_id': 'x1_recovery',
+                  'log_category': 'digital_layer',
+                  'log_overlay': 'digital_layer',
+                  'log_severity': 'info',
+                  'log_target_ids': ['uav_x1_forced_landing', 'tower_x1_c2'],
+                  'log_title': 'Cross-layer chain recovers',
+                  'log_topic': 'evt_X1_rain_to_c2loss_to_forced_landing_x1_recovery',
+                  'max_fire_count': 1,
+                  'on_fire_emit': [],
+                  'priority': 6,
+                  'trigger': {'event_ref': 'crowd_reacts_to_landing', 'type': 'event_fired'}}],
+ 'parameters': {'cross_layer': True},
+ 'scenario_id': 'X1_rain_to_c2loss_to_forced_landing'}
+
+
+def _trigger(data):
+    return TriggerSpec(**data)
+
+
+def _action(data):
+    return ActionSpec(data["type"], data.get("params", {}))
+
+
+def _event(data):
+    return EventStepSpec(
+        event_id=data["event_id"],
+        trigger=_trigger(data["trigger"]),
+        actions=[_action(a) for a in data.get("actions", [])],
+        on_fire_emit=data.get("on_fire_emit", []),
+        priority=data.get("priority", 10),
+        max_fire_count=data.get("max_fire_count", 1),
+        cooldown_ticks=data.get("cooldown_ticks", 0),
+        require_conditions=data.get("require_conditions", []),
+        log_topic=data.get("log_topic", ""),
+        log_category=data.get("log_category", ""),
+        log_title=data.get("log_title", ""),
+        log_severity=data.get("log_severity", "info"),
+        log_overlay=data.get("log_overlay", ""),
+        log_target_ids=data.get("log_target_ids", []),
+    )
+
+
+def build_spec():
+    return ScenarioSpec(
+        scenario_id=SPEC_DATA["scenario_id"],
+        category=SPEC_DATA["category"],
+        description=SPEC_DATA["description"],
+        duration_ticks=SPEC_DATA["duration_ticks"],
+        parameters=SPEC_DATA["parameters"],
+        entities=[
+            EntitySpec(
+                entity_id=e["entity_id"],
+                asset_id=e["asset_id"],
+                initial_pos_enu=e["initial_pos_enu"],
+                initial_rotation_deg=e.get("initial_rotation_deg", [0.0, 0.0, 0.0]),
+                movement_waypoints=[WaypointSpec(w) for w in e.get("movement_waypoints", [])],
+                visual_state=e.get("visual_state"),
+            )
+            for e in SPEC_DATA["entities"]
+        ],
+        event_chain=[_event(e) for e in SPEC_DATA["event_chain"]],
+    )
+
+
+if __name__ == "__main__":
+    here = Path(__file__).resolve().parent
+    spec = build_spec()
+    compiled = SpecCompiler().compile(spec)
+    with open(here / "event_script.json", "w", encoding="utf-8") as f:
+        json.dump(compiled, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    with open(here / "scene_setup.json", "w", encoding="utf-8") as f:
+        json.dump(SCENE_SETUP, f, indent=2, ensure_ascii=False)
+        f.write("\n")

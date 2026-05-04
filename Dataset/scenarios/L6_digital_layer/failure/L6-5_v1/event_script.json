@@ -1,103 +1,180 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L6-5_v1",
-  "description": "GCS breach detected, safety lockout succeeds",
+  "description": "Ground control station intrusion and abnormal UAV behavior",
   "parameters": {
-    "failure_tick": 400
+    "anomaly_tick": 240,
+    "recovery_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_failure_detected",
+      "trigger_id": "trig_gcs_intrusion",
       "type": "tick",
-      "tick": 400
+      "tick": 240
     },
     {
-      "trigger_id": "trig_after_failure_detected",
+      "trigger_id": "trig_after_gcs_intrusion",
       "type": "event_fired",
-      "event_id": "failure_detected"
+      "event_id": "gcs_intrusion"
+    },
+    {
+      "trigger_id": "trig_after_abnormal_uav_behavior",
+      "type": "event_fired",
+      "event_id": "abnormal_uav_behavior"
+    },
+    {
+      "trigger_id": "trig_after_command_lockout",
+      "type": "event_fired",
+      "event_id": "command_lockout"
     }
   ],
   "events": [
     {
-      "event_id": "failure_detected",
-      "trigger_ref": "trig_failure_detected",
+      "event_id": "gcs_intrusion",
+      "trigger_ref": "trig_gcs_intrusion",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "move_entity",
-          "action_id": "move_128",
-          "entity_id": "uav_ops_01",
-          "waypoints_enu_m": [
-            [
-              50,
-              20,
-              35
-            ],
-            [
-              46,
-              16,
-              15
-            ]
-          ],
-          "velocity_mps": 4.0
+          "type": "set_visual_state",
+          "action_id": "set_gcs_intrusion",
+          "entity_id": "gcs_anchor_l6_5_v1",
+          "visual_state": {
+            "mode": "intrusion_detected"
+          }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "emergency_landing"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L6-5_v1_failure",
-        "category": "uav_mission",
-        "title": "GCS breach detected, safety lockout succeeds — 系统失效检测",
+        "topic": "evt_L6-5_v1_gcs_intrusion",
+        "category": "digital_layer",
+        "title": "Ground control station intrusion detected",
         "severity": "critical",
-        "overlay": "uav_mission",
+        "overlay": "digital_layer",
         "target_ids": [
-          "uav_ops_01"
+          "gcs_anchor_l6_5_v1",
+          "uav_digital_l6_5_v1"
         ]
       }
     },
     {
-      "event_id": "emergency_landing",
-      "trigger_ref": "trig_after_failure_detected",
+      "event_id": "abnormal_uav_behavior",
+      "trigger_ref": "trig_after_gcs_intrusion",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_129",
-          "entity_id": "uav_ops_01",
+          "action_id": "move_uav_intrusion_abnormal",
+          "entity_id": "uav_digital_l6_5_v1",
           "waypoints_enu_m": [
             [
-              46,
-              16,
-              15
+              98.0,
+              221.6,
+              32
             ],
             [
-              45,
-              15,
-              0.5
+              118.0,
+              209.6,
+              32
             ]
           ],
-          "velocity_mps": 2.0
+          "velocity_mps": 9.0
         },
         {
-          "type": "capture_screenshot",
-          "action_id": "cap_036",
-          "camera_id": "demo_overview"
+          "type": "set_visual_state",
+          "action_id": "set_uav_abnormal_commanded",
+          "entity_id": "uav_digital_l6_5_v1",
+          "visual_state": {
+            "mode": "abnormal_command"
+          }
         }
       ],
       "log_event": {
-        "topic": "evt_L6-5_v1_landing",
+        "topic": "evt_L6-5_v1_abnormal_uav_behavior",
         "category": "uav_mission",
-        "title": "紧急迫降执行",
+        "title": "UAV follows abnormal command path",
         "severity": "critical",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_ops_01",
-          "pad_emergency_01"
+          "uav_digital_l6_5_v1",
+          "gcs_anchor_l6_5_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "command_lockout",
+      "trigger_ref": "trig_after_abnormal_uav_behavior",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_gcs_locked",
+          "entity_id": "gcs_anchor_l6_5_v1",
+          "visual_state": {
+            "mode": "locked_out"
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_command_lock",
+          "entity_id": "uav_digital_l6_5_v1",
+          "waypoints_enu_m": [
+            [
+              118.0,
+              209.6,
+              32
+            ],
+            [
+              101.0,
+              228.6,
+              34
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L6-5_v1_command_lockout",
+        "category": "digital_layer",
+        "title": "Command lockout and safe route intervention",
+        "severity": "warning",
+        "overlay": "digital_layer",
+        "target_ids": [
+          "uav_digital_l6_5_v1",
+          "gcs_anchor_l6_5_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "secure_recovery",
+      "trigger_ref": "trig_after_command_lockout",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_gcs_secure",
+          "entity_id": "gcs_anchor_l6_5_v1",
+          "visual_state": {
+            "mode": "secure"
+          }
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_gcs_recovery",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L6-5_v1_secure_recovery",
+        "category": "digital_layer",
+        "title": "Ground control station secured",
+        "severity": "info",
+        "overlay": "digital_layer",
+        "target_ids": [
+          "uav_digital_l6_5_v1",
+          "gcs_anchor_l6_5_v1"
         ]
       }
     }

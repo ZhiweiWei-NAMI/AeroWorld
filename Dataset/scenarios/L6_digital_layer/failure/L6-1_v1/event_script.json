@@ -1,103 +1,156 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L6-1_v1",
-  "description": "Link loss, successful RTH and landing",
+  "description": "C2 link loss with return-to-home",
   "parameters": {
-    "failure_tick": 400
+    "anomaly_tick": 240,
+    "recovery_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_failure_detected",
+      "trigger_id": "trig_c2_loss",
       "type": "tick",
-      "tick": 400
+      "tick": 240
     },
     {
-      "trigger_id": "trig_after_failure_detected",
+      "trigger_id": "trig_after_c2_loss",
       "type": "event_fired",
-      "event_id": "failure_detected"
+      "event_id": "c2_loss"
+    },
+    {
+      "trigger_id": "trig_after_rth_engaged",
+      "type": "event_fired",
+      "event_id": "rth_engaged"
     }
   ],
   "events": [
     {
-      "event_id": "failure_detected",
-      "trigger_ref": "trig_failure_detected",
+      "event_id": "c2_loss",
+      "trigger_ref": "trig_c2_loss",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
+          "type": "set_visual_state",
+          "action_id": "set_tower_c2_loss",
+          "entity_id": "tower_l6_1_v1",
+          "visual_state": {
+            "mode": "link_lost"
+          }
+        },
+        {
           "type": "move_entity",
-          "action_id": "move_112",
-          "entity_id": "uav_ops_01",
+          "action_id": "move_uav_until_c2_loss",
+          "entity_id": "uav_digital_l6_1_v1",
           "waypoints_enu_m": [
             [
-              50,
-              20,
-              35
+              34.0,
+              196.0,
+              32
             ],
             [
-              46,
-              16,
-              15
+              48.0,
+              204.0,
+              31
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 6.0
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "emergency_landing"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L6-1_v1_failure",
-        "category": "uav_mission",
-        "title": "Link loss, successful RTH and landing — 系统失效检测",
+        "topic": "evt_L6-1_v1_c2_loss",
+        "category": "digital_layer",
+        "title": "C2 link loss occurs",
         "severity": "critical",
-        "overlay": "uav_mission",
+        "overlay": "digital_layer",
         "target_ids": [
-          "uav_ops_01"
+          "uav_digital_l6_1_v1",
+          "tower_l6_1_v1"
         ]
       }
     },
     {
-      "event_id": "emergency_landing",
-      "trigger_ref": "trig_after_failure_detected",
+      "event_id": "rth_engaged",
+      "trigger_ref": "trig_after_c2_loss",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "move_entity",
-          "action_id": "move_113",
-          "entity_id": "uav_ops_01",
-          "waypoints_enu_m": [
-            [
-              46,
-              16,
-              15
-            ],
-            [
-              45,
-              15,
-              0.5
-            ]
-          ],
-          "velocity_mps": 2.0
+          "type": "set_visual_state",
+          "action_id": "set_uav_rth",
+          "entity_id": "uav_digital_l6_1_v1",
+          "visual_state": {
+            "mode": "return_to_home"
+          }
         },
         {
-          "type": "capture_screenshot",
-          "action_id": "cap_028",
-          "camera_id": "demo_overview"
+          "type": "move_entity",
+          "action_id": "move_uav_rth_home",
+          "entity_id": "uav_digital_l6_1_v1",
+          "waypoints_enu_m": [
+            [
+              48.0,
+              204.0,
+              31
+            ],
+            [
+              36.0,
+              197.0,
+              34
+            ],
+            [
+              24.0,
+              190.0,
+              30
+            ]
+          ],
+          "velocity_mps": 7.0
         }
       ],
       "log_event": {
-        "topic": "evt_L6-1_v1_landing",
+        "topic": "evt_L6-1_v1_rth_engaged",
         "category": "uav_mission",
-        "title": "紧急迫降执行",
-        "severity": "critical",
+        "title": "UAV return-to-home safety action",
+        "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_ops_01",
-          "pad_emergency_01"
+          "uav_digital_l6_1_v1",
+          "tower_l6_1_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "c2_recovered",
+      "trigger_ref": "trig_after_rth_engaged",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_tower_link_restored",
+          "entity_id": "tower_l6_1_v1",
+          "visual_state": {
+            "mode": "online"
+          }
+        },
+        {
+          "type": "set_visual_state",
+          "action_id": "set_uav_rth_complete",
+          "entity_id": "uav_digital_l6_1_v1",
+          "visual_state": {
+            "mode": "home_hold"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L6-1_v1_c2_recovered",
+        "category": "digital_layer",
+        "title": "C2 link recovered after RTH",
+        "severity": "info",
+        "overlay": "digital_layer",
+        "target_ids": [
+          "uav_digital_l6_1_v1",
+          "tower_l6_1_v1"
         ]
       }
     }

@@ -1,90 +1,128 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L5-5_v1",
-  "description": "High temperature, battery derating, shortened mission",
+  "description": "High temperature battery derating and shortened range",
   "parameters": {
-    "weather_onset_tick": 300
+    "weather_threshold_tick": 260
   },
   "triggers": [
     {
-      "trigger_id": "trig_weather_onset",
+      "trigger_id": "trig_high_temperature_process",
       "type": "tick",
-      "tick": 300
+      "tick": 260
     },
     {
-      "trigger_id": "trig_after_weather_onset",
+      "trigger_id": "trig_after_high_temperature_process",
       "type": "event_fired",
-      "event_id": "weather_onset"
+      "event_id": "high_temperature_process"
+    },
+    {
+      "trigger_id": "trig_after_range_shortened",
+      "type": "event_fired",
+      "event_id": "range_shortened"
     }
   ],
   "events": [
     {
-      "event_id": "weather_onset",
-      "trigger_ref": "trig_weather_onset",
+      "event_id": "high_temperature_process",
+      "trigger_ref": "trig_high_temperature_process",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "set_weather",
-          "action_id": "set_weather_009",
-          "profile": "rain",
-          "overrides": {
-            "rain": 0.4,
-            "visibility_m": 14000.0,
-            "wetness": 0.36000000000000004,
-            "wind_speed": 9.0
+          "type": "set_visual_state",
+          "action_id": "set_uav_battery_derating",
+          "entity_id": "uav_weather_l5_5_v1",
+          "visual_state": {
+            "mode": "battery_derating"
           }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "uav_reaction"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L5-5_v1_onset",
-        "category": "weather",
-        "title": "High temperature, battery derating, shortened mission — 天气变化开始",
+        "topic": "evt_L5-5_v1_high_temperature_process",
+        "category": "environment",
+        "title": "High temperature causes battery derating",
         "severity": "warning",
-        "overlay": "weather",
+        "overlay": "environment",
         "target_ids": [
-          "weather_global"
+          "uav_weather_l5_5_v1"
         ]
       }
     },
     {
-      "event_id": "uav_reaction",
-      "trigger_ref": "trig_after_weather_onset",
+      "event_id": "range_shortened",
+      "trigger_ref": "trig_after_high_temperature_process",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_111",
-          "entity_id": "uav_patrol_01",
+          "action_id": "move_uav_shortened_range",
+          "entity_id": "uav_weather_l5_5_v1",
           "waypoints_enu_m": [
             [
-              50,
-              20,
-              30
+              94.0,
+              174.0,
+              32
             ],
             [
-              40,
-              15,
-              30
+              102.0,
+              179.0,
+              32
             ]
           ],
-          "velocity_mps": 3.0
+          "velocity_mps": 4.0
         }
       ],
       "log_event": {
-        "topic": "evt_L5-5_v1_uav_react",
+        "topic": "evt_L5-5_v1_range_shortened",
         "category": "uav_mission",
-        "title": "UAV 因天气变化调整航线",
+        "title": "UAV range shortens under derating",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_weather_l5_5_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "thermal_abort",
+      "trigger_ref": "trig_after_range_shortened",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_thermal_abort",
+          "entity_id": "uav_weather_l5_5_v1",
+          "waypoints_enu_m": [
+            [
+              102.0,
+              179.0,
+              32
+            ],
+            [
+              89.0,
+              183.0,
+              31
+            ]
+          ],
+          "velocity_mps": 4.5
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_temperature_abort",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-5_v1_thermal_abort",
+        "category": "uav_mission",
+        "title": "UAV terminates high-temperature mission",
         "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_patrol_01"
+          "uav_weather_l5_5_v1"
         ]
       }
     }

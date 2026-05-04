@@ -1,94 +1,39 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L4-10_v2",
-  "description": "Fire truck wrong-way through blocked intersection",
+  "description": "Ambulance priority passage with civilian yield",
   "parameters": {
-    "incident_tick": 400
+    "incident_tick": 260,
+    "resolution_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_incident_occurred",
+      "trigger_id": "trig_ambulance_priority_approach",
       "type": "tick",
-      "tick": 400
+      "tick": 220
     },
     {
-      "trigger_id": "trig_after_incident_occurred",
+      "trigger_id": "trig_after_ambulance_priority_approach",
       "type": "event_fired",
-      "event_id": "incident_occurred"
+      "event_id": "ambulance_priority_approach"
     },
     {
-      "trigger_id": "trig_after_dispatch_responder",
+      "trigger_id": "trig_after_civilian_vehicle_yields",
       "type": "event_fired",
-      "event_id": "dispatch_responder"
+      "event_id": "civilian_vehicle_yields"
     }
   ],
   "events": [
     {
-      "event_id": "incident_occurred",
-      "trigger_ref": "trig_incident_occurred",
+      "event_id": "ambulance_priority_approach",
+      "trigger_ref": "trig_ambulance_priority_approach",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "play_animation",
-          "action_id": "anim_014",
-          "ped_id": "ped_victim_01",
-          "animation_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
-          "start_section": "Start",
-          "play_rate": 1.0,
-          "loop_count": 1
-        },
-        {
-          "type": "move_entity",
-          "action_id": "move_097",
-          "entity_id": "uav_patrol_01",
-          "waypoints_enu_m": [
-            [
-              60,
-              25,
-              30
-            ],
-            [
-              52,
-              20,
-              15
-            ]
-          ],
-          "velocity_mps": 5.0
-        }
-      ],
-      "on_fire": {
-        "emit_events": [
-          "dispatch_responder"
-        ]
-      },
-      "log_event": {
-        "topic": "evt_L4-10_v2_incident",
-        "category": "pedestrian",
-        "title": "Fire truck wrong-way through blocked intersection — 事件检测",
-        "severity": "warning",
-        "overlay": "pedestrian",
-        "target_ids": [
-          "ped_victim_01"
-        ]
-      }
-    },
-    {
-      "event_id": "dispatch_responder",
-      "trigger_ref": "trig_after_incident_occurred",
-      "priority": 2,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "spawn_entity",
-          "action_id": "spawn_009",
-          "asset_id": "vehicle.emergency.ambulance.v1",
-          "entity_id": "ambulance_response_01",
-          "position_enu_m": [
-            80,
-            40,
-            0
-          ],
+          "type": "set_visual_state",
+          "action_id": "set_ambulance_lights_on",
+          "entity_id": "ambulance_priority_l4_10_v2",
           "visual_state": {
             "mode": "response",
             "lights_on": true
@@ -96,61 +41,121 @@
         },
         {
           "type": "move_entity",
-          "action_id": "move_098",
-          "entity_id": "ambulance_response_01",
+          "action_id": "move_ambulance_priority",
+          "entity_id": "ambulance_priority_l4_10_v2",
           "waypoints_enu_m": [
             [
-              80,
-              40,
+              129.5,
+              141.0,
               0
             ],
             [
-              52,
-              19,
+              145.5,
+              142.0,
+              0
+            ],
+            [
+              169.5,
+              144.0,
               0
             ]
           ],
-          "velocity_mps": 12.0
+          "velocity_mps": 13.0
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "responder_arrived"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L4-10_v2_dispatch",
+        "topic": "evt_L4-10_v2_ambulance_priority_approach",
         "category": "vehicle",
-        "title": "应急响应派遣",
+        "title": "Ambulance approaches with lights active",
         "severity": "warning",
         "overlay": "vehicle",
         "target_ids": [
-          "ambulance_response_01"
+          "ambulance_priority_l4_10_v2",
+          "civilian_yield_l4_10_v2"
         ]
       }
     },
     {
-      "event_id": "responder_arrived",
-      "trigger_ref": "trig_after_dispatch_responder",
+      "event_id": "civilian_vehicle_yields",
+      "trigger_ref": "trig_after_ambulance_priority_approach",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_civilian_yield",
+          "entity_id": "civilian_yield_l4_10_v2",
+          "waypoints_enu_m": [
+            [
+              151.5,
+              143.0,
+              0
+            ],
+            [
+              154.5,
+              149.0,
+              0
+            ],
+            [
+              156.5,
+              153.0,
+              0
+            ]
+          ],
+          "velocity_mps": 3.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-10_v2_civilian_vehicle_yields",
+        "category": "vehicle",
+        "title": "Civilian vehicle yields to ambulance",
+        "severity": "info",
+        "overlay": "vehicle",
+        "target_ids": [
+          "ambulance_priority_l4_10_v2",
+          "civilian_yield_l4_10_v2"
+        ]
+      }
+    },
+    {
+      "event_id": "uav_priority_capture",
+      "trigger_ref": "trig_after_civilian_vehicle_yields",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
         {
+          "type": "move_entity",
+          "action_id": "move_uav_priority_monitor",
+          "entity_id": "uav_priority_monitor_l4_10_v2",
+          "waypoints_enu_m": [
+            [
+              145.5,
+              157.0,
+              32
+            ],
+            [
+              163.5,
+              155.0,
+              28
+            ]
+          ],
+          "velocity_mps": 5.0
+        },
+        {
           "type": "capture_screenshot",
-          "action_id": "cap_025",
-          "camera_id": "demo_overview"
+          "action_id": "capture_ambulance_priority",
+          "camera_id": "demo_high_overview"
         }
       ],
       "log_event": {
-        "topic": "evt_L4-10_v2_arrival",
+        "topic": "evt_L4-10_v2_uav_priority_capture",
         "category": "uav_mission",
-        "title": "应急响应到达确认",
+        "title": "UAV monitors priority passage",
         "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_patrol_01",
-          "ambulance_response_01",
-          "ped_victim_01"
+          "uav_priority_monitor_l4_10_v2",
+          "ambulance_priority_l4_10_v2"
         ]
       }
     }

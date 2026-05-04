@@ -1,0 +1,167 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L5-3_v2",
+  "description": "Crosswind payload swing and UAV attitude anomaly",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "uav_weather_l5_3_v2",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          78.0,
+          167.0,
+          32
+        ],
+        "rotation_deg": {
+          "yaw_deg": 35
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "patrol"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "weather_car_l5_3_v2",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_29",
+        "lane_index": 0,
+        "longitudinal_s": 36,
+        "lateral_offset_m": 0.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "moving"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "weather_ped_l5_3_v2",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_29",
+        "longitudinal_s": 40,
+        "offset_from_curb_m": 1.2
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "walking"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "payload_bag_l5_3_v2",
+      "logical_asset_id": "prop.service.delivery_bag.v1",
+      "category": "prop",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          79.0,
+          168.0,
+          28
+        ],
+        "rotation_deg": {
+          "yaw_deg": 0
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "attached"
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "uav_weather_l5_3_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "weather_car_l5_3_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "weather_ped_l5_3_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "payload_bag_l5_3_v2",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": [
+      {
+        "tick": 210,
+        "profile": "wind",
+        "overrides": {
+          "wind_speed": 12.5
+        }
+      }
+    ]
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          80.75,
+          166.5,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "uav_weather_l5_3_v2",
+      "description": "uav_weather_l5_3_v2 is declared before event_script references it in L5-3_v2"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "weather_car_l5_3_v2",
+      "description": "weather_car_l5_3_v2 is declared before event_script references it in L5-3_v2"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "uav_weather_l5_3_v2",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "weather_car_l5_3_v2",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "environment_trigger_kind",
+      "description": "Rain/fog/wind use weather_state; light and temperature use tick simulation"
+    }
+  ]
+}

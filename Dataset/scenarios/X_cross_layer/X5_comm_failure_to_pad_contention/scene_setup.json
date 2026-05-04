@@ -1,0 +1,198 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "X5_comm_failure_to_pad_contention",
+  "description": "Communication failure to pad contention chain",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "tower_x5_comm",
+      "logical_asset_id": "facility.radio.base_tower.v1",
+      "category": "facility",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          111.0,
+          273.0,
+          0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 0
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "online"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "pad_x5_primary",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "pad_x5_a",
+        "approach_side": "north",
+        "position_enu_m": [
+          108.0,
+          276.0,
+          0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 0.0
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "pad_x5_backup",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "pad_x5_b",
+        "approach_side": "east",
+        "position_enu_m": [
+          132.0,
+          280.0,
+          0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 0.0
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "uav_x5_priority",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          88.0,
+          284.0,
+          33
+        ],
+        "rotation_deg": {
+          "yaw_deg": 60
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "landing_request"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "uav_x5_second",
+      "logical_asset_id": "uav.airsim.flying_pawn.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          124.0,
+          260.0,
+          31
+        ],
+        "rotation_deg": {
+          "yaw_deg": 280
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "landing_request"
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "tower_x5_comm",
+      "tick": 0
+    },
+    {
+      "entity_id": "pad_x5_primary",
+      "tick": 0
+    },
+    {
+      "entity_id": "pad_x5_backup",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_x5_priority",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_x5_second",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          112.6,
+          274.6,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "tower_x5_comm",
+      "description": "tower_x5_comm is declared before event_script references it in X5_comm_failure_to_pad_contention"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "pad_x5_primary",
+      "description": "pad_x5_primary is declared before event_script references it in X5_comm_failure_to_pad_contention"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "tower_x5_comm",
+      "logical_asset_id": "facility.radio.base_tower.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "pad_x5_primary",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "cross_layer_event_chain_min",
+      "min_count": 5,
+      "description": "Cross-layer scenario has at least five causal steps"
+    }
+  ]
+}

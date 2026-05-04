@@ -1,0 +1,121 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L4-2_v2",
+  "description": "UAV building facade near strike",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "uav_facade_l4_2_v2",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          33.5,
+          82.0,
+          31
+        ],
+        "rotation_deg": {
+          "yaw_deg": 55
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "navigation_fault"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "facade_anchor_l4_2_v2",
+      "logical_asset_id": "semantic.asset_anchor",
+      "category": "facade_anchor",
+      "placement_mode": "facade_anchor",
+      "placement": {
+        "building_id": "building_east_block_3",
+        "outward_normal_enu": [
+          1.0,
+          -0.4,
+          0.0
+        ],
+        "stand_off_m": 1.0,
+        "position_enu_m": [
+          62.5,
+          98.0,
+          16
+        ]
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {},
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "uav_facade_l4_2_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "facade_anchor_l4_2_v2",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          48.0,
+          90.0,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "uav_facade_l4_2_v2",
+      "description": "uav_facade_l4_2_v2 is declared before event_script references it in L4-2_v2"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "facade_anchor_l4_2_v2",
+      "description": "facade_anchor_l4_2_v2 is declared before event_script references it in L4-2_v2"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "uav_facade_l4_2_v2",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "facade_anchor_l4_2_v2",
+      "logical_asset_id": "semantic.asset_anchor",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "facade_approach_distance",
+      "max_distance_m": 3.0,
+      "description": "UAV trajectory nearest point is within 3m of facade anchor"
+    }
+  ]
+}

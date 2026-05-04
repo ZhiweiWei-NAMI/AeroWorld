@@ -1,0 +1,119 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L4-1_v1",
+  "description": "UAV-UAV converging conflict and separation",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "uav_conflict_l4_1_v1_a",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          22.0,
+          82.0,
+          25
+        ],
+        "rotation_deg": {
+          "yaw_deg": 70
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "patrol"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "uav_conflict_l4_1_v1_b",
+      "logical_asset_id": "uav.airsim.flying_pawn.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          60.0,
+          94.0,
+          30
+        ],
+        "rotation_deg": {
+          "yaw_deg": 250
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "patrol"
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "uav_conflict_l4_1_v1_a",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_conflict_l4_1_v1_b",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          41.0,
+          88.0,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "uav_conflict_l4_1_v1_a",
+      "description": "uav_conflict_l4_1_v1_a is declared before event_script references it in L4-1_v1"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "uav_conflict_l4_1_v1_b",
+      "description": "uav_conflict_l4_1_v1_b is declared before event_script references it in L4-1_v1"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "uav_conflict_l4_1_v1_a",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "uav_conflict_l4_1_v1_b",
+      "logical_asset_id": "uav.airsim.flying_pawn.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "uav_start_separation",
+      "min_horizontal_distance_m": 15.0,
+      "description": "UAV starts are separated and altitudes differ"
+    }
+  ]
+}

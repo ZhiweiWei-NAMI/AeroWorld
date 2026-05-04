@@ -1,0 +1,119 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "X2_gnss_spoof_to_geofence_violation",
+  "description": "GNSS spoofing to geofence violation chain",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "uav_x2_spoofed",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          58.0,
+          251.0,
+          32
+        ],
+        "rotation_deg": {
+          "yaw_deg": 45
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "mission"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "nfz_x2_geofence",
+      "logical_asset_id": "trigger.no_fly.box.v1",
+      "category": "airspace_constraint",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          89.0,
+          265.0,
+          28
+        ],
+        "extent_m": [
+          12,
+          10,
+          15
+        ]
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {},
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "uav_x2_spoofed",
+      "tick": 0
+    },
+    {
+      "entity_id": "nfz_x2_geofence",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          73.5,
+          258.0,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "uav_x2_spoofed",
+      "description": "uav_x2_spoofed is declared before event_script references it in X2_gnss_spoof_to_geofence_violation"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "nfz_x2_geofence",
+      "description": "nfz_x2_geofence is declared before event_script references it in X2_gnss_spoof_to_geofence_violation"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "uav_x2_spoofed",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "nfz_x2_geofence",
+      "logical_asset_id": "trigger.no_fly.box.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "cross_layer_event_chain_min",
+      "min_count": 5,
+      "description": "Cross-layer scenario has at least five causal steps"
+    }
+  ]
+}

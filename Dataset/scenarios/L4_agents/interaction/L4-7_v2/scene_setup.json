@@ -1,0 +1,131 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L4-7_v2",
+  "description": "Pedestrian fall detected by UAV and response chain",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "ped_fall_l4_7_v2",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_23",
+        "longitudinal_s": 42,
+        "offset_from_curb_m": 1.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "walking"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "uav_detect_l4_7_v2",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          110.5,
+          119.0,
+          31
+        ],
+        "rotation_deg": {
+          "yaw_deg": 55
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "patrol"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "ambulance_fall_l4_7_v2",
+      "logical_asset_id": "vehicle.emergency.ambulance.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_24",
+        "lane_index": 0,
+        "longitudinal_s": 30,
+        "lateral_offset_m": 0.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "response",
+        "lights_on": true
+      },
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "ped_fall_l4_7_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_detect_l4_7_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "ambulance_fall_l4_7_v2",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          110.167,
+          119.0,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "ped_fall_l4_7_v2",
+      "description": "ped_fall_l4_7_v2 is declared before event_script references it in L4-7_v2"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "uav_detect_l4_7_v2",
+      "description": "uav_detect_l4_7_v2 is declared before event_script references it in L4-7_v2"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "ped_fall_l4_7_v2",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "uav_detect_l4_7_v2",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    }
+  ]
+}

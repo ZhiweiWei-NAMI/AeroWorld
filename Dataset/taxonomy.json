@@ -1,0 +1,651 @@
+{
+  "$schema": "uam_event_taxonomy_v1",
+  "title": "Low-Altitude Urban Air Mobility (UAM) Event Taxonomy",
+  "version": "1.0.0",
+  "description": "Systematic event classification for multi-modal UAM dataset generation. Derived from NASA Belcastro et al. (2017) 4-domain hazard taxonomy, cross-validated with CAAC MinGui [2025] No.15 (14 emergency + 35 non-emergency event types), JARUS SORA v2.5 (SAIL I-VI), and ICAO CICTT ADREP (34 occurrence categories). Organized by UAM-adapted PEGASUS 6-layer ODD model.",
+
+  "methodology": {
+    "primary_framework": "NASA Belcastro et al. (2017) — 4-domain UAS hazard taxonomy (Vehicle, GCS, Operations, UTM), 31 sub-categories",
+    "coverage_validation": "CAAC MinGui [2025] No.15 — 14 emergency + 35 non-emergency reportable event types",
+    "severity_framework": "JARUS SORA v2.5 — SAIL I-VI mapped to critical/major/minor",
+    "naming_convention": "ICAO CICTT ADREP — 34 occurrence category codes for naming alignment",
+    "odd_model": "PEGASUS 6-layer model (Scholtes et al., 2021, IEEE Access), adapted for UAM by the authors",
+    "total_event_types": 33,
+    "total_mechanism_categories": 5,
+    "event_type_derivation": "Belcastro 31 sub-classes filtered for low-altitude urban UAM relevance + 6 ground-domain types validated via CAAC cross-reference"
+  },
+
+  "odd_layers": {
+    "L1": {"name": "Airspace Structure", "description": "Flight corridors, altitude layers, no-fly zones, approach/departure paths"},
+    "L2": {"name": "Ground Infrastructure", "description": "Landing pads, charging stations, communication towers, traffic signals"},
+    "L3": {"name": "Dynamic Constraints", "description": "Temporary flight restrictions, construction zones, emergency isolation areas"},
+    "L4": {"name": "Agents", "description": "UAVs (delivery/inspection/emergency), ground vehicles, pedestrians, crowds"},
+    "L5": {"name": "Environment", "description": "Rain, fog, wind, temperature, lighting, visibility"},
+    "L6": {"name": "Digital Layer", "description": "C2 links, GNSS, UTM data exchange, V2X communication"}
+  },
+
+  "mechanism_categories": {
+    "collision": {"label": "Collision/Near-Miss", "causal_edge": "causal:leads_to", "description": "Events involving physical or near-physical interaction between agents"},
+    "failure": {"label": "System/Component Failure", "causal_edge": "causal:causes", "description": "Events caused by malfunction or degradation of technical systems"},
+    "environmental": {"label": "Environmental Trigger", "causal_edge": "causal:amplifies", "description": "Events triggered or amplified by environmental conditions"},
+    "violation": {"label": "Spatial/Regulatory Violation", "causal_edge": "causal:triggers", "description": "Events involving airspace or operational boundary violations"},
+    "operational": {"label": "Operational Anomaly", "causal_edge": "causal:requires_response", "description": "Events requiring operational response or procedural intervention"}
+  },
+
+  "event_types": [
+    {
+      "event_type_id": "L1-1",
+      "name": "UAV Geofence Violation",
+      "odd_layer": "L1",
+      "mechanism": "violation",
+      "belcastro_ref": "UTM:Geofence Violations",
+      "caac_ref": "CAAC-10 (entering prohibited/danger/restricted zones)",
+      "sora_sail": "III-IV",
+      "icao_cictt_ref": "NAV (Navigation Error)",
+      "description": "UAV enters a designated no-fly zone due to navigation error, triggering autonomous return-to-home or forced landing.",
+      "causal_chain_sketch": "NAV error → position drift → geofence boundary crossing → RTH activation → mission abort",
+      "entities_required": ["uav", "no_fly_zone", "landing_pad"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L1-1_v1", "name": "Single boundary breach, immediate RTH", "severity": "major"},
+        {"id": "L1-1_v2", "name": "Boundary oscillation, repeated entry/exit", "severity": "minor"}
+      ]
+    },
+    {
+      "event_type_id": "L1-2",
+      "name": "UAV Altitude Deviation",
+      "odd_layer": "L1",
+      "mechanism": "violation",
+      "belcastro_ref": "Operations:Procedural Deviations",
+      "caac_ref": "Non-emergency (altitude deviation)",
+      "sora_sail": "II-III",
+      "icao_cictt_ref": "LALT (Low Altitude Operations)",
+      "description": "UAV deviates from assigned altitude corridor, creating potential conflict with other airspace users.",
+      "causal_chain_sketch": "altitude control error → corridor deviation → conflict alert → corrective maneuver",
+      "entities_required": ["uav", "uav_2"],
+      "variant_count": 1,
+      "variants": [
+        {"id": "L1-2_v1", "name": "Gradual drift below assigned corridor", "severity": "minor"}
+      ]
+    },
+    {
+      "event_type_id": "L1-3",
+      "name": "Non-Cooperative UAV Intrusion",
+      "odd_layer": "L1",
+      "mechanism": "violation",
+      "belcastro_ref": "UTM:Airspace Integration Failures",
+      "caac_ref": "CAAC-10 (unauthorized entry)",
+      "sora_sail": "IV-V",
+      "icao_cictt_ref": "MAC (Midair Collision / AIRPROX)",
+      "description": "An unauthorized UAV enters operational airspace, creating collision risk with cooperative UAVs.",
+      "causal_chain_sketch": "intruder detection → threat assessment → evasive maneuver / forced landing → airspace lock",
+      "entities_required": ["cooperative_uav", "intruder_uav", "no_fly_zone"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L1-3_v1", "name": "Single intruder, detected and avoided", "severity": "major"},
+        {"id": "L1-3_v2", "name": "Intruder ignores warnings, forced interdiction", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L1-4",
+      "name": "Airspace Corridor Congestion",
+      "odd_layer": "L1",
+      "mechanism": "violation",
+      "belcastro_ref": "UTM:Scalability Issues",
+      "caac_ref": "Non-emergency (traffic management)",
+      "sora_sail": "II",
+      "icao_cictt_ref": "ATM (ATM/CNS)",
+      "description": "Multiple UAVs simultaneously request passage through a narrow corridor, exceeding capacity.",
+      "causal_chain_sketch": "demand spike → corridor saturation → queue formation → priority arbitration → sequential passage",
+      "entities_required": ["uav_1", "uav_2", "uav_3", "corridor_zone"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L1-4_v1", "name": "Moderate congestion, queued resolution", "severity": "minor"},
+        {"id": "L1-4_v2", "name": "Severe congestion, one UAV forced to divert", "severity": "major"}
+      ]
+    },
+
+    {
+      "event_type_id": "L2-1",
+      "name": "Communication Station Failure",
+      "odd_layer": "L2",
+      "mechanism": "failure",
+      "belcastro_ref": "UTM:UTM Communication Infrastructure Issues",
+      "caac_ref": "Non-emergency (infrastructure failure)",
+      "sora_sail": "III",
+      "icao_cictt_ref": "SCF-NP (System/Component Failure Non-Powerplant)",
+      "description": "A ground communication base station fails, degrading C2 link quality for UAVs in its coverage area.",
+      "causal_chain_sketch": "base station power loss → C2 signal degradation → UAV switches to backup link → reduced operational bandwidth",
+      "entities_required": ["radio_tower", "uav", "backup_station"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L2-1_v1", "name": "Single station failure, graceful degradation", "severity": "minor"},
+        {"id": "L2-1_v2", "name": "Cascading station failure, widespread link loss", "severity": "major"}
+      ]
+    },
+    {
+      "event_type_id": "L2-2",
+      "name": "GNSS Signal Degradation",
+      "odd_layer": "L2",
+      "mechanism": "failure",
+      "belcastro_ref": "Vehicle:Navigation and Guidance Errors",
+      "caac_ref": "CAAC-4 related (obstacle strike due to nav error)",
+      "sora_sail": "III-IV",
+      "icao_cictt_ref": "NAV (Navigation Error)",
+      "description": "GPS/GNSS signal quality degrades in urban canyon, causing UAV position estimate to drift.",
+      "causal_chain_sketch": "urban canyon multipath → GNSS error growth → position uncertainty → degraded navigation → potential geofence breach",
+      "entities_required": ["uav", "buildings"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L2-2_v1", "name": "Gradual multipath degradation in urban canyon", "severity": "minor"},
+        {"id": "L2-2_v2", "name": "Sudden GNSS denial (urban interference)", "severity": "major"}
+      ]
+    },
+    {
+      "event_type_id": "L2-3",
+      "name": "Charging Station Unavailable",
+      "odd_layer": "L2",
+      "mechanism": "failure",
+      "belcastro_ref": "Operations:Procedural Deviations (mission planning)",
+      "caac_ref": "Non-emergency (facility issue)",
+      "sora_sail": "II",
+      "icao_cictt_ref": "FUEL (Fuel Related)",
+      "description": "Planned charging station is occupied or out of service, requiring UAV to divert to alternative.",
+      "causal_chain_sketch": "charger occupied/failed → charging request denied → search for alternative → battery critical → emergency divert",
+      "entities_required": ["uav", "charging_station_1", "charging_station_2"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L2-3_v1", "name": "Charger occupied, successful reallocation", "severity": "minor"},
+        {"id": "L2-3_v2", "name": "No charger available, emergency landing", "severity": "major"}
+      ]
+    },
+    {
+      "event_type_id": "L2-4",
+      "name": "Landing Pad Contention",
+      "odd_layer": "L2",
+      "mechanism": "failure",
+      "belcastro_ref": "Operations:Emergency and Contingency Management",
+      "caac_ref": "CAAC-12 related (emergency response at landing site)",
+      "sora_sail": "III",
+      "icao_cictt_ref": "ATM (ATM/CNS)",
+      "description": "Multiple UAVs request the same landing pad simultaneously, requiring priority-based conflict resolution.",
+      "causal_chain_sketch": "simultaneous landing requests → pad contention → priority assessment → one holds, one lands",
+      "entities_required": ["uav_1", "uav_2", "landing_pad"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L2-4_v1", "name": "Planned dual arrival, standard priority", "severity": "minor"},
+        {"id": "L2-4_v2", "name": "Emergency UAV preempts scheduled landing", "severity": "major"}
+      ]
+    },
+    {
+      "event_type_id": "L2-5",
+      "name": "Traffic Signal Malfunction",
+      "odd_layer": "L2",
+      "mechanism": "operational",
+      "belcastro_ref": "Ground domain (beyond Belcastro scope, CAAC cross-validated)",
+      "caac_ref": "Non-emergency (traffic infrastructure)",
+      "sora_sail": "I-II",
+      "icao_cictt_ref": "SCF-NP (System/Component Failure)",
+      "description": "Traffic light at intersection fails (all red / all off), causing ground traffic flow disruption.",
+      "causal_chain_sketch": "signal fault → traffic flow breakdown → vehicle queue → potential conflict → UAV overhead monitoring",
+      "entities_required": ["traffic_light", "vehicle_1", "vehicle_2", "uav"],
+      "variant_count": 1,
+      "variants": [
+        {"id": "L2-5_v1", "name": "Signal all-red, vehicles stop, UAV monitors", "severity": "minor"}
+      ]
+    },
+
+    {
+      "event_type_id": "L3-1",
+      "name": "Road Construction Detour",
+      "odd_layer": "L3",
+      "mechanism": "operational",
+      "belcastro_ref": "Operations:Terrain/Obstacle Collision (temporary obstacle)",
+      "caac_ref": "Non-emergency (temporary modification)",
+      "sora_sail": "I",
+      "icao_cictt_ref": "GCOL (Ground Collision)",
+      "description": "Temporary road construction forces vehicles to detour, creating unusual traffic patterns.",
+      "causal_chain_sketch": "construction setup → lane closure → vehicle detour → traffic congestion → delayed emergency response",
+      "entities_required": ["barrier", "vehicle_1", "vehicle_2", "construction_cone"],
+      "variant_count": 1,
+      "variants": [
+        {"id": "L3-1_v1", "name": "Partial lane closure with detour", "severity": "minor"}
+      ]
+    },
+    {
+      "event_type_id": "L3-2",
+      "name": "Temporary No-Fly Zone Activation",
+      "odd_layer": "L3",
+      "mechanism": "violation",
+      "belcastro_ref": "UTM:Geofence Violations",
+      "caac_ref": "CAAC-10 (entering restricted zones)",
+      "sora_sail": "IV",
+      "icao_cictt_ref": "ATM (ATM/CNS)",
+      "description": "An emergency no-fly zone is activated mid-operation, forcing UAVs in the area to immediately exit or land.",
+      "causal_chain_sketch": "ground incident → TFR activation → zone broadcast → UAVs within zone → forced exit or immediate landing",
+      "entities_required": ["no_fly_zone", "uav_1", "uav_2"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L3-2_v1", "name": "TFR with 60s warning, orderly exit", "severity": "major"},
+        {"id": "L3-2_v2", "name": "Immediate TFR, UAV must emergency land", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L3-3",
+      "name": "Emergency Isolation Zone",
+      "odd_layer": "L3",
+      "mechanism": "operational",
+      "belcastro_ref": "Operations:Emergency and Contingency Management",
+      "caac_ref": "CAAC-12 (emergency response activation)",
+      "sora_sail": "III-IV",
+      "icao_cictt_ref": "SEC (Security Related)",
+      "description": "A hazard zone is established around an incident site, requiring all agents to avoid the area.",
+      "causal_chain_sketch": "incident (fire/leak/crash) → hazard zone defined → perimeter broadcast → agents reroute → emergency responders enter",
+      "entities_required": ["hazard_zone", "uav", "vehicle", "pedestrian"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L3-3_v1", "name": "Small isolation zone, local rerouting", "severity": "major"},
+        {"id": "L3-3_v2", "name": "Large evacuation zone, mass rerouting", "severity": "critical"}
+      ]
+    },
+
+    {
+      "event_type_id": "L4-1",
+      "name": "UAV-UAV Airspace Conflict",
+      "odd_layer": "L4",
+      "mechanism": "collision",
+      "belcastro_ref": "Vehicle:Loss of Control + UTM:Traffic Management Coordination Failures",
+      "caac_ref": "CAAC-2 (mid-air collision or near-miss)",
+      "sora_sail": "V-VI",
+      "icao_cictt_ref": "MAC (Midair Collision / AIRPROX)",
+      "description": "Two UAVs on intersecting flight paths trigger a conflict alert, requiring evasive action.",
+      "causal_chain_sketch": "trajectory prediction → conflict detection → alert generation → evasive maneuver → separation restored",
+      "entities_required": ["uav_1", "uav_2"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L4-1_v1", "name": "Near-miss, successful avoidance", "severity": "major"},
+        {"id": "L4-1_v2", "name": "Actual mid-air collision, debris fall", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L4-2",
+      "name": "UAV Building/Structure Strike",
+      "odd_layer": "L4",
+      "mechanism": "collision",
+      "belcastro_ref": "Vehicle:Loss of Control + Operations:Terrain/Obstacle Collision",
+      "caac_ref": "CAAC-4 (striking obstacles), CAAC-13 (collision with facilities)",
+      "sora_sail": "V-VI",
+      "icao_cictt_ref": "CFIT (Controlled Flight Into Terrain)",
+      "description": "UAV collides with a building or structure due to navigation error or loss of control.",
+      "causal_chain_sketch": "navigation error / control failure → trajectory toward building → last-moment avoidance fails → impact → debris",
+      "entities_required": ["uav", "building_structure"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L4-2_v1", "name": "Near-miss with building, last-second avoidance", "severity": "major"},
+        {"id": "L4-2_v2", "name": "Actual building strike, UAV destroyed", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L4-3",
+      "name": "UAV Forced Landing in Populated Area",
+      "odd_layer": "L4",
+      "mechanism": "failure",
+      "belcastro_ref": "Vehicle:Propulsion System Failures + Vehicle:Power System Failures",
+      "caac_ref": "CAAC-2 (crash or forced landing), CAAC-14 (death or serious injury)",
+      "sora_sail": "VI",
+      "icao_cictt_ref": "SCF-PP (Powerplant Failure)",
+      "description": "UAV suffers total propulsion failure and must execute emergency landing over a populated area.",
+      "causal_chain_sketch": "motor failure → altitude loss → forced landing site selection → descent → ground impact → pedestrian avoidance",
+      "entities_required": ["uav", "pedestrian", "landing_zone"],
+      "variant_count": 3,
+      "variants": [
+        {"id": "L4-3_v1", "name": "Controlled descent to empty area", "severity": "major"},
+        {"id": "L4-3_v2", "name": "Uncontrolled descent near pedestrians", "severity": "critical"},
+        {"id": "L4-3_v3", "name": "Descent into crowd, mass evacuation", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L4-4",
+      "name": "UAV-Ground Vehicle Collision",
+      "odd_layer": "L4",
+      "mechanism": "collision",
+      "belcastro_ref": "Vehicle:Loss of Control",
+      "caac_ref": "CAAC-13 (collision with vehicles)",
+      "sora_sail": "V-VI",
+      "icao_cictt_ref": "GCOL (Ground Collision)",
+      "description": "UAV impacts a ground vehicle, either from low-altitude flight or falling debris.",
+      "causal_chain_sketch": "UAV low altitude / descent → vehicle in path → impact → vehicle damage / traffic disruption → emergency response",
+      "entities_required": ["uav", "vehicle"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L4-4_v1", "name": "Low-altitude UAV strikes moving vehicle", "severity": "critical"},
+        {"id": "L4-4_v2", "name": "UAV debris falls on parked vehicle", "severity": "major"}
+      ]
+    },
+    {
+      "event_type_id": "L4-5",
+      "name": "UAV-Pedestrian Near-Miss/Interaction",
+      "odd_layer": "L4",
+      "mechanism": "collision",
+      "belcastro_ref": "Operations:Terrain/Obstacle Collision (people on ground)",
+      "caac_ref": "CAAC-13 (collision with personnel), CAAC-14 (injury)",
+      "sora_sail": "V-VI",
+      "icao_cictt_ref": "GCOL (Ground Collision)",
+      "description": "UAV comes dangerously close to a pedestrian, either from trajectory error or forced descent.",
+      "causal_chain_sketch": "UAV trajectory deviation → pedestrian in path → proximity alert → evasive action or impact → injury assessment",
+      "entities_required": ["uav", "pedestrian"],
+      "variant_count": 3,
+      "variants": [
+        {"id": "L4-5_v1", "name": "Near-miss, pedestrian startled", "severity": "major"},
+        {"id": "L4-5_v2", "name": "Minor impact, pedestrian injured", "severity": "critical"},
+        {"id": "L4-5_v3", "name": "UAV strikes pedestrian in crowd", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L4-6",
+      "name": "Pedestrian-Vehicle Conflict",
+      "odd_layer": "L4",
+      "mechanism": "collision",
+      "belcastro_ref": "Ground domain (beyond Belcastro, CAAC-14 validated)",
+      "caac_ref": "CAAC-14 related (injury from vehicle)",
+      "sora_sail": "I-II",
+      "icao_cictt_ref": "GCOL (Ground Collision)",
+      "description": "Pedestrian jaywalks or vehicle fails to yield, resulting in conflict requiring emergency braking.",
+      "causal_chain_sketch": "pedestrian enters roadway → vehicle approaches → conflict detection → emergency brake → near-miss / minor impact",
+      "entities_required": ["pedestrian", "vehicle", "traffic_light"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L4-6_v1", "name": "Pedestrian jaywalk, vehicle emergency stops", "severity": "major"},
+        {"id": "L4-6_v2", "name": "Vehicle runs red light, pedestrian jumps back", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L4-7",
+      "name": "Pedestrian Fall / Medical Emergency",
+      "odd_layer": "L4",
+      "mechanism": "operational",
+      "belcastro_ref": "Ground domain (beyond Belcastro, CAAC-14 validated)",
+      "caac_ref": "CAAC-14 related (serious injury)",
+      "sora_sail": "I",
+      "icao_cictt_ref": "MED (Medical)",
+      "description": "Elderly pedestrian falls on crossing or person has medical emergency, requiring UAV detection and emergency response dispatch.",
+      "causal_chain_sketch": "pedestrian falls → UAV overhead detects → alert generation → emergency dispatch → responder arrival → assistance",
+      "entities_required": ["pedestrian", "uav", "ambulance"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L4-7_v1", "name": "Elderly fall on wet crossing, UAV detects", "severity": "major"},
+        {"id": "L4-7_v2", "name": "Sudden cardiac event, passerby alerts, UAV confirms", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L4-8",
+      "name": "Crowd Gathering / Evacuation",
+      "odd_layer": "L4",
+      "mechanism": "operational",
+      "belcastro_ref": "Ground domain (beyond Belcastro, CAAC cross-validated)",
+      "caac_ref": "Non-emergency (public safety)",
+      "sora_sail": "I-II",
+      "icao_cictt_ref": "EVAC (Evacuation)",
+      "description": "Crowd gathers at public space or evacuates after an incident, changing ground risk profile for UAV operations.",
+      "causal_chain_sketch": "trigger event → crowd formation/dispersal → density change → ground risk reassessment → UAV operational adjustment",
+      "entities_required": ["crowd", "uav", "hazard_source"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L4-8_v1", "name": "Crowd gathering at metro exit, UAV monitors", "severity": "minor"},
+        {"id": "L4-8_v2", "name": "Emergency evacuation, crowd floods street", "severity": "major"}
+      ]
+    },
+    {
+      "event_type_id": "L4-9",
+      "name": "Ground Vehicle Collision",
+      "odd_layer": "L4",
+      "mechanism": "collision",
+      "belcastro_ref": "Ground domain (beyond Belcastro, CAAC cross-validated)",
+      "caac_ref": "Non-emergency (traffic accident)",
+      "sora_sail": "I",
+      "icao_cictt_ref": "GCOL (Ground Collision)",
+      "description": "Two vehicles collide at intersection, blocking traffic and requiring emergency response.",
+      "causal_chain_sketch": "signal violation / brake failure → collision → road blockage → traffic buildup → emergency dispatch → UAV overhead assessment",
+      "entities_required": ["vehicle_1", "vehicle_2", "uav", "ambulance"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L4-9_v1", "name": "Minor rear-end collision, partial blockage", "severity": "minor"},
+        {"id": "L4-9_v2", "name": "T-bone collision at intersection, full blockage", "severity": "major"}
+      ]
+    },
+    {
+      "event_type_id": "L4-10",
+      "name": "Emergency Vehicle Priority Passage",
+      "odd_layer": "L4",
+      "mechanism": "operational",
+      "belcastro_ref": "Ground domain (beyond Belcastro, CAAC cross-validated)",
+      "caac_ref": "Non-emergency (emergency vehicle operations)",
+      "sora_sail": "II",
+      "icao_cictt_ref": "RAMP (Ground Handling)",
+      "description": "Ambulance or fire truck navigates through congested traffic, requiring other vehicles to yield and UAV to coordinate airspace priority.",
+      "causal_chain_sketch": "emergency call → dispatch → route planning → traffic yielding → corridor clearing → UAV airspace priority → arrival",
+      "entities_required": ["emergency_vehicle", "vehicle_1", "vehicle_2", "uav"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L4-10_v1", "name": "Ambulance through moderate traffic", "severity": "minor"},
+        {"id": "L4-10_v2", "name": "Fire truck wrong-way through blocked intersection", "severity": "major"}
+      ]
+    },
+    {
+      "event_type_id": "L4-11",
+      "name": "Vehicle Breakdown Blocking Road",
+      "odd_layer": "L4",
+      "mechanism": "failure",
+      "belcastro_ref": "Ground domain (beyond Belcastro, CAAC cross-validated)",
+      "caac_ref": "Non-emergency (vehicle failure)",
+      "sora_sail": "I",
+      "icao_cictt_ref": "SCF-NP (System/Component Failure)",
+      "description": "Autonomous vehicle suffers sensor failure or runs out of fuel, stopping in lane and blocking traffic.",
+      "causal_chain_sketch": "sensor fault / fuel exhaustion → vehicle stops → lane blocked → following vehicles brake → traffic wave → UAV detects and reports",
+      "entities_required": ["disabled_vehicle", "following_vehicle", "uav"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L4-11_v1", "name": "AV sensor failure, safe stop in lane", "severity": "minor"},
+        {"id": "L4-11_v2", "name": "Vehicle out of fuel, blocks arterial road", "severity": "major"}
+      ]
+    },
+
+    {
+      "event_type_id": "L5-1",
+      "name": "Rain Transition (Gradual / Sudden)",
+      "odd_layer": "L5",
+      "mechanism": "environmental",
+      "belcastro_ref": "Operations:Environmental/Weather Hazards",
+      "caac_ref": "CAAC-4 related (weather-induced obstacle strike)",
+      "sora_sail": "II-IV",
+      "icao_cictt_ref": "WSTRW (Windshear or Thunderstorm)",
+      "description": "Rain intensity changes, affecting visibility, UAV performance, ground traction, and pedestrian behavior.",
+      "causal_chain_sketch": "rain onset → visibility decrease → UAV divert/RTH → ground wetness → pedestrian slip risk → traffic slowdown",
+      "entities_required": ["uav", "pedestrian", "vehicle"],
+      "variant_count": 3,
+      "variants": [
+        {"id": "L5-1_v1", "name": "Light rain gradually increasing to moderate", "severity": "minor"},
+        {"id": "L5-1_v2", "name": "Sudden heavy downpour, immediate UAV grounding", "severity": "major"},
+        {"id": "L5-1_v3", "name": "Rain stops, wet ground + post-rain recovery", "severity": "minor"}
+      ]
+    },
+    {
+      "event_type_id": "L5-2",
+      "name": "Fog Onset / Low Visibility",
+      "odd_layer": "L5",
+      "mechanism": "environmental",
+      "belcastro_ref": "Operations:Environmental/Weather Hazards",
+      "caac_ref": "CAAC-4 related (visibility-induced obstacle strike)",
+      "sora_sail": "III-IV",
+      "icao_cictt_ref": "UIMC (Unintended flight into IMC)",
+      "description": "Sudden fog bank reduces visibility below operational minimums, forcing UAVs to switch to instrument-only navigation.",
+      "causal_chain_sketch": "fog formation → visibility drop → visual sensors degraded → instrument navigation → speed reduction → potential obstacle hazard",
+      "entities_required": ["uav", "vehicle"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L5-2_v1", "name": "Gradual fog, visibility slowly decreasing", "severity": "major"},
+        {"id": "L5-2_v2", "name": "Sudden fog bank, immediate visibility loss", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L5-3",
+      "name": "High Wind / Gust Event",
+      "odd_layer": "L5",
+      "mechanism": "environmental",
+      "belcastro_ref": "Operations:Environmental/Weather Hazards",
+      "caac_ref": "CAAC-3 related (wind-induced loss of control)",
+      "sora_sail": "III-IV",
+      "icao_cictt_ref": "TURB (Turbulence Encounter)",
+      "description": "Wind speed exceeds UAV operational limits, causing attitude instability and potential loss of control.",
+      "causal_chain_sketch": "wind increase → UAV attitude deviation → stability compensation → exceed control authority → emergency descent",
+      "entities_required": ["uav", "uav_with_payload"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L5-3_v1", "name": "Steady crosswind, UAV compensates with drift", "severity": "minor"},
+        {"id": "L5-3_v2", "name": "Sudden gust, payload swing, loss of stability", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L5-4",
+      "name": "Lighting Condition Change",
+      "odd_layer": "L5",
+      "mechanism": "environmental",
+      "belcastro_ref": "Operations:Night Operations Hazards",
+      "caac_ref": "CAAC-4 related (lighting-induced obstacle strike)",
+      "sora_sail": "II",
+      "icao_cictt_ref": "LALT (Low Altitude Operations)",
+      "description": "Rapid lighting change (dusk/night or tunnel entry) degrades visual sensor performance.",
+      "causal_chain_sketch": "lighting change → camera exposure adjustment → temporary blindness → reduced detection range → slower speed",
+      "entities_required": ["uav", "tunnel_entrance"],
+      "variant_count": 1,
+      "variants": [
+        {"id": "L5-4_v1", "name": "Dusk transition, gradual sensor adaptation", "severity": "minor"}
+      ]
+    },
+    {
+      "event_type_id": "L5-5",
+      "name": "Extreme Temperature Event",
+      "odd_layer": "L5",
+      "mechanism": "environmental",
+      "belcastro_ref": "Operations:Environmental/Weather Hazards",
+      "caac_ref": "CAAC-8 related (battery/power failure due to temperature)",
+      "sora_sail": "II",
+      "icao_cictt_ref": "SCF-NP (System/Component Failure)",
+      "description": "Extreme temperature causes battery performance degradation or sensor malfunction.",
+      "causal_chain_sketch": "temperature extreme → battery internal resistance change → reduced endurance → early RTH → mission incomplete",
+      "entities_required": ["uav"],
+      "variant_count": 1,
+      "variants": [
+        {"id": "L5-5_v1", "name": "High temperature, battery derating, shortened mission", "severity": "minor"}
+      ]
+    },
+
+    {
+      "event_type_id": "L6-1",
+      "name": "C2 Link Complete Loss",
+      "odd_layer": "L6",
+      "mechanism": "failure",
+      "belcastro_ref": "Vehicle:Communication System Failures + GCS:Command and Control Link Loss",
+      "caac_ref": "CAAC-9 (C2 link loss exceeding 30 seconds)",
+      "sora_sail": "V",
+      "icao_cictt_ref": "SCF-NP (System/Component Failure)",
+      "description": "UAV loses all C2 communication with ground station, triggering autonomous lost-link procedure.",
+      "causal_chain_sketch": "C2 signal loss → lost-link timer start → autonomous mode → pre-programmed RTH → attempt reconnection → land if no recovery",
+      "entities_required": ["uav", "radio_tower", "landing_pad"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L6-1_v1", "name": "Link loss, successful RTH and landing", "severity": "major"},
+        {"id": "L6-1_v2", "name": "Prolonged link loss, forced landing at alternate site", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L6-2",
+      "name": "C2 Link Intermittent Degradation",
+      "odd_layer": "L6",
+      "mechanism": "failure",
+      "belcastro_ref": "Vehicle:Communication System Failures",
+      "caac_ref": "Non-emergency (link quality degradation)",
+      "sora_sail": "III-IV",
+      "icao_cictt_ref": "ATM (ATM/CNS)",
+      "description": "C2 link suffers high latency and packet loss, degrading control quality but not triggering lost-link procedure.",
+      "causal_chain_sketch": "signal interference → increased latency → control lag → trajectory oscillation → operator switches to higher power mode",
+      "entities_required": ["uav", "radio_tower"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L6-2_v1", "name": "Moderate degradation, operator compensates", "severity": "minor"},
+        {"id": "L6-2_v2", "name": "Severe degradation near lost-link threshold", "severity": "major"}
+      ]
+    },
+    {
+      "event_type_id": "L6-3",
+      "name": "GNSS Spoofing Attack",
+      "odd_layer": "L6",
+      "mechanism": "failure",
+      "belcastro_ref": "UTM:Security Threats + Vehicle:Navigation and Guidance Errors",
+      "caac_ref": "CAAC-8 related (navigation system failure due to external attack)",
+      "sora_sail": "V-VI",
+      "icao_cictt_ref": "SEC (Security Related)",
+      "description": "Malicious GNSS spoofing causes UAV to follow false position, potentially hijacking its trajectory.",
+      "causal_chain_sketch": "spoofing signal → false position fix → autopilot follows false track → geofence approach → anomaly detection → countermeasure",
+      "entities_required": ["uav", "no_fly_zone"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L6-3_v1", "name": "Subtle drift spoofing, gradual deviation", "severity": "critical"},
+        {"id": "L6-3_v2", "name": "Aggressive hijack, rapid trajectory change", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L6-4",
+      "name": "Communication Jamming",
+      "odd_layer": "L6",
+      "mechanism": "failure",
+      "belcastro_ref": "UTM:Security Threats (jamming)",
+      "caac_ref": "Non-emergency (communication interference)",
+      "sora_sail": "V",
+      "icao_cictt_ref": "SEC (Security Related)",
+      "description": "Intentional RF jamming disrupts C2 and/or V2X communication in the operational area.",
+      "causal_chain_sketch": "jammer activated → noise floor increase → SNR degradation → multiple UAVs affected → frequency hopping → some links recovered",
+      "entities_required": ["uav_1", "uav_2", "radio_tower"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L6-4_v1", "name": "Narrowband jamming, single UAV affected", "severity": "major"},
+        {"id": "L6-4_v2", "name": "Wideband jamming, all UAVs in area affected", "severity": "critical"}
+      ]
+    },
+    {
+      "event_type_id": "L6-5",
+      "name": "Ground Control Station Compromise",
+      "odd_layer": "L6",
+      "mechanism": "failure",
+      "belcastro_ref": "GCS:Cybersecurity Threats",
+      "caac_ref": "Non-emergency (cybersecurity incident)",
+      "sora_sail": "V-VI",
+      "icao_cictt_ref": "SEC (Security Related)",
+      "description": "Cyber attacker gains unauthorized access to GCS, potentially issuing malicious commands to UAVs.",
+      "causal_chain_sketch": "GCS breach → unauthorized commands → anomalous UAV behavior → operator override fails → safety lockout activates",
+      "entities_required": ["uav", "gcs_operator"],
+      "variant_count": 2,
+      "variants": [
+        {"id": "L6-5_v1", "name": "GCS breach detected, safety lockout succeeds", "severity": "critical"},
+        {"id": "L6-5_v2", "name": "Undetected breach, malicious commands executed", "severity": "critical"}
+      ]
+    }
+  ],
+
+  "caac_coverage_matrix": {
+    "CAAC-1": {"description": "UAS collision with manned aircraft", "coverage": "Not directly simulated (no manned aircraft in low-altitude UAM ODD). Covered by L4-1 (UAV-UAV conflict) as methodological analog."},
+    "CAAC-2": {"description": "Mid-air collision, crash, or forced landing", "coverage": "L4-1 (UAV-UAV), L4-3 (forced landing)"},
+    "CAAC-3": {"description": "Loss of control in flight", "coverage": "L4-1 (conflict), L5-3 (wind-induced), L6-3 (spoofing-induced)"},
+    "CAAC-4": {"description": "Striking obstacles or ground/water contact", "coverage": "L4-2 (building), L5-1 (weather-induced), L5-2 (fog-induced)"},
+    "CAAC-5": {"description": "Runway/taxiway excursion", "coverage": "Not simulated (requires vertiport runway infrastructure)"},
+    "CAAC-6": {"description": "Takeoff/landing errors", "coverage": "L2-4 (landing pad contention)"},
+    "CAAC-7": {"description": "Fire or smoke", "coverage": "L4-3 related (battery fire as propulsion failure consequence)"},
+    "CAAC-8": {"description": "Total propulsion/electrical failure", "coverage": "L4-3 (propulsion failure), L6-1 (link loss → autonomous landing)"},
+    "CAAC-9": {"description": "C2 link loss >30 seconds", "coverage": "L6-1 (complete loss), L6-2 (degradation near threshold)"},
+    "CAAC-10": {"description": "Entering prohibited/danger/restricted zones", "coverage": "L1-1 (geofence), L1-3 (non-cooperative), L3-2 (temporary NFZ)"},
+    "CAAC-11": {"description": "Emergency evacuation required", "coverage": "L4-8 (crowd evacuation)"},
+    "CAAC-12": {"description": "Emergency response activation at sites", "coverage": "L2-4 (landing pad), L3-3 (isolation zone)"},
+    "CAAC-13": {"description": "Collision with facilities/vehicles/personnel", "coverage": "L4-2 (building), L4-4 (vehicle), L4-5 (pedestrian)"},
+    "CAAC-14": {"description": "Death or serious injury", "coverage": "L4-3 (forced landing in crowd), L4-5 (pedestrian impact), L4-6 (pedestrian-vehicle)"}
+  }
+}

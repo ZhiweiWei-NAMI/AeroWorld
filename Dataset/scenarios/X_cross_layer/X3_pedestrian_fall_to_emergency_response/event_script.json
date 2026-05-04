@@ -1,196 +1,199 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "X3_pedestrian_fall_to_emergency_response",
-  "description": "Pedestrian fall detected → ambulance dispatched → emergency isolation zone established. Demonstrates cross-ODD-layer causal chain: L4(agents) → L3(dynamic constraints).",
+  "description": "Pedestrian fall to emergency response chain",
   "parameters": {
-    "incident_tick": 400,
-    "dispatch_tick": 450,
-    "zone_tick": 480
+    "cross_layer": true
   },
   "triggers": [
     {
-      "trigger_id": "trig_incident",
+      "trigger_id": "trig_pedestrian_fall",
       "type": "tick",
-      "tick": 400
+      "tick": 220
     },
     {
-      "trigger_id": "trig_dispatch",
+      "trigger_id": "trig_after_pedestrian_fall",
       "type": "event_fired",
-      "event_id": "pedestrian_fall_detected"
+      "event_id": "pedestrian_fall"
     },
     {
-      "trigger_id": "trig_arrival",
+      "trigger_id": "trig_after_uav_detection",
       "type": "event_fired",
-      "event_id": "ambulance_dispatched"
+      "event_id": "uav_detection"
     },
     {
-      "trigger_id": "trig_zone",
+      "trigger_id": "trig_after_ambulance_dispatch",
       "type": "event_fired",
-      "event_id": "ambulance_arrived"
+      "event_id": "ambulance_dispatch"
+    },
+    {
+      "trigger_id": "trig_after_isolation_setup",
+      "type": "event_fired",
+      "event_id": "isolation_setup"
     }
   ],
   "events": [
     {
-      "event_id": "pedestrian_fall_detected",
-      "trigger_ref": "trig_incident",
+      "event_id": "pedestrian_fall",
+      "trigger_ref": "trig_pedestrian_fall",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "fall_anim",
           "type": "play_animation",
-          "ped_id": "ped_victim_01",
-          "animation_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
-          "start_section": "Start",
+          "action_id": "play_x3_ped_fall",
+          "ped_id": "ped_x3_fall",
+          "animation_path": "/Game/Animations/Pedestrian/Fall_Flat",
+          "start_section": "fall_start",
           "play_rate": 1.0,
           "loop_count": 1
-        },
-        {
-          "action_id": "uav_move",
-          "type": "move_entity",
-          "entity_id": "uav_patrol_01",
-          "waypoints_enu_m": [
-            [
-              60,
-              25,
-              30
-            ],
-            [
-              52,
-              19,
-              15
-            ]
-          ],
-          "velocity_mps": 5.0
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "ambulance_dispatched"
-        ]
-      },
       "log_event": {
-        "topic": "evt_x3_pedestrian_fall",
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_pedestrian_fall",
         "category": "pedestrian",
-        "title": "行人跌倒检测 — 跨层链启动",
+        "title": "Pedestrian falls",
         "severity": "critical",
         "overlay": "pedestrian",
         "target_ids": [
-          "ped_victim_01"
+          "ped_x3_fall"
         ]
       }
     },
     {
-      "event_id": "ambulance_dispatched",
-      "trigger_ref": "trig_dispatch",
+      "event_id": "uav_detection",
+      "trigger_ref": "trig_after_pedestrian_fall",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "spawn_ambulance",
-          "type": "spawn_entity",
-          "asset_id": "vehicle.emergency.ambulance.v1",
-          "entity_id": "ambulance_x3_01",
-          "position_enu_m": [
-            80,
-            40,
-            0.0
-          ],
-          "visual_state": {
-            "mode": "response",
-            "lights_on": true
-          }
-        },
-        {
-          "action_id": "move_ambulance",
           "type": "move_entity",
-          "entity_id": "ambulance_x3_01",
+          "action_id": "move_x3_uav_detect",
+          "entity_id": "uav_x3_detect",
           "waypoints_enu_m": [
             [
-              80,
-              40,
+              59.0,
+              250.0,
+              32
+            ],
+            [
+              76.0,
+              260.0,
+              16
+            ]
+          ],
+          "velocity_mps": 5.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_x3_detection",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_uav_detection",
+        "category": "uav_mission",
+        "title": "UAV detects pedestrian fall",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_x3_detect",
+          "ped_x3_fall"
+        ]
+      }
+    },
+    {
+      "event_id": "ambulance_dispatch",
+      "trigger_ref": "trig_after_uav_detection",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_x3_ambulance_dispatch",
+          "entity_id": "ambulance_x3",
+          "waypoints_enu_m": [
+            [
+              42.0,
+              243.0,
               0
             ],
             [
-              52,
-              19,
+              71.0,
+              256.0,
               0
             ]
           ],
           "velocity_mps": 12.0
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "ambulance_arrived"
-        ]
-      },
       "log_event": {
-        "topic": "evt_x3_ambulance_dispatch",
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_ambulance_dispatch",
         "category": "vehicle",
-        "title": "救护车派遣 — L4→L3桥接",
+        "title": "Ambulance is dispatched",
         "severity": "warning",
         "overlay": "vehicle",
         "target_ids": [
-          "ambulance_x3_01"
+          "ambulance_x3",
+          "ped_x3_fall"
         ]
       }
     },
     {
-      "event_id": "ambulance_arrived",
-      "trigger_ref": "trig_arrival",
-      "priority": 3,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "action_id": "capture_arrival",
-          "type": "capture_screenshot",
-          "camera_id": "demo_overview"
-        }
-      ],
-      "on_fire": {
-        "emit_events": [
-          "isolation_zone_active"
-        ]
-      },
-      "log_event": {
-        "topic": "evt_x3_ambulance_arrived",
-        "category": "vehicle",
-        "title": "救护车到达 — 触发隔离区",
-        "severity": "info",
-        "overlay": "vehicle",
-        "target_ids": [
-          "ambulance_x3_01",
-          "ped_victim_01"
-        ]
-      }
-    },
-    {
-      "event_id": "isolation_zone_active",
-      "trigger_ref": "trig_zone",
+      "event_id": "isolation_setup",
+      "trigger_ref": "trig_after_ambulance_dispatch",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "spawn_zone",
           "type": "spawn_entity",
-          "asset_id": "trigger.hazard.generic.box.v1",
-          "entity_id": "hazard_zone_x3",
+          "action_id": "spawn_x3_police_tape",
+          "entity_id": "police_tape_x3",
+          "asset_id": "prop.incident.police_tape.v1",
           "position_enu_m": [
-            52,
-            19,
-            0.0
-          ]
+            77.0,
+            260.0,
+            0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 0
+          }
         }
       ],
       "log_event": {
-        "topic": "evt_x3_isolation_zone",
-        "category": "infrastructure",
-        "title": "应急隔离区建立 — 跨层链完成",
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_isolation_setup",
+        "category": "dynamic_constraint",
+        "title": "Responder sets incident isolation tape",
         "severity": "warning",
-        "overlay": "infrastructure",
+        "overlay": "dynamic_constraint",
         "target_ids": [
-          "hazard_zone_x3"
+          "police_tape_x3",
+          "ped_x3_fall"
+        ]
+      }
+    },
+    {
+      "event_id": "emergency_documented",
+      "trigger_ref": "trig_after_isolation_setup",
+      "priority": 5,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_x3_response",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_emergency_documented",
+        "category": "uav_mission",
+        "title": "Emergency response documented",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_x3_detect",
+          "ambulance_x3",
+          "ped_x3_fall"
         ]
       }
     }

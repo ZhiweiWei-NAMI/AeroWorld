@@ -1,0 +1,150 @@
+{
+  "$schema": "scene_setup_v1",
+  "scenario_id": "L1-1_v1",
+  "description": "Geofence boundary approach and RTH",
+  "map_ref": {
+    "map_id": "donghu_road_topo",
+    "geo_reference": {
+      "lat": 30.5609,
+      "lon": 114.3627,
+      "alt": 24.0
+    },
+    "coordinate_frame": "ENU"
+  },
+  "entities": [
+    {
+      "entity_id": "uav_l1_1_v1_primary",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          38.0,
+          12.0,
+          30
+        ],
+        "rotation_deg": {
+          "yaw_deg": 35
+        }
+      },
+      "route_waypoints_enu_m": [
+        [
+          57.0,
+          22.0,
+          30
+        ],
+        [
+          33.0,
+          37.0,
+          34
+        ]
+      ],
+      "initial_state": {
+        "mode": "patrol"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "nfz_l1_1_v1",
+      "logical_asset_id": "trigger.no_fly.box.v1",
+      "category": "airspace_constraint",
+      "placement_mode": "polygon_prism",
+      "placement": {
+        "polygon_enu_m": [
+          [
+            55.0,
+            19.0,
+            22
+          ],
+          [
+            75.0,
+            20.0,
+            22
+          ],
+          [
+            76.0,
+            34.0,
+            22
+          ],
+          [
+            56.0,
+            35.0,
+            22
+          ]
+        ],
+        "base_z_m": 20.0,
+        "height_m": 26.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {},
+      "activation_tick": 0
+    }
+  ],
+  "spawn_sequencing": [
+    {
+      "entity_id": "uav_l1_1_v1_primary",
+      "tick": 0
+    },
+    {
+      "entity_id": "nfz_l1_1_v1",
+      "tick": 0
+    }
+  ],
+  "weather_profile": {
+    "initial": "clear",
+    "transitions": []
+  },
+  "cameras": [
+    {
+      "camera_id": "demo_high_overview",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          51.0,
+          19.0,
+          75.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -70.0,
+          "yaw_deg": 0.0
+        }
+      },
+      "fov_deg": 90.0
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "uav_l1_1_v1_primary",
+      "description": "uav_l1_1_v1_primary is declared before event_script references it in L1-1_v1"
+    },
+    {
+      "rule": "entity_resolvable",
+      "entity_id": "nfz_l1_1_v1",
+      "description": "nfz_l1_1_v1 is declared before event_script references it in L1-1_v1"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "uav_l1_1_v1_primary",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "nfz_l1_1_v1",
+      "logical_asset_id": "trigger.no_fly.box.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "uav_start_outside_constraint",
+      "entity_id": "uav_l1_1_v1_primary",
+      "constraint_id": "nfz_l1_1_v1",
+      "description": "UAV start is outside the no-fly or hazard volume"
+    },
+    {
+      "rule": "event_chain_min",
+      "min_count": 3,
+      "description": "Airspace scenario must include approach, conflict, and recovery"
+    }
+  ]
+}

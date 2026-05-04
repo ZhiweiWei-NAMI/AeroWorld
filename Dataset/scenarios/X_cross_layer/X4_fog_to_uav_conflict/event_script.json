@@ -1,175 +1,247 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "X4_fog_to_uav_conflict",
-  "description": "L5-2(fog) -> L4-1(UAV-UAV near-miss)",
-  "parameters": {},
+  "description": "Fog to multi-UAV conflict cross-layer chain",
+  "parameters": {
+    "cross_layer": true
+  },
   "triggers": [
     {
-      "trigger_id": "trig_fog_onset",
-      "type": "tick",
-      "tick": 300
+      "trigger_id": "trig_fog_threshold",
+      "type": "weather_state",
+      "parameter": "fog",
+      "operator": "gte",
+      "value": 0.5,
+      "sustain_ticks": 5
     },
     {
-      "trigger_id": "trig_after_fog_onset",
+      "trigger_id": "trig_after_fog_threshold",
       "type": "event_fired",
-      "event_id": "fog_onset"
+      "event_id": "fog_threshold"
     },
     {
-      "trigger_id": "trig_after_uav_approach",
+      "trigger_id": "trig_after_visibility_drop",
       "type": "event_fired",
-      "event_id": "uav_approach"
+      "event_id": "visibility_drop"
+    },
+    {
+      "trigger_id": "trig_fog_uav_conflict",
+      "type": "entity_proximity",
+      "entity_a": "uav_x4_a",
+      "entity_b": "uav_x4_b",
+      "distance_m": 8.0,
+      "operator": "lte",
+      "min_true_ticks": 2
+    },
+    {
+      "trigger_id": "trig_after_fog_uav_conflict",
+      "type": "event_fired",
+      "event_id": "fog_uav_conflict"
     }
   ],
   "events": [
     {
-      "event_id": "fog_onset",
-      "trigger_ref": "trig_fog_onset",
+      "event_id": "fog_threshold",
+      "trigger_ref": "trig_fog_threshold",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a1",
           "type": "set_weather",
+          "action_id": "set_x4_fog",
           "profile": "fog",
           "overrides": {
-            "fog": 0.9,
-            "visibility_m": 300.0
+            "fog": 0.65,
+            "visibility_m": 700.0
           }
         }
       ],
       "log_event": {
-        "topic": "evt_X4_fog_to_uav_conflict_fog_onset",
+        "topic": "evt_X4_fog_to_uav_conflict_fog_threshold",
         "category": "weather",
-        "title": "团雾出现",
+        "title": "Fog reaches operational threshold",
         "severity": "warning",
         "overlay": "weather",
         "target_ids": [
-          "weather_global"
-        ]
-      },
-      "on_fire": {
-        "emit_events": [
-          "uav_approach"
+          "uav_x4_a",
+          "uav_x4_b"
         ]
       }
     },
     {
-      "event_id": "uav_approach",
-      "trigger_ref": "trig_after_fog_onset",
+      "event_id": "visibility_drop",
+      "trigger_ref": "trig_after_fog_threshold",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a2",
-          "type": "move_entity",
-          "entity_id": "uav_a",
-          "waypoints_enu_m": [
-            [
-              55,
-              18,
-              30
-            ],
-            [
-              50,
-              20,
-              25
-            ]
-          ],
-          "velocity_mps": 4.0
+          "type": "set_visual_state",
+          "action_id": "set_x4_uav_a_visual_degraded",
+          "entity_id": "uav_x4_a",
+          "visual_state": {
+            "mode": "visual_degraded"
+          }
         },
         {
-          "action_id": "a3",
-          "type": "move_entity",
-          "entity_id": "uav_b",
-          "waypoints_enu_m": [
-            [
-              48,
-              22,
-              30
-            ],
-            [
-              50,
-              20,
-              25
-            ]
-          ],
-          "velocity_mps": 4.0
+          "type": "set_visual_state",
+          "action_id": "set_x4_uav_b_visual_degraded",
+          "entity_id": "uav_x4_b",
+          "visual_state": {
+            "mode": "visual_degraded"
+          }
         }
       ],
       "log_event": {
-        "topic": "evt_X4_fog_to_uav_conflict_uav_approach",
-        "category": "uav_mission",
-        "title": "两UAV在雾中接近",
+        "topic": "evt_X4_fog_to_uav_conflict_visibility_drop",
+        "category": "weather",
+        "title": "Visibility drops for both UAVs",
         "severity": "warning",
-        "overlay": "uav_mission",
+        "overlay": "weather",
         "target_ids": [
-          "uav_a",
-          "uav_b"
-        ]
-      },
-      "on_fire": {
-        "emit_events": [
-          "conflict_detected"
+          "uav_x4_a",
+          "uav_x4_b"
         ]
       }
     },
     {
-      "event_id": "conflict_detected",
-      "trigger_ref": "trig_after_uav_approach",
+      "event_id": "fog_converging_routes",
+      "trigger_ref": "trig_after_visibility_drop",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a4",
           "type": "move_entity",
-          "entity_id": "uav_a",
+          "action_id": "move_x4_uav_a_converge",
+          "entity_id": "uav_x4_a",
           "waypoints_enu_m": [
             [
-              50,
-              20,
-              25
+              72.0,
+              265.0,
+              29
             ],
             [
-              58,
-              18,
-              35
+              91.0,
+              270.0,
+              30
             ]
           ],
-          "velocity_mps": 8.0
+          "velocity_mps": 6.0
         },
         {
-          "action_id": "a5",
           "type": "move_entity",
-          "entity_id": "uav_b",
+          "action_id": "move_x4_uav_b_converge",
+          "entity_id": "uav_x4_b",
           "waypoints_enu_m": [
             [
-              50,
-              20,
-              25
+              110.0,
+              275.0,
+              31
             ],
             [
-              45,
-              24,
-              35
+              91.0,
+              270.0,
+              30
             ]
           ],
-          "velocity_mps": 8.0
-        },
-        {
-          "action_id": "a6",
-          "type": "capture_screenshot",
-          "camera_id": "demo_overview"
+          "velocity_mps": 6.0
         }
       ],
       "log_event": {
-        "topic": "evt_X4_fog_to_uav_conflict_conflict_detected",
+        "topic": "evt_X4_fog_to_uav_conflict_fog_converging_routes",
         "category": "uav_mission",
-        "title": "冲突检测-紧急避让",
+        "title": "Fog causes converging route conflict",
         "severity": "critical",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_a",
-          "uav_b"
+          "uav_x4_a",
+          "uav_x4_b"
+        ]
+      }
+    },
+    {
+      "event_id": "fog_uav_conflict",
+      "trigger_ref": "trig_fog_uav_conflict",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_x4_uav_a_hover",
+          "entity_id": "uav_x4_a",
+          "visual_state": {
+            "mode": "hover"
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_x4_uav_b_evasion",
+          "entity_id": "uav_x4_b",
+          "waypoints_enu_m": [
+            [
+              91.0,
+              270.0,
+              30
+            ],
+            [
+              104.0,
+              283.0,
+              36
+            ]
+          ],
+          "velocity_mps": 8.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_x4_conflict",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X4_fog_to_uav_conflict_fog_uav_conflict",
+        "category": "uav_mission",
+        "title": "UAV proximity conflict under fog",
+        "severity": "critical",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_x4_a",
+          "uav_x4_b"
+        ]
+      }
+    },
+    {
+      "event_id": "fog_conflict_recovered",
+      "trigger_ref": "trig_after_fog_uav_conflict",
+      "priority": 5,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_x4_uav_a_resume",
+          "entity_id": "uav_x4_a",
+          "waypoints_enu_m": [
+            [
+              91.0,
+              270.0,
+              30
+            ],
+            [
+              74.0,
+              283.0,
+              30
+            ]
+          ],
+          "velocity_mps": 5.5
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X4_fog_to_uav_conflict_fog_conflict_recovered",
+        "category": "uav_mission",
+        "title": "UAVs recover after fog conflict",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_x4_a",
+          "uav_x4_b"
         ]
       }
     }

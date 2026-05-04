@@ -1,156 +1,175 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L4-8_v1",
-  "description": "Crowd gathering at metro exit, UAV monitors",
+  "description": "Crowd evacuation with UAV monitoring",
   "parameters": {
-    "incident_tick": 400
+    "incident_tick": 260,
+    "resolution_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_incident_occurred",
+      "trigger_id": "trig_crowd_generated",
       "type": "tick",
-      "tick": 400
+      "tick": 220
     },
     {
-      "trigger_id": "trig_after_incident_occurred",
+      "trigger_id": "trig_after_crowd_generated",
       "type": "event_fired",
-      "event_id": "incident_occurred"
+      "event_id": "crowd_generated"
     },
     {
-      "trigger_id": "trig_after_dispatch_responder",
+      "trigger_id": "trig_after_evacuation_triggered",
       "type": "event_fired",
-      "event_id": "dispatch_responder"
+      "event_id": "evacuation_triggered"
+    },
+    {
+      "trigger_id": "trig_after_uav_evacuation_monitor",
+      "type": "event_fired",
+      "event_id": "uav_evacuation_monitor"
     }
   ],
   "events": [
     {
-      "event_id": "incident_occurred",
-      "trigger_ref": "trig_incident_occurred",
+      "event_id": "crowd_generated",
+      "trigger_ref": "trig_crowd_generated",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "play_animation",
-          "action_id": "anim_011",
-          "ped_id": "ped_victim_01",
-          "animation_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
-          "start_section": "Start",
-          "play_rate": 1.0,
-          "loop_count": 1
-        },
-        {
-          "type": "move_entity",
-          "action_id": "move_083",
-          "entity_id": "uav_patrol_01",
-          "waypoints_enu_m": [
-            [
-              60,
-              25,
-              30
-            ],
-            [
-              52,
-              20,
-              15
-            ]
+          "type": "spawn_crowd",
+          "action_id": "spawn_incident_crowd",
+          "group_id": "crowd_l4_8_v1",
+          "count": 12,
+          "spawn_origin_enu_m": [
+            133.0,
+            133.0,
+            0
           ],
-          "velocity_mps": 5.0
+          "spawn_box_extent_cm": [
+            900,
+            600,
+            0
+          ],
+          "seed": 816
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "dispatch_responder"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L4-8_v1_incident",
+        "topic": "evt_L4-8_v1_crowd_generated",
         "category": "pedestrian",
-        "title": "Crowd gathering at metro exit, UAV monitors — 事件检测",
+        "title": "Crowd generated in evacuation zone",
         "severity": "warning",
         "overlay": "pedestrian",
         "target_ids": [
-          "ped_victim_01"
+          "crowd_anchor_l4_8_v1"
         ]
       }
     },
     {
-      "event_id": "dispatch_responder",
-      "trigger_ref": "trig_after_incident_occurred",
+      "event_id": "evacuation_triggered",
+      "trigger_ref": "trig_after_crowd_generated",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "spawn_entity",
-          "action_id": "spawn_006",
-          "asset_id": "vehicle.emergency.ambulance.v1",
-          "entity_id": "ambulance_response_01",
-          "position_enu_m": [
-            80,
-            40,
-            0
-          ],
-          "visual_state": {
-            "mode": "response",
-            "lights_on": true
-          }
+          "type": "clear_crowd",
+          "action_id": "clear_incident_crowd_for_evacuation",
+          "group_id": "crowd_l4_8_v1"
         },
         {
-          "type": "move_entity",
-          "action_id": "move_084",
-          "entity_id": "ambulance_response_01",
-          "waypoints_enu_m": [
-            [
-              80,
-              40,
-              0
-            ],
-            [
-              52,
-              19,
-              0
-            ]
+          "type": "spawn_crowd",
+          "action_id": "spawn_crowd_at_safe_zone",
+          "group_id": "crowd_safe_l4_8_v1",
+          "count": 12,
+          "spawn_origin_enu_m": [
+            154.0,
+            149.0,
+            0
           ],
-          "velocity_mps": 12.0
+          "spawn_box_extent_cm": [
+            1000,
+            500,
+            0
+          ],
+          "seed": 916
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "responder_arrived"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L4-8_v1_dispatch",
-        "category": "vehicle",
-        "title": "应急响应派遣",
+        "topic": "evt_L4-8_v1_evacuation_triggered",
+        "category": "pedestrian",
+        "title": "Crowd moves to safe evacuation zone",
         "severity": "warning",
-        "overlay": "vehicle",
+        "overlay": "pedestrian",
         "target_ids": [
-          "ambulance_response_01"
+          "crowd_anchor_l4_8_v1"
         ]
       }
     },
     {
-      "event_id": "responder_arrived",
-      "trigger_ref": "trig_after_dispatch_responder",
+      "event_id": "uav_evacuation_monitor",
+      "trigger_ref": "trig_after_evacuation_triggered",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
         {
+          "type": "move_entity",
+          "action_id": "move_uav_monitor_evacuation",
+          "entity_id": "uav_crowd_monitor_l4_8_v1",
+          "waypoints_enu_m": [
+            [
+              112.0,
+              120.0,
+              34
+            ],
+            [
+              138.0,
+              138.0,
+              30
+            ],
+            [
+              154.0,
+              149.0,
+              30
+            ]
+          ],
+          "velocity_mps": 5.0
+        },
+        {
           "type": "capture_screenshot",
-          "action_id": "cap_020",
-          "camera_id": "demo_overview"
+          "action_id": "capture_crowd_evacuation",
+          "camera_id": "demo_high_overview"
         }
       ],
       "log_event": {
-        "topic": "evt_L4-8_v1_arrival",
+        "topic": "evt_L4-8_v1_uav_evacuation_monitor",
         "category": "uav_mission",
-        "title": "应急响应到达确认",
+        "title": "UAV monitors evacuation movement",
         "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_patrol_01",
-          "ambulance_response_01",
-          "ped_victim_01"
+          "uav_crowd_monitor_l4_8_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "crowd_clear",
+      "trigger_ref": "trig_after_uav_evacuation_monitor",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "clear_crowd",
+          "action_id": "clear_safe_crowd",
+          "group_id": "crowd_safe_l4_8_v1"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-8_v1_crowd_clear",
+        "category": "pedestrian",
+        "title": "Crowd evacuation completes and group is cleared",
+        "severity": "info",
+        "overlay": "pedestrian",
+        "target_ids": [
+          "uav_crowd_monitor_l4_8_v1"
         ]
       }
     }

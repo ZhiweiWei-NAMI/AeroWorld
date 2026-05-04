@@ -1,13 +1,15 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "X5_comm_failure_to_pad_contention",
-  "description": "L2-1(station failure) -> L6-1(C2 loss) -> L2-4(pad contention)",
-  "parameters": {},
+  "description": "Communication failure to pad contention chain",
+  "parameters": {
+    "cross_layer": true
+  },
   "triggers": [
     {
       "trigger_id": "trig_station_failure",
       "type": "tick",
-      "tick": 350
+      "tick": 220
     },
     {
       "trigger_id": "trig_after_station_failure",
@@ -15,9 +17,28 @@
       "event_id": "station_failure"
     },
     {
-      "trigger_id": "trig_after_uav_lost_link",
+      "trigger_id": "trig_after_backup_pad_unavailable",
       "type": "event_fired",
-      "event_id": "uav_lost_link"
+      "event_id": "backup_pad_unavailable"
+    },
+    {
+      "trigger_id": "trig_pad_priority_arbitration",
+      "type": "entity_proximity",
+      "entity_a": "uav_x5_priority",
+      "entity_b": "pad_x5_primary",
+      "distance_m": 7.0,
+      "operator": "lte",
+      "min_true_ticks": 2
+    },
+    {
+      "trigger_id": "trig_after_pad_priority_arbitration",
+      "type": "event_fired",
+      "event_id": "pad_priority_arbitration"
+    },
+    {
+      "trigger_id": "trig_after_second_uav_reroute",
+      "type": "event_fired",
+      "event_id": "second_uav_reroute"
     }
   ],
   "events": [
@@ -28,147 +49,203 @@
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a1",
           "type": "set_visual_state",
-          "entity_id": "tower_01",
+          "action_id": "set_x5_tower_failed",
+          "entity_id": "tower_x5_comm",
           "visual_state": {
-            "mode": "disabled"
+            "mode": "failed"
           }
         }
       ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_station_failure",
         "category": "infrastructure",
-        "title": "基站故障",
-        "severity": "warning",
+        "title": "Communication station failure",
+        "severity": "critical",
         "overlay": "infrastructure",
         "target_ids": [
-          "tower_01"
-        ]
-      },
-      "on_fire": {
-        "emit_events": [
-          "uav_lost_link"
+          "tower_x5_comm"
         ]
       }
     },
     {
-      "event_id": "uav_lost_link",
+      "event_id": "backup_pad_unavailable",
       "trigger_ref": "trig_after_station_failure",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a2",
-          "type": "move_entity",
-          "entity_id": "uav_a",
-          "waypoints_enu_m": [
-            [
-              50,
-              20,
-              30
-            ],
-            [
-              45,
-              15,
-              20
-            ]
-          ],
-          "velocity_mps": 5.0
-        },
-        {
-          "action_id": "a3",
-          "type": "move_entity",
-          "entity_id": "uav_b",
-          "waypoints_enu_m": [
-            [
-              55,
-              25,
-              30
-            ],
-            [
-              45,
-              15,
-              25
-            ]
-          ],
-          "velocity_mps": 5.0
+          "type": "set_visual_state",
+          "action_id": "set_x5_backup_pad_unavailable",
+          "entity_id": "pad_x5_backup",
+          "visual_state": {
+            "mode": "unavailable"
+          }
         }
       ],
       "log_event": {
-        "topic": "evt_X5_comm_failure_to_pad_contention_uav_lost_link",
-        "category": "uav_mission",
-        "title": "C2链路丢失-双机自主返航",
-        "severity": "critical",
-        "overlay": "uav_mission",
+        "topic": "evt_X5_comm_failure_to_pad_contention_backup_pad_unavailable",
+        "category": "infrastructure",
+        "title": "Only one landing pad remains available",
+        "severity": "warning",
+        "overlay": "infrastructure",
         "target_ids": [
-          "uav_a",
-          "uav_b"
-        ]
-      },
-      "on_fire": {
-        "emit_events": [
-          "pad_conflict"
+          "pad_x5_primary",
+          "pad_x5_backup"
         ]
       }
     },
     {
-      "event_id": "pad_conflict",
-      "trigger_ref": "trig_after_uav_lost_link",
+      "event_id": "dual_uav_pad_contention",
+      "trigger_ref": "trig_after_backup_pad_unavailable",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
         {
-          "action_id": "a4",
           "type": "move_entity",
-          "entity_id": "uav_a",
+          "action_id": "move_x5_uav_a_to_pad",
+          "entity_id": "uav_x5_priority",
           "waypoints_enu_m": [
             [
-              45,
-              15,
-              20
+              88.0,
+              284.0,
+              33
             ],
             [
-              45,
-              15,
-              0.5
+              108.0,
+              276.0,
+              6
             ]
           ],
-          "velocity_mps": 2.0
+          "velocity_mps": 5.0
         },
         {
-          "action_id": "a5",
           "type": "move_entity",
-          "entity_id": "uav_b",
+          "action_id": "move_x5_uav_b_to_pad_hold",
+          "entity_id": "uav_x5_second",
           "waypoints_enu_m": [
             [
-              45,
-              15,
-              25
+              124.0,
+              260.0,
+              31
             ],
             [
-              40,
-              12,
-              0.5
+              114.0,
+              282.0,
+              34
             ]
           ],
-          "velocity_mps": 2.0
-        },
-        {
-          "action_id": "a6",
-          "type": "capture_screenshot",
-          "camera_id": "demo_overview"
+          "velocity_mps": 5.0
         }
       ],
       "log_event": {
-        "topic": "evt_X5_comm_failure_to_pad_contention_pad_conflict",
+        "topic": "evt_X5_comm_failure_to_pad_contention_dual_uav_pad_contention",
         "category": "uav_mission",
-        "title": "起降平台冲突-优先级仲裁",
-        "severity": "warning",
+        "title": "Two UAVs contend for one available pad",
+        "severity": "critical",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_a",
-          "uav_b"
+          "uav_x5_priority",
+          "uav_x5_second",
+          "pad_x5_primary"
+        ]
+      }
+    },
+    {
+      "event_id": "pad_priority_arbitration",
+      "trigger_ref": "trig_pad_priority_arbitration",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_x5_pad_reserved",
+          "entity_id": "pad_x5_primary",
+          "visual_state": {
+            "mode": "reserved"
+          }
+        },
+        {
+          "type": "set_visual_state",
+          "action_id": "set_x5_uav_b_hold",
+          "entity_id": "uav_x5_second",
+          "visual_state": {
+            "mode": "hold"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X5_comm_failure_to_pad_contention_pad_priority_arbitration",
+        "category": "infrastructure",
+        "title": "Priority arbitration reserves pad for first UAV",
+        "severity": "warning",
+        "overlay": "infrastructure",
+        "target_ids": [
+          "uav_x5_priority",
+          "uav_x5_second",
+          "pad_x5_primary"
+        ]
+      }
+    },
+    {
+      "event_id": "second_uav_reroute",
+      "trigger_ref": "trig_after_pad_priority_arbitration",
+      "priority": 5,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_x5_uav_b_reroute",
+          "entity_id": "uav_x5_second",
+          "waypoints_enu_m": [
+            [
+              114.0,
+              282.0,
+              34
+            ],
+            [
+              140.0,
+              296.0,
+              34
+            ]
+          ],
+          "velocity_mps": 8.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X5_comm_failure_to_pad_contention_second_uav_reroute",
+        "category": "uav_mission",
+        "title": "Second UAV reroutes after contention",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_x5_second"
+        ]
+      }
+    },
+    {
+      "event_id": "station_recovered",
+      "trigger_ref": "trig_after_second_uav_reroute",
+      "priority": 6,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_x5_tower_restored",
+          "entity_id": "tower_x5_comm",
+          "visual_state": {
+            "mode": "online"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X5_comm_failure_to_pad_contention_station_recovered",
+        "category": "infrastructure",
+        "title": "Communication station recovers",
+        "severity": "info",
+        "overlay": "infrastructure",
+        "target_ids": [
+          "tower_x5_comm"
         ]
       }
     }

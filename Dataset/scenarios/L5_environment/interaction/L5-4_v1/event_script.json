@@ -1,90 +1,123 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L5-4_v1",
-  "description": "Dusk transition, gradual sensor adaptation",
+  "description": "Dusk light shift and camera underexposure",
   "parameters": {
-    "weather_onset_tick": 300
+    "weather_threshold_tick": 260
   },
   "triggers": [
     {
-      "trigger_id": "trig_weather_onset",
+      "trigger_id": "trig_dusk_light_shift",
       "type": "tick",
-      "tick": 300
+      "tick": 260
     },
     {
-      "trigger_id": "trig_after_weather_onset",
+      "trigger_id": "trig_after_dusk_light_shift",
       "type": "event_fired",
-      "event_id": "weather_onset"
+      "event_id": "dusk_light_shift"
+    },
+    {
+      "trigger_id": "trig_after_infrared_switch",
+      "type": "event_fired",
+      "event_id": "infrared_switch"
     }
   ],
   "events": [
     {
-      "event_id": "weather_onset",
-      "trigger_ref": "trig_weather_onset",
+      "event_id": "dusk_light_shift",
+      "trigger_ref": "trig_dusk_light_shift",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "set_weather",
-          "action_id": "set_weather_008",
-          "profile": "rain",
-          "overrides": {
-            "rain": 0.4,
-            "visibility_m": 14000.0,
-            "wetness": 0.36000000000000004,
-            "wind_speed": 9.0
+          "type": "set_visual_state",
+          "action_id": "set_camera_underexposed",
+          "entity_id": "uav_weather_l5_4_v1",
+          "visual_state": {
+            "mode": "camera_underexposed"
           }
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_dusk_underexposure",
+          "camera_id": "demo_high_overview"
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "uav_reaction"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L5-4_v1_onset",
-        "category": "weather",
-        "title": "Dusk transition, gradual sensor adaptation — 天气变化开始",
+        "topic": "evt_L5-4_v1_dusk_light_shift",
+        "category": "environment",
+        "title": "Dusk light shift underexposes camera",
         "severity": "warning",
-        "overlay": "weather",
+        "overlay": "environment",
         "target_ids": [
-          "weather_global"
+          "uav_weather_l5_4_v1"
         ]
       }
     },
     {
-      "event_id": "uav_reaction",
-      "trigger_ref": "trig_after_weather_onset",
+      "event_id": "infrared_switch",
+      "trigger_ref": "trig_after_dusk_light_shift",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
+          "type": "set_visual_state",
+          "action_id": "set_uav_infrared_mode",
+          "entity_id": "uav_weather_l5_4_v1",
+          "visual_state": {
+            "mode": "infrared_navigation"
+          }
+        },
+        {
           "type": "move_entity",
-          "action_id": "move_110",
-          "entity_id": "uav_patrol_01",
+          "action_id": "move_uav_ir_continue",
+          "entity_id": "uav_weather_l5_4_v1",
           "waypoints_enu_m": [
             [
-              50,
-              20,
-              30
+              86.0,
+              170.5,
+              32
             ],
             [
-              40,
-              15,
-              30
+              98.0,
+              178.5,
+              32
             ]
           ],
-          "velocity_mps": 3.0
+          "velocity_mps": 5.0
         }
       ],
       "log_event": {
-        "topic": "evt_L5-4_v1_uav_react",
+        "topic": "evt_L5-4_v1_infrared_switch",
         "category": "uav_mission",
-        "title": "UAV 因天气变化调整航线",
+        "title": "UAV switches to infrared navigation",
         "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_patrol_01"
+          "uav_weather_l5_4_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "low_light_termination",
+      "trigger_ref": "trig_after_infrared_switch",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_infrared_validation",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-4_v1_low_light_termination",
+        "category": "uav_mission",
+        "title": "Low-light segment terminates after validation",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_weather_l5_4_v1"
         ]
       }
     }

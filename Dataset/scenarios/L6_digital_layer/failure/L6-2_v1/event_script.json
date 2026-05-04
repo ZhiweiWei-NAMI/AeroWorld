@@ -1,103 +1,173 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L6-2_v1",
-  "description": "Moderate degradation, operator compensates",
+  "description": "Intermittent C2 degradation with slowdown and backup link",
   "parameters": {
-    "failure_tick": 400
+    "anomaly_tick": 240,
+    "recovery_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_failure_detected",
+      "trigger_id": "trig_c2_degradation",
       "type": "tick",
-      "tick": 400
+      "tick": 240
     },
     {
-      "trigger_id": "trig_after_failure_detected",
+      "trigger_id": "trig_after_c2_degradation",
       "type": "event_fired",
-      "event_id": "failure_detected"
+      "event_id": "c2_degradation"
+    },
+    {
+      "trigger_id": "trig_after_uav_delayed_response",
+      "type": "event_fired",
+      "event_id": "uav_delayed_response"
+    },
+    {
+      "trigger_id": "trig_after_backup_link_lock",
+      "type": "event_fired",
+      "event_id": "backup_link_lock"
     }
   ],
   "events": [
     {
-      "event_id": "failure_detected",
-      "trigger_ref": "trig_failure_detected",
+      "event_id": "c2_degradation",
+      "trigger_ref": "trig_c2_degradation",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "move_entity",
-          "action_id": "move_116",
-          "entity_id": "uav_ops_01",
-          "waypoints_enu_m": [
-            [
-              50,
-              20,
-              35
-            ],
-            [
-              46,
-              16,
-              15
-            ]
-          ],
-          "velocity_mps": 4.0
+          "type": "set_visual_state",
+          "action_id": "set_tower_c2_degraded",
+          "entity_id": "tower_l6_2_v1",
+          "visual_state": {
+            "mode": "degraded"
+          }
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "emergency_landing"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L6-2_v1_failure",
-        "category": "uav_mission",
-        "title": "Moderate degradation, operator compensates — 系统失效检测",
-        "severity": "critical",
-        "overlay": "uav_mission",
+        "topic": "evt_L6-2_v1_c2_degradation",
+        "category": "digital_layer",
+        "title": "Intermittent C2 degradation starts",
+        "severity": "warning",
+        "overlay": "digital_layer",
         "target_ids": [
-          "uav_ops_01"
+          "tower_l6_2_v1",
+          "uav_digital_l6_2_v1"
         ]
       }
     },
     {
-      "event_id": "emergency_landing",
-      "trigger_ref": "trig_after_failure_detected",
+      "event_id": "uav_delayed_response",
+      "trigger_ref": "trig_after_c2_degradation",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_117",
-          "entity_id": "uav_ops_01",
+          "action_id": "move_uav_delayed_slowdown",
+          "entity_id": "uav_digital_l6_2_v1",
           "waypoints_enu_m": [
             [
-              46,
-              16,
-              15
+              50.0,
+              202.4,
+              32
             ],
             [
-              45,
-              15,
-              0.5
+              62.0,
+              208.4,
+              31
             ]
           ],
-          "velocity_mps": 2.0
+          "velocity_mps": 3.0
         },
         {
-          "type": "capture_screenshot",
-          "action_id": "cap_030",
-          "camera_id": "demo_overview"
+          "type": "set_visual_state",
+          "action_id": "set_uav_command_delay",
+          "entity_id": "uav_digital_l6_2_v1",
+          "visual_state": {
+            "mode": "command_delay"
+          }
         }
       ],
       "log_event": {
-        "topic": "evt_L6-2_v1_landing",
+        "topic": "evt_L6-2_v1_uav_delayed_response",
         "category": "uav_mission",
-        "title": "紧急迫降执行",
-        "severity": "critical",
+        "title": "UAV slows due to delayed command link",
+        "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_ops_01",
-          "pad_emergency_01"
+          "uav_digital_l6_2_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "backup_link_lock",
+      "trigger_ref": "trig_after_uav_delayed_response",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_tower_backup_lock",
+          "entity_id": "tower_l6_2_v1",
+          "visual_state": {
+            "mode": "backup_link"
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_backup_resume",
+          "entity_id": "uav_digital_l6_2_v1",
+          "waypoints_enu_m": [
+            [
+              62.0,
+              208.4,
+              31
+            ],
+            [
+              52.0,
+              220.4,
+              32
+            ]
+          ],
+          "velocity_mps": 5.5
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L6-2_v1_backup_link_lock",
+        "category": "digital_layer",
+        "title": "Backup link reduces degradation",
+        "severity": "info",
+        "overlay": "digital_layer",
+        "target_ids": [
+          "uav_digital_l6_2_v1",
+          "tower_l6_2_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "nominal_c2_restore",
+      "trigger_ref": "trig_after_backup_link_lock",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_tower_nominal",
+          "entity_id": "tower_l6_2_v1",
+          "visual_state": {
+            "mode": "online"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L6-2_v1_nominal_c2_restore",
+        "category": "digital_layer",
+        "title": "Nominal C2 restored",
+        "severity": "info",
+        "overlay": "digital_layer",
+        "target_ids": [
+          "tower_l6_2_v1"
         ]
       }
     }

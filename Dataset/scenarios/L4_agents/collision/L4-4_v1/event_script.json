@@ -1,124 +1,157 @@
 {
   "$schema": "event_script_v1",
   "scenario_id": "L4-4_v1",
-  "description": "Low-altitude UAV strikes moving vehicle",
+  "description": "UAV falls onto moving ground vehicle",
   "parameters": {
-    "approach_tick": 400,
-    "conflict_tick": 450,
-    "resolution_tick": 480
+    "incident_tick": 260,
+    "resolution_tick": 520
   },
   "triggers": [
     {
-      "trigger_id": "trig_approach_phase",
+      "trigger_id": "trig_crossing_trajectories",
       "type": "tick",
-      "tick": 400
+      "tick": 240
     },
     {
-      "trigger_id": "trig_proximity_alert",
-      "type": "tick",
-      "tick": 450
+      "trigger_id": "trig_vehicle_roof_contact",
+      "type": "entity_proximity",
+      "entity_a": "uav_falls_vehicle_l4_4_v1",
+      "entity_b": "car_under_uav_l4_4_v1",
+      "distance_m": 3.0,
+      "operator": "lte"
     }
   ],
   "events": [
     {
-      "event_id": "approach_phase",
-      "trigger_ref": "trig_approach_phase",
+      "event_id": "crossing_trajectories",
+      "trigger_ref": "trig_crossing_trajectories",
       "priority": 1,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_056",
-          "entity_id": "uav_01",
+          "action_id": "move_uav_falling_cross",
+          "entity_id": "uav_falls_vehicle_l4_4_v1",
           "waypoints_enu_m": [
             [
-              55,
-              18,
-              30.0
+              62.5,
+              98.0,
+              20
             ],
             [
-              50,
-              20,
-              30.0
+              73.5,
+              102.0,
+              12
+            ],
+            [
+              82.5,
+              105.0,
+              2.6
             ]
           ],
-          "velocity_mps": 8.0
+          "velocity_mps": 5.5
         },
         {
           "type": "move_entity",
-          "action_id": "move_057",
-          "entity_id": "car_01",
+          "action_id": "move_car_crossing_path",
+          "entity_id": "car_under_uav_l4_4_v1",
           "waypoints_enu_m": [
             [
-              48,
-              22,
-              0.0
+              84.5,
+              85.0,
+              0
             ],
             [
-              50,
-              20,
-              0.0
+              83.5,
+              96.0,
+              0
+            ],
+            [
+              82.5,
+              105.0,
+              0
             ]
           ],
           "velocity_mps": 7.0
         }
       ],
-      "on_fire": {
-        "emit_events": [
-          "proximity_alert"
-        ]
-      },
       "log_event": {
-        "topic": "evt_L4-4_v1_approach",
+        "topic": "evt_L4-4_v1_crossing_trajectories",
         "category": "uav_mission",
-        "title": "两实体正在接近",
-        "severity": "info",
+        "title": "UAV and vehicle trajectories cross",
+        "severity": "critical",
         "overlay": "uav_mission",
         "target_ids": [
-          "uav_01",
-          "car_01"
+          "uav_falls_vehicle_l4_4_v1",
+          "car_under_uav_l4_4_v1"
         ]
       }
     },
     {
-      "event_id": "proximity_alert",
-      "trigger_ref": "trig_proximity_alert",
+      "event_id": "vehicle_roof_contact",
+      "trigger_ref": "trig_vehicle_roof_contact",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_055",
-          "entity_id": "uav_01",
+          "action_id": "move_vehicle_emergency_brake",
+          "entity_id": "car_under_uav_l4_4_v1",
           "waypoints_enu_m": [
             [
-              55,
-              18,
-              30
+              82.5,
+              105.0,
+              0
             ],
             [
-              58,
-              16,
-              30
+              83.0,
+              105.5,
+              0
             ]
           ],
-          "velocity_mps": 10.0
+          "velocity_mps": 0.5
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_debris_ground",
+          "entity_id": "uav_falls_vehicle_l4_4_v1",
+          "waypoints_enu_m": [
+            [
+              82.5,
+              105.0,
+              2.6
+            ],
+            [
+              84.5,
+              106.0,
+              0.4
+            ]
+          ],
+          "velocity_mps": 1.0
+        },
+        {
+          "type": "set_visual_state",
+          "action_id": "set_uav_debris",
+          "entity_id": "uav_falls_vehicle_l4_4_v1",
+          "visual_state": {
+            "mode": "debris"
+          }
         },
         {
           "type": "capture_screenshot",
-          "action_id": "cap_011",
-          "camera_id": "demo_overview"
+          "action_id": "capture_uav_vehicle_contact",
+          "camera_id": "demo_high_overview"
         }
       ],
       "log_event": {
-        "topic": "evt_L4-4_v1_conflict",
-        "category": "uav_mission",
-        "title": "冲突检测 — 避让动作触发",
+        "topic": "evt_L4-4_v1_vehicle_roof_contact",
+        "category": "vehicle",
+        "title": "UAV contacts vehicle roof and vehicle brakes",
         "severity": "critical",
-        "overlay": "uav_mission",
+        "overlay": "vehicle",
         "target_ids": [
-          "uav_01",
-          "car_01"
+          "uav_falls_vehicle_l4_4_v1",
+          "car_under_uav_l4_4_v1"
         ]
       }
     }
