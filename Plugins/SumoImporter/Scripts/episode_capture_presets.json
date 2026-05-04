@@ -1,0 +1,152 @@
+{
+  "default_modalities": [
+    "rgb",
+    "depth",
+    "seg"
+  ],
+  "modalities": {
+    "rgb": {
+      "image_type": "Scene",
+      "pixels_as_float": false,
+      "compress": true,
+      "extension": "png"
+    },
+    "depth": {
+      "image_type": "DepthPerspective",
+      "pixels_as_float": true,
+      "compress": false,
+      "extension": "npy"
+    },
+    "seg": {
+      "image_type": "Segmentation",
+      "pixels_as_float": false,
+      "compress": true,
+      "extension": "png"
+    }
+  },
+  "weather_profiles": {
+    "clear": {
+      "condition": "clear",
+      "rain": 0.0,
+      "wetness": 0.0,
+      "fog_density": 0.0,
+      "dust": 0.0,
+      "visibility_m": 6000.0
+    },
+    "rain": {
+      "condition": "rain",
+      "rain": 0.7,
+      "wetness": 0.8,
+      "fog_density": 0.1,
+      "dust": 0.0,
+      "visibility_m": 2000.0
+    },
+    "fog": {
+      "condition": "fog",
+      "rain": 0.0,
+      "wetness": 0.2,
+      "fog_density": 0.55,
+      "dust": 0.0,
+      "visibility_m": 500.0
+    },
+    "storm": {
+      "condition": "storm",
+      "rain": 1.0,
+      "wetness": 1.0,
+      "fog_density": 0.35,
+      "dust": 0.15,
+      "visibility_m": 300.0
+    }
+  },
+  "ground_cameras": {
+    "site.intersection_a": [
+      {
+        "camera_id": "ground_a_overview_top",
+        "camera_name": "external",
+        "position_enu_m": [
+          46.0,
+          22.0,
+          24.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -72.0,
+          "yaw_deg": 0.0,
+          "roll_deg": 0.0
+        },
+        "fov_degrees": 70.0,
+        "modalities": [
+          "rgb"
+        ]
+      },
+      {
+        "camera_id": "ground_a_west_oblique",
+        "camera_name": "external",
+        "position_enu_m": [
+          24.0,
+          22.0,
+          10.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -18.0,
+          "yaw_deg": 12.0,
+          "roll_deg": 0.0
+        },
+        "fov_degrees": 78.0,
+        "modalities": [
+          "rgb"
+        ]
+      }
+    ],
+    "site.intersection_b": [
+      {
+        "camera_id": "ground_b_overview_top",
+        "camera_name": "external",
+        "position_enu_m": [
+          90.0,
+          22.0,
+          24.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -72.0,
+          "yaw_deg": 0.0,
+          "roll_deg": 0.0
+        },
+        "fov_degrees": 70.0,
+        "modalities": [
+          "rgb"
+        ]
+      },
+      {
+        "camera_id": "ground_b_east_oblique",
+        "camera_name": "external",
+        "position_enu_m": [
+          98.0,
+          22.0,
+          10.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": -18.0,
+          "yaw_deg": 180.0,
+          "roll_deg": 0.0
+        },
+        "fov_degrees": 78.0,
+        "modalities": [
+          "rgb"
+        ]
+      }
+    ]
+  },
+  "uav_cameras": {
+    "default": [
+      {
+        "camera_id_suffix": "front_center",
+        "camera_name": "front_center",
+        "modalities": [
+          "rgb",
+          "depth",
+          "seg"
+        ]
+      }
+    ]
+  }
+}

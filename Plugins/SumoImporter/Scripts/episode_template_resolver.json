@@ -1,0 +1,203 @@
+{
+  "pedestrian_defaults": {
+    "mode": "pedestrian_managed",
+    "logical_asset_id": "pedestrian.cityops.basic.v1",
+    "variant_cycle": [
+      "adult_male_commuter",
+      "adult_female_commuter",
+      "child_crossing",
+      "elder_observer"
+    ],
+    "activity_actions": {
+      "observing": {
+        "op": "ped_observe"
+      },
+      "observe": {
+        "op": "ped_observe"
+      },
+      "watching": {
+        "op": "ped_observe"
+      },
+      "idle": {
+        "op": "ped_stop"
+      },
+      "standing": {
+        "op": "ped_stop"
+      },
+      "waiting": {
+        "op": "ped_stop"
+      },
+      "walking": {
+        "op": "ped_play_animation",
+        "animation_asset_path": "/Game/MixamoAssets/Animations/Walking.Walking",
+        "play_rate": 1.0,
+        "loop_count": 999,
+        "reapply_after_pose_sync": true
+      },
+      "crossing": {
+        "op": "ped_play_animation",
+        "animation_asset_path": "/Game/MixamoAssets/Animations/Walking.Walking",
+        "play_rate": 1.0,
+        "loop_count": 999,
+        "reapply_after_pose_sync": true
+      },
+      "stopped": {
+        "op": "ped_stop"
+      },
+      "medical_incident": {
+        "freeze_pose_while_active": true,
+        "ground_lift_m": 0.9,
+        "ops": [
+          {
+            "op": "ped_stop"
+          },
+          {
+            "op": "ped_play_animation",
+            "animation_asset_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
+            "start_section": "Start",
+            "play_rate": 1.0,
+            "loop_count": 1
+          }
+        ]
+      },
+      "fall_flat": {
+        "freeze_pose_while_active": true,
+        "ground_lift_m": 0.9,
+        "ops": [
+          {
+            "op": "ped_stop"
+          },
+          {
+            "op": "ped_play_animation",
+            "animation_asset_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
+            "start_section": "Start",
+            "play_rate": 1.0,
+            "loop_count": 1
+          }
+        ]
+      },
+      "quarrel": {
+        "op": "ped_play_animation",
+        "animation_asset_path": "/Game/MixamoAssets/Animations/Yelling.Yelling",
+        "play_rate": 1.0,
+        "loop_count": 3
+      },
+      "default": {
+        "op": "none"
+      }
+    }
+  },
+  "uav_defaults": {
+    "mode": "runtime_multirotor",
+    "logical_asset_id": "uav.inspect.quad.v1",
+    "velocity_mps": 6.0
+  },
+  "category_defaults": {
+    "vehicle": {
+      "mode": "scene_sync",
+      "logical_asset_id": "vehicle.emergency.suv.v1"
+    },
+    "pedestrian": {
+      "mode": "pedestrian_managed"
+    },
+    "uav": {
+      "mode": "runtime_multirotor"
+    },
+    "facility": {
+      "mode": "metadata_only"
+    },
+    "other": {
+      "mode": "metadata_only"
+    }
+  },
+  "rules": [
+    {
+      "match": {
+        "proxy_template_id": "vehicle.sedan"
+      },
+      "mode": "scene_sync",
+      "logical_asset_id": "vehicle.emergency.suv.v1"
+    },
+    {
+      "match": {
+        "proxy_template_id": "human.walker"
+      },
+      "mode": "pedestrian_managed",
+      "logical_asset_id": "pedestrian.cityops.basic.v1"
+    },
+    {
+      "match": {
+        "proxy_template_id": "drone.quadrotor"
+      },
+      "mode": "runtime_multirotor",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "velocity_mps": 6.0
+    },
+    {
+      "match": {
+        "proxy_template_id": "proxy.facility_charger"
+      },
+      "mode": "scene_sync",
+      "logical_asset_id": "facility.charger.cityops.v1"
+    },
+    {
+      "match": {
+        "proxy_template_id": "proxy.facility_base_station"
+      },
+      "mode": "scene_sync",
+      "logical_asset_id": "facility.radio.base_tower.v1"
+    },
+    {
+      "match": {
+        "proxy_template_id": "proxy.traffic_light_signal"
+      },
+      "mode": "scene_sync",
+      "logical_asset_id": "prop.traffic_control.signal_light.v1"
+    },
+    {
+      "match": {
+        "proxy_template_id": "proxy.facility_compute_node"
+      },
+      "mode": "metadata_only"
+    },
+    {
+      "match": {
+        "proxy_template_id": "proxy.facility_observation_point"
+      },
+      "mode": "metadata_only"
+    },
+    {
+      "match": {
+        "entity_kind": "facility.charger"
+      },
+      "mode": "scene_sync",
+      "logical_asset_id": "facility.charger.cityops.v1"
+    },
+    {
+      "match": {
+        "entity_kind": "facility.base_station"
+      },
+      "mode": "scene_sync",
+      "logical_asset_id": "facility.radio.base_tower.v1"
+    },
+    {
+      "match": {
+        "entity_kind": "traffic_light.signal"
+      },
+      "mode": "scene_sync",
+      "logical_asset_id": "prop.traffic_control.signal_light.v1"
+    },
+    {
+      "match": {
+        "entity_kind": "facility.compute_node"
+      },
+      "mode": "metadata_only"
+    },
+    {
+      "match": {
+        "entity_kind": "facility.observation_point"
+      },
+      "mode": "metadata_only"
+    }
+  ]
+}

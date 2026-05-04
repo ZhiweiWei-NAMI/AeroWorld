@@ -1,0 +1,94 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "scenario.crowd_management_demo.v1",
+  "description": "雨后人群恢复→危险告警→人群清除。演示天气状态触发器、AND 组合条件、sustain_ticks 防闪烁、人群生成/清除动作。",
+  "parameters": {
+    "rain_stop_tick": 700,
+    "crowd_spawn_origin_enu_m": [46.0, 21.0, 5.63],
+    "hazard_warning_tick": 850
+  },
+  "triggers": [
+    {
+      "trigger_id": "rain_stopped",
+      "type": "weather_state",
+      "parameter": "rain",
+      "operator": "lte",
+      "value": 0.1,
+      "sustain_ticks": 10
+    },
+    {
+      "trigger_id": "post_rain_tick",
+      "type": "tick",
+      "tick": "$param.rain_stop_tick"
+    },
+    {
+      "trigger_id": "crowd_spawn_condition",
+      "type": "composite",
+      "operator": "AND",
+      "children": ["post_rain_tick", "rain_stopped"]
+    },
+    {
+      "trigger_id": "hazard_scheduled",
+      "type": "tick",
+      "tick": "$param.hazard_warning_tick"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "spawn_crowd_after_rain",
+      "trigger_ref": "crowd_spawn_condition",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "spawn_commuters",
+          "type": "spawn_crowd",
+          "group_id": "crowd.commuters.post_rain",
+          "count": 20,
+          "spawn_origin_enu_m": "$param.crowd_spawn_origin_enu_m",
+          "spawn_box_extent_cm": [1500.0, 1500.0, 0.0],
+          "seed": 42
+        },
+        {
+          "action_id": "capture_crowd_spawned",
+          "type": "capture_screenshot",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_crowd_spawned_post_rain",
+        "category": "pedestrian",
+        "title": "降雨停止后行人陆续返回",
+        "severity": "info",
+        "overlay": "pedestrian",
+        "target_ids": ["crowd.commuters.post_rain"]
+      }
+    },
+    {
+      "event_id": "clear_crowd_hazard",
+      "trigger_ref": "hazard_scheduled",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "clear_crowd",
+          "type": "clear_crowd",
+          "group_id": "crowd.commuters.post_rain"
+        },
+        {
+          "action_id": "capture_cleared",
+          "type": "capture_screenshot",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_crowd_cleared_hazard",
+        "category": "pedestrian",
+        "title": "危险告警触发，人群紧急疏散",
+        "severity": "critical",
+        "overlay": "pedestrian",
+        "target_ids": ["crowd.commuters.post_rain"]
+      }
+    }
+  ]
+}

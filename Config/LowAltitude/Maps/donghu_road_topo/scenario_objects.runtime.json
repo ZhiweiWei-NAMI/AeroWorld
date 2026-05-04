@@ -1,0 +1,112 @@
+{
+  "objects": [
+    {
+      "instance_id": "landing_pad.central",
+      "logical_asset_id": "semantic.landing_pad",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [5.0, 5.0, 0.0],
+        "rotation_deg": {
+          "yaw_deg": 0.0
+        }
+      },
+      "enabled": true,
+      "query_tags": ["landing_pad", "drone_service"],
+      "initial_state": {
+        "capacity": 1
+      }
+    },
+    {
+      "instance_id": "spawn_zone.north",
+      "logical_asset_id": "semantic.spawn_zone",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [0.0, 30.0, 0.0],
+        "rotation_deg": {
+          "yaw_deg": 180.0
+        }
+      },
+      "enabled": true,
+      "query_tags": ["spawn_zone", "pedestrian_entry"]
+    },
+    {
+      "instance_id": "asset_anchor.charge_01",
+      "logical_asset_id": "semantic.asset_anchor",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [18.0, 12.0, 0.0],
+        "rotation_deg": {
+          "yaw_deg": 90.0
+        }
+      },
+      "enabled": true,
+      "query_tags": ["asset_anchor", "charging_pile"]
+    },
+    {
+      "instance_id": "charging_pile.01",
+      "logical_asset_id": "facility.charging_pile.basic",
+      "placement_mode": "anchor_ref",
+      "placement": {
+        "anchor_id": "asset_anchor.charge_01",
+        "offset_enu_m": [0.0, 0.0, 0.0],
+        "yaw_deg": 90.0
+      },
+      "enabled": true,
+      "query_tags": ["charging_pile", "service_point"],
+      "reservation_slots": 1
+    },
+    {
+      "instance_id": "barrier.crossing_west",
+      "logical_asset_id": "facility.barrier.basic",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [-6.0, 16.0, 0.0],
+        "rotation_deg": {
+          "yaw_deg": 90.0
+        }
+      },
+      "enabled": true,
+      "query_tags": ["barrier", "temporary_facility"],
+      "notes": "Example programmable road barrier."
+    },
+    {
+      "instance_id": "trigger.no_fly.central_box",
+      "logical_asset_id": "trigger.no_fly.box.v1",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [14.0, 16.0, 8.0],
+        "extent_m": [8.0, 8.0, 8.0]
+      },
+      "enabled": true,
+      "query_tags": ["trigger", "no_fly", "airspace_zone"]
+    },
+    {
+      "instance_id": "trigger.hazard.construction.west_box",
+      "logical_asset_id": "trigger.hazard.construction.box.v1",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [-4.0, 16.0, 1.5],
+        "extent_m": [5.0, 4.0, 2.0]
+      },
+      "enabled": true,
+      "query_tags": ["trigger", "hazard", "construction"]
+    },
+    {
+      "instance_id": "trigger.hazard.generic.waterfront_poly",
+      "logical_asset_id": "trigger.hazard.generic.box.v1",
+      "placement_mode": "polygon_prism",
+      "placement": {
+        "polygon_enu_m": [
+          [22.0, 3.0, 0.0],
+          [28.0, 5.0, 0.0],
+          [26.0, 11.0, 0.0],
+          [20.0, 9.0, 0.0]
+        ],
+        "base_z_m": 0.0,
+        "height_m": 4.0
+      },
+      "enabled": true,
+      "query_tags": ["trigger", "hazard", "generic"]
+    }
+  ]
+}

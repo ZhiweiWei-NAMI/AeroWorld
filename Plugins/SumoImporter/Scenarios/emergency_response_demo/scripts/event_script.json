@@ -1,0 +1,113 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "scenario.emergency_response_demo.v1",
+  "description": "医疗事故检测→应急响应调度→到达确认链。演示 tick 触发、事件链传播(on_fire)、实体距离触发、AND 组合条件的协同使用。",
+  "parameters": {
+    "incident_tick": 500,
+    "incident_location_enu_m": [52.5, 19.5, 5.63],
+    "responder_uav_id": "drone_demo_a_023",
+    "victim_ped_id": "pedestrian_a_005",
+    "ambulance_spawn_enu_m": [80.0, 40.0, 5.63]
+  },
+  "triggers": [
+    {
+      "trigger_id": "incident_scheduled",
+      "type": "tick",
+      "tick": "$param.incident_tick"
+    },
+    {
+      "trigger_id": "responder_near_victim",
+      "type": "entity_proximity",
+      "entity_a": "$param.responder_uav_id",
+      "entity_b": "$param.victim_ped_id",
+      "distance_m": 15.0,
+      "operator": "lte",
+      "min_true_ticks": 3
+    },
+    {
+      "trigger_id": "incident_and_proximity",
+      "type": "composite",
+      "operator": "AND",
+      "children": ["incident_scheduled", "responder_near_victim"]
+    }
+  ],
+  "events": [
+    {
+      "event_id": "incident_detected",
+      "trigger_ref": "incident_scheduled",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "victim_fall_anim",
+          "type": "play_animation",
+          "ped_id": "$param.victim_ped_id",
+          "animation_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
+          "start_section": "Start",
+          "play_rate": 1.0,
+          "loop_count": 1
+        },
+        {
+          "action_id": "capture_incident",
+          "type": "capture_screenshot",
+          "camera_id": "demo_low_ground_8m"
+        }
+      ],
+      "on_fire": { "emit_events": ["dispatch_responder"] },
+      "log_event": {
+        "topic": "evt_incident_detected",
+        "category": "pedestrian",
+        "title": "行人过街处检测到医疗事故",
+        "severity": "critical",
+        "overlay": "pedestrian",
+        "target_ids": ["$param.victim_ped_id"]
+      }
+    },
+    {
+      "event_id": "dispatch_responder",
+      "trigger_ref": "incident_scheduled",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "spawn_ambulance",
+          "type": "spawn_entity",
+          "asset_id": "vehicle.emergency.ambulance.v1",
+          "entity_id": "ambulance_event_001",
+          "position_enu_m": "$param.ambulance_spawn_enu_m",
+          "visual_state": { "mode": "response", "lights_on": true }
+        }
+      ],
+      "on_fire": { "emit_events": ["arrival_confirmation"] },
+      "log_event": {
+        "topic": "evt_responder_dispatched",
+        "category": "vehicle",
+        "title": "紧急救护车已派遣",
+        "severity": "warning",
+        "overlay": "vehicle",
+        "target_ids": ["ambulance_event_001"]
+      }
+    },
+    {
+      "event_id": "arrival_confirmation",
+      "trigger_ref": "incident_and_proximity",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "capture_arrival",
+          "type": "capture_screenshot",
+          "camera_id": "demo_low_ground_8m"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_responder_arrived",
+        "category": "uav_mission",
+        "title": "巡检无人机抵达事故位置上空",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": ["$param.responder_uav_id", "$param.victim_ped_id"]
+      }
+    }
+  ]
+}

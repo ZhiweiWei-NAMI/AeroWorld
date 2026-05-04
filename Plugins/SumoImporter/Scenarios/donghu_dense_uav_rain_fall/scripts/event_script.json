@@ -1,0 +1,138 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "scenario.donghu_demo_dense_uav_rain_fall.v1",
+  "description": "降雨→无人机改道→行人跌倒→巡检派遣事件链。等价于现有 build.py 硬编码的 4 个事件，但使用声明式格式。",
+  "parameters": {
+    "rain_start_tick": 450,
+    "uav_divert_tick": 500,
+    "pedestrian_fall_tick": 600,
+    "inspection_dispatch_tick": 650,
+    "fall_ped_id": "pedestrian_a_005",
+    "inspection_uav_id": "drone_demo_a_023",
+    "fall_location_enu_m": [52.5, 19.5, 5.63]
+  },
+  "triggers": [
+    {
+      "trigger_id": "rain_scheduled",
+      "type": "tick",
+      "tick": "$param.rain_start_tick"
+    },
+    {
+      "trigger_id": "rain_active",
+      "type": "weather_state",
+      "parameter": "rain",
+      "operator": "gte",
+      "value": 0.5,
+      "sustain_ticks": 30
+    },
+    {
+      "trigger_id": "uav_divert_scheduled",
+      "type": "tick",
+      "tick": "$param.uav_divert_tick"
+    },
+    {
+      "trigger_id": "fall_scheduled",
+      "type": "tick",
+      "tick": "$param.pedestrian_fall_tick"
+    },
+    {
+      "trigger_id": "dispatch_scheduled",
+      "type": "tick",
+      "tick": "$param.inspection_dispatch_tick"
+    },
+    {
+      "trigger_id": "after_fall",
+      "type": "event_fired",
+      "event_id": "pedestrian_fall_event"
+    },
+    {
+      "trigger_id": "rain_and_fall_done",
+      "type": "composite",
+      "operator": "AND",
+      "children": ["rain_active", "after_fall"]
+    }
+  ],
+  "events": [
+    {
+      "event_id": "rain_start_event",
+      "trigger_ref": "rain_scheduled",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "apply_rain_weather",
+          "type": "set_weather",
+          "profile": "rain",
+          "overrides": { "rain": 0.7, "visibility_m": 2000.0, "wind_speed": 5.0, "wetness": 0.8 }
+        }
+      ],
+      "on_fire": { "emit_events": ["uav_divert_event"] },
+      "log_event": {
+        "topic": "evt_demo_weather_rain_start",
+        "category": "weather",
+        "title": "降雨开始于十字路口A上空",
+        "severity": "warning",
+        "overlay": "weather",
+        "target_ids": ["weather_global"]
+      }
+    },
+    {
+      "event_id": "uav_divert_event",
+      "trigger_ref": "uav_divert_scheduled",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [],
+      "on_fire": { "emit_events": ["pedestrian_fall_event"] },
+      "log_event": {
+        "topic": "evt_demo_uav_divert_local",
+        "category": "uav_mission",
+        "title": "巡逻无人机因降雨改道",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": ["drone_demo_a_001", "drone_demo_a_002"]
+      }
+    },
+    {
+      "event_id": "pedestrian_fall_event",
+      "trigger_ref": "rain_and_fall_done",
+      "priority": 3,
+      "max_fire_count": 1,
+      "require_conditions": ["rain_active"],
+      "actions": [
+        {
+          "action_id": "play_fall_animation",
+          "type": "play_animation",
+          "ped_id": "$param.fall_ped_id",
+          "animation_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
+          "start_section": "Start",
+          "play_rate": 1.0,
+          "loop_count": 1
+        }
+      ],
+      "on_fire": { "emit_events": ["inspection_dispatch_event"] },
+      "log_event": {
+        "topic": "evt_demo_pedestrian_fall_triggered_a",
+        "category": "pedestrian",
+        "title": "老人行人在下穿人行横道跌倒",
+        "severity": "critical",
+        "overlay": "pedestrian",
+        "target_ids": ["$param.fall_ped_id"]
+      }
+    },
+    {
+      "event_id": "inspection_dispatch_event",
+      "trigger_ref": "after_fall",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [],
+      "log_event": {
+        "topic": "evt_demo_uav_dispatch_inspection_a",
+        "category": "uav_mission",
+        "title": "巡检无人机到达事故现场",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": ["$param.inspection_uav_id"]
+      }
+    }
+  ]
+}

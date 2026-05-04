@@ -1,0 +1,84 @@
+{
+  "episode_dir": "Plugins/SumoImporter/Scenarios/donghu_dense_uav_rain_fall/artifacts/episodes/episode_demo_dense_uav_rain_fall_90s",
+  "map_id": "donghu_road_topo",
+  "output_dir": "Saved/AirSim/episode_render_host/episode_demo_dense_uav_rain_fall_90s",
+  "template_resolver_path": "Plugins/SumoImporter/Scripts/episode_template_resolver.json",
+  "capture_presets_path": "Plugins/SumoImporter/Scripts/episode_capture_presets.json",
+  "truth_frame_coordinate_space": "map_enu",
+  "coordinate_transform": {
+    "enabled": true,
+    "translation_enu_m": [7665.869094001044, 7316.608123103693, 0.0],
+    "axis_mapping": "XY_To_XY",
+    "yaw_deg": 245.0,
+    "scale_enu": [1.0, 1.0, 1.0]
+  },
+  "road_topology_snap": {
+    "enabled": true,
+    "categories": ["vehicle"],
+    "lane_center_samples_path": "Config/LowAltitude/Maps/donghu_road_topo/traffic_bundle/lane_center_samples.csv",
+    "cell_size_m": 20.0,
+    "search_radius_m": 35.0,
+    "fallback_radius_m": 90.0,
+    "heading_weight_m_per_deg": 0.06,
+    "same_edge_bonus_m": 1.5,
+    "same_lane_bonus_m": 3.0,
+    "use_sample_z": true,
+    "use_sample_yaw": true
+  },
+  "road_geometry": {
+    "road_geojson_path": "Content/Maps/donghu_road_topo/road/road.geojson",
+    "lane_center_samples_path": "Config/LowAltitude/Maps/donghu_road_topo/traffic_bundle/lane_center_samples.csv",
+    "cell_size_m": 25.0
+  },
+  "vehicle_lane_offsets": {
+    "enabled": true,
+    "lane_width_m": 3.5,
+    "cluster_threshold_m": 2.25,
+    "duplicate_threshold_m": 0.75,
+    "queue_spacing_m": 4.75
+  },
+  "entity_overlap_filter": {
+    "enabled": true,
+    "vehicle_hard_overlap_m": 2.75,
+    "vehicle_same_lane_gap_m": 6.0,
+    "vehicle_lane_offset_tolerance_m": 0.9,
+    "pedestrian_min_distance_m": 0.75
+  },
+  "pedestrian_roadside_projection": {
+    "enabled": true,
+    "search_radius_m": 18.0,
+    "keepout_margin_m": 2.5,
+    "path_side_hints": {
+      "route.pedestrian.a.lower": -1,
+      "route.pedestrian.a.upper": 1
+    }
+  },
+  "ground_reference": {
+    "uav_ground_relative": true,
+    "ground_camera_ground_relative": true
+  },
+  "entity_rotation_offsets_deg": {
+    "vehicle_yaw_deg": 0.0,
+    "pedestrian_yaw_deg": 0.0,
+    "uav_yaw_deg": 0.0,
+    "default_yaw_deg": 0.0
+  },
+  "batch_strategy": {
+    "sites": [
+      "site.intersection_a",
+      "site.intersection_b"
+    ],
+    "tick_window_size": 0
+  },
+  "timeouts": {
+    "airsim_timeout_s": 30.0,
+    "rpc_retry_count": 1,
+    "rpc_retry_delay_s": 1.0,
+    "capture_warmup_s": 2.0,
+    "camera_settle_s": 0.15,
+    "image_retry_count": 1,
+    "image_retry_delay_s": 1.0,
+    "uav_move_timeout_s": 10.0,
+    "uav_status_poll_interval_s": 0.25
+  }
+}

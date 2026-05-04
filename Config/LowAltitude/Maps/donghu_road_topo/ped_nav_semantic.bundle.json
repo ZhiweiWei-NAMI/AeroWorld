@@ -1,0 +1,107 @@
+{
+	"anchors": [
+		{
+			"anchor_id": "anchor.sw",
+			"position_enu_m": [ -8, 0, 0 ],
+			"surface_normal_enu": [ 0, 0, 1 ],
+			"waiting_zone_ids": []
+		},
+		{
+			"anchor_id": "anchor.nw",
+			"position_enu_m": [ -8, 12, 0 ],
+			"surface_normal_enu": [ 0, 0, 1 ],
+			"waiting_zone_ids": [
+				"wait.nw"
+			]
+		},
+		{
+			"anchor_id": "anchor.se",
+			"position_enu_m": [ 8, 0, 0 ],
+			"surface_normal_enu": [ 0, 0, 1 ],
+			"waiting_zone_ids": []
+		},
+		{
+			"anchor_id": "anchor.ne",
+			"position_enu_m": [ 8, 12, 0 ],
+			"surface_normal_enu": [ 0, 0, 1 ],
+			"waiting_zone_ids": [
+				"wait.ne"
+			]
+		}
+	],
+	"walk_edges": [
+		{
+			"edge_id": "sidewalk.west",
+			"edge_type": "sidewalk",
+			"from_anchor_id": "anchor.sw",
+			"to_anchor_id": "anchor.nw",
+			"length_m": 20,
+			"polyline_enu_m": [
+				[ -8, 0, 0 ],
+				[ -8, 10, 0 ],
+				[ -8, 20, 0 ]
+			],
+			"polyline_normals_enu": [
+				[ 0, 0, 1 ],
+				[ 0, 0, 1 ],
+				[ 0, 0, 1 ]
+			]
+		},
+		{
+			"edge_id": "sidewalk.east",
+			"edge_type": "sidewalk",
+			"from_anchor_id": "anchor.se",
+			"to_anchor_id": "anchor.ne",
+			"length_m": 20,
+			"polyline_enu_m": [
+				[ 8, 0, 0 ],
+				[ 8, 10, 0 ],
+				[ 8, 20, 0 ]
+			],
+			"polyline_normals_enu": [
+				[ 0, 0, 1 ],
+				[ 0, 0, 1 ],
+				[ 0, 0, 1 ]
+			]
+		}
+	],
+	"wait_points": [
+		{
+			"zone_id": "wait.nw",
+			"anchor_id": "anchor.nw",
+			"radius_m": 1.8,
+			"center_enu_m": [ -8, 12, 0 ],
+			"surface_normal_enu": [ 0, 0, 1 ]
+		},
+		{
+			"zone_id": "wait.ne",
+			"anchor_id": "anchor.ne",
+			"radius_m": 1.8,
+			"center_enu_m": [ 8, 12, 0 ],
+			"surface_normal_enu": [ 0, 0, 1 ]
+		}
+	],
+	"crosswalks": [
+		{
+			"edge_id": "crossing.main",
+			"edge_type": "crosswalk",
+			"from_anchor_id": "anchor.nw",
+			"to_anchor_id": "anchor.ne",
+			"length_m": 16,
+			"polyline_enu_m": [
+				[ -8, 12, 0 ],
+				[ 0, 12, 0 ],
+				[ 8, 12, 0 ]
+			],
+			"polyline_normals_enu": [
+				[ 0, 0, 1 ],
+				[ 0, 0, 1 ],
+				[ 0, 0, 1 ]
+			]
+		}
+	],
+	"renderables": [],
+	"max_snap_distance_m": 6,
+	"ground_trace_half_height_m": 25,
+	"source_hash": "e2006fd71efa6c427dad4e302fd6b037"
+}
