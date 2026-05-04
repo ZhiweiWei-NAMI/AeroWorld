@@ -13,19 +13,22 @@
       "tick": 230
     },
     {
-      "trigger_id": "trig_after_av_sensor_fault",
-      "type": "event_fired",
-      "event_id": "av_sensor_fault"
+      "trigger_id": "trig_after_av_sensor_fault_delay_30",
+      "type": "event_fired_after",
+      "event_id": "av_sensor_fault",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_av_safe_stop",
-      "type": "event_fired",
-      "event_id": "av_safe_stop"
+      "trigger_id": "trig_after_av_safe_stop_delay_30",
+      "type": "event_fired_after",
+      "event_id": "av_safe_stop",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_lane_blockage_report",
-      "type": "event_fired",
-      "event_id": "lane_blockage_report"
+      "trigger_id": "trig_after_lane_blockage_report_delay_30",
+      "type": "event_fired_after",
+      "event_id": "lane_blockage_report",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -57,7 +60,7 @@
     },
     {
       "event_id": "av_safe_stop",
-      "trigger_ref": "trig_after_av_sensor_fault",
+      "trigger_ref": "trig_after_av_sensor_fault_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -67,18 +70,18 @@
           "entity_id": "av_fault_l4_11_v1",
           "waypoints_enu_m": [
             [
-              147.0,
-              147.0,
+              7147.0,
+              6347.0,
               0
             ],
             [
-              158.0,
-              147.6,
+              7158.0,
+              6347.6,
               0
             ],
             [
-              165.0,
-              148.0,
+              7165.0,
+              6348.0,
               0
             ]
           ],
@@ -106,7 +109,7 @@
     },
     {
       "event_id": "lane_blockage_report",
-      "trigger_ref": "trig_after_av_safe_stop",
+      "trigger_ref": "trig_after_av_safe_stop_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -116,13 +119,13 @@
           "entity_id": "uav_av_report_l4_11_v1",
           "waypoints_enu_m": [
             [
-              143.0,
-              159.0,
+              7143.0,
+              6359.0,
               33
             ],
             [
-              163.0,
-              154.0,
+              7163.0,
+              6354.0,
               25
             ]
           ],
@@ -148,7 +151,7 @@
     },
     {
       "event_id": "av_recovery_hold",
-      "trigger_ref": "trig_after_lane_blockage_report",
+      "trigger_ref": "trig_after_lane_blockage_report_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [

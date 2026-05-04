@@ -9,6 +9,8 @@ and validation metadata that event_script_v1 does not carry.
 from __future__ import annotations
 
 import json
+import csv
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,6 +33,23 @@ ROOT = Path(__file__).resolve().parents[2]
 DATASET_ROOT = ROOT / "Dataset"
 SCENARIOS_ROOT = DATASET_ROOT / "scenarios"
 ASSET_CATALOG = ROOT / "Config" / "LowAltitude" / "asset_catalog.json"
+LANE_SAMPLES_CSV = (
+    ROOT
+    / "Config"
+    / "LowAltitude"
+    / "Maps"
+    / "donghu_road_topo"
+    / "traffic_bundle"
+    / "lane_center_samples.csv"
+)
+BUILDING_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "building" / "building.geojson"
+WORLD_OFFSET_X_M = 7000.0
+WORLD_OFFSET_Y_M = 6200.0
+LANE_HALF_WIDTH_M = 1.9
+SIDEWALK_MIN_OFFSET_FROM_CURB_M = 1.2
+GATHERING_MIN_OFFSET_FROM_CURB_M = 4.5
+ROADWORK_MIN_OFFSET_FROM_EDGE_M = 1.5
+GROUND_Z_M = 0.0
 
 MAP_REF = {
     "map_id": "donghu_road_topo",
@@ -87,8 +106,136 @@ class ScenarioBundle:
     duration_ticks: int = 900
 
 
+@dataclass(frozen=True)
+class LaneSample:
+    edge_id: str
+    lane_index: int
+    s_m: float
+    x_m: float
+    y_m: float
+    z_m: float
+    yaw_deg: float
+
+
+class LaneSampleResolver:
+    def __init__(self, path: Path) -> None:
+        self.samples: list[LaneSample] = []
+        self.by_edge: dict[str, list[LaneSample]] = {}
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            required = {"edge_id", "lane_index", "s_m", "x_m", "y_m", "yaw_deg"}
+            missing = required - set(reader.fieldnames or [])
+            if missing:
+                raise ValueError(
+                    f"{path} is not a lane center sample CSV; missing columns {sorted(missing)}. "
+                    "Use traffic_bundle/lane_center_samples.csv, not lane_meta.csv."
+                )
+            for row in reader:
+                sample = LaneSample(
+                    edge_id=str(row["edge_id"]),
+                    lane_index=int(row["lane_index"]),
+                    s_m=float(row["s_m"]),
+                    x_m=float(row["x_m"]),
+                    y_m=float(row["y_m"]),
+                    z_m=float(row.get("z_m") or 0.0),
+                    yaw_deg=float(row.get("yaw_deg") or 0.0),
+                )
+                self.samples.append(sample)
+                self.by_edge.setdefault(sample.edge_id, []).append(sample)
+        for edge_samples in self.by_edge.values():
+            edge_samples.sort(key=lambda item: item.s_m)
+
+    def nearest_to_xy(self, x_m: float, y_m: float) -> LaneSample:
+        return min(self.samples, key=lambda item: (item.x_m - x_m) ** 2 + (item.y_m - y_m) ** 2)
+
+    def resolve_edge_s(self, edge_id: str, s_m: float) -> LaneSample:
+        edge_samples = self.by_edge.get(edge_id)
+        if not edge_samples:
+            raise ValueError(f"Unknown lane edge_id: {edge_id}")
+        return min(edge_samples, key=lambda item: abs(item.s_m - s_m))
+
+
+class BuildingCatalog:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        with open(path, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+        ids: list[str] = []
+        for feature in data.get("features", []):
+            props = feature.get("properties") or {}
+            source_id = props.get("id_origin") or props.get("id")
+            if source_id is not None:
+                ids.append(f"building_geojson_{source_id}")
+        if not ids:
+            raise ValueError(f"No building IDs found in {path}")
+        self.ids = ids
+
+    def id_for(self, index: int) -> str:
+        return self.ids[index % len(self.ids)]
+
+    @property
+    def source_ref(self) -> str:
+        return str(self.path.relative_to(ROOT)).replace("\\", "/")
+
+
+LANES = LaneSampleResolver(LANE_SAMPLES_CSV)
+BUILDINGS = BuildingCatalog(BUILDING_GEOJSON)
+
+
 def p(x: float, y: float, z: float = 0.0) -> list[float]:
+    return [round(x + WORLD_OFFSET_X_M, 3), round(y + WORLD_OFFSET_Y_M, 3), round(z, 3)]
+
+
+def q(x: float, y: float, z: float = 0.0) -> list[float]:
     return [round(x, 3), round(y, 3), round(z, 3)]
+
+
+def _lane_normal(sample: LaneSample) -> tuple[float, float]:
+    yaw_rad = math.radians(sample.yaw_deg)
+    return -math.sin(yaw_rad), math.cos(yaw_rad)
+
+
+def _side_sign_for_desired(sample: LaneSample, desired_pos_enu: list[float]) -> float:
+    nx, ny = _lane_normal(sample)
+    dx = float(desired_pos_enu[0]) - sample.x_m
+    dy = float(desired_pos_enu[1]) - sample.y_m
+    return 1.0 if dx * nx + dy * ny >= 0.0 else -1.0
+
+
+def _offset_from_lane(sample: LaneSample, lateral_m: float, z_m: float = GROUND_Z_M) -> list[float]:
+    nx, ny = _lane_normal(sample)
+    return q(sample.x_m + lateral_m * nx, sample.y_m + lateral_m * ny, z_m)
+
+
+def road_center_point(pos_enu: list[float], z_m: float = GROUND_Z_M) -> list[float]:
+    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
+    return _offset_from_lane(sample, 0.0, z_m)
+
+
+def sidewalk_point(pos_enu: list[float], offset_from_curb_m: float = SIDEWALK_MIN_OFFSET_FROM_CURB_M) -> list[float]:
+    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
+    sign = _side_sign_for_desired(sample, pos_enu)
+    lateral = sign * (LANE_HALF_WIDTH_M + max(abs(offset_from_curb_m), SIDEWALK_MIN_OFFSET_FROM_CURB_M))
+    return _offset_from_lane(sample, lateral, GROUND_Z_M)
+
+
+def gathering_point(pos_enu: list[float], extent_cm: list[float] | None = None) -> list[float]:
+    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
+    sign = _side_sign_for_desired(sample, pos_enu)
+    half_extent_m = 0.0
+    if extent_cm:
+        half_extent_m = max(float(extent_cm[0]), float(extent_cm[1])) / 200.0
+    offset_from_curb = max(GATHERING_MIN_OFFSET_FROM_CURB_M, half_extent_m + 1.0)
+    return _offset_from_lane(sample, sign * (LANE_HALF_WIDTH_M + offset_from_curb), GROUND_Z_M)
+
+
+def scene_pos(scene: dict[str, Any]) -> list[float]:
+    placement = scene["placement"]
+    return placement.get("resolved_position_enu_m") or placement.get("position_enu_m") or placement.get("center_enu_m")
+
+
+def shifted_sidewalk_point(base_pos_enu: list[float], dx_m: float, dy_m: float, offset_from_curb_m: float = SIDEWALK_MIN_OFFSET_FROM_CURB_M) -> list[float]:
+    return sidewalk_point([base_pos_enu[0] + dx_m, base_pos_enu[1] + dy_m, GROUND_Z_M], offset_from_curb_m)
 
 
 def rot(yaw: float = 0.0, pitch: float | None = None, roll: float | None = None) -> dict[str, float]:
@@ -116,8 +263,17 @@ def weather(parameter: str, operator: str, value: float, sustain_ticks: int = 0)
     return out
 
 
-def prox(a: str, b: str, distance: float, min_true_ticks: int = 2) -> dict[str, Any]:
-    return {
+def prox(
+    a: str,
+    b: str,
+    distance: float,
+    min_true_ticks: int = 2,
+    *,
+    metric: str = "3d",
+    horizontal_distance_m: float | None = None,
+    vertical_distance_m: float | None = None,
+) -> dict[str, Any]:
+    out = {
         "type": "entity_proximity",
         "entity_a": a,
         "entity_b": b,
@@ -125,10 +281,19 @@ def prox(a: str, b: str, distance: float, min_true_ticks: int = 2) -> dict[str, 
         "proximity_operator": "lte",
         "min_true_ticks": min_true_ticks,
     }
+    if metric:
+        out["metric"] = metric
+    if horizontal_distance_m is not None:
+        out["horizontal_distance_m"] = horizontal_distance_m
+    if vertical_distance_m is not None:
+        out["vertical_distance_m"] = vertical_distance_m
+    return out
 
 
-def fired(event_id: str) -> dict[str, Any]:
-    return {"type": "event_fired", "event_ref": event_id}
+def fired(event_id: str, delay_ticks: int = 30) -> dict[str, Any]:
+    if delay_ticks <= 0:
+        return {"type": "event_fired", "event_ref": event_id}
+    return {"type": "event_fired_after", "event_ref": event_id, "delay_ticks": delay_ticks}
 
 
 def composite(operator: str, children: list[str]) -> dict[str, Any]:
@@ -177,8 +342,8 @@ def play(action_id: str, ped_id: str) -> dict[str, Any]:
         action_id,
         "play_animation",
         ped_id=ped_id,
-        animation_path="/Game/Animations/Pedestrian/Fall_Flat",
-        start_section="fall_start",
+        animation_path="/AeroSimHost/Animations/AM_Crouch",
+        start_section="",
         play_rate=1.0,
         loop_count=1,
     )
@@ -260,7 +425,7 @@ def world_entity(
         "logical_asset_id": asset,
         "category": category,
         "placement_mode": "world_pose",
-        "placement": {"position_enu_m": pos_enu, "rotation_deg": rot(yaw)},
+        "placement": {"position_enu_m": pos_enu, "resolved_position_enu_m": pos_enu, "rotation_deg": rot(yaw)},
         "route_waypoints_enu_m": route or [],
         "initial_state": state or {},
         "activation_tick": activation_tick,
@@ -281,16 +446,35 @@ def lane_entity(
     activation_tick: int = 0,
     route: list[list[float]] | None = None,
     visual_state: dict[str, Any] | None = None,
+    prefer_edge_hint: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    sample = LANES.resolve_edge_s(edge_id, s) if prefer_edge_hint else LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
+    sign = _side_sign_for_desired(sample, pos_enu)
+    requested_lateral = float(lateral)
+    placement_semantics = "lane_center"
+    if asset.startswith("prop.roadwork."):
+        sign = 1.0 if float(lateral) >= 0.0 else -1.0
+        offset_from_edge = max(abs(requested_lateral), ROADWORK_MIN_OFFSET_FROM_EDGE_M)
+        requested_lateral = sign * (LANE_HALF_WIDTH_M + offset_from_edge)
+        placement_semantics = "roadwork_shoulder"
+    pos_enu = _offset_from_lane(sample, requested_lateral, float(pos_enu[2] if len(pos_enu) > 2 else GROUND_Z_M))
+    yaw = sample.yaw_deg
     spec, scene = world_entity(
         entity_id, asset, category, pos_enu, yaw, mode, activation_tick, route, visual_state
     )
     scene["placement_mode"] = "lane_anchor"
     scene["placement"] = {
-        "edge_id": edge_id,
-        "lane_index": 0,
-        "longitudinal_s": round(s, 3),
+        "edge_id": sample.edge_id,
+        "lane_index": sample.lane_index,
+        "longitudinal_s": round(sample.s_m, 3),
         "lateral_offset_m": round(lateral, 3),
+        "lane_half_width_m": LANE_HALF_WIDTH_M,
+        "resolved_lateral_from_center_m": round(requested_lateral, 3),
+        "placement_semantics": placement_semantics,
+        "resolved_position_enu_m": pos_enu,
+        "rotation_deg": rot(yaw),
+        "source_edge_id_hint": edge_id,
+        "source_longitudinal_s_hint": round(s, 3),
     }
     return spec, scene
 
@@ -307,12 +491,25 @@ def sidewalk_entity(
     mode: str | None = None,
     route: list[list[float]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
+    sign = _side_sign_for_desired(sample, pos_enu)
+    offset_from_curb = max(abs(float(offset)), SIDEWALK_MIN_OFFSET_FROM_CURB_M)
+    resolved_lateral = sign * (LANE_HALF_WIDTH_M + offset_from_curb)
+    pos_enu = _offset_from_lane(sample, resolved_lateral, float(pos_enu[2] if len(pos_enu) > 2 else GROUND_Z_M))
+    yaw = sample.yaw_deg
     spec, scene = world_entity(entity_id, asset, category, pos_enu, yaw, mode, route=route)
     scene["placement_mode"] = "sidewalk_anchor"
     scene["placement"] = {
-        "lane_edge_id": edge_id,
-        "longitudinal_s": round(s, 3),
-        "offset_from_curb_m": round(offset, 3),
+        "lane_edge_id": sample.edge_id,
+        "longitudinal_s": round(sample.s_m, 3),
+        "offset_from_curb_m": round(offset_from_curb, 3),
+        "lane_half_width_m": LANE_HALF_WIDTH_M,
+        "resolved_lateral_from_center_m": round(resolved_lateral, 3),
+        "placement_semantics": "sidewalk_or_plaza",
+        "resolved_position_enu_m": pos_enu,
+        "rotation_deg": rot(yaw),
+        "source_lane_edge_id_hint": edge_id,
+        "source_longitudinal_s_hint": round(s, 3),
     }
     return spec, scene
 
@@ -326,9 +523,27 @@ def crosswalk_entity(
     yaw: float = 0.0,
     route: list[list[float]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    spec, scene = world_entity(entity_id, asset, "pedestrian", pos_enu, yaw, "walking", route=route)
+    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
+    sign = _side_sign_for_desired(sample, pos_enu)
+    start_pos = _offset_from_lane(sample, sign * (LANE_HALF_WIDTH_M + SIDEWALK_MIN_OFFSET_FROM_CURB_M), GROUND_Z_M)
+    road_pos = _offset_from_lane(sample, 0.0, GROUND_Z_M)
+    opposite_pos = _offset_from_lane(sample, -sign * (LANE_HALF_WIDTH_M + SIDEWALK_MIN_OFFSET_FROM_CURB_M), GROUND_Z_M)
+    spec, scene = world_entity(entity_id, asset, "pedestrian", start_pos, sample.yaw_deg, "walking", route=route)
     scene["placement_mode"] = "crosswalk_anchor"
-    scene["placement"] = {"crosswalk_id": crosswalk_id, "side": side}
+    scene["placement"] = {
+        "crosswalk_id": crosswalk_id,
+        "side": side,
+        "lane_edge_id": sample.edge_id,
+        "longitudinal_s": round(sample.s_m, 3),
+        "lane_half_width_m": LANE_HALF_WIDTH_M,
+        "offset_from_curb_m": SIDEWALK_MIN_OFFSET_FROM_CURB_M,
+        "resolved_lateral_from_center_m": round(sign * (LANE_HALF_WIDTH_M + SIDEWALK_MIN_OFFSET_FROM_CURB_M), 3),
+        "resolved_position_enu_m": start_pos,
+        "roadway_center_position_enu_m": road_pos,
+        "opposite_curb_position_enu_m": opposite_pos,
+        "placement_semantics": "crosswalk_curb_start",
+        "rotation_deg": rot(sample.yaw_deg),
+    }
     return spec, scene
 
 
@@ -343,9 +558,13 @@ def facade_entity(
     scene["placement_mode"] = "facade_anchor"
     scene["placement"] = {
         "building_id": building_id,
+        "building_source": BUILDINGS.source_ref,
+        "building_id_property": "properties.id_origin",
+        "facade_anchor_method": "semantic_resolved_position",
         "outward_normal_enu": normal,
         "stand_off_m": stand_off,
         "position_enu_m": pos_enu,
+        "resolved_position_enu_m": pos_enu,
     }
     return spec, scene
 
@@ -360,7 +579,7 @@ def box_entity(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     spec, scene = world_entity(entity_id, asset, category, center, 0.0, activation_tick=activation_tick)
     scene["placement_mode"] = "box_volume"
-    scene["placement"] = {"center_enu_m": center, "extent_m": extent}
+    scene["placement"] = {"center_enu_m": center, "resolved_position_enu_m": center, "extent_m": extent}
     return spec, scene
 
 
@@ -376,7 +595,12 @@ def polygon_entity(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     spec, scene = world_entity(entity_id, asset, category, center, 0.0, activation_tick=activation_tick)
     scene["placement_mode"] = "polygon_prism"
-    scene["placement"] = {"polygon_enu_m": polygon, "base_z_m": base_z, "height_m": height}
+    scene["placement"] = {
+        "polygon_enu_m": polygon,
+        "base_z_m": base_z,
+        "height_m": height,
+        "resolved_position_enu_m": center,
+    }
     return spec, scene
 
 
@@ -393,6 +617,7 @@ def pad_entity(
         "pad_instance_id": pad_instance_id,
         "approach_side": approach_side,
         "position_enu_m": pos_enu,
+        "resolved_position_enu_m": pos_enu,
         "rotation_deg": rot(yaw),
     }
     return spec, scene
@@ -404,7 +629,7 @@ def camera_for(cx: float, cy: float, z: float = 75.0) -> list[dict[str, Any]]:
             "camera_id": "demo_high_overview",
             "placement_mode": "world_pose",
             "placement": {
-                "position_enu_m": p(cx, cy, z),
+                "position_enu_m": q(cx, cy, z),
                 "rotation_deg": {"pitch_deg": -70.0, "yaw_deg": 0.0},
             },
             "fov_deg": 90.0,
@@ -473,10 +698,11 @@ def make_bundle(
     )
 
 
-def add(target_specs: list[dict[str, Any]], target_scenes: list[dict[str, Any]], pair: tuple[dict[str, Any], dict[str, Any]]) -> None:
+def add(target_specs: list[dict[str, Any]], target_scenes: list[dict[str, Any]], pair: tuple[dict[str, Any], dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any]]:
     spec, scene = pair
     target_specs.append(spec)
     target_scenes.append(scene)
+    return pair
 
 
 def l_path(layer: str, subdir: str, scenario_id: str) -> Path:
@@ -635,7 +861,7 @@ def build_l2(scenario_id: str, idx: int) -> ScenarioBundle:
         drift = p(ox + 28, oy + 14, 24)
         corrected = p(ox + 18, oy + 20, 30)
         add(specs, scenes, world_entity(tower, "facility.radio.base_tower.v1", "facility", p(ox + 4, oy + 2, 0), 0, "online"))
-        add(specs, scenes, facade_entity(facade, f"urban_canyon_block_{idx}", p(ox + 30, oy + 16, 18), [0.8, -0.6, 0.0]))
+        add(specs, scenes, facade_entity(facade, BUILDINGS.id_for(20 + idx), p(ox + 30, oy + 16, 18), [0.8, -0.6, 0.0]))
         add(specs, scenes, world_entity(uav, "uav.airsim.cv_pawn.v1", "uav", start, 45, "corridor_follow", route=[planned, drift, corrected]))
         events = [
             event("gnss_anomaly", tick(250), [visual("set_tower_multipath", tower, "multipath_warning")], 1, scenario_id, "GNSS multipath anomaly in urban canyon", "digital_layer", [uav, tower], "warning"),
@@ -726,28 +952,34 @@ def build_l3(scenario_id: str, idx: int) -> ScenarioBundle:
         uav = "uav_roadwork_inspector_l3_1"
         car = "blocked_car_l3_1"
         prop_entities = []
+        work_base = LANES.nearest_to_xy(*p(ox, oy, 0)[:2])
+        work_edge = work_base.edge_id
+        work_s = work_base.s_m
         for i in range(3):
             ent = f"barrier_l3_1_{i + 1:02d}"
             pos = p(ox + i * 4.5, oy, 0)
-            add(specs, scenes, lane_entity(ent, "prop.roadwork.barrier.v1", "roadwork_prop", "cg_edge_14", 120 + i * 5, 1.5, pos, 90, "staged", activation_tick=220))
-            prop_entities.append((ent, "prop.roadwork.barrier.v1", pos))
+            _, scene = add(specs, scenes, lane_entity(ent, "prop.roadwork.barrier.v1", "roadwork_prop", work_edge, work_s + i * 5, 1.5, pos, 90, "staged", activation_tick=220, prefer_edge_hint=True))
+            prop_entities.append((ent, "prop.roadwork.barrier.v1", scene_pos(scene)))
         for i, sx in enumerate([-3.0, 12.5]):
             ent = f"fence_l3_1_{i + 1:02d}"
             pos = p(ox + sx, oy + 1.6, 0)
-            add(specs, scenes, lane_entity(ent, "prop.roadwork.construction_fence.v1", "roadwork_prop", "cg_edge_14", 118 + i * 18, 1.5, pos, 90, "staged", activation_tick=220))
-            prop_entities.append((ent, "prop.roadwork.construction_fence.v1", pos))
+            _, scene = add(specs, scenes, lane_entity(ent, "prop.roadwork.construction_fence.v1", "roadwork_prop", work_edge, work_s - 2 + i * 18, 1.5, pos, 90, "staged", activation_tick=220, prefer_edge_hint=True))
+            prop_entities.append((ent, "prop.roadwork.construction_fence.v1", scene_pos(scene)))
         for i in range(5):
             ent = f"cone_l3_1_{i + 1:02d}"
             pos = p(ox - 2 + i * 3.6, oy - 2.4, 0)
-            add(specs, scenes, lane_entity(ent, "prop.roadwork.traffic_cone.v1", "roadwork_prop", "cg_edge_14", 116 + i * 4, 1.5, pos, 90, "staged", activation_tick=220))
-            prop_entities.append((ent, "prop.roadwork.traffic_cone.v1", pos))
-        add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_14", 132, 0.0, p(ox + 4, oy - 5, 0), 90, "blocked"))
+            _, scene = add(specs, scenes, lane_entity(ent, "prop.roadwork.traffic_cone.v1", "roadwork_prop", work_edge, work_s - 4 + i * 4, 1.5, pos, 90, "staged", activation_tick=220, prefer_edge_hint=True))
+            prop_entities.append((ent, "prop.roadwork.traffic_cone.v1", scene_pos(scene)))
+        _, car_scene = add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", work_edge, work_s + 12, 0.0, p(ox + 4, oy - 5, 0), 90, "blocked", prefer_edge_hint=True))
+        car_start = scene_pos(car_scene)
+        car_mid = road_center_point(p(ox + 2, oy - 14, 0))
+        car_end = road_center_point(p(ox + 22, oy - 18, 0))
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", p(ox - 18, oy - 12, 32), 65, "inspection"))
         spawn_actions = [spawn(f"spawn_{ent}", ent, asset, pos, 90) for ent, asset, pos in prop_entities]
         events = [
             event("roadwork_barriers_spawn", tick(220), spawn_actions, 1, scenario_id, "Roadwork barriers and cones appear", "dynamic_constraint", [e[0] for e in prop_entities[:4]], "warning"),
             event("lane_closure_active", fired("roadwork_barriers_spawn"), [visual("set_blocked_car_waiting", car, "blocked"), screenshot("capture_lane_closure")], 2, scenario_id, "Lane closure becomes active", "vehicle", [car], "warning"),
-            event("vehicle_detour", fired("lane_closure_active"), [move("move_blocked_car_detour", car, [p(ox + 4, oy - 5, 0), p(ox + 2, oy - 14, 0), p(ox + 22, oy - 18, 0)], 6.0)], 3, scenario_id, "Blocked vehicle detours around construction", "vehicle", [car], "info"),
+            event("vehicle_detour", fired("lane_closure_active"), [move("move_blocked_car_detour", car, [car_start, car_mid, car_end], 6.0)], 3, scenario_id, "Blocked vehicle detours around construction", "vehicle", [car], "info"),
             event("uav_inspection_report", fired("vehicle_detour"), [move("move_uav_roadwork_scan", uav, [p(ox - 18, oy - 12, 32), p(ox + 4, oy - 4, 28), p(ox + 15, oy + 3, 28)], 5.0), screenshot("capture_roadwork_report")], 4, scenario_id, "UAV reports lane closure geometry", "uav_mission", [uav], "info"),
         ]
         desc = "Road construction lane closure with vehicle detour"
@@ -778,14 +1010,20 @@ def build_l3(scenario_id: str, idx: int) -> ScenarioBundle:
         ambulance = f"ambulance_{sid}"
         center = p(ox + 8, oy + 6, 3)
         add(specs, scenes, box_entity(hazard, "trigger.hazard.generic.box.v1", "hazard_zone", center, [13, 10, 4], activation_tick=240))
-        add(specs, scenes, sidewalk_entity(ped_a, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_15", 48, 1.2, p(ox + 5, oy + 3, 0), 0, "walking"))
-        add(specs, scenes, sidewalk_entity(ped_b, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_15", 54, 1.2, p(ox + 11, oy + 4, 0), 180, "walking"))
-        add(specs, scenes, lane_entity(ambulance, "vehicle.emergency.ambulance.v1", "vehicle", "cg_edge_16", 26, 0.0, p(ox - 26, oy - 10, 0), 70, "response", visual_state={"mode": "response", "lights_on": True}))
+        _, ped_a_scene = add(specs, scenes, sidewalk_entity(ped_a, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_15", 48, 1.2, p(ox + 5, oy + 3, 0), 0, "walking"))
+        _, ped_b_scene = add(specs, scenes, sidewalk_entity(ped_b, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_15", 54, 1.2, p(ox + 11, oy + 4, 0), 180, "walking"))
+        ped_a_start = scene_pos(ped_a_scene)
+        ped_b_start = scene_pos(ped_b_scene)
+        ped_a_safe = shifted_sidewalk_point(ped_a_start, -12, 12, 2.0)
+        ped_b_safe = shifted_sidewalk_point(ped_b_start, 12, 12, 2.0)
+        _, ambulance_scene = add(specs, scenes, lane_entity(ambulance, "vehicle.emergency.ambulance.v1", "vehicle", "cg_edge_16", 26, 0.0, p(ox - 26, oy - 10, 0), 70, "response", visual_state={"mode": "response", "lights_on": True}))
+        ambulance_start = scene_pos(ambulance_scene)
+        ambulance_arrival = road_center_point(p(ox - 4, oy - 2, 0))
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", p(ox - 8, oy - 15, 33), 45, "monitor"))
         events = [
             event("hazmat_leak", tick(240), [spawn("spawn_hazmat_zone", hazard, "trigger.hazard.generic.box.v1", center, 0, visual_state={"mode": "isolation_active"})], 1, scenario_id, "Hazmat leak declares isolation zone", "dynamic_constraint", [hazard], "critical"),
-            event("pedestrian_evacuation", fired("hazmat_leak"), [move("move_ped_a_safe", ped_a, [p(ox + 5, oy + 3, 0), p(ox - 6, oy + 14, 0)], 1.6), move("move_ped_b_safe", ped_b, [p(ox + 11, oy + 4, 0), p(ox + 22, oy + 15, 0)], 1.4)], 2, scenario_id, "Pedestrians evacuate from hazmat zone", "pedestrian", [ped_a, ped_b, hazard], "warning"),
-            event("ambulance_arrival", fired("pedestrian_evacuation"), [move("move_ambulance_hazmat", ambulance, [p(ox - 26, oy - 10, 0), p(ox - 4, oy - 2, 0)], 11.0)], 3, scenario_id, "Ambulance arrives at isolation perimeter", "vehicle", [ambulance, hazard], "warning"),
+            event("pedestrian_evacuation", fired("hazmat_leak"), [move("move_ped_a_safe", ped_a, [ped_a_start, ped_a_safe], 1.6), move("move_ped_b_safe", ped_b, [ped_b_start, ped_b_safe], 1.4)], 2, scenario_id, "Pedestrians evacuate from hazmat zone", "pedestrian", [ped_a, ped_b, hazard], "warning"),
+            event("ambulance_arrival", fired("pedestrian_evacuation"), [move("move_ambulance_hazmat", ambulance, [ambulance_start, ambulance_arrival], 11.0)], 3, scenario_id, "Ambulance arrives at isolation perimeter", "vehicle", [ambulance, hazard], "warning"),
             event("uav_external_monitor", fired("ambulance_arrival"), [move("move_uav_hazmat_orbit", uav, [p(ox - 8, oy - 15, 33), p(ox + 2, oy - 5, 30), p(ox + 18, oy + 18, 30)], 5.0), screenshot("capture_hazmat_monitor")], 4, scenario_id, "UAV monitors hazmat zone from outside", "uav_mission", [uav, hazard], "info"),
         ]
         desc = "Hazmat leak isolation, evacuation, and UAV monitoring"
@@ -831,7 +1069,7 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         start = p(ox - 25, oy - 9, 31)
         near = p(ox + 2, oy + 6, 18)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 55, "navigation_fault"))
-        add(specs, scenes, facade_entity(facade, f"building_east_block_{idx}", p(ox + 4, oy + 7, 16), [1.0, -0.4, 0.0]))
+        add(specs, scenes, facade_entity(facade, BUILDINGS.id_for(40 + idx), p(ox + 4, oy + 7, 16), [1.0, -0.4, 0.0]))
         events = [
             event("facade_approach", tick(250), [move("move_uav_facade_approach", uav, [start, p(ox - 12, oy - 2, 26), near], 7.0)], 1, scenario_id, "UAV approaches building facade on faulty route", "uav_mission", [uav, facade], "warning"),
             event("facade_proximity", prox(uav, facade, 8.0, 3), [move("move_uav_facade_evasion", uav, [near, p(ox - 4, oy + 14, 34)], 10.0), screenshot("capture_facade_evasion")], 2, scenario_id, "Emergency evasion near facade", "uav_mission", [uav, facade], "critical"),
@@ -844,16 +1082,23 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         ped_a = f"ped_landing_{sid}_a"
         ped_b = f"ped_landing_{sid}_b"
         start = p(ox - 12, oy - 12, 30)
-        low = p(ox + 3, oy + 2, 8)
-        land = p(ox + 5, oy + 4, 3)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 45, "fault"))
-        add(specs, scenes, sidewalk_entity(ped_a, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 24, 1.4, p(ox + 2, oy + 2, 0), 0, "standing"))
-        add(specs, scenes, sidewalk_entity(ped_b, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 28, 1.4, p(ox + 7, oy + 2, 0), 180, "standing"))
+        _, ped_a_scene = add(specs, scenes, sidewalk_entity(ped_a, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 24, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 2, oy + 2, 0), 0, "standing"))
+        _, ped_b_scene = add(specs, scenes, sidewalk_entity(ped_b, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 28, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 7, oy + 2, 0), 180, "standing"))
+        ped_a_start = scene_pos(ped_a_scene)
+        ped_b_start = scene_pos(ped_b_scene)
+        crowd_origin = gathering_point(p(ox + 4, oy + 3, 0), [650, 420, 0])
+        landing_x = (ped_a_start[0] + ped_b_start[0]) / 2.0
+        landing_y = (ped_a_start[1] + ped_b_start[1]) / 2.0
+        low = q(landing_x, landing_y, 8)
+        land = q(landing_x, landing_y, 3)
+        ped_a_evade = shifted_sidewalk_point(ped_a_start, -12, 12, GATHERING_MIN_OFFSET_FROM_CURB_M)
+        ped_b_evade = shifted_sidewalk_point(ped_b_start, 12, 12, GATHERING_MIN_OFFSET_FROM_CURB_M)
         events = [
-            event("forced_landing_fault", tick(230), [visual("set_uav_forced_landing_fault", uav, "propulsion_fault"), crowd("spawn_landing_crowd", f"crowd_{sid}", 8, p(ox + 4, oy + 3, 0), [650, 420, 0], 700 + idx)], 1, scenario_id, "UAV fault appears near a ground crowd", "uav_mission", [uav, ped_a, ped_b], "critical"),
+            event("forced_landing_fault", tick(230), [visual("set_uav_forced_landing_fault", uav, "propulsion_fault"), crowd("spawn_landing_crowd", f"crowd_{sid}", 8, crowd_origin, [650, 420, 0], 700 + idx)], 1, scenario_id, "UAV fault appears near a ground crowd", "uav_mission", [uav, ped_a, ped_b], "critical"),
             event("descent_to_low_altitude", fired("forced_landing_fault"), [move("move_uav_forced_descent", uav, [start, p(ox - 3, oy - 4, 18), low, land], 3.0)], 2, scenario_id, "UAV descends from 30m to low height", "uav_mission", [uav], "critical"),
-            event("crowd_proximity_response", prox(uav, ped_a, 5.0, 2), [move("move_ped_a_evade_landing", ped_a, [p(ox + 2, oy + 2, 0), p(ox - 10, oy + 10, 0)], 2.0), move("move_ped_b_evade_landing", ped_b, [p(ox + 7, oy + 2, 0), p(ox + 17, oy + 12, 0)], 2.0), screenshot("capture_forced_landing")], 3, scenario_id, "Crowd evades forced landing zone", "pedestrian", [ped_a, ped_b, uav], "warning"),
-            event("safe_landing", fired("crowd_proximity_response"), [move("move_uav_safe_touchdown", uav, [land, p(land[0] + 1, land[1] + 1, 0.8)], 1.0), clear_crowd("clear_landing_crowd", f"crowd_{sid}")], 4, scenario_id, "UAV completes safe landing", "uav_mission", [uav], "info"),
+            event("crowd_proximity_response", prox(uav, ped_a, 5.0, 2), [move("move_ped_a_evade_landing", ped_a, [ped_a_start, ped_a_evade], 2.0), move("move_ped_b_evade_landing", ped_b, [ped_b_start, ped_b_evade], 2.0), screenshot("capture_forced_landing")], 3, scenario_id, "Crowd evades forced landing zone", "pedestrian", [ped_a, ped_b, uav], "warning"),
+            event("safe_landing", fired("crowd_proximity_response"), [move("move_uav_safe_touchdown", uav, [land, q(land[0] + 1, land[1] + 1, 0.8)], 1.0), clear_crowd("clear_landing_crowd", f"crowd_{sid}")], 4, scenario_id, "UAV completes safe landing", "uav_mission", [uav], "info"),
         ]
         desc = "UAV forced landing near crowd"
         rules.append({"rule": "forced_landing_descent_profile", "z_sequence": [30, 8, 3], "description": "UAV descends through low-altitude forced landing profile"})
@@ -865,9 +1110,10 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         impact_u = p(ox + 2, oy + 2, 2.6)
         impact_c = p(ox + 2, oy + 2, 0)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", u0, 70, "unstable"))
-        add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_20", 46, 0, c0, 0, "moving"))
+        _, car_scene = add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_20", 46, 0, c0, 0, "moving"))
+        car_start = scene_pos(car_scene)
         events = [
-            event("crossing_trajectories", tick(240), [move("move_uav_falling_cross", uav, [u0, p(ox - 7, oy - 1, 12), impact_u], 5.5), move("move_car_crossing_path", car, [c0, p(ox + 3, oy - 7, 0), impact_c], 7.0)], 1, scenario_id, "UAV and vehicle trajectories cross", "uav_mission", [uav, car], "critical"),
+            event("crossing_trajectories", tick(240), [move("move_uav_falling_cross", uav, [u0, p(ox - 7, oy - 1, 12), impact_u], 5.5), move("move_car_crossing_path", car, [car_start, p(ox + 3, oy - 7, 0), impact_c], 7.0)], 1, scenario_id, "UAV and vehicle trajectories cross", "uav_mission", [uav, car], "critical"),
             event("vehicle_roof_contact", prox(uav, car, 3.0, 1), [move("move_vehicle_emergency_brake", car, [impact_c, p(ox + 2.5, oy + 2.5, 0)], 0.5), move("move_uav_debris_ground", uav, [impact_u, p(ox + 4, oy + 3, 0.4)], 1.0), visual("set_uav_debris", uav, "debris"), screenshot("capture_uav_vehicle_contact")], 2, scenario_id, "UAV contacts vehicle roof and vehicle brakes", "vehicle", [uav, car], "critical"),
         ]
         desc = "UAV falls onto moving ground vehicle"
@@ -876,40 +1122,53 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         uav = f"uav_ped_nearmiss_{sid}"
         ped = f"ped_nearmiss_{sid}"
         start = p(ox - 9, oy - 8, 30)
-        over = p(ox + 2, oy + 1, 5)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 45, "descent"))
-        add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_21", 35, 1.2, p(ox + 2, oy + 1, 0), 15, "walking"))
+        _, ped_scene = add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_21", 35, 1.2, p(ox + 2, oy + 1, 0), 15, "walking"))
+        ped_start = scene_pos(ped_scene)
+        over = q(ped_start[0], ped_start[1], 5)
+        pull_up = q(ped_start[0] - 8, ped_start[1] + 8, 24)
+        ped_clear = shifted_sidewalk_point(ped_start, 10, 10, 1.8)
         events = [
             event("uav_low_descent", tick(230), [move("move_uav_ped_descent", uav, [start, p(ox - 3, oy - 2, 15), over], 4.5)], 1, scenario_id, "UAV descends toward pedestrian head height", "uav_mission", [uav, ped], "warning"),
-            event("pedestrian_near_miss", prox(uav, ped, 5.0, 2), [visual("set_uav_hover_nearmiss", uav, "hover"), move("move_uav_pull_up_after_nearmiss", uav, [over, p(ox - 7, oy + 9, 24)], 6.0), screenshot("capture_ped_nearmiss")], 2, scenario_id, "UAV near-miss with pedestrian triggers pull-up", "uav_mission", [uav, ped], "critical"),
-            event("pedestrian_clears_area", fired("pedestrian_near_miss"), [move("move_ped_clear_nearmiss", ped, [p(ox + 2, oy + 1, 0), p(ox + 9, oy + 11, 0)], 1.5)], 3, scenario_id, "Pedestrian clears UAV operating area", "pedestrian", [ped], "info"),
+            event("pedestrian_near_miss", prox(uav, ped, 5.0, 2, metric="xy_plus_z", horizontal_distance_m=3.0, vertical_distance_m=6.0), [visual("set_uav_hover_nearmiss", uav, "hover"), move("move_uav_pull_up_after_nearmiss", uav, [over, pull_up], 6.0), screenshot("capture_ped_nearmiss")], 2, scenario_id, "UAV near-miss with pedestrian triggers pull-up", "uav_mission", [uav, ped], "critical"),
+            event("pedestrian_clears_area", fired("pedestrian_near_miss"), [move("move_ped_clear_nearmiss", ped, [ped_start, ped_clear], 1.5)], 3, scenario_id, "Pedestrian clears UAV operating area", "pedestrian", [ped], "info"),
         ]
         desc = "UAV low-altitude pedestrian near-miss"
     elif scenario_id.startswith("L4-6_"):
         ped = f"ped_jaywalk_{sid}"
         car = f"car_jaywalk_{sid}"
         p0 = p(ox - 8, oy + 2, 0)
-        road = p(ox + 2, oy + 1, 0)
         c0 = p(ox + 20, oy - 4, 0)
-        add(specs, scenes, crosswalk_entity(ped, "pedestrian.cityops.basic.v1", f"crosswalk_{sid}", "west", p0, 90))
-        add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_22", 58, 0, c0, 250, "moving"))
+        _, ped_scene = add(specs, scenes, crosswalk_entity(ped, "pedestrian.cityops.basic.v1", f"crosswalk_{sid}", "west", p0, 90))
+        p0 = scene_pos(ped_scene)
+        road = ped_scene["placement"]["roadway_center_position_enu_m"]
+        retreat = ped_scene["placement"]["opposite_curb_position_enu_m"]
+        _, car_scene = add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_22", 58, 0, c0, 250, "moving"))
+        car_start = scene_pos(car_scene)
+        car_conflict = road
+        car_stop = q(road[0] + 1.0, road[1] + 0.3, GROUND_Z_M)
         events = [
-            event("ped_enters_roadway", tick(220), [move("move_ped_from_crosswalk_to_lane", ped, [p0, road], 1.6), move("move_car_toward_crosswalk", car, [c0, p(ox + 6, oy, 0)], 8.0)], 1, scenario_id, "Pedestrian moves from sidewalk into roadway", "pedestrian", [ped, car], "warning"),
-            event("vehicle_ped_proximity", prox(ped, car, 4.0, 2), [move("move_car_hard_brake_ped", car, [p(ox + 6, oy, 0), p(ox + 4.5, oy + 0.5, 0)], 0.8), screenshot("capture_ped_vehicle_conflict")], 2, scenario_id, "Vehicle brakes for pedestrian conflict", "vehicle", [ped, car], "critical"),
-            event("ped_retreats", fired("vehicle_ped_proximity"), [move("move_ped_retreat_sidewalk", ped, [road, p(ox - 10, oy + 5, 0)], 1.8)], 3, scenario_id, "Pedestrian retreats from roadway", "pedestrian", [ped], "info"),
+            event("ped_enters_roadway", tick(220), [move("move_ped_from_crosswalk_to_lane", ped, [p0, road], 1.6), move("move_car_toward_crosswalk", car, [car_start, car_conflict], 8.0)], 1, scenario_id, "Pedestrian moves from sidewalk into roadway", "pedestrian", [ped, car], "warning"),
+            event("vehicle_ped_proximity", prox(ped, car, 4.0, 2, metric="xy_plus_z", horizontal_distance_m=4.0, vertical_distance_m=1.5), [move("move_car_hard_brake_ped", car, [car_conflict, car_stop], 0.8), screenshot("capture_ped_vehicle_conflict")], 2, scenario_id, "Vehicle brakes for pedestrian conflict", "vehicle", [ped, car], "critical"),
+            event("ped_retreats", fired("vehicle_ped_proximity"), [move("move_ped_retreat_sidewalk", ped, [road, retreat], 1.8)], 3, scenario_id, "Pedestrian retreats from roadway", "pedestrian", [ped], "info"),
         ]
         desc = "Pedestrian jaywalk vehicle conflict"
     elif scenario_id.startswith("L4-7_"):
         ped = f"ped_fall_{sid}"
         uav = f"uav_detect_{sid}"
         ambulance = f"ambulance_fall_{sid}"
-        add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_23", 42, 1.0, p(ox + 3, oy + 2, 0), 0, "walking"))
-        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", p(ox - 14, oy - 8, 31), 55, "patrol"))
-        add(specs, scenes, lane_entity(ambulance, "vehicle.emergency.ambulance.v1", "vehicle", "cg_edge_24", 30, 0.0, p(ox - 32, oy - 18, 0), 65, "response", visual_state={"mode": "response", "lights_on": True}))
+        _, ped_scene = add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_23", 42, 1.2, p(ox + 3, oy + 2, 0), 0, "walking"))
+        ped_start = scene_pos(ped_scene)
+        uav_start = p(ox - 14, oy - 8, 31)
+        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", uav_start, 55, "patrol"))
+        _, ambulance_scene = add(specs, scenes, lane_entity(ambulance, "vehicle.emergency.ambulance.v1", "vehicle", "cg_edge_24", 30, 0.0, p(ox - 32, oy - 18, 0), 65, "response", visual_state={"mode": "response", "lights_on": True}))
+        ambulance_start = scene_pos(ambulance_scene)
+        ambulance_arrival = road_center_point(ped_start)
+        uav_observe = q(ped_start[0], ped_start[1], 16)
         events = [
             event("pedestrian_fall", tick(230), [play("play_pedestrian_fall", ped)], 1, scenario_id, "Pedestrian fall animation starts", "pedestrian", [ped], "critical"),
-            event("uav_detects_fall", fired("pedestrian_fall"), [move("move_uav_detect_fall", uav, [p(ox - 14, oy - 8, 31), p(ox + 1, oy + 1, 16)], 5.0), screenshot("capture_fall_detection")], 2, scenario_id, "UAV detects fallen pedestrian", "uav_mission", [uav, ped], "warning"),
-            event("ambulance_response", fired("uav_detects_fall"), [move("move_ambulance_to_fall", ambulance, [p(ox - 32, oy - 18, 0), p(ox - 4, oy - 2, 0)], 12.0)], 3, scenario_id, "Ambulance responds to detected fall", "vehicle", [ambulance, ped], "warning"),
+            event("uav_detects_fall", fired("pedestrian_fall"), [move("move_uav_detect_fall", uav, [uav_start, uav_observe], 5.0), screenshot("capture_fall_detection")], 2, scenario_id, "UAV detects fallen pedestrian", "uav_mission", [uav, ped], "warning"),
+            event("ambulance_response", fired("uav_detects_fall"), [move("move_ambulance_to_fall", ambulance, [ambulance_start, ambulance_arrival], 12.0)], 3, scenario_id, "Ambulance responds to detected fall", "vehicle", [ambulance, ped], "warning"),
             event("incident_documented", fired("ambulance_response"), [screenshot("capture_fall_response")], 4, scenario_id, "UAV documents emergency response", "uav_mission", [uav, ambulance, ped], "info"),
         ]
         desc = "Pedestrian fall detected by UAV and response chain"
@@ -917,12 +1176,17 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         uav = f"uav_crowd_monitor_{sid}"
         group = f"crowd_{sid}"
         safe_group = f"crowd_safe_{sid}"
-        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", p(ox - 18, oy - 10, 34), 50, "monitor"))
-        add(specs, scenes, world_entity(f"crowd_anchor_{sid}", "semantic.spawn_zone", "crowd_anchor", p(ox + 3, oy + 3, 0), 0))
+        uav_start = p(ox - 18, oy - 10, 34)
+        crowd_extent = [900, 600, 0]
+        safe_extent = [1000, 500, 0]
+        crowd_origin = gathering_point(p(ox + 3, oy + 3, 0), crowd_extent)
+        safe_origin = gathering_point(p(ox + 24, oy + 19, 0), safe_extent)
+        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", uav_start, 50, "monitor"))
+        add(specs, scenes, world_entity(f"crowd_anchor_{sid}", "semantic.spawn_zone", "crowd_anchor", crowd_origin, 0))
         events = [
-            event("crowd_generated", tick(220), [crowd("spawn_incident_crowd", group, 12 if scenario_id.endswith("v1") else 16, p(ox + 3, oy + 3, 0), [900, 600, 0], 800 + idx)], 1, scenario_id, "Crowd generated in evacuation zone", "pedestrian", [f"crowd_anchor_{sid}"], "warning"),
-            event("evacuation_triggered", fired("crowd_generated"), [clear_crowd("clear_incident_crowd_for_evacuation", group), crowd("spawn_crowd_at_safe_zone", safe_group, 12 if scenario_id.endswith("v1") else 16, p(ox + 24, oy + 19, 0), [1000, 500, 0], 900 + idx)], 2, scenario_id, "Crowd moves to safe evacuation zone", "pedestrian", [f"crowd_anchor_{sid}"], "warning"),
-            event("uav_evacuation_monitor", fired("evacuation_triggered"), [move("move_uav_monitor_evacuation", uav, [p(ox - 18, oy - 10, 34), p(ox + 8, oy + 8, 30), p(ox + 24, oy + 19, 30)], 5.0), screenshot("capture_crowd_evacuation")], 3, scenario_id, "UAV monitors evacuation movement", "uav_mission", [uav], "info"),
+            event("crowd_generated", tick(220), [crowd("spawn_incident_crowd", group, 12 if scenario_id.endswith("v1") else 16, crowd_origin, crowd_extent, 800 + idx)], 1, scenario_id, "Crowd generated in evacuation zone", "pedestrian", [f"crowd_anchor_{sid}"], "warning"),
+            event("evacuation_triggered", fired("crowd_generated"), [clear_crowd("clear_incident_crowd_for_evacuation", group), crowd("spawn_crowd_at_safe_zone", safe_group, 12 if scenario_id.endswith("v1") else 16, safe_origin, safe_extent, 900 + idx)], 2, scenario_id, "Crowd moves to safe evacuation zone", "pedestrian", [f"crowd_anchor_{sid}"], "warning"),
+            event("uav_evacuation_monitor", fired("evacuation_triggered"), [move("move_uav_monitor_evacuation", uav, [uav_start, q(crowd_origin[0], crowd_origin[1], 30), q(safe_origin[0], safe_origin[1], 30)], 5.0), screenshot("capture_crowd_evacuation")], 3, scenario_id, "UAV monitors evacuation movement", "uav_mission", [uav], "info"),
             event("crowd_clear", fired("uav_evacuation_monitor"), [clear_crowd("clear_safe_crowd", safe_group)], 4, scenario_id, "Crowd evacuation completes and group is cleared", "pedestrian", [uav], "info"),
         ]
         desc = "Crowd evacuation with UAV monitoring"
@@ -933,8 +1197,10 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         a0 = p(ox - 24, oy, 0)
         b0 = p(ox + 2, oy + 24, 0)
         junction = p(ox, oy + 2, 0)
-        add(specs, scenes, lane_entity(car_a, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_25", 65, 0.0, a0, 80, "moving"))
-        add(specs, scenes, lane_entity(car_b, "vehicle.emergency.suv.v1", "vehicle", "cg_edge_26", 40, 0.0, b0, 185, "moving"))
+        _, car_a_scene = add(specs, scenes, lane_entity(car_a, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_25", 65, 0.0, a0, 80, "moving"))
+        _, car_b_scene = add(specs, scenes, lane_entity(car_b, "vehicle.emergency.suv.v1", "vehicle", "cg_edge_26", 40, 0.0, b0, 185, "moving"))
+        a0 = scene_pos(car_a_scene)
+        b0 = scene_pos(car_b_scene)
         events = [
             event("vehicles_enter_intersection", tick(230), [move("move_car_a_intersection", car_a, [a0, p(ox - 7, oy + 1, 0), junction], 8.0), move("move_car_b_intersection", car_b, [b0, p(ox + 1, oy + 9, 0), junction], 7.5)], 1, scenario_id, "Two vehicles enter the same intersection from different lanes", "vehicle", [car_a, car_b], "warning"),
             event("vehicle_collision_warning", prox(car_a, car_b, 6.0, 2), [move("move_car_a_brake", car_a, [junction, p(ox - 1, oy + 2, 0)], 0.5), move("move_car_b_brake", car_b, [junction, p(ox + 1, oy + 3, 0)], 0.5), screenshot("capture_vehicle_conflict")], 2, scenario_id, "Vehicle-vehicle proximity triggers simultaneous braking", "vehicle", [car_a, car_b], "critical"),
@@ -999,15 +1265,18 @@ def build_l5(scenario_id: str, idx: int) -> ScenarioBundle:
     add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 35, "patrol"))
     car = f"weather_car_{sid}"
     ped = f"weather_ped_{sid}"
-    add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_29", 36, 0.0, p(ox + 8, oy - 8, 0), 90, "moving"))
+    _, car_scene = add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_29", 36, 0.0, p(ox + 8, oy - 8, 0), 90, "moving"))
+    car_start = scene_pos(car_scene)
+    car_rain_end = road_center_point(p(ox + 15, oy - 7, 0))
     add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_29", 40, 1.2, p(ox + 2, oy + 5, 0), 0, "walking"))
     if scenario_id.startswith("L5-1"):
         threshold = 0.5
         trigger = weather("rain", "gte", threshold, 5)
         profile = {"initial": "clear", "transitions": [{"tick": 180, "profile": "rain", "overrides": {"rain": 0.55, "visibility_m": 2200.0}}]}
         events = [
+            event("weather_onset", tick(180), [set_weather("set_rain_onset", "rain", rain=0.55, visibility_m=2200.0)], 1, scenario_id, "Rain onset is applied before threshold confirmation", "weather", [uav, car], "info"),
             event("rain_condition_met", trigger, [set_weather("set_rain_moderate", "rain", rain=0.55, visibility_m=2200.0)], 1, scenario_id, "Rain threshold reached", "weather", [uav, car], "warning"),
-            event("rain_speed_reduction", fired("rain_condition_met"), [move("move_uav_rain_slowdown", uav, [start, p(ox + 10, oy + 8, 32)], 3.0), move("move_car_wet_slowdown", car, [p(ox + 8, oy - 8, 0), p(ox + 15, oy - 7, 0)], 3.0)], 2, scenario_id, "UAV and vehicle slow under rain", "uav_mission", [uav, car], "warning"),
+            event("rain_speed_reduction", fired("rain_condition_met"), [move("move_uav_rain_slowdown", uav, [start, p(ox + 10, oy + 8, 32)], 3.0), move("move_car_wet_slowdown", car, [car_start, car_rain_end], 3.0)], 2, scenario_id, "UAV and vehicle slow under rain", "uav_mission", [uav, car], "warning"),
             event("rain_intensifies", fired("rain_speed_reduction"), [set_weather("set_rain_heavy_visibility", "rain", rain=0.82, visibility_m=900.0)], 3, scenario_id, "Rain intensifies and visibility drops", "weather", [uav, car], "critical"),
             event("rain_recovery", fired("rain_intensifies"), [move("move_uav_rain_recover", uav, [p(ox + 10, oy + 8, 32), p(ox - 6, oy + 16, 34)], 5.0), set_weather("set_rain_recovering", "clear", rain=0.2, visibility_m=5000.0)], 4, scenario_id, "Rain recovers and UAV exits degraded area", "weather", [uav], "info"),
         ]
@@ -1016,6 +1285,7 @@ def build_l5(scenario_id: str, idx: int) -> ScenarioBundle:
         trigger = weather("fog", "gte", 0.5, 5)
         profile = {"initial": "clear", "transitions": [{"tick": 190, "profile": "fog", "overrides": {"fog": 0.6, "visibility_m": 650.0}}]}
         events = [
+            event("weather_onset", tick(190), [set_weather("set_fog_onset", "fog", fog=0.6, visibility_m=650.0)], 1, scenario_id, "Fog onset is applied before threshold confirmation", "weather", [uav], "info"),
             event("fog_condition_met", trigger, [set_weather("set_fog_dense", "fog", fog=0.62, visibility_m=650.0)], 1, scenario_id, "Fog threshold reached", "weather", [uav], "warning"),
             event("visual_navigation_failure", fired("fog_condition_met"), [visual("set_uav_visual_nav_degraded", uav, "visual_nav_degraded"), move("move_uav_fog_slow_hold", uav, [start, p(ox + 6, oy + 4, 32)], 2.5)], 2, scenario_id, "Visual navigation degrades in fog", "uav_mission", [uav], "critical"),
             event("fog_worsens", fired("visual_navigation_failure"), [set_weather("set_fog_worse_visibility", "fog", fog=0.85, visibility_m=260.0), screenshot("capture_fog_failure")], 3, scenario_id, "Fog worsens and visibility collapses", "weather", [uav], "critical"),
@@ -1028,6 +1298,7 @@ def build_l5(scenario_id: str, idx: int) -> ScenarioBundle:
         bag = f"payload_bag_{sid}"
         add(specs, scenes, world_entity(bag, "prop.service.delivery_bag.v1", "prop", p(ox + 1, oy + 1, 28), 0, "attached"))
         events = [
+            event("weather_onset", tick(210), [set_weather("set_wind_onset", "wind", wind_speed=12.5)], 1, scenario_id, "Wind onset is applied before threshold confirmation", "weather", [uav, bag], "info"),
             event("wind_condition_met", trigger, [set_weather("set_crosswind", "wind", wind_speed=12.5)], 1, scenario_id, "Crosswind threshold reached", "weather", [uav, bag], "warning"),
             event("payload_swing", fired("wind_condition_met"), [move("move_payload_swing_path", bag, [p(ox + 1, oy + 1, 28), p(ox + 4, oy - 3, 27), p(ox - 2, oy + 5, 29)], 2.0), visual("set_uav_attitude_unstable", uav, "attitude_unstable")], 2, scenario_id, "Payload swings and UAV attitude becomes abnormal", "uav_mission", [uav, bag], "warning"),
             event("wind_gust_intensifies", fired("payload_swing"), [set_weather("set_wind_gust", "wind", wind_speed=18.0), move("move_uav_wind_hold", uav, [start, p(ox + 3, oy + 5, 33)], 2.0), screenshot("capture_wind_payload")], 3, scenario_id, "Crosswind intensifies into gust", "weather", [uav, bag], "critical"),
@@ -1161,17 +1432,22 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
         scenario_id = dirname
         uav, tower, ped = "uav_x1_forced_landing", "tower_x1_c2", "ped_x1_crowd_anchor"
         start = p(ox, oy, 32)
-        low = p(ox + 15, oy + 8, 8)
         add(specs, scenes, world_entity(tower, "facility.radio.base_tower.v1", "facility", p(ox + 8, oy + 2, 0), 0, "online"))
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 30, "rain_patrol"))
-        add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_31", 42, 1.2, p(ox + 16, oy + 9, 0), 0, "standing"))
+        _, ped_scene = add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_31", 42, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 16, oy + 9, 0), 0, "standing"))
+        ped_start = scene_pos(ped_scene)
+        crowd_origin = gathering_point(ped_start, [800, 500, 0])
+        low = q(ped_start[0], ped_start[1], 8)
+        landing = q(ped_start[0], ped_start[1], 3)
+        ped_evade = shifted_sidewalk_point(ped_start, 12, 10, GATHERING_MIN_OFFSET_FROM_CURB_M)
         weather_profile = {"initial": "clear", "transitions": [{"tick": 180, "profile": "rain", "overrides": {"rain": 0.62, "visibility_m": 1600.0}}]}
         events = [
+            event("rain_onset", tick(180), [set_weather("set_x1_rain_onset", "rain", rain=0.62, visibility_m=1600.0)], 1, scenario_id, "Rain onset is applied before C2 coupling", "weather", [uav, tower], "info"),
             event("rain_threshold", weather("rain", "gte", 0.5, 5), [set_weather("set_x1_rain", "rain", rain=0.65, visibility_m=1500.0)], 1, scenario_id, "Rain threshold triggers L5 degradation", "weather", [uav, tower], "warning"),
             event("c2_loss_tick", tick(260), [visual("set_x1_tower_stressed", tower, "rain_stressed")], 2, scenario_id, "C2 loss timing condition becomes true", "digital_layer", [tower], "warning"),
             event("c2_loss_after_rain", composite("AND", ["rain_threshold", "c2_loss_tick"]), [visual("set_x1_tower_c2_loss", tower, "link_lost"), move("move_x1_uav_degraded", uav, [start, p(ox + 9, oy + 4, 26)], 3.0)], 3, scenario_id, "Rain and C2 condition combine into C2 loss", "digital_layer", [uav, tower], "critical"),
-            event("forced_landing_descent", fired("c2_loss_after_rain"), [move("move_x1_forced_landing", uav, [p(ox + 9, oy + 4, 26), low, p(ox + 16, oy + 9, 3)], 2.5), crowd("spawn_x1_crowd", "crowd_x1", 10, p(ox + 16, oy + 9, 0), [800, 500, 0], 1101)], 4, scenario_id, "C2 loss causes forced landing near crowd", "uav_mission", [uav, ped], "critical"),
-            event("crowd_reacts_to_landing", prox(uav, ped, 5.0, 2), [move("move_x1_ped_evade", ped, [p(ox + 16, oy + 9, 0), p(ox + 27, oy + 18, 0)], 2.0), clear_crowd("clear_x1_crowd", "crowd_x1"), screenshot("capture_x1_forced_landing")], 5, scenario_id, "Crowd reacts to forced landing", "pedestrian", [uav, ped], "warning"),
+            event("forced_landing_descent", fired("c2_loss_after_rain"), [move("move_x1_forced_landing", uav, [p(ox + 9, oy + 4, 26), low, landing], 2.5), crowd("spawn_x1_crowd", "crowd_x1", 10, crowd_origin, [800, 500, 0], 1101)], 4, scenario_id, "C2 loss causes forced landing near crowd", "uav_mission", [uav, ped], "critical"),
+            event("crowd_reacts_to_landing", prox(uav, ped, 5.0, 2), [move("move_x1_ped_evade", ped, [ped_start, ped_evade], 2.0), clear_crowd("clear_x1_crowd", "crowd_x1"), screenshot("capture_x1_forced_landing")], 5, scenario_id, "Crowd reacts to forced landing", "pedestrian", [uav, ped], "warning"),
             event("x1_recovery", fired("crowd_reacts_to_landing"), [visual("set_x1_tower_restored", tower, "online"), visual("set_x1_uav_landed", uav, "landed_safe")], 6, scenario_id, "Cross-layer chain recovers", "digital_layer", [uav, tower], "info"),
         ]
         desc = "Rain to C2 loss to forced landing cross-layer chain"
@@ -1192,15 +1468,21 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
     elif short_id == "X3":
         scenario_id = dirname
         ped, uav, ambulance, tape = "ped_x3_fall", "uav_x3_detect", "ambulance_x3", "police_tape_x3"
-        add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_32", 50, 1.1, p(ox + 4, oy + 3, 0), 0, "walking"))
-        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", p(ox - 15, oy - 8, 32), 60, "patrol"))
-        add(specs, scenes, lane_entity(ambulance, "vehicle.emergency.ambulance.v1", "vehicle", "cg_edge_33", 35, 0.0, p(ox - 32, oy - 15, 0), 70, "response", visual_state={"mode": "response", "lights_on": True}))
-        add(specs, scenes, world_entity(tape, "prop.incident.police_tape.v1", "prop", p(ox + 3, oy + 2, 0), 0, "staged", activation_tick=420))
+        _, ped_scene = add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_32", 50, 1.2, p(ox + 4, oy + 3, 0), 0, "walking"))
+        ped_start = scene_pos(ped_scene)
+        uav_start = p(ox - 15, oy - 8, 32)
+        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", uav_start, 60, "patrol"))
+        _, ambulance_scene = add(specs, scenes, lane_entity(ambulance, "vehicle.emergency.ambulance.v1", "vehicle", "cg_edge_33", 35, 0.0, p(ox - 32, oy - 15, 0), 70, "response", visual_state={"mode": "response", "lights_on": True}))
+        ambulance_start = scene_pos(ambulance_scene)
+        ambulance_arrival = road_center_point(ped_start)
+        uav_observe = q(ped_start[0], ped_start[1], 16)
+        _, tape_scene = add(specs, scenes, world_entity(tape, "prop.incident.police_tape.v1", "prop", shifted_sidewalk_point(ped_start, 1.5, 1.0, 1.5), 0, "staged", activation_tick=420))
+        tape_pos = scene_pos(tape_scene)
         events = [
             event("pedestrian_fall", tick(220), [play("play_x3_ped_fall", ped)], 1, scenario_id, "Pedestrian falls", "pedestrian", [ped], "critical"),
-            event("uav_detection", fired("pedestrian_fall"), [move("move_x3_uav_detect", uav, [p(ox - 15, oy - 8, 32), p(ox + 2, oy + 2, 16)], 5.0), screenshot("capture_x3_detection")], 2, scenario_id, "UAV detects pedestrian fall", "uav_mission", [uav, ped], "warning"),
-            event("ambulance_dispatch", fired("uav_detection"), [move("move_x3_ambulance_dispatch", ambulance, [p(ox - 32, oy - 15, 0), p(ox - 3, oy - 2, 0)], 12.0)], 3, scenario_id, "Ambulance is dispatched", "vehicle", [ambulance, ped], "warning"),
-            event("isolation_setup", fired("ambulance_dispatch"), [spawn("spawn_x3_police_tape", tape, "prop.incident.police_tape.v1", p(ox + 3, oy + 2, 0), 0)], 4, scenario_id, "Responder sets incident isolation tape", "dynamic_constraint", [tape, ped], "warning"),
+            event("uav_detection", fired("pedestrian_fall"), [move("move_x3_uav_detect", uav, [uav_start, uav_observe], 5.0), screenshot("capture_x3_detection")], 2, scenario_id, "UAV detects pedestrian fall", "uav_mission", [uav, ped], "warning"),
+            event("ambulance_dispatch", fired("uav_detection"), [move("move_x3_ambulance_dispatch", ambulance, [ambulance_start, ambulance_arrival], 12.0)], 3, scenario_id, "Ambulance is dispatched", "vehicle", [ambulance, ped], "warning"),
+            event("isolation_setup", fired("ambulance_dispatch"), [spawn("spawn_x3_police_tape", tape, "prop.incident.police_tape.v1", tape_pos, 0)], 4, scenario_id, "Responder sets incident isolation tape", "dynamic_constraint", [tape, ped], "warning"),
             event("emergency_documented", fired("isolation_setup"), [screenshot("capture_x3_response")], 5, scenario_id, "Emergency response documented", "uav_mission", [uav, ambulance, ped], "info"),
         ]
         desc = "Pedestrian fall to emergency response chain"
@@ -1213,6 +1495,7 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
         add(specs, scenes, world_entity(uav_b, "uav.airsim.flying_pawn.v1", "uav", b0, 250, "patrol"))
         weather_profile = {"initial": "clear", "transitions": [{"tick": 180, "profile": "fog", "overrides": {"fog": 0.62, "visibility_m": 700.0}}]}
         events = [
+            event("fog_onset", tick(180), [set_weather("set_x4_fog_onset", "fog", fog=0.62, visibility_m=700.0)], 1, scenario_id, "Fog onset is applied before conflict chain", "weather", [uav_a, uav_b], "info"),
             event("fog_threshold", weather("fog", "gte", 0.5, 5), [set_weather("set_x4_fog", "fog", fog=0.65, visibility_m=700.0)], 1, scenario_id, "Fog reaches operational threshold", "weather", [uav_a, uav_b], "warning"),
             event("visibility_drop", fired("fog_threshold"), [visual("set_x4_uav_a_visual_degraded", uav_a, "visual_degraded"), visual("set_x4_uav_b_visual_degraded", uav_b, "visual_degraded")], 2, scenario_id, "Visibility drops for both UAVs", "weather", [uav_a, uav_b], "warning"),
             event("fog_converging_routes", fired("visibility_drop"), [move("move_x4_uav_a_converge", uav_a, [a0, meet], 6.0), move("move_x4_uav_b_converge", uav_b, [b0, meet], 6.0)], 3, scenario_id, "Fog causes converging route conflict", "uav_mission", [uav_a, uav_b], "critical"),
@@ -1241,14 +1524,19 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
     else:
         scenario_id = dirname
         uav, nfz, anchor = "uav_x6_monitor", "nfz_x6_lockdown", "crowd_anchor_x6"
-        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", p(ox - 18, oy - 10, 34), 55, "monitor"))
-        add(specs, scenes, world_entity(anchor, "semantic.spawn_zone", "crowd_anchor", p(ox + 4, oy + 3, 0), 0))
+        uav_start = p(ox - 18, oy - 10, 34)
+        crowd_extent = [900, 600, 0]
+        safe_extent = [900, 500, 0]
+        crowd_origin = gathering_point(p(ox + 4, oy + 3, 0), crowd_extent)
+        safe_origin = gathering_point(p(ox + 28, oy + 18, 0), safe_extent)
+        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", uav_start, 55, "monitor"))
+        add(specs, scenes, world_entity(anchor, "semantic.spawn_zone", "crowd_anchor", crowd_origin, 0))
         add(specs, scenes, box_entity(nfz, "trigger.no_fly.box.v1", "airspace_constraint", p(ox + 6, oy + 4, 28), [18, 13, 16], activation_tick=310))
         events = [
-            event("crowd_evacuation", tick(220), [crowd("spawn_x6_crowd", "crowd_x6", 14, p(ox + 4, oy + 3, 0), [900, 600, 0], 1606)], 1, scenario_id, "Crowd evacuation begins", "pedestrian", [anchor], "warning"),
-            event("crowd_safe_zone_move", fired("crowd_evacuation"), [clear_crowd("clear_x6_origin_crowd", "crowd_x6"), crowd("spawn_x6_safe_crowd", "crowd_x6_safe", 14, p(ox + 28, oy + 18, 0), [900, 500, 0], 1607)], 2, scenario_id, "Crowd moves to safe zone", "pedestrian", [anchor], "warning"),
+            event("crowd_evacuation", tick(220), [crowd("spawn_x6_crowd", "crowd_x6", 14, crowd_origin, crowd_extent, 1606)], 1, scenario_id, "Crowd evacuation begins", "pedestrian", [anchor], "warning"),
+            event("crowd_safe_zone_move", fired("crowd_evacuation"), [clear_crowd("clear_x6_origin_crowd", "crowd_x6"), crowd("spawn_x6_safe_crowd", "crowd_x6_safe", 14, safe_origin, safe_extent, 1607)], 2, scenario_id, "Crowd moves to safe zone", "pedestrian", [anchor], "warning"),
             event("airspace_lockdown", fired("crowd_safe_zone_move"), [spawn("spawn_x6_nfz", nfz, "trigger.no_fly.box.v1", p(ox + 6, oy + 4, 28), 0, visual_state={"mode": "active"})], 3, scenario_id, "Airspace lockdown declares temporary NFZ", "dynamic_constraint", [nfz], "critical"),
-            event("uav_reroute_lockdown", fired("airspace_lockdown"), [move("move_x6_uav_avoid_nfz", uav, [p(ox - 18, oy - 10, 34), p(ox - 5, oy + 14, 36), p(ox + 22, oy + 28, 36)], 7.0), screenshot("capture_x6_lockdown")], 4, scenario_id, "UAV reroutes around lockdown NFZ", "uav_mission", [uav, nfz], "warning"),
+            event("uav_reroute_lockdown", fired("airspace_lockdown"), [move("move_x6_uav_avoid_nfz", uav, [uav_start, p(ox - 5, oy + 14, 36), p(ox + 22, oy + 28, 36)], 7.0), screenshot("capture_x6_lockdown")], 4, scenario_id, "UAV reroutes around lockdown NFZ", "uav_mission", [uav, nfz], "warning"),
             event("lockdown_cleared", fired("uav_reroute_lockdown"), [clear_crowd("clear_x6_safe_crowd", "crowd_x6_safe"), visual("set_x6_nfz_standdown", nfz, "standdown")], 5, scenario_id, "Crowd evacuation and airspace lockdown clear", "dynamic_constraint", [uav, nfz], "info"),
         ]
         desc = "Crowd evacuation to airspace lockdown chain"

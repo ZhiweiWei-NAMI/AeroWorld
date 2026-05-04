@@ -13,9 +13,10 @@
       "tick": 250
     },
     {
-      "trigger_id": "trig_after_gnss_anomaly",
-      "type": "event_fired",
-      "event_id": "gnss_anomaly"
+      "trigger_id": "trig_after_gnss_anomaly_delay_30",
+      "type": "event_fired_after",
+      "event_id": "gnss_anomaly",
+      "delay_ticks": 30
     },
     {
       "trigger_id": "trig_visual_relocalization",
@@ -24,12 +25,14 @@
       "entity_b": "facade_l2_2_v2",
       "distance_m": 8.0,
       "operator": "lte",
+      "metric": "3d",
       "min_true_ticks": 3
     },
     {
-      "trigger_id": "trig_after_visual_relocalization",
-      "type": "event_fired",
-      "event_id": "visual_relocalization"
+      "trigger_id": "trig_after_visual_relocalization_delay_30",
+      "type": "event_fired_after",
+      "event_id": "visual_relocalization",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -62,7 +65,7 @@
     },
     {
       "event_id": "route_drift",
-      "trigger_ref": "trig_after_gnss_anomaly",
+      "trigger_ref": "trig_after_gnss_anomaly_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -72,18 +75,18 @@
           "entity_id": "uav_l2_2_v2",
           "waypoints_enu_m": [
             [
-              69.0,
-              -1.5,
+              7069.0,
+              6198.5,
               30
             ],
             [
-              83.0,
-              2.5,
+              7083.0,
+              6202.5,
               28
             ],
             [
-              97.0,
-              12.5,
+              7097.0,
+              6212.5,
               24
             ]
           ],
@@ -136,7 +139,7 @@
     },
     {
       "event_id": "route_corrected",
-      "trigger_ref": "trig_after_visual_relocalization",
+      "trigger_ref": "trig_after_visual_relocalization_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -146,13 +149,13 @@
           "entity_id": "uav_l2_2_v2",
           "waypoints_enu_m": [
             [
-              97.0,
-              12.5,
+              7097.0,
+              6212.5,
               24
             ],
             [
-              87.0,
-              18.5,
+              7087.0,
+              6218.5,
               30
             ]
           ],

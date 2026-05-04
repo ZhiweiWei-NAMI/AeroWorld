@@ -19,12 +19,16 @@
       "entity_b": "car_jaywalk_l4_6_v2",
       "distance_m": 4.0,
       "operator": "lte",
+      "metric": "xy_plus_z",
+      "horizontal_distance_m": 4.0,
+      "vertical_distance_m": 1.5,
       "min_true_ticks": 2
     },
     {
-      "trigger_id": "trig_after_vehicle_ped_proximity",
-      "type": "event_fired",
-      "event_id": "vehicle_ped_proximity"
+      "trigger_id": "trig_after_vehicle_ped_proximity_delay_30",
+      "type": "event_fired_after",
+      "event_id": "vehicle_ped_proximity",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -40,14 +44,14 @@
           "entity_id": "ped_jaywalk_l4_6_v2",
           "waypoints_enu_m": [
             [
-              105.5,
-              123.0,
-              0
+              7103.804,
+              6325.581,
+              0.0
             ],
             [
-              115.5,
-              122.0,
-              0
+              7102.525,
+              6328.405,
+              0.0
             ]
           ],
           "velocity_mps": 1.6
@@ -58,14 +62,14 @@
           "entity_id": "car_jaywalk_l4_6_v2",
           "waypoints_enu_m": [
             [
-              133.5,
-              117.0,
-              0
+              7132.167,
+              6319.323,
+              0.0
             ],
             [
-              119.5,
-              121.0,
-              0
+              7102.525,
+              6328.405,
+              0.0
             ]
           ],
           "velocity_mps": 8.0
@@ -95,14 +99,14 @@
           "entity_id": "car_jaywalk_l4_6_v2",
           "waypoints_enu_m": [
             [
-              119.5,
-              121.0,
-              0
+              7102.525,
+              6328.405,
+              0.0
             ],
             [
-              118.0,
-              121.5,
-              0
+              7103.525,
+              6328.705,
+              0.0
             ]
           ],
           "velocity_mps": 0.8
@@ -127,7 +131,7 @@
     },
     {
       "event_id": "ped_retreats",
-      "trigger_ref": "trig_after_vehicle_ped_proximity",
+      "trigger_ref": "trig_after_vehicle_ped_proximity_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -137,14 +141,14 @@
           "entity_id": "ped_jaywalk_l4_6_v2",
           "waypoints_enu_m": [
             [
-              115.5,
-              122.0,
-              0
+              7102.525,
+              6328.405,
+              0.0
             ],
             [
-              103.5,
-              126.0,
-              0
+              7101.246,
+              6331.229,
+              0.0
             ]
           ],
           "velocity_mps": 1.8

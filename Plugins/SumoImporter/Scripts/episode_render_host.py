@@ -39,6 +39,11 @@ REQUIRED_CAPABILITIES = {
     "simAeroPedSpawn",
     "simAeroPedReset",
     "simAeroPedObserve",
+    "simAeroPedSetTarget",
+    "simAeroPedCommitCross",
+    "simAeroPedPlayAnimation",
+    "simAeroPedSpawnCrowd",
+    "simAeroPedClearCrowd",
     "simAeroPedStop",
     "simAeroPedSetVariant",
     "simAeroPedRelease",
@@ -918,11 +923,35 @@ class EpisodeRenderHost:
             for value in (self.runtime_uav_debug_cfg.get("entity_ids") or [])
             if str(value).strip()
         }
+        self.event_weather_overlay: dict[str, Any] = {}
+        self.event_scene_setup: dict[str, Any] = {}
+        self.event_entity_assets: dict[str, str] = {}
+        self.event_entity_initial_positions: dict[str, list[float]] = {}
 
         # Optional event script interpreter
         event_script_path_str = self.config.get("event_script_path")
         if event_script_path_str:
             script_path = self._resolve_path(event_script_path_str)
+            scene_setup_path = script_path.with_name("scene_setup.json")
+            if scene_setup_path.exists():
+                self.event_scene_setup = json.loads(scene_setup_path.read_text(encoding="utf-8"))
+                for entity in self.event_scene_setup.get("entities") or []:
+                    entity_id = str(entity.get("entity_id") or entity.get("instance_id") or "")
+                    if not entity_id:
+                        continue
+                    self.event_entity_assets[entity_id] = str(entity.get("logical_asset_id") or "")
+                    placement = dict(entity.get("placement") or {})
+                    position = (
+                        placement.get("resolved_position_enu_m")
+                        or placement.get("position_enu_m")
+                        or placement.get("center_enu_m")
+                    )
+                    if isinstance(position, list) and len(position) >= 2:
+                        self.event_entity_initial_positions[entity_id] = [
+                            float(position[0]),
+                            float(position[1]),
+                            float(position[2] if len(position) > 2 else 0.0),
+                        ]
             script_params = dict(self.config.get("event_script_parameters") or {})
             self.event_interpreter = EventScriptInterpreter(
                 script_path, parameters=script_params, episode_id=self.episode_id
@@ -1757,6 +1786,8 @@ class EpisodeRenderHost:
         if self.client is None:
             raise RuntimeError("Host is not connected.")
         payload = self._build_weather_payload(self._weather_for_tick(tick))
+        if self.event_weather_overlay:
+            payload.update(self.event_weather_overlay)
         if payload != self.last_weather_signature:
             try:
                 self._retry("apply_weather", self.client.apply_weather, payload, map_id=self.map_id)
@@ -3406,6 +3437,37 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             or entity_id
         )
 
+    def _script_entity_logical_asset_id(self, entity_id: str, action: dict[str, Any] | None = None) -> str:
+        action = action or {}
+        direct = str(
+            action.get("logical_asset_id")
+            or action.get("asset_id")
+            or action.get("proxy_template_id")
+            or ""
+        )
+        if direct:
+            return direct
+        if entity_id in self.event_entity_assets:
+            return self.event_entity_assets[entity_id]
+        roster_entry = self.roster_by_id.get(entity_id, {})
+        resolved = self.template_resolver.resolve(roster_entry, roster_entry) if roster_entry else {}
+        return str(
+            resolved.get("logical_asset_id")
+            or roster_entry.get("logical_asset_id")
+            or roster_entry.get("proxy_template_id")
+            or ""
+        )
+
+    @staticmethod
+    def _script_asset_kind(logical_asset_id: str) -> str:
+        if logical_asset_id.startswith("pedestrian."):
+            return "pedestrian"
+        if logical_asset_id.startswith("uav."):
+            return "uav"
+        if logical_asset_id.startswith("vehicle."):
+            return "vehicle"
+        return "asset"
+
     def _register_event_action_handlers(self) -> None:
         interp = self.event_interpreter
         interp.register_handler("set_weather", self._script_set_weather)
@@ -3423,24 +3485,31 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         payload = self.weather_service.payload_for_condition(profile)
         overrides = dict(action.get("overrides") or {})
         if overrides:
-            for key in ("rain", "fog_density", "visibility_m", "wind_speed", "wetness", "dust"):
+            for key in ("rain", "fog", "fog_density", "visibility_m", "wind_speed", "wetness", "dust"):
                 if key in overrides:
-                    mapped = key if key != "visibility_m" else "visibility"
+                    if key == "visibility_m":
+                        mapped = "visibility"
+                    elif key == "fog":
+                        mapped = "fog_density"
+                    else:
+                        mapped = key
                     payload[mapped] = overrides[key]
         self.client.apply_weather(payload, map_id=self.map_id)
         self.last_weather_signature = dict(payload)
+        self.event_weather_overlay = dict(payload)
+        self.event_weather_overlay["visibility_m"] = payload.get("visibility", payload.get("visibility_m", 0.0))
+        self.event_weather_overlay["fog"] = payload.get("fog_density", payload.get("fog", 0.0))
         return {"status": "ok", "profile": profile}
 
     def _script_spawn_entity(self, action: dict[str, Any]) -> dict[str, Any]:
         logical_asset_id = str(
             action.get("logical_asset_id")
-            or action.get("template_id")
             or action.get("asset_id")
             or action.get("proxy_template_id")
             or ""
         )
         if not logical_asset_id:
-            raise ValueError("spawn_entity requires asset_id/logical_asset_id/template_id")
+            raise ValueError("spawn_entity requires asset_id or logical_asset_id")
         entity_id = str(action.get("entity_id", ""))
         if not entity_id:
             import uuid as _uuid
@@ -3448,11 +3517,30 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         asset_instance_id = self._script_asset_instance_id(action, entity_id)
         position = self._script_transform_position(action["position_enu_m"])
         rotation = self._script_transform_rotation(action)
+        self.event_entity_assets[entity_id] = logical_asset_id
+        self.event_entity_initial_positions[entity_id] = list(position)
+        asset_kind = self._script_asset_kind(logical_asset_id)
+        if asset_kind == "pedestrian":
+            response = self.client.ped_spawn(
+                entity_id,
+                position_enu_m=position,
+                yaw_deg=float(rotation.get("yaw_deg", 0.0)),
+                map_id=self.map_id,
+            )
+            return {"status": "ok", "entity_id": entity_id, "ped_id": entity_id, "response": response}
+        if asset_kind == "uav":
+            response = self.client.create_runtime_multirotor(
+                asset_instance_id,
+                position_enu_m=position,
+                rotation_deg=rotation,
+                map_id=self.map_id,
+            )
+            self.uav_active_by_entity[entity_id] = asset_instance_id
+            return {"status": "ok", "entity_id": entity_id, "vehicle_name": asset_instance_id, "response": response}
         payload: dict[str, Any] = {
             "asset_id": asset_instance_id,
             "entity_id": entity_id,
             "logical_asset_id": logical_asset_id,
-            "template_id": logical_asset_id,
             "proxy_template_id": logical_asset_id,
             "pose_enu_m": {"position_enu_m": position, "rotation_deg": rotation},
             "position_enu_m": position,
@@ -3466,6 +3554,8 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
     def _script_move_entity(self, action: dict[str, Any]) -> dict[str, Any]:
         entity_id = str(action["entity_id"])
         asset_instance_id = self._script_asset_instance_id(action, entity_id)
+        logical_asset_id = self._script_entity_logical_asset_id(entity_id, action)
+        asset_kind = self._script_asset_kind(logical_asset_id)
         transformed_waypoints: list[list[float]] = []
         if action.get("waypoints_enu_m") is not None or action.get("waypoints") is not None:
             transformed_waypoints = self._script_transform_waypoints(action.get("waypoints_enu_m", action.get("waypoints")))
@@ -3504,11 +3594,38 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         if transformed_waypoints:
             payload["waypoints_enu_m"] = transformed_waypoints
             payload["velocity_mps"] = float(action.get("velocity_mps", 5.0))
+        if asset_kind == "pedestrian":
+            response = self.client.ped_set_target(
+                entity_id,
+                target_enu_m=position,
+                speed_cm_per_sec=float(action.get("velocity_mps", 1.5)) * 100.0,
+                map_id=self.map_id,
+            )
+            return {"status": "ok", "entity_id": entity_id, "ped_id": entity_id, "response": response}
+        if asset_kind == "uav":
+            vehicle_name = self.uav_active_by_entity.get(entity_id, asset_instance_id)
+            response = self.client.move_runtime_multirotor(
+                vehicle_name,
+                target_enu_m=position,
+                velocity_mps=float(action.get("velocity_mps", 5.0)),
+                map_id=self.map_id,
+            )
+            self.uav_active_by_entity[entity_id] = vehicle_name
+            return {"status": "ok", "entity_id": entity_id, "vehicle_name": vehicle_name, "response": response}
         response = self.client.move_asset(payload, map_id=self.map_id)
         return {"status": "ok", "entity_id": entity_id, "asset_id": asset_instance_id, "response": response}
 
     def _script_remove_entity(self, action: dict[str, Any]) -> dict[str, Any]:
         entity_id = str(action["entity_id"])
+        logical_asset_id = self._script_entity_logical_asset_id(entity_id, action)
+        asset_kind = self._script_asset_kind(logical_asset_id)
+        if asset_kind == "pedestrian":
+            response = self.client.ped_release(entity_id, map_id=self.map_id)
+            return {"status": "ok", "entity_id": entity_id, "response": response}
+        if asset_kind == "uav":
+            vehicle_name = self.uav_active_by_entity.pop(entity_id, entity_id)
+            response = self.client.remove_runtime_vehicle(vehicle_name, map_id=self.map_id)
+            return {"status": "ok", "entity_id": entity_id, "vehicle_name": vehicle_name, "response": response}
         response = self.client.remove_asset(entity_id, map_id=self.map_id)
         return {"status": "ok", "entity_id": entity_id, "response": response}
 
@@ -3549,7 +3666,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
 
     def _script_set_visual_state(self, action: dict[str, Any]) -> dict[str, Any]:
         entity_id = str(action["entity_id"])
-        visual_state: dict[str, Any] = {}
+        visual_state: dict[str, Any] = dict(action.get("visual_state") or {})
         for key in ("mode", "lights_on", "material_variant", "montage_tag"):
             if key in action:
                 visual_state[key] = action[key]
@@ -3598,7 +3715,6 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             spawn_payload = {
                 "asset_id": asset_id,
                 "logical_asset_id": "camera.fixed_world_capture.rgb.v1",
-                "template_id": "camera.fixed_world_capture.rgb.v1",
                 "pose_enu_m": {"position_enu_m": position_enu_m, "rotation_deg": rotation_deg},
             }
             spawn_resp = self.client.spawn_asset(spawn_payload, map_id=self.map_id)
@@ -3636,6 +3752,9 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             # --- Event script interpreter ---
             if self.event_interpreter is not None:
                 self.event_interpreter.update_weather_state(weather_payload)
+                for entity_id, position in self.event_entity_initial_positions.items():
+                    if entity_id not in self.event_interpreter.entity_states:
+                        self.event_interpreter.update_entity_state(entity_id, position)
                 for rec in entity_records:
                     self.event_interpreter.update_entity_state(
                         str(rec.get("entity_id", "")),

@@ -13,19 +13,22 @@
       "tick": 240
     },
     {
-      "trigger_id": "trig_after_c2_degradation",
-      "type": "event_fired",
-      "event_id": "c2_degradation"
+      "trigger_id": "trig_after_c2_degradation_delay_30",
+      "type": "event_fired_after",
+      "event_id": "c2_degradation",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_uav_delayed_response",
-      "type": "event_fired",
-      "event_id": "uav_delayed_response"
+      "trigger_id": "trig_after_uav_delayed_response_delay_30",
+      "type": "event_fired_after",
+      "event_id": "uav_delayed_response",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_backup_link_lock",
-      "type": "event_fired",
-      "event_id": "backup_link_lock"
+      "trigger_id": "trig_after_backup_link_lock_delay_30",
+      "type": "event_fired_after",
+      "event_id": "backup_link_lock",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -58,7 +61,7 @@
     },
     {
       "event_id": "uav_delayed_response",
-      "trigger_ref": "trig_after_c2_degradation",
+      "trigger_ref": "trig_after_c2_degradation_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -68,13 +71,13 @@
           "entity_id": "uav_digital_l6_2_v2",
           "waypoints_enu_m": [
             [
-              58.0,
-              205.6,
+              7058.0,
+              6405.6,
               32
             ],
             [
-              70.0,
-              211.6,
+              7070.0,
+              6411.6,
               31
             ]
           ],
@@ -102,7 +105,7 @@
     },
     {
       "event_id": "backup_link_lock",
-      "trigger_ref": "trig_after_uav_delayed_response",
+      "trigger_ref": "trig_after_uav_delayed_response_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -120,13 +123,13 @@
           "entity_id": "uav_digital_l6_2_v2",
           "waypoints_enu_m": [
             [
-              70.0,
-              211.6,
+              7070.0,
+              6411.6,
               31
             ],
             [
-              60.0,
-              223.6,
+              7060.0,
+              6423.6,
               32
             ]
           ],
@@ -147,7 +150,7 @@
     },
     {
       "event_id": "nominal_c2_restore",
-      "trigger_ref": "trig_after_backup_link_lock",
+      "trigger_ref": "trig_after_backup_link_lock_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [

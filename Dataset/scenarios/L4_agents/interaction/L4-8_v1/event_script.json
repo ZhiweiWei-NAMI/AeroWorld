@@ -13,19 +13,22 @@
       "tick": 220
     },
     {
-      "trigger_id": "trig_after_crowd_generated",
-      "type": "event_fired",
-      "event_id": "crowd_generated"
+      "trigger_id": "trig_after_crowd_generated_delay_30",
+      "type": "event_fired_after",
+      "event_id": "crowd_generated",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_evacuation_triggered",
-      "type": "event_fired",
-      "event_id": "evacuation_triggered"
+      "trigger_id": "trig_after_evacuation_triggered_delay_30",
+      "type": "event_fired_after",
+      "event_id": "evacuation_triggered",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_uav_evacuation_monitor",
-      "type": "event_fired",
-      "event_id": "uav_evacuation_monitor"
+      "trigger_id": "trig_after_uav_evacuation_monitor_delay_30",
+      "type": "event_fired_after",
+      "event_id": "uav_evacuation_monitor",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -41,9 +44,9 @@
           "group_id": "crowd_l4_8_v1",
           "count": 12,
           "spawn_origin_enu_m": [
-            133.0,
-            133.0,
-            0
+            7132.972,
+            6333.707,
+            0.0
           ],
           "spawn_box_extent_cm": [
             900,
@@ -66,7 +69,7 @@
     },
     {
       "event_id": "evacuation_triggered",
-      "trigger_ref": "trig_after_crowd_generated",
+      "trigger_ref": "trig_after_crowd_generated_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -81,9 +84,9 @@
           "group_id": "crowd_safe_l4_8_v1",
           "count": 12,
           "spawn_origin_enu_m": [
-            154.0,
-            149.0,
-            0
+            7156.056,
+            6343.853,
+            0.0
           ],
           "spawn_box_extent_cm": [
             1000,
@@ -106,7 +109,7 @@
     },
     {
       "event_id": "uav_evacuation_monitor",
-      "trigger_ref": "trig_after_evacuation_triggered",
+      "trigger_ref": "trig_after_evacuation_triggered_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -116,18 +119,18 @@
           "entity_id": "uav_crowd_monitor_l4_8_v1",
           "waypoints_enu_m": [
             [
-              112.0,
-              120.0,
+              7112.0,
+              6320.0,
               34
             ],
             [
-              138.0,
-              138.0,
+              7132.972,
+              6333.707,
               30
             ],
             [
-              154.0,
-              149.0,
+              7156.056,
+              6343.853,
               30
             ]
           ],
@@ -152,7 +155,7 @@
     },
     {
       "event_id": "crowd_clear",
-      "trigger_ref": "trig_after_uav_evacuation_monitor",
+      "trigger_ref": "trig_after_uav_evacuation_monitor_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [

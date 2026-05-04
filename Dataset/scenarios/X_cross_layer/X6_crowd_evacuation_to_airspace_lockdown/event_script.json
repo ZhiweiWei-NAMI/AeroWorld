@@ -12,24 +12,28 @@
       "tick": 220
     },
     {
-      "trigger_id": "trig_after_crowd_evacuation",
-      "type": "event_fired",
-      "event_id": "crowd_evacuation"
+      "trigger_id": "trig_after_crowd_evacuation_delay_30",
+      "type": "event_fired_after",
+      "event_id": "crowd_evacuation",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_crowd_safe_zone_move",
-      "type": "event_fired",
-      "event_id": "crowd_safe_zone_move"
+      "trigger_id": "trig_after_crowd_safe_zone_move_delay_30",
+      "type": "event_fired_after",
+      "event_id": "crowd_safe_zone_move",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_airspace_lockdown",
-      "type": "event_fired",
-      "event_id": "airspace_lockdown"
+      "trigger_id": "trig_after_airspace_lockdown_delay_30",
+      "type": "event_fired_after",
+      "event_id": "airspace_lockdown",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_uav_reroute_lockdown",
-      "type": "event_fired",
-      "event_id": "uav_reroute_lockdown"
+      "trigger_id": "trig_after_uav_reroute_lockdown_delay_30",
+      "type": "event_fired_after",
+      "event_id": "uav_reroute_lockdown",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -45,9 +49,9 @@
           "group_id": "crowd_x6",
           "count": 14,
           "spawn_origin_enu_m": [
-            126.0,
-            282.0,
-            0
+            7126.181,
+            6482.125,
+            0.0
           ],
           "spawn_box_extent_cm": [
             900,
@@ -70,7 +74,7 @@
     },
     {
       "event_id": "crowd_safe_zone_move",
-      "trigger_ref": "trig_after_crowd_evacuation",
+      "trigger_ref": "trig_after_crowd_evacuation_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -85,9 +89,9 @@
           "group_id": "crowd_x6_safe",
           "count": 14,
           "spawn_origin_enu_m": [
-            150.0,
-            297.0,
-            0
+            7152.279,
+            6498.292,
+            0.0
           ],
           "spawn_box_extent_cm": [
             900,
@@ -110,7 +114,7 @@
     },
     {
       "event_id": "airspace_lockdown",
-      "trigger_ref": "trig_after_crowd_safe_zone_move",
+      "trigger_ref": "trig_after_crowd_safe_zone_move_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -120,8 +124,8 @@
           "entity_id": "nfz_x6_lockdown",
           "asset_id": "trigger.no_fly.box.v1",
           "position_enu_m": [
-            128.0,
-            283.0,
+            7128.0,
+            6483.0,
             28
           ],
           "rotation_deg": {
@@ -145,7 +149,7 @@
     },
     {
       "event_id": "uav_reroute_lockdown",
-      "trigger_ref": "trig_after_airspace_lockdown",
+      "trigger_ref": "trig_after_airspace_lockdown_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -155,18 +159,18 @@
           "entity_id": "uav_x6_monitor",
           "waypoints_enu_m": [
             [
-              104.0,
-              269.0,
+              7104.0,
+              6469.0,
               34
             ],
             [
-              117.0,
-              293.0,
+              7117.0,
+              6493.0,
               36
             ],
             [
-              144.0,
-              307.0,
+              7144.0,
+              6507.0,
               36
             ]
           ],
@@ -192,7 +196,7 @@
     },
     {
       "event_id": "lockdown_cleared",
-      "trigger_ref": "trig_after_uav_reroute_lockdown",
+      "trigger_ref": "trig_after_uav_reroute_lockdown_delay_30",
       "priority": 5,
       "max_fire_count": 1,
       "actions": [

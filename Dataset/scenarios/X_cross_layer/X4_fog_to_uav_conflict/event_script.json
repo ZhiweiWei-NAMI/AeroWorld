@@ -7,6 +7,11 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_fog_onset",
+      "type": "tick",
+      "tick": 180
+    },
+    {
       "trigger_id": "trig_fog_threshold",
       "type": "weather_state",
       "parameter": "fog",
@@ -15,14 +20,16 @@
       "sustain_ticks": 5
     },
     {
-      "trigger_id": "trig_after_fog_threshold",
-      "type": "event_fired",
-      "event_id": "fog_threshold"
+      "trigger_id": "trig_after_fog_threshold_delay_30",
+      "type": "event_fired_after",
+      "event_id": "fog_threshold",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_visibility_drop",
-      "type": "event_fired",
-      "event_id": "visibility_drop"
+      "trigger_id": "trig_after_visibility_drop_delay_30",
+      "type": "event_fired_after",
+      "event_id": "visibility_drop",
+      "delay_ticks": 30
     },
     {
       "trigger_id": "trig_fog_uav_conflict",
@@ -31,15 +38,45 @@
       "entity_b": "uav_x4_b",
       "distance_m": 8.0,
       "operator": "lte",
+      "metric": "3d",
       "min_true_ticks": 2
     },
     {
-      "trigger_id": "trig_after_fog_uav_conflict",
-      "type": "event_fired",
-      "event_id": "fog_uav_conflict"
+      "trigger_id": "trig_after_fog_uav_conflict_delay_30",
+      "type": "event_fired_after",
+      "event_id": "fog_uav_conflict",
+      "delay_ticks": 30
     }
   ],
   "events": [
+    {
+      "event_id": "fog_onset",
+      "trigger_ref": "trig_fog_onset",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_weather",
+          "action_id": "set_x4_fog_onset",
+          "profile": "fog",
+          "overrides": {
+            "fog": 0.62,
+            "visibility_m": 700.0
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X4_fog_to_uav_conflict_fog_onset",
+        "category": "weather",
+        "title": "Fog onset is applied before conflict chain",
+        "severity": "info",
+        "overlay": "weather",
+        "target_ids": [
+          "uav_x4_a",
+          "uav_x4_b"
+        ]
+      }
+    },
     {
       "event_id": "fog_threshold",
       "trigger_ref": "trig_fog_threshold",
@@ -70,7 +107,7 @@
     },
     {
       "event_id": "visibility_drop",
-      "trigger_ref": "trig_after_fog_threshold",
+      "trigger_ref": "trig_after_fog_threshold_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -105,7 +142,7 @@
     },
     {
       "event_id": "fog_converging_routes",
-      "trigger_ref": "trig_after_visibility_drop",
+      "trigger_ref": "trig_after_visibility_drop_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -115,13 +152,13 @@
           "entity_id": "uav_x4_a",
           "waypoints_enu_m": [
             [
-              72.0,
-              265.0,
+              7072.0,
+              6465.0,
               29
             ],
             [
-              91.0,
-              270.0,
+              7091.0,
+              6470.0,
               30
             ]
           ],
@@ -133,13 +170,13 @@
           "entity_id": "uav_x4_b",
           "waypoints_enu_m": [
             [
-              110.0,
-              275.0,
+              7110.0,
+              6475.0,
               31
             ],
             [
-              91.0,
-              270.0,
+              7091.0,
+              6470.0,
               30
             ]
           ],
@@ -178,13 +215,13 @@
           "entity_id": "uav_x4_b",
           "waypoints_enu_m": [
             [
-              91.0,
-              270.0,
+              7091.0,
+              6470.0,
               30
             ],
             [
-              104.0,
-              283.0,
+              7104.0,
+              6483.0,
               36
             ]
           ],
@@ -210,7 +247,7 @@
     },
     {
       "event_id": "fog_conflict_recovered",
-      "trigger_ref": "trig_after_fog_uav_conflict",
+      "trigger_ref": "trig_after_fog_uav_conflict_delay_30",
       "priority": 5,
       "max_fire_count": 1,
       "actions": [
@@ -220,13 +257,13 @@
           "entity_id": "uav_x4_a",
           "waypoints_enu_m": [
             [
-              91.0,
-              270.0,
+              7091.0,
+              6470.0,
               30
             ],
             [
-              74.0,
-              283.0,
+              7074.0,
+              6483.0,
               30
             ]
           ],

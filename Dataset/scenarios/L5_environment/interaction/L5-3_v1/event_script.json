@@ -7,6 +7,11 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_weather_onset",
+      "type": "tick",
+      "tick": 210
+    },
+    {
       "trigger_id": "trig_wind_condition_met",
       "type": "weather_state",
       "parameter": "wind_speed",
@@ -15,22 +20,52 @@
       "sustain_ticks": 4
     },
     {
-      "trigger_id": "trig_after_wind_condition_met",
-      "type": "event_fired",
-      "event_id": "wind_condition_met"
+      "trigger_id": "trig_after_wind_condition_met_delay_30",
+      "type": "event_fired_after",
+      "event_id": "wind_condition_met",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_payload_swing",
-      "type": "event_fired",
-      "event_id": "payload_swing"
+      "trigger_id": "trig_after_payload_swing_delay_30",
+      "type": "event_fired_after",
+      "event_id": "payload_swing",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_wind_gust_intensifies",
-      "type": "event_fired",
-      "event_id": "wind_gust_intensifies"
+      "trigger_id": "trig_after_wind_gust_intensifies_delay_30",
+      "type": "event_fired_after",
+      "event_id": "wind_gust_intensifies",
+      "delay_ticks": 30
     }
   ],
   "events": [
+    {
+      "event_id": "weather_onset",
+      "trigger_ref": "trig_weather_onset",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_weather",
+          "action_id": "set_wind_onset",
+          "profile": "wind",
+          "overrides": {
+            "wind_speed": 12.5
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-3_v1_weather_onset",
+        "category": "weather",
+        "title": "Wind onset is applied before threshold confirmation",
+        "severity": "info",
+        "overlay": "weather",
+        "target_ids": [
+          "uav_weather_l5_3_v1",
+          "payload_bag_l5_3_v1"
+        ]
+      }
+    },
     {
       "event_id": "wind_condition_met",
       "trigger_ref": "trig_wind_condition_met",
@@ -60,7 +95,7 @@
     },
     {
       "event_id": "payload_swing",
-      "trigger_ref": "trig_after_wind_condition_met",
+      "trigger_ref": "trig_after_wind_condition_met_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -70,18 +105,18 @@
           "entity_id": "payload_bag_l5_3_v1",
           "waypoints_enu_m": [
             [
-              71.0,
-              164.5,
+              7071.0,
+              6364.5,
               28
             ],
             [
-              74.0,
-              160.5,
+              7074.0,
+              6360.5,
               27
             ],
             [
-              68.0,
-              168.5,
+              7068.0,
+              6368.5,
               29
             ]
           ],
@@ -110,7 +145,7 @@
     },
     {
       "event_id": "wind_gust_intensifies",
-      "trigger_ref": "trig_after_payload_swing",
+      "trigger_ref": "trig_after_payload_swing_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -128,13 +163,13 @@
           "entity_id": "uav_weather_l5_3_v1",
           "waypoints_enu_m": [
             [
-              70.0,
-              163.5,
+              7070.0,
+              6363.5,
               32
             ],
             [
-              73.0,
-              168.5,
+              7073.0,
+              6368.5,
               33
             ]
           ],
@@ -160,7 +195,7 @@
     },
     {
       "event_id": "wind_recovery",
-      "trigger_ref": "trig_after_wind_gust_intensifies",
+      "trigger_ref": "trig_after_wind_gust_intensifies_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -170,13 +205,13 @@
           "entity_id": "uav_weather_l5_3_v1",
           "waypoints_enu_m": [
             [
-              73.0,
-              168.5,
+              7073.0,
+              6368.5,
               33
             ],
             [
-              62.0,
-              173.5,
+              7062.0,
+              6373.5,
               34
             ]
           ],

@@ -20,12 +20,14 @@
       "entity_b": "pad_shared_l2_4_v1",
       "distance_m": 7.0,
       "operator": "lte",
+      "metric": "3d",
       "min_true_ticks": 2
     },
     {
-      "trigger_id": "trig_after_priority_arbitration",
-      "type": "event_fired",
-      "event_id": "priority_arbitration"
+      "trigger_id": "trig_after_priority_arbitration_delay_30",
+      "type": "event_fired_after",
+      "event_id": "priority_arbitration",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -41,18 +43,18 @@
           "entity_id": "uav_priority_l2_4_v1",
           "waypoints_enu_m": [
             [
-              78.0,
-              27.0,
+              7078.0,
+              6227.0,
               32
             ],
             [
-              86.0,
-              21.0,
+              7086.0,
+              6221.0,
               22
             ],
             [
-              92.0,
-              17.0,
+              7092.0,
+              6217.0,
               5
             ]
           ],
@@ -64,18 +66,18 @@
           "entity_id": "uav_divert_l2_4_v1",
           "waypoints_enu_m": [
             [
-              108.0,
-              5.0,
+              7108.0,
+              6205.0,
               30
             ],
             [
-              96.0,
-              13.0,
+              7096.0,
+              6213.0,
               24
             ],
             [
-              104.0,
-              29.0,
+              7104.0,
+              6229.0,
               36
             ]
           ],
@@ -133,7 +135,7 @@
     },
     {
       "event_id": "second_uav_diverted",
-      "trigger_ref": "trig_after_priority_arbitration",
+      "trigger_ref": "trig_after_priority_arbitration_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -143,13 +145,13 @@
           "entity_id": "uav_divert_l2_4_v1",
           "waypoints_enu_m": [
             [
-              104.0,
-              29.0,
+              7104.0,
+              6229.0,
               36
             ],
             [
-              124.0,
-              37.0,
+              7124.0,
+              6237.0,
               34
             ]
           ],
@@ -161,13 +163,13 @@
           "entity_id": "uav_priority_l2_4_v1",
           "waypoints_enu_m": [
             [
-              92.0,
-              17.0,
+              7092.0,
+              6217.0,
               5
             ],
             [
-              92.0,
-              17.0,
+              7092.0,
+              6217.0,
               1.2
             ]
           ],

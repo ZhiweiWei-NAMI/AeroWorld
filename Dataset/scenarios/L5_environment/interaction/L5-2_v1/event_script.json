@@ -7,6 +7,11 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_weather_onset",
+      "type": "tick",
+      "tick": 190
+    },
+    {
       "trigger_id": "trig_fog_condition_met",
       "type": "weather_state",
       "parameter": "fog",
@@ -15,22 +20,52 @@
       "sustain_ticks": 5
     },
     {
-      "trigger_id": "trig_after_fog_condition_met",
-      "type": "event_fired",
-      "event_id": "fog_condition_met"
+      "trigger_id": "trig_after_fog_condition_met_delay_30",
+      "type": "event_fired_after",
+      "event_id": "fog_condition_met",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_visual_navigation_failure",
-      "type": "event_fired",
-      "event_id": "visual_navigation_failure"
+      "trigger_id": "trig_after_visual_navigation_failure_delay_30",
+      "type": "event_fired_after",
+      "event_id": "visual_navigation_failure",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_fog_worsens",
-      "type": "event_fired",
-      "event_id": "fog_worsens"
+      "trigger_id": "trig_after_fog_worsens_delay_30",
+      "type": "event_fired_after",
+      "event_id": "fog_worsens",
+      "delay_ticks": 30
     }
   ],
   "events": [
+    {
+      "event_id": "weather_onset",
+      "trigger_ref": "trig_weather_onset",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_weather",
+          "action_id": "set_fog_onset",
+          "profile": "fog",
+          "overrides": {
+            "fog": 0.6,
+            "visibility_m": 650.0
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-2_v1_weather_onset",
+        "category": "weather",
+        "title": "Fog onset is applied before threshold confirmation",
+        "severity": "info",
+        "overlay": "weather",
+        "target_ids": [
+          "uav_weather_l5_2_v1"
+        ]
+      }
+    },
     {
       "event_id": "fog_condition_met",
       "trigger_ref": "trig_fog_condition_met",
@@ -60,7 +95,7 @@
     },
     {
       "event_id": "visual_navigation_failure",
-      "trigger_ref": "trig_after_fog_condition_met",
+      "trigger_ref": "trig_after_fog_condition_met_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -78,13 +113,13 @@
           "entity_id": "uav_weather_l5_2_v1",
           "waypoints_enu_m": [
             [
-              54.0,
-              156.5,
+              7054.0,
+              6356.5,
               32
             ],
             [
-              60.0,
-              160.5,
+              7060.0,
+              6360.5,
               32
             ]
           ],
@@ -104,7 +139,7 @@
     },
     {
       "event_id": "fog_worsens",
-      "trigger_ref": "trig_after_visual_navigation_failure",
+      "trigger_ref": "trig_after_visual_navigation_failure_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -136,7 +171,7 @@
     },
     {
       "event_id": "fog_mission_abort",
-      "trigger_ref": "trig_after_fog_worsens",
+      "trigger_ref": "trig_after_fog_worsens_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -146,13 +181,13 @@
           "entity_id": "uav_weather_l5_2_v1",
           "waypoints_enu_m": [
             [
-              60.0,
-              160.5,
+              7060.0,
+              6360.5,
               32
             ],
             [
-              46.0,
-              168.5,
+              7046.0,
+              6368.5,
               34
             ]
           ],

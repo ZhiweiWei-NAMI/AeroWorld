@@ -14,19 +14,22 @@
       "tick": 240
     },
     {
-      "trigger_id": "trig_after_spoofing_start",
-      "type": "event_fired",
-      "event_id": "spoofing_start"
+      "trigger_id": "trig_after_spoofing_start_delay_30",
+      "type": "event_fired_after",
+      "event_id": "spoofing_start",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_spoofed_route_offset",
-      "type": "event_fired",
-      "event_id": "spoofed_route_offset"
+      "trigger_id": "trig_after_spoofed_route_offset_delay_30",
+      "type": "event_fired_after",
+      "event_id": "spoofed_route_offset",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_safety_route_lock",
-      "type": "event_fired",
-      "event_id": "safety_route_lock"
+      "trigger_id": "trig_after_safety_route_lock_delay_30",
+      "type": "event_fired_after",
+      "event_id": "safety_route_lock",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -59,7 +62,7 @@
     },
     {
       "event_id": "spoofed_route_offset",
-      "trigger_ref": "trig_after_spoofing_start",
+      "trigger_ref": "trig_after_spoofing_start_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -69,18 +72,18 @@
           "entity_id": "uav_digital_l6_3_v2",
           "waypoints_enu_m": [
             [
-              74.0,
-              212.0,
+              7074.0,
+              6412.0,
               32
             ],
             [
-              86.0,
-              220.0,
+              7086.0,
+              6420.0,
               31
             ],
             [
-              101.0,
-              230.0,
+              7101.0,
+              6430.0,
               31
             ]
           ],
@@ -100,7 +103,7 @@
     },
     {
       "event_id": "safety_route_lock",
-      "trigger_ref": "trig_after_spoofed_route_offset",
+      "trigger_ref": "trig_after_spoofed_route_offset_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -118,13 +121,13 @@
           "entity_id": "uav_digital_l6_3_v2",
           "waypoints_enu_m": [
             [
-              101.0,
-              230.0,
+              7101.0,
+              6430.0,
               31
             ],
             [
-              82.0,
-              234.0,
+              7082.0,
+              6434.0,
               32
             ]
           ],
@@ -150,7 +153,7 @@
     },
     {
       "event_id": "spoof_recovery",
-      "trigger_ref": "trig_after_safety_route_lock",
+      "trigger_ref": "trig_after_safety_route_lock_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [

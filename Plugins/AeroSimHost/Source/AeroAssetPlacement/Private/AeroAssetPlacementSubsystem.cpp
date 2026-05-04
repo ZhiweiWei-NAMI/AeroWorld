@@ -173,8 +173,11 @@ bool UAeroAssetPlacementSubsystem::LoadScenarioObjects(const FString& ScenarioPa
 	const TArray<TSharedPtr<FJsonValue>>* Objects = nullptr;
 	if (!RootObject->TryGetArrayField(TEXT("objects"), Objects) || Objects == nullptr)
 	{
-		OutError = FString::Printf(TEXT("scenario_objects missing 'objects' array: %s"), *ScenarioPath);
-		return false;
+		if (!RootObject->TryGetArrayField(TEXT("entities"), Objects) || Objects == nullptr)
+		{
+			OutError = FString::Printf(TEXT("scenario_objects missing 'objects' or scene_setup 'entities' array: %s"), *ScenarioPath);
+			return false;
+		}
 	}
 
 	for (TPair<FString, FAeroAssetInstanceState>& ExistingPair : InstancesById)
@@ -237,7 +240,7 @@ TSharedPtr<FJsonObject> UAeroAssetPlacementSubsystem::SpawnAsset(const TSharedPt
 	FString TemplateId;
 	if (!Payload->TryGetStringField(TEXT("template_id"), TemplateId) && !Payload->TryGetStringField(TEXT("logical_asset_id"), TemplateId))
 	{
-		OutError = TEXT("SpawnAsset requires template_id.");
+		OutError = TEXT("SpawnAsset requires template_id or logical_asset_id.");
 		return nullptr;
 	}
 
@@ -671,9 +674,10 @@ bool UAeroAssetPlacementSubsystem::ParseTemplateDefinition(const TSharedPtr<FJso
 
 bool UAeroAssetPlacementSubsystem::ParseScenarioObject(const TSharedPtr<FJsonObject>& Object, FAeroAssetInstanceState& OutInstance, FString& OutError) const
 {
-	if (!Object->TryGetStringField(TEXT("instance_id"), OutInstance.InstanceId))
+	if (!Object->TryGetStringField(TEXT("instance_id"), OutInstance.InstanceId) &&
+		!Object->TryGetStringField(TEXT("entity_id"), OutInstance.InstanceId))
 	{
-		OutError = TEXT("scenario_objects entry missing instance_id.");
+		OutError = TEXT("scenario_objects entry missing instance_id/entity_id.");
 		return false;
 	}
 	if (!Object->TryGetStringField(TEXT("logical_asset_id"), OutInstance.LogicalAssetId))
@@ -695,6 +699,10 @@ bool UAeroAssetPlacementSubsystem::ParseScenarioObject(const TSharedPtr<FJsonObj
 	OutInstance.bEnabled = Object->HasField(TEXT("enabled")) ? Object->GetBoolField(TEXT("enabled")) : true;
 	OutInstance.QueryTags = ReadStringArray(Object, TEXT("query_tags"));
 	Object->TryGetStringField(TEXT("entity_id"), OutInstance.EntityId);
+	if (OutInstance.EntityId.IsEmpty())
+	{
+		OutInstance.EntityId = OutInstance.InstanceId;
+	}
 	Object->TryGetStringField(TEXT("world_layer_type"), OutInstance.WorldLayerType);
 	Object->TryGetStringField(TEXT("zone_kind"), OutInstance.ZoneKind);
 	OutInstance.Placement = Object->GetObjectField(TEXT("placement"));
@@ -725,10 +733,29 @@ bool UAeroAssetPlacementSubsystem::TryResolvePlacementPosition(const FAeroAssetI
 
 	if (Instance.PlacementMode.Equals(TEXT("world_pose"), ESearchCase::IgnoreCase))
 	{
-		if (!TryReadVectorField(Instance.Placement, TEXT("position_enu_m"), OutPositionEnuM) &&
+		if (!TryReadVectorField(Instance.Placement, TEXT("resolved_position_enu_m"), OutPositionEnuM) &&
+			!TryReadVectorField(Instance.Placement, TEXT("position_enu_m"), OutPositionEnuM) &&
 			!TryReadVectorField(Instance.Placement, TEXT("center_enu_m"), OutPositionEnuM))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("TryResolvePlacementPosition failed for '%s': world_pose missing position_enu_m/center_enu_m."), *Instance.InstanceId);
+			return false;
+		}
+		TryReadRotationField(Instance.Placement, TEXT("rotation_deg"), OutRotationDeg);
+		Instance.Placement->TryGetNumberField(TEXT("yaw_deg"), OutRotationDeg.Yaw);
+		return true;
+	}
+
+	if (Instance.PlacementMode.Equals(TEXT("lane_anchor"), ESearchCase::IgnoreCase) ||
+		Instance.PlacementMode.Equals(TEXT("sidewalk_anchor"), ESearchCase::IgnoreCase) ||
+		Instance.PlacementMode.Equals(TEXT("crosswalk_anchor"), ESearchCase::IgnoreCase) ||
+		Instance.PlacementMode.Equals(TEXT("facade_anchor"), ESearchCase::IgnoreCase) ||
+		Instance.PlacementMode.Equals(TEXT("pad_anchor"), ESearchCase::IgnoreCase))
+	{
+		if (!TryReadVectorField(Instance.Placement, TEXT("resolved_position_enu_m"), OutPositionEnuM) &&
+			!TryReadVectorField(Instance.Placement, TEXT("position_enu_m"), OutPositionEnuM) &&
+			!TryReadVectorField(Instance.Placement, TEXT("center_enu_m"), OutPositionEnuM))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("TryResolvePlacementPosition failed for '%s': semantic placement '%s' missing resolved_position_enu_m."), *Instance.InstanceId, *Instance.PlacementMode);
 			return false;
 		}
 		TryReadRotationField(Instance.Placement, TEXT("rotation_deg"), OutRotationDeg);
@@ -763,7 +790,8 @@ bool UAeroAssetPlacementSubsystem::TryResolvePlacementPosition(const FAeroAssetI
 
 	if (Instance.PlacementMode.Equals(TEXT("box_volume"), ESearchCase::IgnoreCase) || Instance.PlacementMode.Equals(TEXT("sphere_volume"), ESearchCase::IgnoreCase))
 	{
-		if (!TryReadVectorField(Instance.Placement, TEXT("center_enu_m"), OutPositionEnuM) &&
+		if (!TryReadVectorField(Instance.Placement, TEXT("resolved_position_enu_m"), OutPositionEnuM) &&
+			!TryReadVectorField(Instance.Placement, TEXT("center_enu_m"), OutPositionEnuM) &&
 			!TryReadVectorField(Instance.Placement, TEXT("position_enu_m"), OutPositionEnuM))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("TryResolvePlacementPosition failed for '%s': volume placement missing center_enu_m/position_enu_m."), *Instance.InstanceId);
@@ -776,6 +804,11 @@ bool UAeroAssetPlacementSubsystem::TryResolvePlacementPosition(const FAeroAssetI
 
 	if (Instance.PlacementMode.Equals(TEXT("polygon_prism"), ESearchCase::IgnoreCase))
 	{
+		if (TryReadVectorField(Instance.Placement, TEXT("resolved_position_enu_m"), OutPositionEnuM))
+		{
+			OutRotationDeg = FRotator::ZeroRotator;
+			return true;
+		}
 		TArray<FVector> PolygonEnuM;
 		if (!TryReadPolygonArrayField(Instance.Placement, TEXT("polygon_enu_m"), PolygonEnuM) || PolygonEnuM.Num() < 3)
 		{

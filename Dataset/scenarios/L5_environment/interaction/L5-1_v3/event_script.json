@@ -7,6 +7,11 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_weather_onset",
+      "type": "tick",
+      "tick": 180
+    },
+    {
       "trigger_id": "trig_rain_condition_met",
       "type": "weather_state",
       "parameter": "rain",
@@ -15,22 +20,53 @@
       "sustain_ticks": 5
     },
     {
-      "trigger_id": "trig_after_rain_condition_met",
-      "type": "event_fired",
-      "event_id": "rain_condition_met"
+      "trigger_id": "trig_after_rain_condition_met_delay_30",
+      "type": "event_fired_after",
+      "event_id": "rain_condition_met",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_rain_speed_reduction",
-      "type": "event_fired",
-      "event_id": "rain_speed_reduction"
+      "trigger_id": "trig_after_rain_speed_reduction_delay_30",
+      "type": "event_fired_after",
+      "event_id": "rain_speed_reduction",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_rain_intensifies",
-      "type": "event_fired",
-      "event_id": "rain_intensifies"
+      "trigger_id": "trig_after_rain_intensifies_delay_30",
+      "type": "event_fired_after",
+      "event_id": "rain_intensifies",
+      "delay_ticks": 30
     }
   ],
   "events": [
+    {
+      "event_id": "weather_onset",
+      "trigger_ref": "trig_weather_onset",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_weather",
+          "action_id": "set_rain_onset",
+          "profile": "rain",
+          "overrides": {
+            "rain": 0.55,
+            "visibility_m": 2200.0
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-1_v3_weather_onset",
+        "category": "weather",
+        "title": "Rain onset is applied before threshold confirmation",
+        "severity": "info",
+        "overlay": "weather",
+        "target_ids": [
+          "uav_weather_l5_1_v3",
+          "weather_car_l5_1_v3"
+        ]
+      }
+    },
     {
       "event_id": "rain_condition_met",
       "trigger_ref": "trig_rain_condition_met",
@@ -61,7 +97,7 @@
     },
     {
       "event_id": "rain_speed_reduction",
-      "trigger_ref": "trig_after_rain_condition_met",
+      "trigger_ref": "trig_after_rain_condition_met_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -71,13 +107,13 @@
           "entity_id": "uav_weather_l5_1_v3",
           "waypoints_enu_m": [
             [
-              46.0,
-              153.0,
+              7046.0,
+              6353.0,
               32
             ],
             [
-              56.0,
-              161.0,
+              7056.0,
+              6361.0,
               32
             ]
           ],
@@ -89,14 +125,14 @@
           "entity_id": "weather_car_l5_1_v3",
           "waypoints_enu_m": [
             [
-              54.0,
-              145.0,
-              0
+              7063.537,
+              6313.483,
+              0.0
             ],
             [
-              61.0,
-              146.0,
-              0
+              7071.152,
+              6315.833,
+              0.0
             ]
           ],
           "velocity_mps": 3.0
@@ -116,7 +152,7 @@
     },
     {
       "event_id": "rain_intensifies",
-      "trigger_ref": "trig_after_rain_speed_reduction",
+      "trigger_ref": "trig_after_rain_speed_reduction_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -144,7 +180,7 @@
     },
     {
       "event_id": "rain_recovery",
-      "trigger_ref": "trig_after_rain_intensifies",
+      "trigger_ref": "trig_after_rain_intensifies_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -154,13 +190,13 @@
           "entity_id": "uav_weather_l5_1_v3",
           "waypoints_enu_m": [
             [
-              56.0,
-              161.0,
+              7056.0,
+              6361.0,
               32
             ],
             [
-              40.0,
-              169.0,
+              7040.0,
+              6369.0,
               34
             ]
           ],

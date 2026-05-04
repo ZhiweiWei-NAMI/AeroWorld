@@ -357,6 +357,79 @@ def test_composite_or_trigger() -> None:
     assert len(calls) == 1
 
 
+def test_composite_reads_child_state_without_double_evaluating() -> None:
+    script = _make_script(
+        triggers=[
+            {"trigger_id": "rain", "type": "weather_state", "parameter": "rain", "operator": "gte", "value": 0.5},
+            {"trigger_id": "t10", "type": "tick", "tick": 10},
+            {"trigger_id": "both", "type": "composite", "operator": "AND", "children": ["rain", "t10"]},
+        ],
+        events=[{"event_id": "e1", "trigger_ref": "both", "max_fire_count": 1, "actions": [{"type": "both"}]}],
+    )
+    interp = EventScriptInterpreter(script)
+    interp.register_handler("both", lambda a: {"ok": True})
+    interp.update_weather_state({"rain": 0.8})
+    interp.tick(10)
+    assert interp.trigger_states["rain"].fire_count == 1
+    assert interp.trigger_states["t10"].fire_count == 1
+    assert interp.trigger_states["both"].fire_count == 1
+
+
+def test_event_fired_after_delay() -> None:
+    script = _make_script(
+        triggers=[
+            {"trigger_id": "t10", "type": "tick", "tick": 10},
+            {"trigger_id": "after_e1", "type": "event_fired_after", "event_id": "e1", "delay_ticks": 5},
+        ],
+        events=[
+            {"event_id": "e1", "trigger_ref": "t10", "max_fire_count": 1, "actions": [{"type": "first"}]},
+            {"event_id": "e2", "trigger_ref": "after_e1", "max_fire_count": 1, "actions": [{"type": "second"}]},
+        ],
+    )
+    interp = EventScriptInterpreter(script)
+    calls, handler = _spy_handler()
+    interp.register_handler("first", handler)
+    interp.register_handler("second", handler)
+    interp.tick(10)
+    interp.tick(14)
+    assert [c["type"] for c in calls] == ["first"]
+    interp.tick(15)
+    assert [c["type"] for c in calls] == ["first", "second"]
+
+
+def test_proximity_3d_and_xy_plus_z_metrics() -> None:
+    script = _make_script(
+        triggers=[
+            {"trigger_id": "near_3d", "type": "entity_proximity", "entity_a": "uav", "entity_b": "ped", "metric": "3d", "distance_m": 5.0},
+            {
+                "trigger_id": "near_xy_z",
+                "type": "entity_proximity",
+                "entity_a": "uav",
+                "entity_b": "ped",
+                "metric": "xy_plus_z",
+                "horizontal_distance_m": 1.0,
+                "vertical_distance_m": 2.0,
+                "distance_m": 5.0,
+            },
+        ],
+        events=[
+            {"event_id": "e3d", "trigger_ref": "near_3d", "max_fire_count": 1, "actions": [{"type": "near3d"}]},
+            {"event_id": "exyz", "trigger_ref": "near_xy_z", "max_fire_count": 1, "actions": [{"type": "nearxyz"}]},
+        ],
+    )
+    interp = EventScriptInterpreter(script)
+    calls, handler = _spy_handler()
+    interp.register_handler("near3d", handler)
+    interp.register_handler("nearxyz", handler)
+    interp.update_entity_state("uav", [0, 0, 8])
+    interp.update_entity_state("ped", [0, 0, 0])
+    interp.tick(1)
+    assert calls == []
+    interp.update_entity_state("uav", [0, 0, 1.5])
+    interp.tick(2)
+    assert [c["type"] for c in calls] == ["near3d", "nearxyz"]
+
+
 # ---------------------------------------------------------------------------
 # Tests: require_conditions
 # ---------------------------------------------------------------------------
@@ -694,6 +767,9 @@ if __name__ == "__main__":
         test_event_fired_trigger_chain,
         test_composite_and_trigger,
         test_composite_or_trigger,
+        test_composite_reads_child_state_without_double_evaluating,
+        test_event_fired_after_delay,
+        test_proximity_3d_and_xy_plus_z_metrics,
         test_require_conditions_blocks_event,
         test_emit_events_chains_to_downstream,
         test_cooldown_prevents_refire,

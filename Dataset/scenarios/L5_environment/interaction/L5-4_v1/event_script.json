@@ -12,14 +12,16 @@
       "tick": 260
     },
     {
-      "trigger_id": "trig_after_dusk_light_shift",
-      "type": "event_fired",
-      "event_id": "dusk_light_shift"
+      "trigger_id": "trig_after_dusk_light_shift_delay_30",
+      "type": "event_fired_after",
+      "event_id": "dusk_light_shift",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_infrared_switch",
-      "type": "event_fired",
-      "event_id": "infrared_switch"
+      "trigger_id": "trig_after_infrared_switch_delay_30",
+      "type": "event_fired_after",
+      "event_id": "infrared_switch",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -56,7 +58,7 @@
     },
     {
       "event_id": "infrared_switch",
-      "trigger_ref": "trig_after_dusk_light_shift",
+      "trigger_ref": "trig_after_dusk_light_shift_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -74,13 +76,13 @@
           "entity_id": "uav_weather_l5_4_v1",
           "waypoints_enu_m": [
             [
-              86.0,
-              170.5,
+              7086.0,
+              6370.5,
               32
             ],
             [
-              98.0,
-              178.5,
+              7098.0,
+              6378.5,
               32
             ]
           ],
@@ -100,7 +102,7 @@
     },
     {
       "event_id": "low_light_termination",
-      "trigger_ref": "trig_after_infrared_switch",
+      "trigger_ref": "trig_after_infrared_switch_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [

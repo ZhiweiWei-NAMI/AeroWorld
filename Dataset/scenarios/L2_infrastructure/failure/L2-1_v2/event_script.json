@@ -13,14 +13,16 @@
       "tick": 260
     },
     {
-      "trigger_id": "trig_after_station_degraded",
-      "type": "event_fired",
-      "event_id": "station_degraded"
+      "trigger_id": "trig_after_station_degraded_delay_30",
+      "type": "event_fired_after",
+      "event_id": "station_degraded",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_uav_link_response",
-      "type": "event_fired",
-      "event_id": "uav_link_response"
+      "trigger_id": "trig_after_uav_link_response_delay_30",
+      "type": "event_fired_after",
+      "event_id": "uav_link_response",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -52,7 +54,7 @@
     },
     {
       "event_id": "uav_link_response",
-      "trigger_ref": "trig_after_station_degraded",
+      "trigger_ref": "trig_after_station_degraded_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -62,18 +64,18 @@
           "entity_id": "uav_l2_1_v2",
           "waypoints_enu_m": [
             [
-              55.0,
-              -12.5,
+              7055.0,
+              6187.5,
               31
             ],
             [
-              65.0,
-              -2.5,
+              7065.0,
+              6197.5,
               30
             ],
             [
-              68.0,
-              2.5,
+              14068.0,
+              12402.5,
               34
             ]
           ],
@@ -94,7 +96,7 @@
     },
     {
       "event_id": "backup_link_restore",
-      "trigger_ref": "trig_after_uav_link_response",
+      "trigger_ref": "trig_after_uav_link_response_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -112,13 +114,13 @@
           "entity_id": "uav_l2_1_v2",
           "waypoints_enu_m": [
             [
-              68.0,
-              2.5,
+              14068.0,
+              12402.5,
               34
             ],
             [
-              44.0,
-              -10.5,
+              7044.0,
+              6189.5,
               31
             ]
           ],

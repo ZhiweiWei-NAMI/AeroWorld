@@ -20,12 +20,14 @@
       "entity_b": "nfz_l1_2_v1",
       "distance_m": 14.0,
       "operator": "lte",
+      "metric": "3d",
       "min_true_ticks": 3
     },
     {
-      "trigger_id": "trig_after_boundary_conflict",
-      "type": "event_fired",
-      "event_id": "boundary_conflict"
+      "trigger_id": "trig_after_boundary_conflict_delay_30",
+      "type": "event_fired_after",
+      "event_id": "boundary_conflict",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -41,18 +43,18 @@
           "entity_id": "uav_l1_2_v1_primary",
           "waypoints_enu_m": [
             [
-              55.0,
-              20.0,
+              7055.0,
+              6220.0,
               34
             ],
             [
-              70.0,
-              28.0,
+              14070.0,
+              12428.0,
               34
             ],
             [
-              74.0,
-              30.0,
+              7074.0,
+              6230.0,
               34
             ]
           ],
@@ -83,18 +85,18 @@
           "entity_id": "uav_l1_2_v1_primary",
           "waypoints_enu_m": [
             [
-              74.0,
-              30.0,
+              7074.0,
+              6230.0,
               34
             ],
             [
-              71.0,
-              34.0,
+              14071.0,
+              12434.0,
               42
             ],
             [
-              66.0,
-              38.0,
+              14066.0,
+              12438.0,
               34
             ]
           ],
@@ -123,7 +125,7 @@
     },
     {
       "event_id": "return_safe_airspace",
-      "trigger_ref": "trig_after_boundary_conflict",
+      "trigger_ref": "trig_after_boundary_conflict_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -133,13 +135,13 @@
           "entity_id": "uav_l1_2_v1_primary",
           "waypoints_enu_m": [
             [
-              68.0,
-              34.0,
+              14068.0,
+              12434.0,
               38
             ],
             [
-              50.0,
-              45.0,
+              7050.0,
+              6245.0,
               34
             ]
           ],

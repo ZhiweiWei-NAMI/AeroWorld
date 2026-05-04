@@ -12,14 +12,16 @@
       "tick": 260
     },
     {
-      "trigger_id": "trig_after_high_temperature_process",
-      "type": "event_fired",
-      "event_id": "high_temperature_process"
+      "trigger_id": "trig_after_high_temperature_process_delay_30",
+      "type": "event_fired_after",
+      "event_id": "high_temperature_process",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_range_shortened",
-      "type": "event_fired",
-      "event_id": "range_shortened"
+      "trigger_id": "trig_after_range_shortened_delay_30",
+      "type": "event_fired_after",
+      "event_id": "range_shortened",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -51,7 +53,7 @@
     },
     {
       "event_id": "range_shortened",
-      "trigger_ref": "trig_after_high_temperature_process",
+      "trigger_ref": "trig_after_high_temperature_process_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -61,13 +63,13 @@
           "entity_id": "uav_weather_l5_5_v1",
           "waypoints_enu_m": [
             [
-              94.0,
-              174.0,
+              7094.0,
+              6374.0,
               32
             ],
             [
-              102.0,
-              179.0,
+              7102.0,
+              6379.0,
               32
             ]
           ],
@@ -87,7 +89,7 @@
     },
     {
       "event_id": "thermal_abort",
-      "trigger_ref": "trig_after_range_shortened",
+      "trigger_ref": "trig_after_range_shortened_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -97,13 +99,13 @@
           "entity_id": "uav_weather_l5_5_v1",
           "waypoints_enu_m": [
             [
-              102.0,
-              179.0,
+              7102.0,
+              6379.0,
               32
             ],
             [
-              89.0,
-              183.0,
+              7089.0,
+              6383.0,
               31
             ]
           ],

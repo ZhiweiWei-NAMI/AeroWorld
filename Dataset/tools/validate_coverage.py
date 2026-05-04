@@ -132,13 +132,18 @@ def main() -> None:
     taxonomy = load_taxonomy(taxonomy_path)
     found = find_scenario_scripts(scenarios_dir)
 
-    total_scripts = sum(len(v) for v in found.values())
+    all_scripts = list(scenarios_dir.rglob("event_script.json"))
+    total_scripts = len(all_scripts)
+    base_scripts = sum(len(v) for v in found.values())
+    cross_layer_scripts = sum(1 for path in all_scripts if "X_cross_layer" in path.parts)
     covered_types = len(found)
 
     print("=" * 60)
     print("UAM Dataset Coverage Report")
     print("=" * 60)
     print(f"Total event_script.json found: {total_scripts}")
+    print(f"Base L1-L6 scripts used for taxonomy coverage: {base_scripts}")
+    print(f"Cross-layer chain scripts: {cross_layer_scripts}")
     print(f"Event types covered: {covered_types}/{len(taxonomy['event_types'])}")
     print()
 

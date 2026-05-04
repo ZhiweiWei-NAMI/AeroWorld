@@ -266,6 +266,16 @@ class EventScriptInterpreter:
             ev_id = trigger_def["event_id"]
             ev_state = self.event_states.get(ev_id)
             active = ev_state is not None and ev_state.fired
+        elif ttype == "event_fired_after":
+            ev_id = trigger_def["event_id"]
+            ev_state = self.event_states.get(ev_id)
+            delay_ticks = int(trigger_def.get("delay_ticks", 0))
+            active = (
+                ev_state is not None
+                and ev_state.fired
+                and ev_state.last_fired_tick >= 0
+                and tick - ev_state.last_fired_tick >= delay_ticks
+            )
         elif ttype == "composite":
             active = self._eval_composite_trigger(trigger_def, tick)
         # Unknown trigger types default to inactive
@@ -303,7 +313,16 @@ class EventScriptInterpreter:
     def _eval_weather_trigger(self, td: dict[str, Any]) -> bool:
         param = str(td.get("parameter", "rain"))
         expected = float(td.get("value", 0.0))
-        actual = float(self.weather_state.get(param, 0.0))
+        aliases = {
+            "fog": ("fog", "fog_density"),
+            "visibility_m": ("visibility_m", "visibility"),
+        }
+        actual_raw = 0.0
+        for key in aliases.get(param, (param,)):
+            if key in self.weather_state:
+                actual_raw = self.weather_state.get(key, 0.0)
+                break
+        actual = float(actual_raw)
         op = str(td.get("operator", "gte"))
         return _compare(actual, op, expected)
 
@@ -312,10 +331,20 @@ class EventScriptInterpreter:
         b = self.entity_states.get(str(td.get("entity_b", "")))
         if a is None or b is None:
             return False
-        dist = math.hypot(
-            a.position_enu_m[0] - b.position_enu_m[0],
-            a.position_enu_m[1] - b.position_enu_m[1],
-        )
+        dx = a.position_enu_m[0] - b.position_enu_m[0]
+        dy = a.position_enu_m[1] - b.position_enu_m[1]
+        dz = a.position_enu_m[2] - b.position_enu_m[2]
+        horizontal = math.hypot(dx, dy)
+        vertical = abs(dz)
+        metric = str(td.get("metric", "xy")).lower()
+        if metric == "xy_plus_z":
+            horizontal_limit = float(td.get("horizontal_distance_m", td.get("distance_m", 0.0)))
+            vertical_limit = float(td.get("vertical_distance_m", td.get("distance_m", 0.0)))
+            return horizontal <= horizontal_limit and vertical <= vertical_limit
+        if metric == "3d":
+            dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+        else:
+            dist = horizontal
         return _compare(dist, str(td.get("operator", "lte")), float(td.get("distance_m", 0.0)))
 
     def _eval_composite_trigger(self, td: dict[str, Any], tick: int) -> bool:
@@ -323,9 +352,8 @@ class EventScriptInterpreter:
         child_ids: list[str] = td.get("children") or []
         results: list[bool] = []
         for child_id in child_ids:
-            child_def = self._find_trigger(child_id)
-            if child_def is not None:
-                results.append(self._evaluate_trigger(child_def, tick))
+            child_state = self.trigger_states.get(str(child_id))
+            results.append(bool(child_state and child_state.is_active))
         if op == "AND":
             return len(results) > 0 and all(results)
         if op == "OR":

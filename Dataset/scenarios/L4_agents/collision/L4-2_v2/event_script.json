@@ -19,12 +19,14 @@
       "entity_b": "facade_anchor_l4_2_v2",
       "distance_m": 8.0,
       "operator": "lte",
+      "metric": "3d",
       "min_true_ticks": 3
     },
     {
-      "trigger_id": "trig_after_facade_proximity",
-      "type": "event_fired",
-      "event_id": "facade_proximity"
+      "trigger_id": "trig_after_facade_proximity_delay_30",
+      "type": "event_fired_after",
+      "event_id": "facade_proximity",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -40,18 +42,18 @@
           "entity_id": "uav_facade_l4_2_v2",
           "waypoints_enu_m": [
             [
-              33.5,
-              82.0,
+              7033.5,
+              6282.0,
               31
             ],
             [
-              46.5,
-              89.0,
+              7046.5,
+              6289.0,
               26
             ],
             [
-              60.5,
-              97.0,
+              7060.5,
+              6297.0,
               18
             ]
           ],
@@ -82,13 +84,13 @@
           "entity_id": "uav_facade_l4_2_v2",
           "waypoints_enu_m": [
             [
-              60.5,
-              97.0,
+              7060.5,
+              6297.0,
               18
             ],
             [
-              54.5,
-              105.0,
+              7054.5,
+              6305.0,
               34
             ]
           ],
@@ -114,7 +116,7 @@
     },
     {
       "event_id": "facade_recovery",
-      "trigger_ref": "trig_after_facade_proximity",
+      "trigger_ref": "trig_after_facade_proximity_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -124,13 +126,13 @@
           "entity_id": "uav_facade_l4_2_v2",
           "waypoints_enu_m": [
             [
-              54.5,
-              105.0,
+              7054.5,
+              6305.0,
               34
             ],
             [
-              36.5,
-              109.0,
+              7036.5,
+              6309.0,
               32
             ]
           ],

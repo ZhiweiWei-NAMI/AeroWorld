@@ -13,19 +13,22 @@
       "tick": 240
     },
     {
-      "trigger_id": "trig_after_gcs_intrusion",
-      "type": "event_fired",
-      "event_id": "gcs_intrusion"
+      "trigger_id": "trig_after_gcs_intrusion_delay_30",
+      "type": "event_fired_after",
+      "event_id": "gcs_intrusion",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_abnormal_uav_behavior",
-      "type": "event_fired",
-      "event_id": "abnormal_uav_behavior"
+      "trigger_id": "trig_after_abnormal_uav_behavior_delay_30",
+      "type": "event_fired_after",
+      "event_id": "abnormal_uav_behavior",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_command_lockout",
-      "type": "event_fired",
-      "event_id": "command_lockout"
+      "trigger_id": "trig_after_command_lockout_delay_30",
+      "type": "event_fired_after",
+      "event_id": "command_lockout",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -58,7 +61,7 @@
     },
     {
       "event_id": "abnormal_uav_behavior",
-      "trigger_ref": "trig_after_gcs_intrusion",
+      "trigger_ref": "trig_after_gcs_intrusion_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -68,13 +71,13 @@
           "entity_id": "uav_digital_l6_5_v2",
           "waypoints_enu_m": [
             [
-              106.0,
-              224.8,
+              7106.0,
+              6424.8,
               32
             ],
             [
-              126.0,
-              212.8,
+              7126.0,
+              6412.8,
               32
             ]
           ],
@@ -103,7 +106,7 @@
     },
     {
       "event_id": "command_lockout",
-      "trigger_ref": "trig_after_abnormal_uav_behavior",
+      "trigger_ref": "trig_after_abnormal_uav_behavior_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -121,13 +124,13 @@
           "entity_id": "uav_digital_l6_5_v2",
           "waypoints_enu_m": [
             [
-              126.0,
-              212.8,
+              7126.0,
+              6412.8,
               32
             ],
             [
-              109.0,
-              231.8,
+              7109.0,
+              6431.8,
               34
             ]
           ],
@@ -148,7 +151,7 @@
     },
     {
       "event_id": "secure_recovery",
-      "trigger_ref": "trig_after_command_lockout",
+      "trigger_ref": "trig_after_command_lockout_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [

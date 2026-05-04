@@ -19,12 +19,16 @@
       "entity_b": "ped_nearmiss_l4_5_v3",
       "distance_m": 5.0,
       "operator": "lte",
+      "metric": "xy_plus_z",
+      "horizontal_distance_m": 3.0,
+      "vertical_distance_m": 6.0,
       "min_true_ticks": 2
     },
     {
-      "trigger_id": "trig_after_pedestrian_near_miss",
-      "type": "event_fired",
-      "event_id": "pedestrian_near_miss"
+      "trigger_id": "trig_after_pedestrian_near_miss_delay_30",
+      "type": "event_fired_after",
+      "event_id": "pedestrian_near_miss",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -40,18 +44,18 @@
           "entity_id": "uav_ped_nearmiss_l4_5_v3",
           "waypoints_enu_m": [
             [
-              93.5,
-              107.0,
+              7093.5,
+              6307.0,
               30
             ],
             [
-              99.5,
-              113.0,
+              7099.5,
+              6313.0,
               15
             ],
             [
-              104.5,
-              116.0,
+              7106.079,
+              6312.704,
               5
             ]
           ],
@@ -90,13 +94,13 @@
           "entity_id": "uav_ped_nearmiss_l4_5_v3",
           "waypoints_enu_m": [
             [
-              104.5,
-              116.0,
+              7106.079,
+              6312.704,
               5
             ],
             [
-              95.5,
-              124.0,
+              7098.079,
+              6320.704,
               24
             ]
           ],
@@ -122,7 +126,7 @@
     },
     {
       "event_id": "pedestrian_clears_area",
-      "trigger_ref": "trig_after_pedestrian_near_miss",
+      "trigger_ref": "trig_after_pedestrian_near_miss_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -132,14 +136,14 @@
           "entity_id": "ped_nearmiss_l4_5_v3",
           "waypoints_enu_m": [
             [
-              104.5,
-              116.0,
-              0
+              7106.079,
+              6312.704,
+              0.0
             ],
             [
-              111.5,
-              126.0,
-              0
+              7117.831,
+              6317.844,
+              0.0
             ]
           ],
           "velocity_mps": 1.5

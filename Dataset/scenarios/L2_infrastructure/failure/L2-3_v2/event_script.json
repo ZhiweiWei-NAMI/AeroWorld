@@ -13,14 +13,16 @@
       "tick": 240
     },
     {
-      "trigger_id": "trig_after_charger_unavailable",
-      "type": "event_fired",
-      "event_id": "charger_unavailable"
+      "trigger_id": "trig_after_charger_unavailable_delay_30",
+      "type": "event_fired_after",
+      "event_id": "charger_unavailable",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_uav_inspects_charger",
-      "type": "event_fired",
-      "event_id": "uav_inspects_charger"
+      "trigger_id": "trig_after_uav_inspects_charger_delay_30",
+      "type": "event_fired_after",
+      "event_id": "uav_inspects_charger",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -52,7 +54,7 @@
     },
     {
       "event_id": "uav_inspects_charger",
-      "trigger_ref": "trig_after_charger_unavailable",
+      "trigger_ref": "trig_after_charger_unavailable_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -62,18 +64,18 @@
           "entity_id": "uav_l2_3_v2",
           "waypoints_enu_m": [
             [
-              77.0,
-              17.5,
+              7077.0,
+              6217.5,
               28
             ],
             [
-              83.0,
-              12.5,
+              7083.0,
+              6212.5,
               18
             ],
             [
-              86.0,
-              10.5,
+              7086.0,
+              6210.5,
               10
             ]
           ],
@@ -99,7 +101,7 @@
     },
     {
       "event_id": "reroute_backup_charger",
-      "trigger_ref": "trig_after_uav_inspects_charger",
+      "trigger_ref": "trig_after_uav_inspects_charger_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -109,18 +111,18 @@
           "entity_id": "uav_l2_3_v2",
           "waypoints_enu_m": [
             [
-              86.0,
-              10.5,
+              7086.0,
+              6210.5,
               10
             ],
             [
-              97.0,
-              15.5,
+              7097.0,
+              6215.5,
               18
             ],
             [
-              108.0,
-              19.5,
+              7108.0,
+              6219.5,
               10
             ]
           ],

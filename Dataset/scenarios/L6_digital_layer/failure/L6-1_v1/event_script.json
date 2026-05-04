@@ -13,14 +13,16 @@
       "tick": 240
     },
     {
-      "trigger_id": "trig_after_c2_loss",
-      "type": "event_fired",
-      "event_id": "c2_loss"
+      "trigger_id": "trig_after_c2_loss_delay_30",
+      "type": "event_fired_after",
+      "event_id": "c2_loss",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_rth_engaged",
-      "type": "event_fired",
-      "event_id": "rth_engaged"
+      "trigger_id": "trig_after_rth_engaged_delay_30",
+      "type": "event_fired_after",
+      "event_id": "rth_engaged",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -44,13 +46,13 @@
           "entity_id": "uav_digital_l6_1_v1",
           "waypoints_enu_m": [
             [
-              34.0,
-              196.0,
+              7034.0,
+              6396.0,
               32
             ],
             [
-              48.0,
-              204.0,
+              7048.0,
+              6404.0,
               31
             ]
           ],
@@ -71,7 +73,7 @@
     },
     {
       "event_id": "rth_engaged",
-      "trigger_ref": "trig_after_c2_loss",
+      "trigger_ref": "trig_after_c2_loss_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -89,18 +91,18 @@
           "entity_id": "uav_digital_l6_1_v1",
           "waypoints_enu_m": [
             [
-              48.0,
-              204.0,
+              7048.0,
+              6404.0,
               31
             ],
             [
-              36.0,
-              197.0,
+              7036.0,
+              6397.0,
               34
             ],
             [
-              24.0,
-              190.0,
+              7024.0,
+              6390.0,
               30
             ]
           ],
@@ -121,7 +123,7 @@
     },
     {
       "event_id": "c2_recovered",
-      "trigger_ref": "trig_after_rth_engaged",
+      "trigger_ref": "trig_after_rth_engaged_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [

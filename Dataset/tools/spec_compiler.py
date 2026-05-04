@@ -66,8 +66,12 @@ class TriggerSpec:
     distance_m: Optional[float] = None
     proximity_operator: str = "lte"
     min_true_ticks: int = 1
+    metric: str = "xy"
+    horizontal_distance_m: Optional[float] = None
+    vertical_distance_m: Optional[float] = None
     # event_fired
     event_ref: Optional[str] = None
+    delay_ticks: int = 0
     # composite
     composite_operator: Optional[str] = None   # "AND" | "OR"
     composite_children: Optional[list[str]] = None  # trigger_id 列表
@@ -201,11 +205,21 @@ class SpecCompiler:
             base["entity_b"] = ts.entity_b
             base["distance_m"] = ts.distance_m
             base["operator"] = ts.proximity_operator
+            if ts.metric:
+                base["metric"] = ts.metric
+            if ts.horizontal_distance_m is not None:
+                base["horizontal_distance_m"] = ts.horizontal_distance_m
+            if ts.vertical_distance_m is not None:
+                base["vertical_distance_m"] = ts.vertical_distance_m
             if ts.min_true_ticks > 1:
                 base["min_true_ticks"] = ts.min_true_ticks
 
         elif ts.type == "event_fired":
             base["event_id"] = ts.event_ref
+
+        elif ts.type == "event_fired_after":
+            base["event_id"] = ts.event_ref
+            base["delay_ticks"] = ts.delay_ticks
 
         elif ts.type == "composite":
             base["operator"] = ts.composite_operator
@@ -218,6 +232,8 @@ class SpecCompiler:
         """生成唯一的 trigger_id。"""
         if ts.type == "event_fired":
             return f"trig_after_{ts.event_ref}"
+        if ts.type == "event_fired_after":
+            return f"trig_after_{ts.event_ref}_delay_{ts.delay_ticks}"
         return f"trig_{event_id}"
 
     def _trigger_signature(self, td: dict) -> str:
@@ -326,7 +342,10 @@ def make_weather_trigger(parameter: str, operator: str, value: float,
     )
 
 def make_proximity_trigger(entity_a: str, entity_b: str, distance_m: float,
-                           operator: str = "lte", min_true_ticks: int = 1) -> TriggerSpec:
+                           operator: str = "lte", min_true_ticks: int = 1,
+                           metric: str = "xy",
+                           horizontal_distance_m: float | None = None,
+                           vertical_distance_m: float | None = None) -> TriggerSpec:
     return TriggerSpec(
         type="entity_proximity",
         entity_a=entity_a,
@@ -334,10 +353,16 @@ def make_proximity_trigger(entity_a: str, entity_b: str, distance_m: float,
         distance_m=distance_m,
         proximity_operator=operator,
         min_true_ticks=min_true_ticks,
+        metric=metric,
+        horizontal_distance_m=horizontal_distance_m,
+        vertical_distance_m=vertical_distance_m,
     )
 
 def make_event_fired_trigger(event_ref: str) -> TriggerSpec:
     return TriggerSpec(type="event_fired", event_ref=event_ref)
+
+def make_event_fired_after_trigger(event_ref: str, delay_ticks: int) -> TriggerSpec:
+    return TriggerSpec(type="event_fired_after", event_ref=event_ref, delay_ticks=delay_ticks)
 
 def make_composite_trigger(operator: str, children: list[str]) -> TriggerSpec:
     return TriggerSpec(

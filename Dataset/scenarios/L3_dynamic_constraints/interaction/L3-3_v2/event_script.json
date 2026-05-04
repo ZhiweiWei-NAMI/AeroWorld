@@ -12,19 +12,22 @@
       "tick": 240
     },
     {
-      "trigger_id": "trig_after_hazmat_leak",
-      "type": "event_fired",
-      "event_id": "hazmat_leak"
+      "trigger_id": "trig_after_hazmat_leak_delay_30",
+      "type": "event_fired_after",
+      "event_id": "hazmat_leak",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_pedestrian_evacuation",
-      "type": "event_fired",
-      "event_id": "pedestrian_evacuation"
+      "trigger_id": "trig_after_pedestrian_evacuation_delay_30",
+      "type": "event_fired_after",
+      "event_id": "pedestrian_evacuation",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_ambulance_arrival",
-      "type": "event_fired",
-      "event_id": "ambulance_arrival"
+      "trigger_id": "trig_after_ambulance_arrival_delay_30",
+      "type": "event_fired_after",
+      "event_id": "ambulance_arrival",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -40,8 +43,8 @@
           "entity_id": "hazmat_zone_l3_3_v2",
           "asset_id": "trigger.hazard.generic.box.v1",
           "position_enu_m": [
-            92.0,
-            70.0,
+            7092.0,
+            6270.0,
             3
           ],
           "rotation_deg": {
@@ -65,7 +68,7 @@
     },
     {
       "event_id": "pedestrian_evacuation",
-      "trigger_ref": "trig_after_hazmat_leak",
+      "trigger_ref": "trig_after_hazmat_leak_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -75,14 +78,14 @@
           "entity_id": "ped_hazmat_l3_3_v2_a",
           "waypoints_enu_m": [
             [
-              89.0,
-              67.0,
-              0
+              7081.055,
+              6263.443,
+              0.0
             ],
             [
-              78.0,
-              78.0,
-              0
+              7067.73,
+              6275.323,
+              0.0
             ]
           ],
           "velocity_mps": 1.6
@@ -93,14 +96,14 @@
           "entity_id": "ped_hazmat_l3_3_v2_b",
           "waypoints_enu_m": [
             [
-              95.0,
-              68.0,
-              0
+              7081.956,
+              6261.666,
+              0.0
             ],
             [
-              106.0,
-              79.0,
-              0
+              7080.418,
+              6266.47,
+              0.0
             ]
           ],
           "velocity_mps": 1.4
@@ -121,7 +124,7 @@
     },
     {
       "event_id": "ambulance_arrival",
-      "trigger_ref": "trig_after_pedestrian_evacuation",
+      "trigger_ref": "trig_after_pedestrian_evacuation_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -131,14 +134,14 @@
           "entity_id": "ambulance_l3_3_v2",
           "waypoints_enu_m": [
             [
-              58.0,
-              54.0,
-              0
+              7039.154,
+              6248.764,
+              0.0
             ],
             [
-              80.0,
-              62.0,
-              0
+              7078.74,
+              6261.154,
+              0.0
             ]
           ],
           "velocity_mps": 11.0
@@ -158,7 +161,7 @@
     },
     {
       "event_id": "uav_external_monitor",
-      "trigger_ref": "trig_after_ambulance_arrival",
+      "trigger_ref": "trig_after_ambulance_arrival_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -168,18 +171,18 @@
           "entity_id": "uav_l3_3_v2",
           "waypoints_enu_m": [
             [
-              76.0,
-              49.0,
+              7076.0,
+              6249.0,
               33
             ],
             [
-              86.0,
-              59.0,
+              7086.0,
+              6259.0,
               30
             ],
             [
-              102.0,
-              82.0,
+              7102.0,
+              6282.0,
               30
             ]
           ],

@@ -13,14 +13,16 @@
       "tick": 240
     },
     {
-      "trigger_id": "trig_after_wideband_jamming",
-      "type": "event_fired",
-      "event_id": "wideband_jamming"
+      "trigger_id": "trig_after_wideband_jamming_delay_30",
+      "type": "event_fired_after",
+      "event_id": "wideband_jamming",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_multi_uav_safe_hold",
-      "type": "event_fired",
-      "event_id": "multi_uav_safe_hold"
+      "trigger_id": "trig_after_multi_uav_safe_hold_delay_30",
+      "type": "event_fired_after",
+      "event_id": "multi_uav_safe_hold",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -70,7 +72,7 @@
     },
     {
       "event_id": "multi_uav_safe_hold",
-      "trigger_ref": "trig_after_wideband_jamming",
+      "trigger_ref": "trig_after_wideband_jamming_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -80,13 +82,13 @@
           "entity_id": "uav_digital_l6_4_v1",
           "waypoints_enu_m": [
             [
-              82.0,
-              215.2,
+              7082.0,
+              6415.2,
               32
             ],
             [
-              86.0,
-              219.2,
+              7086.0,
+              6419.2,
               35
             ]
           ],
@@ -98,13 +100,13 @@
           "entity_id": "uav_digital_l6_4_v1_secondary",
           "waypoints_enu_m": [
             [
-              70.0,
-              222.2,
+              7070.0,
+              6422.2,
               34
             ],
             [
-              75.0,
-              227.2,
+              7075.0,
+              6427.2,
               36
             ]
           ],
@@ -125,7 +127,7 @@
     },
     {
       "event_id": "alternate_channel",
-      "trigger_ref": "trig_after_multi_uav_safe_hold",
+      "trigger_ref": "trig_after_multi_uav_safe_hold_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -143,13 +145,13 @@
           "entity_id": "uav_digital_l6_4_v1",
           "waypoints_enu_m": [
             [
-              86.0,
-              219.2,
+              7086.0,
+              6419.2,
               35
             ],
             [
-              97.0,
-              227.2,
+              7097.0,
+              6427.2,
               33
             ]
           ],
@@ -161,13 +163,13 @@
           "entity_id": "uav_digital_l6_4_v1_secondary",
           "waypoints_enu_m": [
             [
-              75.0,
-              227.2,
+              7075.0,
+              6427.2,
               36
             ],
             [
-              64.0,
-              233.2,
+              7064.0,
+              6433.2,
               34
             ]
           ],

@@ -12,24 +12,28 @@
       "tick": 220
     },
     {
-      "trigger_id": "trig_after_pedestrian_fall",
-      "type": "event_fired",
-      "event_id": "pedestrian_fall"
+      "trigger_id": "trig_after_pedestrian_fall_delay_30",
+      "type": "event_fired_after",
+      "event_id": "pedestrian_fall",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_uav_detection",
-      "type": "event_fired",
-      "event_id": "uav_detection"
+      "trigger_id": "trig_after_uav_detection_delay_30",
+      "type": "event_fired_after",
+      "event_id": "uav_detection",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_ambulance_dispatch",
-      "type": "event_fired",
-      "event_id": "ambulance_dispatch"
+      "trigger_id": "trig_after_ambulance_dispatch_delay_30",
+      "type": "event_fired_after",
+      "event_id": "ambulance_dispatch",
+      "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_isolation_setup",
-      "type": "event_fired",
-      "event_id": "isolation_setup"
+      "trigger_id": "trig_after_isolation_setup_delay_30",
+      "type": "event_fired_after",
+      "event_id": "isolation_setup",
+      "delay_ticks": 30
     }
   ],
   "events": [
@@ -43,8 +47,8 @@
           "type": "play_animation",
           "action_id": "play_x3_ped_fall",
           "ped_id": "ped_x3_fall",
-          "animation_path": "/Game/Animations/Pedestrian/Fall_Flat",
-          "start_section": "fall_start",
+          "animation_path": "/AeroSimHost/Animations/AM_Crouch",
+          "start_section": "",
           "play_rate": 1.0,
           "loop_count": 1
         }
@@ -62,7 +66,7 @@
     },
     {
       "event_id": "uav_detection",
-      "trigger_ref": "trig_after_pedestrian_fall",
+      "trigger_ref": "trig_after_pedestrian_fall_delay_30",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
@@ -72,13 +76,13 @@
           "entity_id": "uav_x3_detect",
           "waypoints_enu_m": [
             [
-              59.0,
-              250.0,
+              7059.0,
+              6450.0,
               32
             ],
             [
-              76.0,
-              260.0,
+              7114.373,
+              6426.431,
               16
             ]
           ],
@@ -104,7 +108,7 @@
     },
     {
       "event_id": "ambulance_dispatch",
-      "trigger_ref": "trig_after_uav_detection",
+      "trigger_ref": "trig_after_uav_detection_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -114,14 +118,14 @@
           "entity_id": "ambulance_x3",
           "waypoints_enu_m": [
             [
-              42.0,
-              243.0,
-              0
+              6977.193,
+              6406.004,
+              0.0
             ],
             [
-              71.0,
-              256.0,
-              0
+              7117.119,
+              6427.869,
+              0.0
             ]
           ],
           "velocity_mps": 12.0
@@ -141,7 +145,7 @@
     },
     {
       "event_id": "isolation_setup",
-      "trigger_ref": "trig_after_ambulance_dispatch",
+      "trigger_ref": "trig_after_ambulance_dispatch_delay_30",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -151,9 +155,9 @@
           "entity_id": "police_tape_x3",
           "asset_id": "prop.incident.police_tape.v1",
           "position_enu_m": [
-            77.0,
-            260.0,
-            0
+            7114.107,
+            6426.292,
+            0.0
           ],
           "rotation_deg": {
             "yaw_deg": 0
@@ -174,7 +178,7 @@
     },
     {
       "event_id": "emergency_documented",
-      "trigger_ref": "trig_after_isolation_setup",
+      "trigger_ref": "trig_after_isolation_setup_delay_30",
       "priority": 5,
       "max_fire_count": 1,
       "actions": [
