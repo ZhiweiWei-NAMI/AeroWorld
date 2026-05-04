@@ -1,0 +1,90 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "L5-2_v1",
+  "description": "Gradual fog, visibility slowly decreasing",
+  "parameters": {
+    "weather_onset_tick": 300
+  },
+  "triggers": [
+    {
+      "trigger_id": "trig_weather_onset",
+      "type": "tick",
+      "tick": 300
+    },
+    {
+      "trigger_id": "trig_after_weather_onset",
+      "type": "event_fired",
+      "event_id": "weather_onset"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "weather_onset",
+      "trigger_ref": "trig_weather_onset",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_weather",
+          "action_id": "set_weather_004",
+          "profile": "fog",
+          "overrides": {
+            "fog": 0.7,
+            "visibility_m": 6000.000000000001
+          }
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "uav_reaction"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_L5-2_v1_onset",
+        "category": "weather",
+        "title": "Gradual fog, visibility slowly decreasing — 天气变化开始",
+        "severity": "warning",
+        "overlay": "weather",
+        "target_ids": [
+          "weather_global"
+        ]
+      }
+    },
+    {
+      "event_id": "uav_reaction",
+      "trigger_ref": "trig_after_weather_onset",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_106",
+          "entity_id": "uav_patrol_01",
+          "waypoints_enu_m": [
+            [
+              50,
+              20,
+              30
+            ],
+            [
+              40,
+              15,
+              30
+            ]
+          ],
+          "velocity_mps": 3.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L5-2_v1_uav_react",
+        "category": "uav_mission",
+        "title": "UAV 因天气变化调整航线",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_patrol_01"
+        ]
+      }
+    }
+  ]
+}

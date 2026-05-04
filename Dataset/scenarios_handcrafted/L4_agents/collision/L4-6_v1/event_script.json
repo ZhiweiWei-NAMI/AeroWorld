@@ -1,0 +1,197 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "L4-6_v1_handcrafted",
+  "description": "Pedestrian jaywalking creates a vehicle conflict.",
+  "parameters": {
+    "primary_id": "car_jaywalk_01",
+    "secondary_id": "ped_jaywalk_01",
+    "start_tick": 300,
+    "duration_ticks": 900
+  },
+  "triggers": [
+    {
+      "trigger_id": "trig_stage1_start",
+      "type": "tick",
+      "tick": "$param.start_tick"
+    },
+    {
+      "trigger_id": "trig_weather_ready",
+      "type": "weather_state",
+      "parameter": "rain",
+      "operator": "gte",
+      "value": 0.2,
+      "sustain_ticks": 5
+    },
+    {
+      "trigger_id": "trig_after_stage1",
+      "type": "event_fired",
+      "event_id": "evt_stage1"
+    },
+    {
+      "trigger_id": "trig_stage2_gate",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_after_stage1",
+        "trig_weather_ready"
+      ]
+    },
+    {
+      "trigger_id": "trig_after_stage2",
+      "type": "event_fired",
+      "event_id": "evt_stage2"
+    },
+    {
+      "trigger_id": "trig_after_stage3",
+      "type": "event_fired",
+      "event_id": "evt_stage3"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "evt_stage1",
+      "trigger_ref": "trig_stage1_start",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "move_$param.primary_id",
+          "type": "move_entity",
+          "entity_id": "$param.primary_id",
+          "waypoints_enu_m": [
+            [
+              58,
+              24,
+              32
+            ],
+            [
+              54,
+              22,
+              30
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_stage1",
+        "category": "vehicle",
+        "title": "Pedestrian steps into road",
+        "severity": "warning",
+        "overlay": "vehicle",
+        "target_ids": [
+          "$param.primary_id"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_stage2",
+      "trigger_ref": "trig_stage2_gate",
+      "priority": 2,
+      "max_fire_count": 1,
+      "require_conditions": [
+        "trig_weather_ready"
+      ],
+      "actions": [
+        {
+          "action_id": "move_$param.primary_id",
+          "type": "move_entity",
+          "entity_id": "$param.primary_id",
+          "waypoints_enu_m": [
+            [
+              54,
+              22,
+              30
+            ],
+            [
+              50,
+              20,
+              24
+            ]
+          ],
+          "velocity_mps": 6.0
+        },
+        {
+          "action_id": "capture_stage2",
+          "type": "capture_screenshot",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_stage2",
+        "category": "vehicle",
+        "title": "Conflict condition becomes active",
+        "severity": "critical",
+        "overlay": "vehicle",
+        "target_ids": [
+          "$param.primary_id",
+          "$param.secondary_id"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_stage3",
+      "trigger_ref": "trig_after_stage2",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "secondary_state_change",
+          "type": "set_visual_state",
+          "entity_id": "$param.secondary_id",
+          "visual_state": {
+            "mode": "response"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_stage3",
+        "category": "vehicle",
+        "title": "Vehicle brakes",
+        "severity": "warning",
+        "overlay": "vehicle",
+        "target_ids": [
+          "$param.primary_id",
+          "$param.secondary_id"
+        ]
+      }
+    },
+    {
+      "event_id": "evt_stage4",
+      "trigger_ref": "trig_after_stage3",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "move_$param.primary_id",
+          "type": "move_entity",
+          "entity_id": "$param.primary_id",
+          "waypoints_enu_m": [
+            [
+              50,
+              20,
+              24
+            ],
+            [
+              56,
+              26,
+              32
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_stage4",
+        "category": "vehicle",
+        "title": "Crossing clears",
+        "severity": "info",
+        "overlay": "vehicle",
+        "target_ids": [
+          "$param.primary_id",
+          "$param.secondary_id"
+        ]
+      }
+    }
+  ]
+}

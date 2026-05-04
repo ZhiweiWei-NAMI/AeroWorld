@@ -1,0 +1,89 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "L2-2_v1",
+  "description": "Gradual multipath degradation in urban canyon",
+  "parameters": {
+    "failure_tick": 400
+  },
+  "triggers": [
+    {
+      "trigger_id": "trig_infra_failure",
+      "type": "tick",
+      "tick": 400
+    },
+    {
+      "trigger_id": "trig_after_infra_failure",
+      "type": "event_fired",
+      "event_id": "infra_failure"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "infra_failure",
+      "trigger_ref": "trig_infra_failure",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "vis_003",
+          "entity_id": "infra_station_01",
+          "visual_state": {
+            "mode": "disabled"
+          }
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "service_degraded"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_L2-2_v1_failure",
+        "category": "infrastructure",
+        "title": "Gradual multipath degradation in urban canyon — 基础设施故障",
+        "severity": "warning",
+        "overlay": "infrastructure",
+        "target_ids": [
+          "infra_station_01"
+        ]
+      }
+    },
+    {
+      "event_id": "service_degraded",
+      "trigger_ref": "trig_after_infra_failure",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_017",
+          "entity_id": "uav_ops_01",
+          "waypoints_enu_m": [
+            [
+              50,
+              20,
+              30
+            ],
+            [
+              48,
+              22,
+              20
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L2-2_v1_degraded",
+        "category": "uav_mission",
+        "title": "服务降级 — UAV 调整运行模式",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_ops_01"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "X6_crowd_evacuation_to_airspace_lockdown",
+  "description": "L4-8(crowd evacuation) -> L3-2(temp NFZ activation)",
+  "parameters": {},
+  "triggers": [
+    {
+      "trigger_id": "trig_crowd_evacuation",
+      "type": "tick",
+      "tick": 400
+    },
+    {
+      "trigger_id": "trig_after_crowd_evacuation",
+      "type": "event_fired",
+      "event_id": "crowd_evacuation"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "crowd_evacuation",
+      "trigger_ref": "trig_crowd_evacuation",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "a1",
+          "type": "spawn_crowd",
+          "group_id": "crowd_evac",
+          "count": 30,
+          "spawn_origin_enu_m": [
+            52,
+            20,
+            0
+          ],
+          "spawn_box_extent_cm": [
+            1000,
+            1000,
+            0
+          ],
+          "seed": 123
+        },
+        {
+          "action_id": "a2",
+          "type": "capture_screenshot",
+          "camera_id": "demo_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X6_crowd_evacuation_to_airspace_lockdown_crowd_evacuation",
+        "category": "pedestrian",
+        "title": "人群紧急疏散",
+        "severity": "critical",
+        "overlay": "pedestrian",
+        "target_ids": [
+          "crowd_evac"
+        ]
+      },
+      "on_fire": {
+        "emit_events": [
+          "nfz_activation"
+        ]
+      }
+    },
+    {
+      "event_id": "nfz_activation",
+      "trigger_ref": "trig_after_crowd_evacuation",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "a3",
+          "type": "spawn_entity",
+          "asset_id": "trigger.no_fly.box.v1",
+          "entity_id": "nfz_emergency",
+          "position_enu_m": [
+            52,
+            20,
+            15
+          ]
+        },
+        {
+          "action_id": "a4",
+          "type": "clear_crowd",
+          "group_id": "crowd_evac"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X6_crowd_evacuation_to_airspace_lockdown_nfz_activation",
+        "category": "infrastructure",
+        "title": "紧急禁飞区激活-空域封锁",
+        "severity": "critical",
+        "overlay": "infrastructure",
+        "target_ids": [
+          "nfz_emergency"
+        ]
+      }
+    }
+  ]
+}

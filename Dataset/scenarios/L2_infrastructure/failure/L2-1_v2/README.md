@@ -1,0 +1,26 @@
+# L2-1_v2: Cascading station failure, widespread link loss
+
+- **Event Type**: L2-1 — Communication Station Failure
+- **ODD Layer**: L2 (L2)
+- **Mechanism**: failure
+- **SORA SAIL**: III
+- **CAAC Reference**: Non-emergency (infrastructure failure)
+- **Severity**: major
+- **Belcastro Domain**: UTM:UTM Communication Infrastructure Issues
+
+## Causal Chain
+base station power loss → C2 signal degradation → UAV switches to backup link → reduced operational bandwidth
+
+## Entities
+radio_tower, uav, backup_station
+
+## Files
+- `event_script.json` — Compiled event script (loadable by EventScriptInterpreter)
+- `spec.py` — ScenarioSpec definition (auto-generated, customize for manual tuning)
+
+## Usage
+```python
+from donghu_core.event_script_interpreter import EventScriptInterpreter
+from pathlib import Path
+interpreter = EventScriptInterpreter(Path('event_script.json'))
+```

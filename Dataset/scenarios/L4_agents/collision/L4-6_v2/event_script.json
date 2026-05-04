@@ -1,0 +1,126 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "L4-6_v2",
+  "description": "Vehicle runs red light, pedestrian jumps back",
+  "parameters": {
+    "approach_tick": 400,
+    "conflict_tick": 450,
+    "resolution_tick": 480
+  },
+  "triggers": [
+    {
+      "trigger_id": "trig_approach_phase",
+      "type": "tick",
+      "tick": 400
+    },
+    {
+      "trigger_id": "trig_proximity_alert",
+      "type": "tick",
+      "tick": 450
+    }
+  ],
+  "events": [
+    {
+      "event_id": "approach_phase",
+      "trigger_ref": "trig_approach_phase",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_077",
+          "entity_id": "ped_01",
+          "waypoints_enu_m": [
+            [
+              55,
+              18,
+              0.0
+            ],
+            [
+              50,
+              20,
+              0.0
+            ]
+          ],
+          "velocity_mps": 8.0
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_078",
+          "entity_id": "car_01",
+          "waypoints_enu_m": [
+            [
+              48,
+              22,
+              0.0
+            ],
+            [
+              50,
+              20,
+              0.0
+            ]
+          ],
+          "velocity_mps": 7.0
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "proximity_alert"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_L4-6_v2_approach",
+        "category": "uav_mission",
+        "title": "两实体正在接近",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "ped_01",
+          "car_01"
+        ]
+      }
+    },
+    {
+      "event_id": "proximity_alert",
+      "trigger_ref": "trig_proximity_alert",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_076",
+          "entity_id": "ped_01",
+          "waypoints_enu_m": [
+            [
+              50,
+              20,
+              0
+            ],
+            [
+              48,
+              18,
+              0
+            ]
+          ],
+          "velocity_mps": 5.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "cap_017",
+          "camera_id": "demo_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-6_v2_conflict",
+        "category": "uav_mission",
+        "title": "冲突检测 — 避让动作触发",
+        "severity": "critical",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "ped_01",
+          "car_01"
+        ]
+      }
+    }
+  ]
+}

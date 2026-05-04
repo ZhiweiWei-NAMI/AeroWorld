@@ -1,0 +1,198 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "X3_pedestrian_fall_to_emergency_response",
+  "description": "Pedestrian fall detected → ambulance dispatched → emergency isolation zone established. Demonstrates cross-ODD-layer causal chain: L4(agents) → L3(dynamic constraints).",
+  "parameters": {
+    "incident_tick": 400,
+    "dispatch_tick": 450,
+    "zone_tick": 480
+  },
+  "triggers": [
+    {
+      "trigger_id": "trig_incident",
+      "type": "tick",
+      "tick": 400
+    },
+    {
+      "trigger_id": "trig_dispatch",
+      "type": "event_fired",
+      "event_id": "pedestrian_fall_detected"
+    },
+    {
+      "trigger_id": "trig_arrival",
+      "type": "event_fired",
+      "event_id": "ambulance_dispatched"
+    },
+    {
+      "trigger_id": "trig_zone",
+      "type": "event_fired",
+      "event_id": "ambulance_arrived"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "pedestrian_fall_detected",
+      "trigger_ref": "trig_incident",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "fall_anim",
+          "type": "play_animation",
+          "ped_id": "ped_victim_01",
+          "animation_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
+          "start_section": "Start",
+          "play_rate": 1.0,
+          "loop_count": 1
+        },
+        {
+          "action_id": "uav_move",
+          "type": "move_entity",
+          "entity_id": "uav_patrol_01",
+          "waypoints_enu_m": [
+            [
+              60,
+              25,
+              30
+            ],
+            [
+              52,
+              19,
+              15
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "ambulance_dispatched"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_x3_pedestrian_fall",
+        "category": "pedestrian",
+        "title": "行人跌倒检测 — 跨层链启动",
+        "severity": "critical",
+        "overlay": "pedestrian",
+        "target_ids": [
+          "ped_victim_01"
+        ]
+      }
+    },
+    {
+      "event_id": "ambulance_dispatched",
+      "trigger_ref": "trig_dispatch",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "spawn_ambulance",
+          "type": "spawn_entity",
+          "asset_id": "vehicle.emergency.ambulance.v1",
+          "entity_id": "ambulance_x3_01",
+          "position_enu_m": [
+            80,
+            40,
+            0.0
+          ],
+          "visual_state": {
+            "mode": "response",
+            "lights_on": true
+          }
+        },
+        {
+          "action_id": "move_ambulance",
+          "type": "move_entity",
+          "entity_id": "ambulance_x3_01",
+          "waypoints_enu_m": [
+            [
+              80,
+              40,
+              0
+            ],
+            [
+              52,
+              19,
+              0
+            ]
+          ],
+          "velocity_mps": 12.0
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "ambulance_arrived"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_x3_ambulance_dispatch",
+        "category": "vehicle",
+        "title": "救护车派遣 — L4→L3桥接",
+        "severity": "warning",
+        "overlay": "vehicle",
+        "target_ids": [
+          "ambulance_x3_01"
+        ]
+      }
+    },
+    {
+      "event_id": "ambulance_arrived",
+      "trigger_ref": "trig_arrival",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "capture_arrival",
+          "type": "capture_screenshot",
+          "camera_id": "demo_overview"
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "isolation_zone_active"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_x3_ambulance_arrived",
+        "category": "vehicle",
+        "title": "救护车到达 — 触发隔离区",
+        "severity": "info",
+        "overlay": "vehicle",
+        "target_ids": [
+          "ambulance_x3_01",
+          "ped_victim_01"
+        ]
+      }
+    },
+    {
+      "event_id": "isolation_zone_active",
+      "trigger_ref": "trig_zone",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "spawn_zone",
+          "type": "spawn_entity",
+          "asset_id": "trigger.hazard.generic.box.v1",
+          "entity_id": "hazard_zone_x3",
+          "position_enu_m": [
+            52,
+            19,
+            0.0
+          ]
+        }
+      ],
+      "log_event": {
+        "topic": "evt_x3_isolation_zone",
+        "category": "infrastructure",
+        "title": "应急隔离区建立 — 跨层链完成",
+        "severity": "warning",
+        "overlay": "infrastructure",
+        "target_ids": [
+          "hazard_zone_x3"
+        ]
+      }
+    }
+  ]
+}

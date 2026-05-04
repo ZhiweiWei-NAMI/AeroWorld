@@ -1,0 +1,105 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "L4-3_v1",
+  "description": "Controlled descent to empty area",
+  "parameters": {
+    "failure_tick": 400
+  },
+  "triggers": [
+    {
+      "trigger_id": "trig_failure_detected",
+      "type": "tick",
+      "tick": 400
+    },
+    {
+      "trigger_id": "trig_after_failure_detected",
+      "type": "event_fired",
+      "event_id": "failure_detected"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "failure_detected",
+      "trigger_ref": "trig_failure_detected",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_048",
+          "entity_id": "uav_ops_01",
+          "waypoints_enu_m": [
+            [
+              50,
+              20,
+              35
+            ],
+            [
+              46,
+              16,
+              15
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "emergency_landing"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_L4-3_v1_failure",
+        "category": "uav_mission",
+        "title": "Controlled descent to empty area — 系统失效检测",
+        "severity": "critical",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_ops_01"
+        ]
+      }
+    },
+    {
+      "event_id": "emergency_landing",
+      "trigger_ref": "trig_after_failure_detected",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_049",
+          "entity_id": "uav_ops_01",
+          "waypoints_enu_m": [
+            [
+              46,
+              16,
+              15
+            ],
+            [
+              45,
+              15,
+              0.5
+            ]
+          ],
+          "velocity_mps": 2.0
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "cap_008",
+          "camera_id": "demo_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-3_v1_landing",
+        "category": "uav_mission",
+        "title": "紧急迫降执行",
+        "severity": "critical",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_ops_01",
+          "pad_emergency_01"
+        ]
+      }
+    }
+  ]
+}

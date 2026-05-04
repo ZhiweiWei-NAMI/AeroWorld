@@ -1,0 +1,440 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix uam: <http://uam-dataset.org/ontology/> .
+
+# ============================================================================
+# Ontology Metadata
+# ============================================================================
+
+<http://uam-dataset.org/ontology/>
+    rdf:type owl:Ontology ;
+    rdfs:label "Low-Altitude Urban Air Mobility Event Ontology"@en ;
+    rdfs:comment """
+    OWL-DL ontology for the UAM multi-modal event dataset.
+    Models agents, infrastructure, zones, environmental conditions, events, and missions
+    in low-altitude urban airspace (below 120m AGL).
+    Design based on nSKG (Mlodzian et al., ICCVW 2023) methodology,
+    adapted to UAM domain with 35 classes, 14 object properties, and 10 data properties.
+    Profile: OWL 2 DL SROIQ(D).
+    """@en ;
+    owl:versionInfo "1.0.0" .
+
+# ============================================================================
+# Top-Level Classes
+# ============================================================================
+
+uam:Agent rdf:type owl:Class ;
+    rdfs:label "Agent"@en ;
+    rdfs:comment "Any entity capable of autonomous or directed action in the UAM domain."@en .
+
+uam:Infrastructure rdf:type owl:Class ;
+    rdfs:label "Infrastructure"@en ;
+    rdfs:comment "Fixed or semi-fixed physical structures supporting UAM operations."@en .
+
+uam:Zone rdf:type owl:Class ;
+    rdfs:label "Zone"@en ;
+    rdfs:comment "A defined spatial region with operational significance."@en .
+
+uam:EnvironmentalCondition rdf:type owl:Class ;
+    rdfs:label "Environmental Condition"@en ;
+    rdfs:comment "Weather, lighting, or other environmental state."@en .
+
+uam:Event rdf:type owl:Class ;
+    rdfs:label "Event"@en ;
+    rdfs:comment "An occurrence or state change of operational significance."@en .
+
+uam:Mission rdf:type owl:Class ;
+    rdfs:label "Mission"@en ;
+    rdfs:comment "A planned operational task assigned to one or more agents."@en .
+
+# ============================================================================
+# Agent Hierarchy
+# ============================================================================
+
+uam:UAV rdf:type owl:Class ;
+    rdfs:subClassOf uam:Agent ;
+    rdfs:label "UAV"@en ;
+    rdfs:comment "Unmanned Aerial Vehicle operating in low-altitude urban airspace."@en .
+
+uam:DeliveryUAV rdf:type owl:Class ;
+    rdfs:subClassOf uam:UAV ;
+    rdfs:label "Delivery UAV"@en .
+
+uam:InspectionUAV rdf:type owl:Class ;
+    rdfs:subClassOf uam:UAV ;
+    rdfs:label "Inspection UAV"@en .
+
+uam:EmergencyUAV rdf:type owl:Class ;
+    rdfs:subClassOf uam:UAV ;
+    rdfs:label "Emergency Response UAV"@en .
+
+uam:GroundVehicle rdf:type owl:Class ;
+    rdfs:subClassOf uam:Agent ;
+    rdfs:label "Ground Vehicle"@en .
+
+uam:Car rdf:type owl:Class ;
+    rdfs:subClassOf uam:GroundVehicle ;
+    rdfs:label "Car"@en .
+
+uam:EmergencyVehicle rdf:type owl:Class ;
+    rdfs:subClassOf uam:GroundVehicle ;
+    rdfs:label "Emergency Vehicle"@en .
+
+uam:Truck rdf:type owl:Class ;
+    rdfs:subClassOf uam:GroundVehicle ;
+    rdfs:label "Truck"@en .
+
+uam:AutonomousVehicle rdf:type owl:Class ;
+    rdfs:subClassOf uam:GroundVehicle ;
+    rdfs:label "Autonomous Vehicle"@en .
+
+uam:Pedestrian rdf:type owl:Class ;
+    rdfs:subClassOf uam:Agent ;
+    rdfs:label "Pedestrian"@en .
+
+uam:Adult rdf:type owl:Class ;
+    rdfs:subClassOf uam:Pedestrian ;
+    rdfs:label "Adult Pedestrian"@en .
+
+uam:Child rdf:type owl:Class ;
+    rdfs:subClassOf uam:Pedestrian ;
+    rdfs:label "Child Pedestrian"@en .
+
+uam:Elder rdf:type owl:Class ;
+    rdfs:subClassOf uam:Pedestrian ;
+    rdfs:label "Elder Pedestrian"@en .
+
+uam:Crowd rdf:type owl:Class ;
+    rdfs:subClassOf uam:Pedestrian ;
+    rdfs:label "Crowd"@en ;
+    rdfs:comment "A group of pedestrians treated as a collective agent."@en .
+
+uam:Operator rdf:type owl:Class ;
+    rdfs:subClassOf uam:Agent ;
+    rdfs:label "Operator"@en .
+
+uam:RemotePilot rdf:type owl:Class ;
+    rdfs:subClassOf uam:Operator ;
+    rdfs:label "Remote Pilot"@en .
+
+uam:FleetManager rdf:type owl:Class ;
+    rdfs:subClassOf uam:Operator ;
+    rdfs:label "Fleet Manager"@en .
+
+# ============================================================================
+# Infrastructure Hierarchy
+# ============================================================================
+
+uam:LandingPad rdf:type owl:Class ;
+    rdfs:subClassOf uam:Infrastructure ;
+    rdfs:label "Landing Pad"@en .
+
+uam:ChargingStation rdf:type owl:Class ;
+    rdfs:subClassOf uam:Infrastructure ;
+    rdfs:label "Charging Station"@en .
+
+uam:RadioTower rdf:type owl:Class ;
+    rdfs:subClassOf uam:Infrastructure ;
+    rdfs:label "Radio Tower"@en .
+
+uam:TrafficLight rdf:type owl:Class ;
+    rdfs:subClassOf uam:Infrastructure ;
+    rdfs:label "Traffic Light"@en .
+
+uam:RoadSegment rdf:type owl:Class ;
+    rdfs:subClassOf uam:Infrastructure ;
+    rdfs:label "Road Segment"@en .
+
+# ============================================================================
+# Zone Hierarchy
+# ============================================================================
+
+uam:NoFlyZone rdf:type owl:Class ;
+    rdfs:subClassOf uam:Zone ;
+    rdfs:label "No-Fly Zone"@en .
+
+uam:HazardZone rdf:type owl:Class ;
+    rdfs:subClassOf uam:Zone ;
+    rdfs:label "Hazard Zone"@en .
+
+uam:EmergencyZone rdf:type owl:Class ;
+    rdfs:subClassOf uam:Zone ;
+    rdfs:label "Emergency Zone"@en .
+
+uam:DeliveryZone rdf:type owl:Class ;
+    rdfs:subClassOf uam:Zone ;
+    rdfs:label "Delivery Zone"@en .
+
+# ============================================================================
+# Environmental Condition Hierarchy
+# ============================================================================
+
+uam:Weather rdf:type owl:Class ;
+    rdfs:subClassOf uam:EnvironmentalCondition ;
+    rdfs:label "Weather Condition"@en .
+
+uam:Rain rdf:type owl:Class ;
+    rdfs:subClassOf uam:Weather ;
+    rdfs:label "Rain"@en .
+
+uam:Fog rdf:type owl:Class ;
+    rdfs:subClassOf uam:Weather ;
+    rdfs:label "Fog"@en .
+
+uam:Wind rdf:type owl:Class ;
+    rdfs:subClassOf uam:Weather ;
+    rdfs:label "Wind"@en .
+
+uam:Lighting rdf:type owl:Class ;
+    rdfs:subClassOf uam:EnvironmentalCondition ;
+    rdfs:label "Lighting Condition"@en .
+
+uam:Day rdf:type owl:Class ;
+    rdfs:subClassOf uam:Lighting ;
+    rdfs:label "Daylight"@en .
+
+uam:Twilight rdf:type owl:Class ;
+    rdfs:subClassOf uam:Lighting ;
+    rdfs:label "Twilight"@en .
+
+uam:Night rdf:type owl:Class ;
+    rdfs:subClassOf uam:Lighting ;
+    rdfs:label "Night"@en .
+
+# ============================================================================
+# Event Hierarchy
+# ============================================================================
+
+uam:HazardEvent rdf:type owl:Class ;
+    rdfs:subClassOf uam:Event ;
+    rdfs:label "Hazard Event"@en ;
+    rdfs:comment "An event representing a safety hazard or threat."@en .
+
+uam:ResponseEvent rdf:type owl:Class ;
+    rdfs:subClassOf uam:Event ;
+    rdfs:label "Response Event"@en ;
+    rdfs:comment "An event triggered in response to a hazard event."@en .
+
+uam:StateChangeEvent rdf:type owl:Class ;
+    rdfs:subClassOf uam:Event ;
+    rdfs:label "State Change Event"@en ;
+    rdfs:comment "An event representing a change in operational state."@en .
+
+uam:MissionEvent rdf:type owl:Class ;
+    rdfs:subClassOf uam:Event ;
+    rdfs:label "Mission Event"@en ;
+    rdfs:comment "An event related to mission execution."@en .
+
+# ============================================================================
+# Mission Hierarchy
+# ============================================================================
+
+uam:DeliveryMission rdf:type owl:Class ;
+    rdfs:subClassOf uam:Mission ;
+    rdfs:label "Delivery Mission"@en .
+
+uam:InspectionMission rdf:type owl:Class ;
+    rdfs:subClassOf uam:Mission ;
+    rdfs:label "Inspection Mission"@en .
+
+uam:EmergencyResponseMission rdf:type owl:Class ;
+    rdfs:subClassOf uam:Mission ;
+    rdfs:label "Emergency Response Mission"@en .
+
+# ============================================================================
+# Class Disjointness (key disjointness axioms)
+# ============================================================================
+
+uam:UAV owl:disjointWith uam:GroundVehicle .
+uam:UAV owl:disjointWith uam:Pedestrian .
+uam:GroundVehicle owl:disjointWith uam:Pedestrian .
+uam:Agent owl:disjointWith uam:Infrastructure .
+uam:Agent owl:disjointWith uam:Zone .
+uam:Infrastructure owl:disjointWith uam:Zone .
+uam:HazardEvent owl:disjointWith uam:ResponseEvent .
+uam:HazardEvent owl:disjointWith uam:StateChangeEvent .
+uam:ResponseEvent owl:disjointWith uam:StateChangeEvent .
+
+# ============================================================================
+# Object Properties (Relationships)
+# ============================================================================
+
+# --- Spatial Relationships ---
+
+uam:spatial_near rdf:type owl:ObjectProperty ;
+    rdfs:label "spatially near"@en ;
+    rdfs:domain uam:Agent ;
+    rdfs:range uam:Agent ;
+    owl:inverseOf uam:spatial_near ;
+    rdfs:comment "Two agents are within a threshold distance of each other."@en .
+
+uam:spatial_inside rdf:type owl:ObjectProperty ;
+    rdfs:label "spatially inside"@en ;
+    rdfs:domain uam:Agent ;
+    rdfs:range uam:Zone ;
+    rdfs:comment "An agent is spatially contained within a zone."@en .
+
+uam:spatial_on rdf:type owl:ObjectProperty ;
+    rdfs:label "spatially on"@en ;
+    rdfs:domain uam:Agent ;
+    rdfs:range uam:RoadSegment ;
+    rdfs:comment "An agent is located on a specific road segment."@en .
+
+uam:spatial_approaching rdf:type owl:ObjectProperty ;
+    rdfs:label "spatially approaching"@en ;
+    rdfs:domain uam:Agent ;
+    rdfs:range uam:Agent ;
+    rdfs:comment "An agent is on a trajectory that reduces distance to another agent or infrastructure."@en .
+
+# --- Causal Relationships ---
+
+uam:causal_triggers rdf:type owl:ObjectProperty ;
+    rdfs:label "causally triggers"@en ;
+    rdfs:domain uam:Event ;
+    rdfs:range uam:Event ;
+    rdf:type owl:TransitiveProperty ;
+    rdfs:comment "Event A directly causes Event B to occur."@en .
+
+uam:causal_prevents rdf:type owl:ObjectProperty ;
+    rdfs:label "causally prevents"@en ;
+    rdfs:domain uam:Event ;
+    rdfs:range uam:Event ;
+    rdfs:comment "Event A prevents Event B from occurring."@en .
+
+uam:causal_amplifies rdf:type owl:ObjectProperty ;
+    rdfs:label "causally amplifies"@en ;
+    rdfs:domain uam:EnvironmentalCondition ;
+    rdfs:range uam:HazardEvent ;
+    rdfs:comment "An environmental condition increases the severity or likelihood of a hazard event."@en .
+
+# --- Temporal Relationships ---
+
+uam:temporal_before rdf:type owl:ObjectProperty ;
+    rdfs:label "temporally before"@en ;
+    rdfs:domain uam:Event ;
+    rdfs:range uam:Event ;
+    rdf:type owl:TransitiveProperty ;
+    rdfs:comment "Event A occurs before Event B in simulation time."@en .
+
+uam:temporal_overlaps rdf:type owl:ObjectProperty ;
+    rdfs:label "temporally overlaps"@en ;
+    rdfs:domain uam:Event ;
+    rdfs:range uam:Event ;
+    rdfs:comment "Event A and Event B have overlapping temporal extents."@en .
+
+uam:temporal_during rdf:type owl:ObjectProperty ;
+    rdfs:label "temporally during"@en ;
+    rdfs:domain uam:Event ;
+    rdfs:range uam:EnvironmentalCondition ;
+    rdfs:comment "An event occurs during a specific environmental condition."@en .
+
+# --- Operational Relationships ---
+
+uam:operational_controls rdf:type owl:ObjectProperty ;
+    rdfs:label "operationally controls"@en ;
+    rdfs:domain uam:Operator ;
+    rdfs:range uam:UAV ;
+    rdfs:comment "An operator has direct control over a UAV."@en .
+
+uam:operational_monitors rdf:type owl:ObjectProperty ;
+    rdfs:label "operationally monitors"@en ;
+    rdfs:domain uam:UAV ;
+    rdfs:range uam:Zone ;
+    rdfs:comment "A UAV is assigned to monitor a specific zone."@en .
+
+uam:operational_assigned_to rdf:type owl:ObjectProperty ;
+    rdfs:label "operationally assigned to"@en ;
+    rdfs:domain uam:UAV ;
+    rdfs:range uam:Mission ;
+    rdf:type owl:FunctionalProperty ;
+    rdfs:comment "A UAV is assigned to a specific mission."@en .
+
+uam:operational_responds_to rdf:type owl:ObjectProperty ;
+    rdfs:label "operationally responds to"@en ;
+    rdfs:domain uam:ResponseEvent ;
+    rdfs:range uam:HazardEvent ;
+    rdfs:comment "A response event is triggered as a reaction to a hazard event."@en .
+
+# ============================================================================
+# Data Properties
+# ============================================================================
+
+uam:has_state rdf:type owl:DatatypeProperty ;
+    rdfs:label "has state"@en ;
+    rdfs:domain uam:Agent ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Current operational state of an agent (e.g., idle, moving, hovering)."@en .
+
+uam:has_position_x rdf:type owl:DatatypeProperty ;
+    rdfs:label "position X (ENU)"@en ;
+    rdfs:domain uam:Agent ;
+    rdfs:range xsd:float ;
+    rdfs:comment "East-North-Up X coordinate in meters."@en .
+
+uam:has_position_y rdf:type owl:DatatypeProperty ;
+    rdfs:label "position Y (ENU)"@en ;
+    rdfs:domain uam:Agent ;
+    rdfs:range xsd:float .
+
+uam:has_position_z rdf:type owl:DatatypeProperty ;
+    rdfs:label "position Z (ENU)"@en ;
+    rdfs:domain uam:Agent ;
+    rdfs:range xsd:float .
+
+uam:has_velocity_mps rdf:type owl:DatatypeProperty ;
+    rdfs:label "velocity (m/s)"@en ;
+    rdfs:domain uam:Agent ;
+    rdfs:range xsd:float .
+
+uam:has_battery_pct rdf:type owl:DatatypeProperty ;
+    rdfs:label "battery percentage"@en ;
+    rdfs:domain uam:UAV ;
+    rdfs:range xsd:float .
+
+uam:has_rain_intensity rdf:type owl:DatatypeProperty ;
+    rdfs:label "rain intensity"@en ;
+    rdfs:domain uam:Rain ;
+    rdfs:range xsd:float .
+
+uam:has_visibility_m rdf:type owl:DatatypeProperty ;
+    rdfs:label "visibility (meters)"@en ;
+    rdfs:domain uam:EnvironmentalCondition ;
+    rdfs:range xsd:float .
+
+uam:has_risk_level rdf:type owl:DatatypeProperty ;
+    rdfs:label "risk level"@en ;
+    rdfs:domain uam:Event ;
+    rdfs:range xsd:string ;
+    rdfs:comment "SORA SAIL level or operational risk assessment."@en .
+
+uam:has_tick rdf:type owl:DatatypeProperty ;
+    rdfs:label "simulation tick"@en ;
+    rdfs:domain uam:Event ;
+    rdfs:range xsd:integer .
+
+uam:has_severity rdf:type owl:DatatypeProperty ;
+    rdfs:label "event severity"@en ;
+    rdfs:domain uam:Event ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Event severity: info, warning, critical."@en .
+
+uam:has_odd_layer rdf:type owl:DatatypeProperty ;
+    rdfs:label "ODD layer"@en ;
+    rdfs:domain uam:Event ;
+    rdfs:range xsd:string ;
+    rdfs:comment "PEGASUS-adapted ODD layer: L1-L6."@en .
+
+# ============================================================================
+# SWRL Rule Hints (for reasoning engines, as comments)
+# ============================================================================
+
+# If event A triggers B, then A is before B:
+#   uam:causal_triggers(?a, ?b) → uam:temporal_before(?a, ?b)
+
+# If UAV is assigned to mission, and mission phase is active, then event is MissionEvent:
+#   uam:operational_assigned_to(?uav, ?mission) ∧ uam:has_state(?uav, "mission_active") → ...
+
+# If agent is inside NoFlyZone, then event is of type Violation:
+#   uam:spatial_inside(?agent, ?nfz) ∧ uam:NoFlyZone(?nfz) → ...

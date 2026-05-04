@@ -1,0 +1,130 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "X1_rain_to_c2loss_to_forced_landing",
+  "description": "L5-1(rain) -> L6-1(C2 loss) -> L4-3(forced landing)",
+  "parameters": {},
+  "triggers": [
+    {
+      "trigger_id": "trig_rain_onset",
+      "type": "tick",
+      "tick": 300
+    },
+    {
+      "trigger_id": "trig_after_rain_onset",
+      "type": "event_fired",
+      "event_id": "rain_onset"
+    },
+    {
+      "trigger_id": "trig_after_c2_degradation",
+      "type": "event_fired",
+      "event_id": "c2_degradation"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "rain_onset",
+      "trigger_ref": "trig_rain_onset",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "a1",
+          "type": "set_weather",
+          "profile": "rain",
+          "overrides": {
+            "rain": 0.8,
+            "visibility_m": 1500.0,
+            "wind_speed": 8.0
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_rain_onset",
+        "category": "weather",
+        "title": "降雨开始",
+        "severity": "warning",
+        "overlay": "weather",
+        "target_ids": [
+          "weather_global"
+        ]
+      },
+      "on_fire": {
+        "emit_events": [
+          "c2_degradation"
+        ]
+      }
+    },
+    {
+      "event_id": "c2_degradation",
+      "trigger_ref": "trig_after_rain_onset",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "a2",
+          "type": "set_visual_state",
+          "entity_id": "tower_01",
+          "visual_state": {
+            "mode": "disabled"
+          }
+        },
+        {
+          "action_id": "a3",
+          "type": "capture_screenshot",
+          "camera_id": "demo_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_c2_degradation",
+        "category": "infrastructure",
+        "title": "C2链路退化",
+        "severity": "critical",
+        "overlay": "infrastructure",
+        "target_ids": [
+          "tower_01"
+        ]
+      },
+      "on_fire": {
+        "emit_events": [
+          "forced_landing"
+        ]
+      }
+    },
+    {
+      "event_id": "forced_landing",
+      "trigger_ref": "trig_after_c2_degradation",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "a4",
+          "type": "move_entity",
+          "entity_id": "uav_01",
+          "waypoints_enu_m": [
+            [
+              50,
+              20,
+              35
+            ],
+            [
+              45,
+              15,
+              0.5
+            ]
+          ],
+          "velocity_mps": 3.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X1_rain_to_c2loss_to_forced_landing_forced_landing",
+        "category": "uav_mission",
+        "title": "紧急迫降",
+        "severity": "critical",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_01"
+        ]
+      }
+    }
+  ]
+}

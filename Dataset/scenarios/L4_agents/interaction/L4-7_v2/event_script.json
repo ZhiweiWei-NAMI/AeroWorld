@@ -1,0 +1,158 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "L4-7_v2",
+  "description": "Sudden cardiac event, passerby alerts, UAV confirms",
+  "parameters": {
+    "incident_tick": 400
+  },
+  "triggers": [
+    {
+      "trigger_id": "trig_incident_occurred",
+      "type": "tick",
+      "tick": 400
+    },
+    {
+      "trigger_id": "trig_after_incident_occurred",
+      "type": "event_fired",
+      "event_id": "incident_occurred"
+    },
+    {
+      "trigger_id": "trig_after_dispatch_responder",
+      "type": "event_fired",
+      "event_id": "dispatch_responder"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "incident_occurred",
+      "trigger_ref": "trig_incident_occurred",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "play_animation",
+          "action_id": "anim_010",
+          "ped_id": "ped_victim_01",
+          "animation_path": "/Game/MixamoAssets/Animations/AM_Fall_Flat_2Stage.AM_Fall_Flat_2Stage",
+          "start_section": "Start",
+          "play_rate": 1.0,
+          "loop_count": 1
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_081",
+          "entity_id": "uav_patrol_01",
+          "waypoints_enu_m": [
+            [
+              60,
+              25,
+              30
+            ],
+            [
+              52,
+              20,
+              15
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "dispatch_responder"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_L4-7_v2_incident",
+        "category": "pedestrian",
+        "title": "Sudden cardiac event, passerby alerts, UAV confirms — 事件检测",
+        "severity": "critical",
+        "overlay": "pedestrian",
+        "target_ids": [
+          "ped_victim_01"
+        ]
+      }
+    },
+    {
+      "event_id": "dispatch_responder",
+      "trigger_ref": "trig_after_incident_occurred",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_005",
+          "asset_id": "vehicle.emergency.ambulance.v1",
+          "entity_id": "ambulance_response_01",
+          "position_enu_m": [
+            80,
+            40,
+            0
+          ],
+          "visual_state": {
+            "mode": "response",
+            "lights_on": true
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_082",
+          "entity_id": "ambulance_response_01",
+          "waypoints_enu_m": [
+            [
+              80,
+              40,
+              0
+            ],
+            [
+              52,
+              19,
+              0
+            ]
+          ],
+          "velocity_mps": 12.0
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "responder_arrived"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_L4-7_v2_dispatch",
+        "category": "vehicle",
+        "title": "应急响应派遣",
+        "severity": "warning",
+        "overlay": "vehicle",
+        "target_ids": [
+          "ambulance_response_01"
+        ]
+      }
+    },
+    {
+      "event_id": "responder_arrived",
+      "trigger_ref": "trig_after_dispatch_responder",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "capture_screenshot",
+          "action_id": "cap_019",
+          "camera_id": "demo_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-7_v2_arrival",
+        "category": "uav_mission",
+        "title": "应急响应到达确认",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_patrol_01",
+          "ambulance_response_01",
+          "ped_victim_01"
+        ]
+      }
+    }
+  ]
+}

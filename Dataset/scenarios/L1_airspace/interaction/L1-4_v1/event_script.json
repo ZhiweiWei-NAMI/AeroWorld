@@ -1,0 +1,101 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "L1-4_v1",
+  "description": "Moderate congestion, queued resolution",
+  "parameters": {
+    "violation_tick": 400
+  },
+  "triggers": [
+    {
+      "trigger_id": "trig_zone_approach",
+      "type": "tick",
+      "tick": 400
+    },
+    {
+      "trigger_id": "trig_after_zone_approach",
+      "type": "event_fired",
+      "event_id": "zone_approach"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "zone_approach",
+      "trigger_ref": "trig_zone_approach",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_011",
+          "entity_id": "uav_delivery_01",
+          "waypoints_enu_m": [
+            [
+              60,
+              25,
+              25
+            ],
+            [
+              52,
+              20,
+              25
+            ]
+          ],
+          "velocity_mps": 6.0
+        }
+      ],
+      "on_fire": {
+        "emit_events": [
+          "zone_breach"
+        ]
+      },
+      "log_event": {
+        "topic": "evt_L1-4_v1_approach",
+        "category": "uav_mission",
+        "title": "UAV 接近限制空域",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_delivery_01",
+          "nfz_critical_01"
+        ]
+      }
+    },
+    {
+      "event_id": "zone_breach",
+      "trigger_ref": "trig_after_zone_approach",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_012",
+          "entity_id": "uav_delivery_01",
+          "waypoints_enu_m": [
+            [
+              52,
+              20,
+              25
+            ],
+            [
+              58,
+              25,
+              30
+            ]
+          ],
+          "velocity_mps": 8.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L1-4_v1_breach",
+        "category": "uav_mission",
+        "title": "空域违规 — 强制返航",
+        "severity": "critical",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_delivery_01",
+          "nfz_critical_01"
+        ]
+      }
+    }
+  ]
+}

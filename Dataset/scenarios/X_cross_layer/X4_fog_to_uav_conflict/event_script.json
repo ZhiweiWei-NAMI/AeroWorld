@@ -1,0 +1,177 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "X4_fog_to_uav_conflict",
+  "description": "L5-2(fog) -> L4-1(UAV-UAV near-miss)",
+  "parameters": {},
+  "triggers": [
+    {
+      "trigger_id": "trig_fog_onset",
+      "type": "tick",
+      "tick": 300
+    },
+    {
+      "trigger_id": "trig_after_fog_onset",
+      "type": "event_fired",
+      "event_id": "fog_onset"
+    },
+    {
+      "trigger_id": "trig_after_uav_approach",
+      "type": "event_fired",
+      "event_id": "uav_approach"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "fog_onset",
+      "trigger_ref": "trig_fog_onset",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "a1",
+          "type": "set_weather",
+          "profile": "fog",
+          "overrides": {
+            "fog": 0.9,
+            "visibility_m": 300.0
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X4_fog_to_uav_conflict_fog_onset",
+        "category": "weather",
+        "title": "团雾出现",
+        "severity": "warning",
+        "overlay": "weather",
+        "target_ids": [
+          "weather_global"
+        ]
+      },
+      "on_fire": {
+        "emit_events": [
+          "uav_approach"
+        ]
+      }
+    },
+    {
+      "event_id": "uav_approach",
+      "trigger_ref": "trig_after_fog_onset",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "a2",
+          "type": "move_entity",
+          "entity_id": "uav_a",
+          "waypoints_enu_m": [
+            [
+              55,
+              18,
+              30
+            ],
+            [
+              50,
+              20,
+              25
+            ]
+          ],
+          "velocity_mps": 4.0
+        },
+        {
+          "action_id": "a3",
+          "type": "move_entity",
+          "entity_id": "uav_b",
+          "waypoints_enu_m": [
+            [
+              48,
+              22,
+              30
+            ],
+            [
+              50,
+              20,
+              25
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X4_fog_to_uav_conflict_uav_approach",
+        "category": "uav_mission",
+        "title": "两UAV在雾中接近",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_a",
+          "uav_b"
+        ]
+      },
+      "on_fire": {
+        "emit_events": [
+          "conflict_detected"
+        ]
+      }
+    },
+    {
+      "event_id": "conflict_detected",
+      "trigger_ref": "trig_after_uav_approach",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "action_id": "a4",
+          "type": "move_entity",
+          "entity_id": "uav_a",
+          "waypoints_enu_m": [
+            [
+              50,
+              20,
+              25
+            ],
+            [
+              58,
+              18,
+              35
+            ]
+          ],
+          "velocity_mps": 8.0
+        },
+        {
+          "action_id": "a5",
+          "type": "move_entity",
+          "entity_id": "uav_b",
+          "waypoints_enu_m": [
+            [
+              50,
+              20,
+              25
+            ],
+            [
+              45,
+              24,
+              35
+            ]
+          ],
+          "velocity_mps": 8.0
+        },
+        {
+          "action_id": "a6",
+          "type": "capture_screenshot",
+          "camera_id": "demo_overview"
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X4_fog_to_uav_conflict_conflict_detected",
+        "category": "uav_mission",
+        "title": "冲突检测-紧急避让",
+        "severity": "critical",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_a",
+          "uav_b"
+        ]
+      }
+    }
+  ]
+}
