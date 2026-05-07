@@ -277,12 +277,14 @@ class AeroSimClient:
         yaw_deg: float = 0.0,
         variant_id: str = "",
         snap_to_ground: bool = True,
+        preserve_xy: bool = True,
         map_id: str = "",
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "ped_id": ped_id,
             "yaw_deg": float(yaw_deg),
             "snap_to_ground": bool(snap_to_ground),
+            "preserve_xy": bool(preserve_xy),
         }
         if position_enu_m is not None:
             payload["position_enu_m"] = _vector_payload(position_enu_m)
@@ -302,13 +304,22 @@ class AeroSimClient:
         position_enu_m: Sequence[float] | None = None,
         yaw_deg: float = 0.0,
         snap_to_ground: bool = True,
+        preserve_xy: bool = True,
+        frame_pose: bool = False,
+        walking: bool = False,
+        speed_cm_per_sec: float = 0.0,
         map_id: str = "",
     ) -> dict[str, Any]:
         payload = {
             "ped_id": ped_id,
             "yaw_deg": float(yaw_deg),
             "snap_to_ground": bool(snap_to_ground),
+            "preserve_xy": bool(preserve_xy),
         }
+        if frame_pose:
+            payload["frame_pose"] = True
+            payload["walking"] = bool(walking)
+            payload["speed_cm_per_sec"] = float(speed_cm_per_sec)
         if position_enu_m is not None:
             payload["position_enu_m"] = _vector_payload(position_enu_m)
         elif position_world_cm is not None:

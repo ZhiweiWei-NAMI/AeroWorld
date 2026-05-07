@@ -13,11 +13,11 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7073.5,
-      6458.0,
+      7086.404,
+      6446.255,
       0.0
     ],
-    "radius_m": 177.007,
+    "radius_m": 195.25,
     "source": "scene_entities_and_routes"
   },
   "entities": [
@@ -28,24 +28,46 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7058.0,
-          6451.0,
-          32
+          7109.677,
+          6423.972,
+          3.0
         ],
         "resolved_position_enu_m": [
-          7058.0,
-          6451.0,
-          32
+          7109.677,
+          6423.972,
+          3.0
         ],
         "rotation_deg": {
           "yaw_deg": 45
         }
       },
-      "route_waypoints_enu_m": [],
+      "route_waypoints_enu_m": [
+        [
+          7058.0,
+          6451.0,
+          32
+        ]
+      ],
       "initial_state": {
-        "mode": "mission"
+        "mode": "preflight_on_pad"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "lifecycle": {
+        "auto_lifecycle_applied": true,
+        "home_pad_entity_id": "pad_home_uav_x2_spoofed",
+        "home_hover_enu_m": [
+          7109.677,
+          6423.972,
+          3.0
+        ],
+        "mission_start_enu_m": [
+          7058.0,
+          6451.0,
+          32
+        ],
+        "requires_takeoff": true,
+        "requires_landing_or_terminal_resolution": true
+      }
     },
     {
       "entity_id": "nfz_x2_geofence",
@@ -72,6 +94,34 @@
       "route_waypoints_enu_m": [],
       "initial_state": {},
       "activation_tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_x2_spoofed",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "home_uav_x2_spoofed",
+        "approach_side": "departure",
+        "position_enu_m": [
+          7109.677,
+          6423.972,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          7109.677,
+          6423.972,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 117.638
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
+      },
+      "activation_tick": 0
     }
   ],
   "spawn_sequencing": [
@@ -81,6 +131,10 @@
     },
     {
       "entity_id": "nfz_x2_geofence",
+      "tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_x2_spoofed",
       "tick": 0
     }
   ],
@@ -94,9 +148,9 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7073.5,
-          6458.0,
-          75.0
+          7086.404,
+          6446.255,
+          96.113
         ],
         "rotation_deg": {
           "pitch_deg": -70.0,

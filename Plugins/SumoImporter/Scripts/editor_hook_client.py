@@ -314,24 +314,29 @@ print("EDITOR_HOOK_SENT", {command_name!r}, payload.get("request_id"))
         )
         return self._run_console_json_command("aero.remove_asset_json", request_json)
 
-    def capture_rgb(
+    def capture_modality(
         self,
         *,
         map_id: str,
         asset_id: str,
+        modality: str,
         output_path: Path,
         width: int,
         height: int,
         fov_degrees: float,
     ) -> dict[str, Any]:
+        normalized_modality = str(modality or "rgb").strip().lower()
+        if normalized_modality not in {"rgb", "depth", "seg"}:
+            raise ValueError(f"Unsupported fixed world capture modality: {modality!r}")
         absolute_output_path = output_path.resolve()
         absolute_output_path.parent.mkdir(parents=True, exist_ok=True)
         previous_mtime = absolute_output_path.stat().st_mtime if absolute_output_path.exists() else None
         request_json = self._make_request_json(
             map_id,
-            f"capture_{asset_id}",
+            f"capture_{asset_id}_{normalized_modality}",
             {
                 "asset_id": asset_id,
+                "modality": normalized_modality,
                 "output_path": str(absolute_output_path).replace("\\", "/"),
                 "width": int(width),
                 "height": int(height),
@@ -342,11 +347,32 @@ print("EDITOR_HOOK_SENT", {command_name!r}, payload.get("request_id"))
         self._wait_for_output(absolute_output_path, previous_mtime)
         return {
             "editor_hook_response": response,
+            "modality": normalized_modality,
             "output_path": str(absolute_output_path),
             "width": int(width),
             "height": int(height),
             "fov_degrees": float(fov_degrees),
         }
+
+    def capture_rgb(
+        self,
+        *,
+        map_id: str,
+        asset_id: str,
+        output_path: Path,
+        width: int,
+        height: int,
+        fov_degrees: float,
+    ) -> dict[str, Any]:
+        return self.capture_modality(
+            map_id=map_id,
+            asset_id=asset_id,
+            modality="rgb",
+            output_path=output_path,
+            width=width,
+            height=height,
+            fov_degrees=fov_degrees,
+        )
 
     def _wait_for_output(self, output_path: Path, previous_mtime: float | None) -> None:
         deadline = time.perf_counter() + self.capture_timeout_s
@@ -361,7 +387,11 @@ print("EDITOR_HOOK_SENT", {command_name!r}, payload.get("request_id"))
         if self.log_path.exists():
             try:
                 lines = self.log_path.read_text(encoding="utf-8", errors="ignore").splitlines()
-                excerpt_lines = [line for line in lines if "simAeroCaptureWorldCamera" in line or "fixed_world_camera" in line]
+                excerpt_lines = [
+                    line
+                    for line in lines
+                    if "simAeroCaptureWorldCamera" in line or "fixed_world_camera" in line or "CaptureWorldCamera" in line
+                ]
                 if excerpt_lines:
                     log_excerpt = "\n".join(excerpt_lines[-10:])
             except Exception:

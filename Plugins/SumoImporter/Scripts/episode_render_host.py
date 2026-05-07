@@ -6,6 +6,7 @@ import bisect
 import csv
 import json
 import math
+import shutil
 import sys
 import time
 from dataclasses import dataclass
@@ -57,6 +58,18 @@ REQUIRED_CAPABILITIES = {
     "simAeroGetRuntimeMultirotorStatus",
     "simAeroRemoveRuntimeVehicle",
     "simAeroGetRuntimeVehiclePose",
+}
+
+SEMANTIC_PALETTE: dict[str, list[int]] = {
+    "background": [0, 0, 0],
+    "static_map": [90, 90, 90],
+    "uav": [255, 0, 0],
+    "vehicle": [0, 128, 255],
+    "pedestrian": [255, 255, 0],
+    "roadwork_prop": [255, 128, 0],
+    "traffic_control": [0, 255, 255],
+    "facility": [128, 0, 255],
+    "hazard_trigger": [255, 0, 255],
 }
 
 
@@ -133,6 +146,43 @@ class CoordinateTransform:
             z += self.translation_enu_m[2]
         return [x, y, z]
 
+    def _inverse_axis_mapping(self, x: float, y: float, z: float) -> tuple[float, float, float]:
+        mapping = self.axis_mapping.strip() or "XY_To_XY"
+        if mapping == "XY_To_XNegY":
+            return x, -y, z
+        if mapping == "XY_To_YX":
+            return y, x, z
+        if mapping == "XY_To_YNegX":
+            return -y, x, z
+        return x, y, z
+
+    def inverse_vector(self, value_enu: Sequence[float]) -> list[float]:
+        x = float(value_enu[0] if len(value_enu) > 0 else 0.0)
+        y = float(value_enu[1] if len(value_enu) > 1 else 0.0)
+        z = float(value_enu[2] if len(value_enu) > 2 else 0.0)
+        if self.enabled and abs(self.yaw_deg) > 1e-6:
+            yaw_rad = math.radians(-self.yaw_deg)
+            cos_yaw = math.cos(yaw_rad)
+            sin_yaw = math.sin(yaw_rad)
+            x, y = x * cos_yaw - y * sin_yaw, x * sin_yaw + y * cos_yaw
+        if self.enabled:
+            x, y, z = self._inverse_axis_mapping(x, y, z)
+        return [
+            x / (self.scale_enu[0] or 1.0),
+            y / (self.scale_enu[1] or 1.0),
+            z / (self.scale_enu[2] or 1.0),
+        ]
+
+    def inverse_position(self, position_enu_m: Sequence[float]) -> list[float]:
+        x = float(position_enu_m[0] if len(position_enu_m) > 0 else 0.0)
+        y = float(position_enu_m[1] if len(position_enu_m) > 1 else 0.0)
+        z = float(position_enu_m[2] if len(position_enu_m) > 2 else 0.0)
+        if self.enabled:
+            x -= self.translation_enu_m[0]
+            y -= self.translation_enu_m[1]
+            z -= self.translation_enu_m[2]
+        return self.inverse_vector((x, y, z))
+
     def apply_rotation(self, rotation_deg: dict[str, Any]) -> dict[str, float]:
         result = {
             "pitch_deg": float(rotation_deg.get("pitch_deg", rotation_deg.get("pitch", 0.0))),
@@ -144,6 +194,19 @@ class CoordinateTransform:
             forward_x, forward_y, _ = self._transform_vector_components((math.cos(yaw_rad), math.sin(yaw_rad), 0.0))
             if abs(forward_x) > 1e-6 or abs(forward_y) > 1e-6:
                 result["yaw_deg"] = math.degrees(math.atan2(forward_y, forward_x))
+        return result
+
+    def inverse_rotation(self, rotation_deg: dict[str, Any]) -> dict[str, float]:
+        result = {
+            "pitch_deg": float(rotation_deg.get("pitch_deg", rotation_deg.get("pitch", 0.0))),
+            "yaw_deg": float(rotation_deg.get("yaw_deg", rotation_deg.get("yaw", 0.0))),
+            "roll_deg": float(rotation_deg.get("roll_deg", rotation_deg.get("roll", 0.0))),
+        }
+        if self.enabled:
+            yaw_rad = math.radians(result["yaw_deg"])
+            local_x, local_y, _ = self.inverse_vector((math.cos(yaw_rad), math.sin(yaw_rad), 0.0))
+            if abs(local_x) > 1e-6 or abs(local_y) > 1e-6:
+                result["yaw_deg"] = math.degrees(math.atan2(local_y, local_x))
         return result
 
     def apply_vector(self, value_enu: Sequence[float]) -> list[float]:
@@ -605,47 +668,6 @@ def heading_deg_from_vector(x_m: float, y_m: float, *, default_deg: float = 0.0)
     return math.degrees(math.atan2(y_m, x_m))
 
 
-def get_image_type_enum(airsim_module: Any, name: str) -> Any:
-    clean = (name or "Scene").strip()
-    if hasattr(airsim_module.ImageType, clean):
-        return getattr(airsim_module.ImageType, clean)
-    if clean.isdigit():
-        return int(clean)
-    raise ValueError(f"Unsupported AirSim image type: {name}")
-
-
-def vector3r_to_list(value: Any) -> list[float] | None:
-    if value is None:
-        return None
-    if hasattr(value, "x_val"):
-        return [float(value.x_val), float(value.y_val), float(value.z_val)]
-    if hasattr(value, "x"):
-        return [float(value.x()), float(value.y()), float(value.z())]
-    if isinstance(value, Sequence):
-        return [float(value[0]), float(value[1]), float(value[2])]
-    return None
-
-
-def quaternion_to_dict(value: Any) -> dict[str, float] | None:
-    if value is None:
-        return None
-    if hasattr(value, "w_val"):
-        return {
-            "w": float(value.w_val),
-            "x": float(value.x_val),
-            "y": float(value.y_val),
-            "z": float(value.z_val),
-        }
-    if hasattr(value, "w"):
-        return {
-            "w": float(value.w()),
-            "x": float(value.x()),
-            "y": float(value.y()),
-            "z": float(value.z()),
-        }
-    return None
-
-
 def rotation_dict_from_truth(entity: dict[str, Any]) -> dict[str, float]:
     rotation = ((entity.get("truth_pose") or {}).get("rotation_deg") or {})
     return {
@@ -896,7 +918,11 @@ class EpisodeRenderHost:
         self.ground_projection_warning_keys: set[str] = set()
         self.capture_warmup_complete = False
         self.capture_orchestrator = CaptureOrchestrator()
-        self.pedestrian_pose_service = PedestrianPoseService()
+        pedestrian_pose_cfg = dict(self.config.get("pedestrian_pose") or {})
+        self.pedestrian_pose_service = PedestrianPoseService(
+            min_speed_mps=float(pedestrian_pose_cfg.get("min_speed_mps", 0.15)),
+            locomotion_yaw_offset_deg=float(pedestrian_pose_cfg.get("locomotion_yaw_offset_deg", 180.0)),
+        )
         self.uav_execution_service = UavExecutionService(
             arrival_tolerance_m=float((self.config.get("runtime_uav") or {}).get("arrival_tolerance_m", 1.5)),
             hover_before_capture=False,
@@ -907,6 +933,8 @@ class EpisodeRenderHost:
         self.ped_last_activity: dict[str, str] = {}
         self.ped_last_variant: dict[str, str] = {}
         self.uav_active_by_entity: dict[str, str] = {}
+        self.uav_last_command_target_by_entity: dict[str, list[float]] = {}
+        self.event_controlled_entity_ids: set[str] = set()
 
         self.all_scene_sync_ids, self.all_ped_ids, self.all_uav_vehicle_names = self._discover_entity_modes()
         self.batch_plans = self._build_batches()
@@ -915,6 +943,9 @@ class EpisodeRenderHost:
         self.client: AeroSimClient | None = None
         self.fixed_world_capture_hook: FixedWorldCaptureEditorHook | None = None
         self.ground_camera_asset_ids: dict[tuple[str, str], str] = {}
+        self.uav_camera_asset_ids: dict[tuple[str, str], str] = {}
+        self.prepared_capture_output_dirs: set[Path] = set()
+        self.crowd_group_ids: set[str] = set()
         self.runtime_uav_direct_rpc_enabled = True
         self.runtime_uav_direct_rpc_disable_reason = ""
         self.runtime_uav_debug_cfg = dict(self.config.get("runtime_uav_debug") or {})
@@ -923,10 +954,29 @@ class EpisodeRenderHost:
             for value in (self.runtime_uav_debug_cfg.get("entity_ids") or [])
             if str(value).strip()
         }
+        role_filters = {
+            str(value).strip().lower()
+            for value in (getattr(self.args, "camera_role", None) or [])
+            if str(value).strip()
+        }
+        if "all" in role_filters:
+            role_filters.clear()
+        self.capture_role_filters = role_filters
+        self.capture_camera_filters = {
+            str(value).strip()
+            for value in (getattr(self.args, "camera_id", None) or [])
+            if str(value).strip()
+        }
+        self.capture_modality_filters = {
+            str(value).strip()
+            for value in (getattr(self.args, "modality", None) or [])
+            if str(value).strip()
+        }
         self.event_weather_overlay: dict[str, Any] = {}
         self.event_scene_setup: dict[str, Any] = {}
         self.event_entity_assets: dict[str, str] = {}
         self.event_entity_initial_positions: dict[str, list[float]] = {}
+        self.event_capture_bbox_enu_m: list[float] | None = None
 
         # Optional event script interpreter
         event_script_path_str = self.config.get("event_script_path")
@@ -1439,8 +1489,14 @@ class EpisodeRenderHost:
     def _transform_position_enu(self, position_enu_m: Sequence[float]) -> list[float]:
         return self.coordinate_transform.apply_position(position_enu_m)
 
+    def _inverse_transform_position_enu(self, position_enu_m: Sequence[float]) -> list[float]:
+        return self.coordinate_transform.inverse_position(position_enu_m)
+
     def _transform_rotation_deg(self, rotation_deg: dict[str, Any]) -> dict[str, float]:
         return self.coordinate_transform.apply_rotation(rotation_deg)
+
+    def _inverse_transform_rotation_deg(self, rotation_deg: dict[str, Any]) -> dict[str, float]:
+        return self.coordinate_transform.inverse_rotation(rotation_deg)
 
     def _transform_vector_enu(self, value_enu: Sequence[float]) -> list[float]:
         return self.coordinate_transform.apply_vector(value_enu)
@@ -1475,6 +1531,20 @@ class EpisodeRenderHost:
                 float(value_enu[2] if len(value_enu) > 2 else 0.0),
             ]
         return self._transform_vector_enu(value_enu)
+
+    def _apply_frame_position_enu(self, position_enu_m: Sequence[float]) -> list[float]:
+        if self._truth_frame_uses_map_enu():
+            return self._inverse_transform_position_enu(position_enu_m)
+        return [
+            float(position_enu_m[0] if len(position_enu_m) > 0 else 0.0),
+            float(position_enu_m[1] if len(position_enu_m) > 1 else 0.0),
+            float(position_enu_m[2] if len(position_enu_m) > 2 else 0.0),
+        ]
+
+    def _apply_frame_rotation_deg(self, rotation_deg: dict[str, Any]) -> dict[str, float]:
+        if self._truth_frame_uses_map_enu():
+            return self._inverse_transform_rotation_deg(rotation_deg)
+        return dict(rotation_deg)
 
     def _transformed_entity_pose(self, entity: dict[str, Any]) -> tuple[list[float], dict[str, float]]:
         position_enu_m = self._transform_truth_position_enu(position_enu_from_truth(entity))
@@ -1570,7 +1640,21 @@ class EpisodeRenderHost:
             cache_namespace=cache_namespace,
             use_cache=use_cache,
         )
-        return list((ground_details or {}).get("ground_relative_enu_m") or resolved)
+        ground_relative = (ground_details or {}).get("ground_relative_enu_m")
+        if not isinstance(ground_relative, Sequence) or isinstance(ground_relative, (str, bytes)) or len(ground_relative) < 3:
+            raise RuntimeError(
+                "Ground-relative UAV command requested, but simAeroProjectGround did not return "
+                f"ground_relative_enu_m for position_enu_m={resolved}"
+            )
+        return [float(ground_relative[0]), float(ground_relative[1]), float(ground_relative[2])]
+
+    def _runtime_uav_command_position_enu(self, entity_id: str, position_enu_m: Sequence[float]) -> list[float]:
+        return self._ground_relative_position(
+            position_enu_m,
+            enabled=bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
+            cache_namespace=f"uav_script:{entity_id}",
+            use_cache=True,
+        )
 
     def _project_ground_details(
         self,
@@ -1586,34 +1670,10 @@ class EpisodeRenderHost:
         cache_key = (cache_namespace, int(round(resolved[0] * 100.0)), int(round(resolved[1] * 100.0)))
         payload = self.ground_projection_cache.get(cache_key) if use_cache else None
         if payload is None:
-            try:
-                response = self._retry("project_ground", self.client.project_ground, point_enu_m=resolved, map_id=self.map_id)
-                payload = dict(response.get("payload") or {})
-                if use_cache:
-                    self.ground_projection_cache[cache_key] = dict(payload)
-            except Exception as exc:
-                warning_key = cache_namespace or f"{cache_key[1]}:{cache_key[2]}"
-                if warning_key not in self.ground_projection_warning_keys:
-                    print(
-                        "[EpisodeHost] project_ground warning "
-                        f"namespace={cache_namespace or '<none>'} "
-                        f"position_enu_m={resolved} "
-                        f"error={exc} "
-                        "falling back to the original ENU position."
-                    )
-                    self.ground_projection_warning_keys.add(warning_key)
-                fallback = {
-                    "input_enu_m": resolved,
-                    "projected_enu_m": list(resolved),
-                    "ground_relative_enu_m": list(resolved),
-                    "surface_normal_enu": [0.0, 0.0, 1.0],
-                    "anchor_id": "",
-                    "ground_resolved": False,
-                    "fallback_reason": str(exc),
-                }
-                if use_cache:
-                    self.ground_projection_cache[cache_key] = dict(fallback)
-                return fallback
+            response = self._retry("project_ground", self.client.project_ground, point_enu_m=resolved, map_id=self.map_id)
+            payload = dict(response.get("payload") or {})
+            if use_cache:
+                self.ground_projection_cache[cache_key] = dict(payload)
 
         projected_raw = payload.get("projected_enu_m") or resolved
         surface_normal_raw = payload.get("surface_normal_enu") or [0.0, 0.0, 1.0]
@@ -1721,9 +1781,9 @@ class EpisodeRenderHost:
         for preset in self._site_ground_presets(self.args.site or site_id)[:limit]:
             camera_id = str(preset.get("camera_id", preset.get("camera_name", "external")))
             raw_position = [float(value) for value in preset.get("position_enu_m") or [0.0, 0.0, 0.0]]
-            resolved_position = self._transform_position_enu(raw_position)
+            resolved_position = self._camera_position_from_preset(preset)
             raw_rotation = dict(preset.get("rotation_deg") or {})
-            resolved_rotation = self._transform_rotation_deg(raw_rotation)
+            resolved_rotation = self._camera_rotation_from_preset(preset)
             message = (
                 f"[EpisodeHost] camera={camera_id} raw_pos={raw_position} resolved_pos={resolved_position} "
                 f"raw_rot={raw_rotation} resolved_rot={resolved_rotation}"
@@ -1755,6 +1815,9 @@ class EpisodeRenderHost:
         self.ped_last_activity.clear()
         self.ped_last_variant.clear()
         self.uav_active_by_entity.clear()
+        self.uav_last_command_target_by_entity.clear()
+        self.crowd_group_ids.clear()
+        self.event_controlled_entity_ids.clear()
         self.road_topology_snapper.clear_state()
         self.last_weather_signature = None
         self.capture_warmup_complete = False
@@ -2075,6 +2138,8 @@ class EpisodeRenderHost:
                 print(f"[EpisodeHost] forced_reset_apply_frame warning: {exc}")
         for ped_id in sorted(self.all_ped_ids):
             self._best_effort("ped_release", self.client.ped_release, ped_id, map_id=self.map_id)
+        for group_id in sorted(self.crowd_group_ids):
+            self._best_effort("ped_clear_crowd", self.client.ped_clear_crowd, group_id, map_id=self.map_id)
         for vehicle_name in sorted(self.all_uav_vehicle_names):
             if self._runtime_uav_use_editor_hook():
                 self._best_effort(
@@ -2087,7 +2152,7 @@ class EpisodeRenderHost:
             try:
                 self.client.remove_runtime_vehicle(vehicle_name, map_id=self.map_id)
             except Exception as exc:
-                self._disable_runtime_uav_direct_rpc(str(exc))
+                print(f"[EpisodeHost] remove_runtime_vehicle reset warning for {vehicle_name}: {exc}")
                 self._best_effort(
                     "remove_runtime_vehicle_editor_hook",
                     self._runtime_uav_editor_hook().remove_runtime_vehicle,
@@ -2144,8 +2209,8 @@ class EpisodeRenderHost:
             item = self._scene_sync_item(
                 entity,
                 resolution,
-                position_enu_m=record["position_enu_m"],
-                rotation_deg=record["rotation_deg"],
+                position_enu_m=self._apply_frame_position_enu(record["position_enu_m"]),
+                rotation_deg=self._apply_frame_rotation_deg(record["rotation_deg"]),
             )
             if entity_id in self.scene_active_ids:
                 updates.append(item)
@@ -2282,10 +2347,20 @@ class EpisodeRenderHost:
                 freeze_pose=should_preserve_pose,
             )
 
-            # Keep truth XY authoritative for pedestrians. Bridge-level ground snapping can
-            # reproject to semantic road anchors and drift fallen pedestrians away from the
-            # incident point we intentionally aligned the camera to.
-            snap_to_ground = bool(activity_rule.get("snap_to_ground", False))
+            # Keep truth XY authoritative for pedestrians; C++ ground snapping only resolves
+            # terrain Z when preserve_xy is enabled.
+            snap_to_ground = bool(activity_rule.get("snap_to_ground", True))
+            velocity = list(record.get("velocity_enu_mps") or [0.0, 0.0, 0.0])
+            speed_mps = math.sqrt(sum(float(value) * float(value) for value in velocity[:2]))
+            frame_pose = not preserve_pose and not is_fallen_activity(entity)
+            locomotion_activity = activity_type in {"walking", "crossing", "evacuating"}
+            moving_locomotion = locomotion_activity and speed_mps > 0.05
+            walking = frame_pose and moving_locomotion
+            effective_activity_type = activity_type
+            effective_activity_rule = activity_rule
+            if frame_pose and locomotion_activity and not moving_locomotion:
+                effective_activity_type = "stopped"
+                effective_activity_rule = self._ped_activity_rule(effective_activity_type)
             pose_sync_performed = False
 
             if ped_id not in self.ped_active_ids:
@@ -2297,10 +2372,26 @@ class EpisodeRenderHost:
                     yaw_deg=float(rotation_deg["yaw_deg"]),
                     variant_id=variant_id,
                     snap_to_ground=snap_to_ground,
+                    preserve_xy=True,
                     map_id=self.map_id,
                 )
                 results[ped_id] = {"spawn": spawn_response.get("payload", {})}
                 pose_sync_performed = True
+                if frame_pose:
+                    frame_pose_response = self._retry(
+                        "ped_frame_pose",
+                        self.client.ped_reset,
+                        ped_id,
+                        position_enu_m=position_enu_m,
+                        yaw_deg=float(rotation_deg["yaw_deg"]),
+                        snap_to_ground=snap_to_ground,
+                        preserve_xy=True,
+                        frame_pose=True,
+                        walking=walking,
+                        speed_cm_per_sec=speed_mps * 100.0,
+                        map_id=self.map_id,
+                    )
+                    results.setdefault(ped_id, {})["frame_pose"] = frame_pose_response.get("payload", {})
             elif should_preserve_pose:
                 results[ped_id] = {
                     "reset": {
@@ -2311,15 +2402,19 @@ class EpisodeRenderHost:
                 pose_sync_performed = False
             else:
                 reset_response = self._retry(
-                    "ped_reset",
+                    "ped_frame_pose" if frame_pose else "ped_reset",
                     self.client.ped_reset,
                     ped_id,
                     position_enu_m=position_enu_m,
                     yaw_deg=float(rotation_deg["yaw_deg"]),
                     snap_to_ground=snap_to_ground,
+                    preserve_xy=True,
+                    frame_pose=frame_pose,
+                    walking=walking,
+                    speed_cm_per_sec=speed_mps * 100.0,
                     map_id=self.map_id,
                 )
-                results[ped_id] = {"reset": reset_response.get("payload", {})}
+                results[ped_id] = {("frame_pose" if frame_pose else "reset"): reset_response.get("payload", {})}
                 pose_sync_performed = True
 
             if self.ped_last_variant.get(ped_id) != variant_id:
@@ -2327,10 +2422,10 @@ class EpisodeRenderHost:
                 results.setdefault(ped_id, {})["variant"] = variant_response.get("payload", {})
                 self.ped_last_variant[ped_id] = variant_id
 
-            should_reapply_activity = bool(activity_rule.get("reapply_after_pose_sync", False)) and pose_sync_performed
-            if self.ped_last_activity.get(ped_id) != activity_type or should_reapply_activity:
-                results.setdefault(ped_id, {})["activity"] = self._ped_activity_action(ped_id, activity_type)
-                self.ped_last_activity[ped_id] = activity_type
+            should_reapply_activity = bool(effective_activity_rule.get("reapply_after_pose_sync", False)) and pose_sync_performed
+            if self.ped_last_activity.get(ped_id) != effective_activity_type or should_reapply_activity:
+                results.setdefault(ped_id, {})["activity"] = self._ped_activity_action(ped_id, effective_activity_type)
+                self.ped_last_activity[ped_id] = effective_activity_type
 
         for ped_id in sorted(self.ped_active_ids - current_ids):
             try:
@@ -2392,6 +2487,100 @@ class EpisodeRenderHost:
             timed_out=timed_out,
         )
 
+    def _uav_status_snapshot(self, vehicle_name: str, target_enu_m: Sequence[float] | None = None) -> dict[str, Any]:
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        status_payload: dict[str, Any] = {}
+        pose_payload: dict[str, Any] = {}
+        warning_parts: list[str] = []
+        try:
+            status_response = self._retry(
+                "get_runtime_multirotor_status",
+                self.client.get_runtime_multirotor_status,
+                vehicle_name,
+                map_id=self.map_id,
+            )
+            status_payload = dict(status_response.get("payload") or {})
+        except Exception as exc:
+            warning_parts.append(f"status={exc}")
+        try:
+            pose_response = self._retry(
+                "get_runtime_vehicle_pose",
+                self.client.get_runtime_vehicle_pose,
+                vehicle_name,
+                map_id=self.map_id,
+            )
+            pose_payload = dict(pose_response.get("payload") or {})
+        except Exception as exc:
+            warning_parts.append(f"pose={exc}")
+
+        resolved_target = target_enu_m
+        pose_position = pose_payload.get("position_enu_m")
+        if resolved_target is None and isinstance(pose_position, Sequence) and not isinstance(pose_position, (str, bytes)):
+            resolved_target = [
+                float(pose_position[0]),
+                float(pose_position[1]),
+                float(pose_position[2] if len(pose_position) > 2 else 0.0),
+            ]
+        if resolved_target is None:
+            resolved_target = [0.0, 0.0, 0.0]
+
+        result = self.uav_execution_service.build_wait_status(
+            vehicle_name=vehicle_name,
+            status_payload=status_payload,
+            pose_payload=pose_payload,
+            target_enu_m=resolved_target,
+            timed_out=False,
+            warning="; ".join(warning_parts),
+        )
+        if warning_parts:
+            result["pose_warning"] = "; ".join(warning_parts)
+        return result
+
+    @staticmethod
+    def _ensure_uav_status_ok(wait_status: dict[str, Any], *, vehicle_name: str, context: str) -> None:
+        status_payload = dict(wait_status.get("status") or {})
+        state = str(status_payload.get("state") or status_payload.get("status") or "").strip().lower()
+        still_running = state in {"running", "moving", "in_progress", "pending", "active"}
+        if bool(wait_status.get("timed_out")) and still_running:
+            wait_status["timed_out_accepted_running"] = True
+            wait_status["warning"] = "UAV command was still running at poll timeout; continuing capture."
+            return
+        if bool(wait_status.get("timed_out")) or state in {"failed", "cancelled", "timeout", "missing"}:
+            raise RuntimeError(
+                f"Runtime UAV command failed for {vehicle_name} during {context}: "
+                f"state={state or '<empty>'} error={status_payload.get('error') or status_payload.get('message') or ''}"
+            )
+
+    def _ensure_uav_pose_ok(self, wait_status: dict[str, Any], *, vehicle_name: str, context: str) -> None:
+        if bool(wait_status.get("timed_out")):
+            raise RuntimeError(f"Runtime UAV pose wait timed out for {vehicle_name} during {context}")
+        position_error_m = wait_status.get("position_error_m")
+        if position_error_m is None:
+            raise RuntimeError(f"Runtime UAV pose is unavailable for {vehicle_name} during {context}")
+        tolerance_m = self._runtime_uav_position_tolerance_m()
+        if float(position_error_m) > tolerance_m:
+            raise RuntimeError(
+                f"Runtime UAV pose error for {vehicle_name} during {context}: "
+                f"{float(position_error_m):.3f} m > tolerance {tolerance_m:.3f} m"
+            )
+
+    def _wait_for_uav_pose(self, vehicle_name: str, target_enu_m: Sequence[float], *, timeout_s: float | None = None) -> dict[str, Any]:
+        timeout_cfg = self._runtime_uav_timeout_cfg()
+        pose_timeout_s = float(timeout_s if timeout_s is not None else timeout_cfg.get("uav_spawn_pose_timeout_s", 3.0))
+        poll_interval_s = float(timeout_cfg.get("uav_status_poll_interval_s", 0.25))
+        deadline = time.perf_counter() + max(0.0, pose_timeout_s)
+        last_status = self._uav_status_snapshot(vehicle_name, target_enu_m)
+        while True:
+            position_error_m = last_status.get("position_error_m")
+            if position_error_m is not None and float(position_error_m) <= self._runtime_uav_position_tolerance_m():
+                return last_status
+            if pose_timeout_s <= 0.0 or time.perf_counter() >= deadline:
+                last_status["timed_out"] = bool(position_error_m is None)
+                return last_status
+            time.sleep(max(0.01, poll_interval_s))
+            last_status = self._uav_status_snapshot(vehicle_name, target_enu_m)
+
     def _sync_uavs(self, frame: dict[str, Any]) -> dict[str, Any]:
         if self.client is None:
             raise RuntimeError("Host is not connected.")
@@ -2406,12 +2595,21 @@ class EpisodeRenderHost:
 
             entity_id = str(entity["entity_id"])
             vehicle_name = str(resolution.get("vehicle_name") or entity_id)
+            if entity_id in self.event_controlled_entity_ids and entity_id in self.uav_active_by_entity:
+                vehicle_name = self.uav_active_by_entity.get(entity_id, vehicle_name)
+                current_entities.add(entity_id)
+                wait_status = self._uav_status_snapshot(vehicle_name)
+                wait_status["path_used"] = "direct_rpc"
+                wait_status["sync_skipped"] = "event_script_controlled"
+                results[entity_id] = wait_status
+                continue
+
             target_enu_m = self._entity_position_enu(entity)
             target_enu_m = self._ground_relative_position(
                 target_enu_m,
                 enabled=bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
                 cache_namespace=f"uav:{vehicle_name}",
-                use_cache=False,
+                use_cache=True,
             )
             if self._runtime_uav_use_editor_hook() and not self._runtime_uav_visible_in_ground_views(
                 str(entity.get("site_id") or self.args.site or ""),
@@ -2434,14 +2632,16 @@ class EpisodeRenderHost:
                             rotation_deg=rotation_deg,
                             map_id=self.map_id,
                         )
-                        move_response = self._retry(
-                            "move_runtime_multirotor",
-                            self.client.move_runtime_multirotor,
-                            vehicle_name,
-                            target_enu_m=target_enu_m,
-                            velocity_mps=max(0.5, velocity_hint),
-                            map_id=self.map_id,
-                        )
+                        move_response = {
+                            "payload": {
+                                "vehicle_name": vehicle_name,
+                                "state": "skipped",
+                                "reason": "initial_create_exact_pose",
+                                "target_enu_m": [float(value) for value in target_enu_m],
+                                "velocity_mps": max(0.5, velocity_hint),
+                                "synthetic": True,
+                            }
+                        }
                     except Exception as exc:
                         self._disable_runtime_uav_direct_rpc(str(exc))
                         print(f"[EpisodeHost] runtime UAV RPC failed for {vehicle_name}; falling back to editor hook: {exc}")
@@ -2481,19 +2681,43 @@ class EpisodeRenderHost:
                         wait_status = self._wait_for_uav_status(vehicle_name, target_enu_m)
                     except Exception as exc:
                         print(f"[EpisodeHost] UAV status warning for {vehicle_name} after create: {exc}")
-                        wait_status = {
-                            "vehicle_name": vehicle_name,
-                            "status": {"state": "unknown", "warning": str(exc)},
-                            "pose": {},
-                            "timed_out": False,
-                            "position_error_m": None,
-                        }
+                        wait_status = self._uav_status_snapshot(vehicle_name, target_enu_m)
+                        wait_status["pose_warning"] = str(exc)
                     wait_status["create"] = create_response.get("payload", {})
                     wait_status["move"] = move_response.get("payload", {})
                     wait_status["path_used"] = "direct_rpc"
+                    wait_status["truth_sync_pose_deviation_accepted"] = True
                     results[entity_id] = wait_status
+                    self.uav_last_command_target_by_entity[entity_id] = list(target_enu_m)
             else:
                 used_editor_hook = False
+                previous_target = self.uav_last_command_target_by_entity.get(entity_id)
+                previous_error_m = distance_m(previous_target, target_enu_m)
+                if previous_error_m is not None and previous_error_m <= 0.25:
+                    wait_status = self._uav_status_snapshot(vehicle_name, target_enu_m)
+                    position_error_m = wait_status.get("position_error_m")
+                    if position_error_m is not None and float(position_error_m) <= self._runtime_uav_position_tolerance_m():
+                        wait_status["move"] = {
+                            "status": "skipped",
+                            "reason": "target_unchanged",
+                            "previous_error_m": previous_error_m,
+                        }
+                        wait_status["path_used"] = "direct_rpc" if not self._runtime_uav_use_editor_hook() else "editor_hook"
+                        results[entity_id] = wait_status
+                        self.uav_active_by_entity[entity_id] = vehicle_name
+                        continue
+                    wait_status["move"] = {
+                        "status": "skipped",
+                        "reason": "truth_sync_target_unchanged_pose_deviation_accepted",
+                        "previous_error_m": previous_error_m,
+                        "position_error_m": position_error_m,
+                    }
+                    wait_status["truth_sync_pose_deviation_accepted"] = True
+                    wait_status["path_used"] = "direct_rpc" if not self._runtime_uav_use_editor_hook() else "editor_hook"
+                    results[entity_id] = wait_status
+                    self.uav_active_by_entity[entity_id] = vehicle_name
+                    continue
+
                 if not self._runtime_uav_use_editor_hook():
                     try:
                         move_response = self._retry(
@@ -2541,23 +2765,20 @@ class EpisodeRenderHost:
                 else:
                     try:
                         wait_status = self._wait_for_uav_status(vehicle_name, target_enu_m)
+                        self._ensure_uav_status_ok(wait_status, vehicle_name=vehicle_name, context="truth-frame sync")
                     except Exception as exc:
                         print(f"[EpisodeHost] UAV status warning for {vehicle_name} after move: {exc}")
-                        wait_status = {
-                            "vehicle_name": vehicle_name,
-                            "status": {"state": "unknown", "warning": str(exc)},
-                            "pose": {},
-                            "timed_out": False,
-                            "position_error_m": None,
-                        }
+                        raise
                     wait_status["move"] = move_response.get("payload", {})
                     wait_status["path_used"] = "direct_rpc"
                     results[entity_id] = wait_status
+                    self.uav_last_command_target_by_entity[entity_id] = list(target_enu_m)
 
             self.uav_active_by_entity[entity_id] = vehicle_name
 
         for entity_id in sorted(set(self.uav_active_by_entity) - current_entities):
             vehicle_name = self.uav_active_by_entity.pop(entity_id)
+            self.uav_last_command_target_by_entity.pop(entity_id, None)
             if not self._runtime_uav_use_editor_hook():
                 try:
                     self._retry("remove_runtime_vehicle", self.client.remove_runtime_vehicle, vehicle_name, map_id=self.map_id)
@@ -2590,13 +2811,157 @@ class EpisodeRenderHost:
 
     def _site_ground_presets(self, site_id: str) -> list[dict[str, Any]]:
         ground = dict(self.capture_presets.get("ground_cameras") or {})
-        return [dict(item) for item in (ground.get(site_id) or ground.get("default") or [])]
+        presets = [dict(item) for item in (ground.get(site_id) or ground.get("default") or [])]
+        return [self._scene_aligned_ground_preset(preset) for preset in presets]
+
+    @staticmethod
+    def _maybe_vector3(value: Any) -> list[float] | None:
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) < 2:
+            return None
+        try:
+            return [
+                float(value[0]),
+                float(value[1]),
+                float(value[2] if len(value) > 2 else 0.0),
+            ]
+        except (TypeError, ValueError):
+            return None
+
+    def _scenario_capture_bbox_enu_m(self) -> list[float] | None:
+        if self.event_capture_bbox_enu_m is not None:
+            return list(self.event_capture_bbox_enu_m)
+
+        points: list[list[float]] = []
+
+        def add_point(value: Any, *, transform_script_position: bool = False) -> None:
+            point = self._maybe_vector3(value)
+            if point is None:
+                return
+            if transform_script_position:
+                try:
+                    point = self._script_transform_position(point)
+                except Exception:
+                    pass
+            points.append(point)
+
+        summary = dict(self.scenario_plan.get("compiled_plan_summary") or {})
+        roi_windows = dict(summary.get("roi_windows") or {})
+        for value in roi_windows.values():
+            if not isinstance(value, dict):
+                continue
+            bbox = list(value.get("bbox_enu_m") or [])
+            if len(bbox) >= 4:
+                points.append([float(bbox[0]), float(bbox[1]), 0.0])
+                points.append([float(bbox[2]), float(bbox[3]), 0.0])
+
+        for entity in self.global_roster:
+            add_point(entity.get("initial_position_enu_m"))
+
+        for entity in self.event_scene_setup.get("entities") or []:
+            if not isinstance(entity, dict):
+                continue
+            placement = dict(entity.get("placement") or {})
+            for key in ("resolved_position_enu_m", "position_enu_m", "center_enu_m"):
+                add_point(placement.get(key))
+            for waypoint in entity.get("route_waypoints_enu_m") or []:
+                add_point(waypoint)
+            for vertex in placement.get("polygon_enu_m") or []:
+                add_point(vertex)
+
+        event_script = dict(getattr(self.event_interpreter, "script", {}) or {})
+        for event in event_script.get("events") or []:
+            if not isinstance(event, dict):
+                continue
+            for action in event.get("actions") or []:
+                if not isinstance(action, dict):
+                    continue
+                add_point(action.get("position_enu_m"), transform_script_position=True)
+                add_point(action.get("spawn_origin_enu_m"), transform_script_position=True)
+                for waypoint in action.get("waypoints_enu_m") or action.get("waypoints") or []:
+                    add_point(waypoint, transform_script_position=True)
+
+        if not points:
+            return None
+
+        min_x = min(float(point[0]) for point in points)
+        min_y = min(float(point[1]) for point in points)
+        max_x = max(float(point[0]) for point in points)
+        max_y = max(float(point[1]) for point in points)
+        max_z = max(float(point[2] if len(point) > 2 else 0.0) for point in points)
+        margin_m = 8.0
+        self.event_capture_bbox_enu_m = [
+            min_x - margin_m,
+            min_y - margin_m,
+            max_x + margin_m,
+            max_y + margin_m,
+            max_z,
+        ]
+        return list(self.event_capture_bbox_enu_m)
+
+    def _scene_aligned_ground_preset(self, preset: dict[str, Any]) -> dict[str, Any]:
+        camera_id = str(preset.get("camera_id", preset.get("camera_name", "")))
+        if not camera_id.lower().endswith("overview_top"):
+            return preset
+
+        bbox = self._scenario_capture_bbox_enu_m()
+        if not bbox or len(bbox) < 4:
+            return preset
+
+        min_x = float(bbox[0])
+        min_y = float(bbox[1])
+        max_x = float(bbox[2])
+        max_y = float(bbox[3])
+        max_z = float(bbox[4] if len(bbox) > 4 else 0.0)
+        center_x = (min_x + max_x) * 0.5
+        center_y = (min_y + max_y) * 0.5
+        span_x_m = max(max_x - min_x, 1.0)
+        span_y_m = max(max_y - min_y, 1.0)
+
+        width = max(1, int(preset.get("width") or 1280))
+        height = max(1, int(preset.get("height") or 720))
+        fov_degrees = max(float(preset.get("fov_degrees") or 70.0), 105.0)
+        hfov_rad = math.radians(fov_degrees)
+        vfov_rad = 2.0 * math.atan(math.tan(hfov_rad * 0.5) / (float(width) / float(height)))
+        required_dz_m = max(
+            span_x_m / max(0.1, 2.0 * math.tan(hfov_rad * 0.5)),
+            span_y_m / max(0.1, 2.0 * math.tan(vfov_rad * 0.5)),
+        )
+        altitude_m = max(max_z + required_dz_m * 1.2, max_z + 25.0, 45.0)
+        altitude_m = min(altitude_m, 160.0)
+
+        aligned = dict(preset)
+        aligned["position_enu_m"] = [round(center_x, 3), round(center_y, 3), round(altitude_m, 3)]
+        aligned["rotation_deg"] = {"pitch_deg": -90.0, "yaw_deg": 0.0, "roll_deg": 0.0}
+        aligned["fov_degrees"] = fov_degrees
+        aligned["coordinate_space"] = "map_enu"
+        aligned["scene_aligned"] = True
+        aligned["scene_bbox_enu_m"] = [round(min_x, 3), round(min_y, 3), round(max_x, 3), round(max_y, 3)]
+        aligned["scene_bbox_source"] = "scenario_plan_scene_setup_event_script"
+        return aligned
+
+    def _camera_position_from_preset(self, preset: dict[str, Any]) -> list[float]:
+        raw_position = [float(value) for value in (preset.get("position_enu_m") or [0.0, 0.0, 0.0])]
+        coordinate_space = str(preset.get("coordinate_space") or "").strip().lower()
+        if coordinate_space in {"map_enu", "world_enu", "transformed_enu"}:
+            return raw_position
+        return self._transform_position_enu(raw_position)
+
+    def _camera_rotation_from_preset(self, preset: dict[str, Any]) -> dict[str, float]:
+        raw_rotation = dict(preset.get("rotation_deg") or {})
+        coordinate_space = str(preset.get("coordinate_space") or "").strip().lower()
+        if coordinate_space in {"map_enu", "world_enu", "transformed_enu"}:
+            return {
+                "pitch_deg": float(raw_rotation.get("pitch_deg", raw_rotation.get("pitch", 0.0))),
+                "yaw_deg": float(raw_rotation.get("yaw_deg", raw_rotation.get("yaw", 0.0))),
+                "roll_deg": float(raw_rotation.get("roll_deg", raw_rotation.get("roll", 0.0))),
+            }
+        return self._transform_rotation_deg(raw_rotation)
 
     def _runtime_uav_visibility_filter_cfg(self) -> dict[str, Any]:
         return dict(self.config.get("runtime_uav_visibility_filter") or {})
 
     def _ground_camera_contains_position(self, preset: dict[str, Any], position_enu_m: Sequence[float]) -> bool:
-        camera_position = list(preset.get("position_enu_m") or [])
+        camera_position = self._camera_position_from_preset(preset)
         if len(camera_position) < 3 or len(position_enu_m) < 3:
             return True
         rotation = dict(preset.get("rotation_deg") or {})
@@ -2634,6 +2999,22 @@ class EpisodeRenderHost:
     def _uav_camera_presets(self) -> list[dict[str, Any]]:
         uav = dict(self.capture_presets.get("uav_cameras") or {})
         return [dict(item) for item in (uav.get("default") or [])]
+
+    def _capture_role_enabled(self, role: str) -> bool:
+        role_name = str(role).strip().lower()
+        return not self.capture_role_filters or role_name in self.capture_role_filters
+
+    def _capture_camera_enabled(self, *candidate_ids: str) -> bool:
+        if not self.capture_camera_filters:
+            return True
+        candidates = {str(value).strip() for value in candidate_ids if str(value).strip()}
+        return bool(candidates & self.capture_camera_filters)
+
+    def _filtered_modalities(self, modality_ids: Sequence[str]) -> list[str]:
+        ordered = [str(value).strip() for value in modality_ids if str(value).strip()]
+        if not self.capture_modality_filters:
+            return ordered
+        return [value for value in ordered if value in self.capture_modality_filters]
 
     def _fixed_world_capture_hook(self) -> FixedWorldCaptureEditorHook:
         if self.fixed_world_capture_hook is not None:
@@ -2922,7 +3303,7 @@ class EpisodeRenderHost:
             ground_details = self._project_ground_details(
                 resolved_position_enu_m,
                 cache_namespace=f"uav:{vehicle_name}",
-                use_cache=False,
+                use_cache=True,
             ) if bool(self.ground_reference_cfg.get("uav_ground_relative", False)) else None
             command_target_enu_m = list((ground_details or {}).get("ground_relative_enu_m") or resolved_position_enu_m)
             command_velocity_mps = float(((entity.get("annotations") or {}).get("speed_mps")) or resolution.get("velocity_mps") or 5.0)
@@ -3071,128 +3452,78 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             self.ground_camera_asset_ids[key] = safe_name(f"fixed_world_camera.{site_id}.{camera_id}")
         return self.ground_camera_asset_ids[key]
 
-    def _capture_requests(self, camera_name: str, modality_ids: Sequence[str]) -> list[Any]:
-        airsim = self._import_airsim()
-        modalities = dict(self.capture_presets.get("modalities") or {})
-        requests: list[Any] = []
-        for modality_id in modality_ids:
-            modality = dict(modalities[modality_id])
-            requests.append(
-                airsim.ImageRequest(
-                    camera_name,
-                    get_image_type_enum(airsim, str(modality["image_type"])),
-                    bool(modality.get("pixels_as_float", False)),
-                    bool(modality.get("compress", True)),
-                )
-            )
-        return requests
+    def _uav_follow_camera_asset_id(self, entity_id: str, camera_id: str) -> str:
+        key = (str(entity_id), str(camera_id))
+        if key not in self.uav_camera_asset_ids:
+            self.uav_camera_asset_ids[key] = safe_name(f"fixed_uav_camera.{entity_id}.{camera_id}")
+        return self.uav_camera_asset_ids[key]
 
-    def _set_camera_fov(self, camera_name: str, fov_degrees: float, vehicle_name: str = "") -> None:
-        if self.client is None:
-            raise RuntimeError("Host is not connected.")
-        raw_client = self.client.client
-        if hasattr(raw_client, "simSetCameraFov"):
-            raw_client.simSetCameraFov(camera_name, float(fov_degrees), vehicle_name)
+    def _prepare_capture_output_dir(self, output_dir: Path) -> None:
+        resolved_output = output_dir.resolve()
+        resolved_root = self.output_dir.resolve()
+        try:
+            resolved_output.relative_to(resolved_root)
+        except ValueError as exc:
+            raise RuntimeError(f"Refusing to clean capture output outside output_dir: {resolved_output}") from exc
+        if resolved_output in self.prepared_capture_output_dirs:
+            ensure_dir(resolved_output)
             return
-        if hasattr(raw_client, "simSetCameraFoV"):
-            raw_client.simSetCameraFoV(camera_name, float(fov_degrees), vehicle_name)
-            return
-        raise RuntimeError("The active AirSim Python client does not expose simSetCameraFov/FoV.")
+        if resolved_output.exists():
+            shutil.rmtree(resolved_output)
+        ensure_dir(resolved_output)
+        self.prepared_capture_output_dirs.add(resolved_output)
 
-    def _capture_images(self, raw_client: Any, requests: Sequence[Any], *, vehicle_name: str, label: str) -> Sequence[Any]:
-        timeout_cfg = dict(self.config.get("timeouts") or {})
-        capture_warmup_s = float(timeout_cfg.get("capture_warmup_s", 8.0))
-        camera_settle_s = float(timeout_cfg.get("camera_settle_s", 0.35))
-        retries = int(timeout_cfg.get("image_retry_count", 2))
-        retry_delay_s = float(timeout_cfg.get("image_retry_delay_s", 5.0))
+    @staticmethod
+    def _editor_hook_output_format(modality_id: str) -> str:
+        normalized = str(modality_id or "rgb").strip().lower()
+        if normalized == "depth":
+            return "npy_float32_m"
+        if normalized == "seg":
+            return "png_semantic_rgb"
+        return "png"
 
-        if not self.capture_warmup_complete and capture_warmup_s > 0.0:
-            print(f"[EpisodeHost] Waiting {capture_warmup_s:.1f}s before first image capture to let PIE rendering settle.")
-            time.sleep(capture_warmup_s)
-            self.capture_warmup_complete = True
+    def _write_semantic_palette_file(self) -> Path:
+        palette_path = self.output_dir / "semantic_palette.json"
+        ensure_dir(palette_path.parent)
+        palette_payload = {
+            "$schema": "semantic_palette_v1",
+            "segmentation_kind": "semantic_class_rgb",
+            "palette": SEMANTIC_PALETTE,
+        }
+        palette_path.write_text(json.dumps(palette_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return palette_path
 
-        for attempt in range(retries + 1):
-            if camera_settle_s > 0.0:
-                time.sleep(camera_settle_s)
-            try:
-                return raw_client.simGetImages(requests, vehicle_name=vehicle_name)
-            except Exception as exc:
-                if attempt >= retries:
-                    raise
-                print(f"[EpisodeHost] {label} failed (attempt {attempt + 1}/{retries + 1}): {exc}")
-                time.sleep(retry_delay_s)
-        raise RuntimeError(f"{label} failed without an exception")
+    @staticmethod
+    def _depth_stats_for_npy(image_path: Path) -> dict[str, Any]:
+        try:
+            import numpy as np  # type: ignore
+        except Exception as exc:
+            return {"depth_unit_m": True, "depth_stats_error": f"numpy import failed: {exc}"}
 
-    def _write_capture_set(self, batch: BatchPlan, frame: dict[str, Any], camera_id: str, camera_role: str, modality_ids: Sequence[str], responses: Sequence[Any], common_sidecar: dict[str, Any]) -> None:
-        modalities = dict(self.capture_presets.get("modalities") or {})
-        frame_stem = self.capture_orchestrator.frame_stem(frame)
-        for index, modality_id in enumerate(modality_ids):
-            modality = dict(modalities[modality_id])
-            output_dir = self.capture_orchestrator.modality_output_dir(
-                self.output_dir,
-                batch.batch_id,
-                safe_name(camera_id),
-                safe_name(modality_id),
-            )
-            image_path = output_dir / f"{frame_stem}.{str(modality.get('extension', 'png'))}"
-            sidecar_path = output_dir / f"{frame_stem}.json"
+        try:
+            values = np.load(image_path)
+        except Exception as exc:
+            return {"depth_unit_m": True, "depth_stats_error": f"depth npy load failed: {exc}"}
 
-            response = responses[index] if index < len(responses) else None
-            capture_error = None
-            image_data_format = "uint8"
-            if response is None:
-                capture_error = "missing response"
-            else:
-                width = int(getattr(response, "width", 0) or 0)
-                height = int(getattr(response, "height", 0) or 0)
-                if bool(modality.get("pixels_as_float", False)):
-                    image_data_format = "float32"
-                    payload = getattr(response, "image_data_float", None)
-                    if payload and width > 0 and height > 0:
-                        try:
-                            import numpy as np  # type: ignore
-                        except Exception as exc:
-                            capture_error = f"numpy import failed for float image write: {exc}"
-                        else:
-                            values = np.asarray(payload, dtype=np.float32)
-                            if values.size != width * height:
-                                capture_error = (
-                                    f"unexpected float image payload length: "
-                                    f"expected {width * height}, got {values.size}"
-                                )
-                            else:
-                                np.save(image_path, values.reshape((height, width)))
-                    else:
-                        capture_error = str(getattr(response, "message", "") or "empty float image payload")
-                else:
-                    payload = getattr(response, "image_data_uint8", None)
-                    if payload:
-                        image_path.write_bytes(bytes(payload))
-                    else:
-                        capture_error = str(getattr(response, "message", "") or "empty image payload")
-
-            sidecar = dict(common_sidecar)
-            sidecar.update(
-                {
-                    "camera_id": camera_id,
-                    "camera_role": camera_role,
-                    "modality": modality_id,
-                    "image_type": modality.get("image_type"),
-                    "pixels_as_float": bool(modality.get("pixels_as_float", False)),
-                    "compress": bool(modality.get("compress", True)),
-                    "image_data_format": image_data_format,
-                    "image_path": str(image_path),
-                    "output_path": str(image_path),
-                    "capture_error": capture_error,
-                }
-            )
-            if response is not None:
-                sidecar["airsim_camera_position"] = vector3r_to_list(getattr(response, "camera_position", None))
-                sidecar["airsim_camera_orientation"] = quaternion_to_dict(getattr(response, "camera_orientation", None))
-                sidecar["width"] = int(getattr(response, "width", 0) or 0)
-                sidecar["height"] = int(getattr(response, "height", 0) or 0)
-                sidecar["response_message"] = str(getattr(response, "message", "") or "")
-            self.capture_orchestrator.write_sidecar(sidecar_path, sidecar)
+        arr = np.asarray(values, dtype=np.float32)
+        valid_mask = np.isfinite(arr) & (arr > 0.0)
+        valid_count = int(valid_mask.sum())
+        invalid_count = int(arr.size - valid_count)
+        if valid_count > 0:
+            depth_min_m = float(arr[valid_mask].min())
+            depth_max_m = float(arr[valid_mask].max())
+        else:
+            depth_min_m = 0.0
+            depth_max_m = 0.0
+        return {
+            "depth_unit_m": True,
+            "depth_dtype": "float32",
+            "depth_shape": [int(value) for value in arr.shape],
+            "depth_valid_count": valid_count,
+            "depth_invalid_count": invalid_count,
+            "depth_min_m": depth_min_m,
+            "depth_max_m": depth_max_m,
+        }
 
     def _write_fixed_world_capture_output(
         self,
@@ -3203,6 +3534,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         image_path: Path,
         common_sidecar: dict[str, Any],
         *,
+        camera_role: str = "ground",
         width: int,
         height: int,
         fov_degrees: float,
@@ -3210,23 +3542,187 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         modalities = dict(self.capture_presets.get("modalities") or {})
         modality = dict(modalities.get(modality_id) or {})
         sidecar_path = image_path.with_suffix(".json")
+        normalized_modality = str(modality_id or "rgb").strip().lower()
+        image_data_format = "float32" if normalized_modality == "depth" else "uint8"
+        output_format = self._editor_hook_output_format(normalized_modality)
         sidecar = dict(common_sidecar)
         sidecar.update(
             {
                 "camera_id": camera_id,
-                "camera_role": "ground",
-                "modality": modality_id,
+                "camera_role": camera_role,
+                "modality": normalized_modality,
                 "image_type": modality.get("image_type", "Scene"),
+                "pixels_as_float": bool(modality.get("pixels_as_float", normalized_modality == "depth")),
+                "compress": bool(modality.get("compress", normalized_modality != "depth")),
+                "image_data_format": image_data_format,
+                "output_format": output_format,
                 "image_path": str(image_path),
                 "output_path": str(image_path),
                 "capture_error": None,
-                "capture_backend": "editor_hook_fixed_world_camera",
+                "capture_backend": str(common_sidecar.get("capture_backend") or "editor_hook_fixed_world_camera"),
                 "width": int(width),
                 "height": int(height),
                 "fov_degrees": float(fov_degrees),
             }
         )
+        if normalized_modality == "depth":
+            sidecar.update(self._depth_stats_for_npy(image_path))
+        elif normalized_modality == "seg":
+            palette_path = self._write_semantic_palette_file()
+            sidecar["semantic_palette"] = SEMANTIC_PALETTE
+            sidecar["semantic_palette_path"] = str(palette_path)
+            sidecar["segmentation_kind"] = "semantic_class_rgb"
         self.capture_orchestrator.write_sidecar(sidecar_path, sidecar)
+
+    @staticmethod
+    def _body_offset_to_enu(position_enu_m: Sequence[float], rotation_deg: dict[str, Any], offset_body_m: Sequence[float]) -> list[float]:
+        position = [float(position_enu_m[0]), float(position_enu_m[1]), float(position_enu_m[2] if len(position_enu_m) > 2 else 0.0)]
+        offset = [float(offset_body_m[0]), float(offset_body_m[1]), float(offset_body_m[2] if len(offset_body_m) > 2 else 0.0)]
+        yaw_rad = math.radians(float(rotation_deg.get("yaw_deg", rotation_deg.get("yaw", 0.0))))
+        forward_m, right_m, up_m = offset
+        dx = math.cos(yaw_rad) * forward_m - math.sin(yaw_rad) * right_m
+        dy = math.sin(yaw_rad) * forward_m + math.cos(yaw_rad) * right_m
+        return [position[0] + dx, position[1] + dy, position[2] + up_m]
+
+    @staticmethod
+    def _add_rotation_offsets(rotation_deg: dict[str, Any], offset_deg: dict[str, Any] | None) -> dict[str, float]:
+        offset = dict(offset_deg or {})
+        return {
+            "pitch_deg": float(rotation_deg.get("pitch_deg", rotation_deg.get("pitch", 0.0)))
+            + float(offset.get("pitch_deg", offset.get("pitch", 0.0))),
+            "yaw_deg": float(rotation_deg.get("yaw_deg", rotation_deg.get("yaw", 0.0)))
+            + float(offset.get("yaw_deg", offset.get("yaw", 0.0))),
+            "roll_deg": float(rotation_deg.get("roll_deg", rotation_deg.get("roll", 0.0)))
+            + float(offset.get("roll_deg", offset.get("roll", 0.0))),
+        }
+
+    def _uav_pose_for_capture(
+        self,
+        entity: dict[str, Any],
+        vehicle_status: dict[str, Any],
+    ) -> tuple[list[float], dict[str, float]]:
+        try:
+            truth_position, truth_rotation = self._transformed_entity_pose(entity)
+            if len(truth_position) >= 3:
+                return (
+                    [float(truth_position[0]), float(truth_position[1]), float(truth_position[2])],
+                    self._add_rotation_offsets(dict(truth_rotation), None),
+                )
+        except Exception:
+            pass
+
+        pose = dict(vehicle_status.get("pose") or {})
+        status = dict(vehicle_status.get("status") or {})
+        position = pose.get("position_enu_m") or status.get("current_enu_m")
+        if not isinstance(position, Sequence) or isinstance(position, (str, bytes)) or len(position) < 2:
+            position = self._entity_position_enu(entity)
+        rotation = pose.get("rotation_deg")
+        if not isinstance(rotation, dict):
+            rotation = self._entity_rotation_deg(entity)
+        return (
+            [float(position[0]), float(position[1]), float(position[2] if len(position) > 2 else 0.0)],
+            self._add_rotation_offsets(dict(rotation), None),
+        )
+
+    def _capture_uav_editor_hook_modality(
+        self,
+        batch: BatchPlan,
+        frame: dict[str, Any],
+        *,
+        modality_id: str,
+        entity_id: str,
+        entity: dict[str, Any],
+        vehicle_status: dict[str, Any],
+        camera_id: str,
+        camera_name: str,
+        preset: dict[str, Any],
+        weather_payload: dict[str, Any],
+        entity_records: list[dict[str, Any]],
+        feedback_payload: dict[str, Any],
+        uav_debug: dict[str, Any],
+    ) -> None:
+        hook = self._fixed_world_capture_hook()
+        uav_position_enu_m, uav_rotation_deg = self._uav_pose_for_capture(entity, vehicle_status)
+        offset_body_m = preset.get("camera_offset_body_m")
+        if not isinstance(offset_body_m, Sequence) or isinstance(offset_body_m, (str, bytes)):
+            offset_body_m = [0.6, 0.0, 0.0]
+        camera_position_enu_m = self._body_offset_to_enu(uav_position_enu_m, uav_rotation_deg, offset_body_m)
+        camera_rotation_deg = self._add_rotation_offsets(
+            uav_rotation_deg,
+            dict(preset.get("rotation_offset_deg") or preset.get("fixed_rotation_offset_deg") or {}),
+        )
+        asset_id = self._uav_follow_camera_asset_id(entity_id, camera_id)
+        hook.ensure_fixed_world_camera(
+            map_id=self.map_id,
+            asset_id=asset_id,
+            logical_asset_id="camera.fixed_world_capture.rgb.v1",
+            position_enu_m=camera_position_enu_m,
+            rotation_deg=camera_rotation_deg,
+        )
+        frame_stem = self.capture_orchestrator.frame_stem(frame)
+        normalized_modality = str(modality_id or "rgb").strip().lower()
+        if normalized_modality not in {"rgb", "depth", "seg"}:
+            raise RuntimeError(f"Editor hook UAV capture does not support modality '{modality_id}'.")
+        output_dir = self.output_dir / batch.batch_id / safe_name(camera_id) / safe_name(normalized_modality)
+        self._prepare_capture_output_dir(output_dir)
+        modalities = dict(self.capture_presets.get("modalities") or {})
+        image_path = output_dir / f"{frame_stem}.{str((modalities.get(normalized_modality) or {}).get('extension', 'png'))}"
+        width = int(preset.get("width") or 1280)
+        height = int(preset.get("height") or 720)
+        fov_degrees = float(preset.get("fov_degrees") or 90.0)
+        hook.capture_modality(
+            map_id=self.map_id,
+            asset_id=asset_id,
+            modality=normalized_modality,
+            output_path=image_path,
+            width=width,
+            height=height,
+            fov_degrees=fov_degrees,
+        )
+        sidecar = {
+            "episode_id": self.episode_id,
+            "frame_id": str(frame.get("frame_id", "")),
+            "frame_seq": int(frame.get("frame_seq") or frame.get("tick") or 0),
+            "tick": int(frame["tick"]),
+            "sim_time_s": float(frame.get("sim_time_s", 0.0)),
+            "map_id": self.map_id,
+            "batch_id": batch.batch_id,
+            "site_id": batch.site_id,
+            "roi_id": batch.roi_id,
+            "weather": weather_payload,
+            "feedback": feedback_payload,
+            "uav_runtime": vehicle_status,
+            "uav_debug": uav_debug,
+            "uav_entity_id": entity_id,
+            "vehicle_name": str(vehicle_status.get("vehicle_name") or self.uav_active_by_entity.get(entity_id) or entity_id),
+            "camera_name": camera_name,
+            "camera_pose_enu_m": camera_position_enu_m,
+            "camera_rotation_deg": camera_rotation_deg,
+            "expected_camera_pose_enu_m": camera_position_enu_m,
+            "expected_camera_rotation_deg": camera_rotation_deg,
+            "uav_pose_enu_m": uav_position_enu_m,
+            "uav_rotation_deg": uav_rotation_deg,
+            "expected_uav_pose_enu_m": uav_position_enu_m,
+            "expected_uav_rotation_deg": uav_rotation_deg,
+            "capture_alignment_key": f"{self.episode_id}:{int(frame['tick'])}:{camera_id}",
+            "capture_alignment_source": "deterministic_episode_frame",
+            "capture_backend": "editor_hook_uav_follow_camera",
+            "asset_id": asset_id,
+            "entity_records": entity_records,
+            "roster_summary": frame.get("roster_summary", {}),
+        }
+        self._write_fixed_world_capture_output(
+            batch,
+            frame,
+            camera_id,
+            normalized_modality,
+            image_path,
+            sidecar,
+            camera_role="uav",
+            width=width,
+            height=height,
+            fov_degrees=fov_degrees,
+        )
 
     def _capture_ground_views(
         self,
@@ -3238,12 +3734,20 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         uav_status: dict[str, Any],
         uav_debug: dict[str, Any],
     ) -> None:
+        if not self._capture_role_enabled("ground"):
+            return
         hook = self._fixed_world_capture_hook()
         modalities = dict(self.capture_presets.get("modalities") or {})
         for preset in self._site_ground_presets(batch.site_id):
             camera_name = str(preset.get("camera_name", "external"))
             camera_id = str(preset.get("camera_id", camera_name))
-            modality_ids = list(preset.get("modalities") or self.capture_presets.get("default_modalities") or ["rgb"])
+            if not self._capture_camera_enabled(camera_id, camera_name):
+                continue
+            modality_ids = self._filtered_modalities(
+                list(preset.get("modalities") or self.capture_presets.get("default_modalities") or ["rgb"])
+            )
+            if not modality_ids:
+                continue
             unsupported_modalities = [modality_id for modality_id in modality_ids if str(modality_id).strip().lower() != "rgb"]
             if unsupported_modalities:
                 raise RuntimeError(
@@ -3251,7 +3755,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                     f"Unsupported modalities for camera '{camera_id}': {unsupported_modalities}"
                 )
             raw_camera_position_enu_m = [float(value) for value in (preset.get("position_enu_m") or [0.0, 0.0, 0.0])]
-            resolved_camera_position_enu_m = self._transform_position_enu(raw_camera_position_enu_m)
+            resolved_camera_position_enu_m = self._camera_position_from_preset(preset)
             resolved_camera_position_enu_m = self._ground_relative_position(
                 resolved_camera_position_enu_m,
                 enabled=bool(self.ground_reference_cfg.get("ground_camera_ground_relative", False)),
@@ -3259,8 +3763,11 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                 use_cache=True,
             )
             raw_camera_rotation_deg = dict(preset.get("rotation_deg") or {})
+            coordinate_space = str(preset.get("coordinate_space") or "").strip().lower()
             raw_pitch_deg = float(raw_camera_rotation_deg.get("pitch_deg", raw_camera_rotation_deg.get("pitch", 0.0)))
-            if abs(abs(raw_pitch_deg) - 90.0) <= 1e-3:
+            if coordinate_space in {"map_enu", "world_enu", "transformed_enu"}:
+                resolved_camera_rotation_deg = self._camera_rotation_from_preset(preset)
+            elif abs(abs(raw_pitch_deg) - 90.0) <= 1e-3:
                 # For nadir fixed-world cameras, position transform is enough. Applying the
                 # scenario yaw here can collapse into a rolled UE rotator and shift a target
                 # directly under the camera away from the image center.
@@ -3282,11 +3789,12 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             )
             frame_stem = self.capture_orchestrator.frame_stem(frame)
             output_dir = self.output_dir / batch.batch_id / safe_name(camera_id) / "rgb"
-            ensure_dir(output_dir)
+            self._prepare_capture_output_dir(output_dir)
             image_path = output_dir / f"{frame_stem}.{str((modalities.get('rgb') or {}).get('extension', 'png'))}"
-            hook.capture_rgb(
+            hook.capture_modality(
                 map_id=self.map_id,
                 asset_id=asset_id,
+                modality="rgb",
                 output_path=image_path,
                 width=int(preset.get("width") or 1280),
                 height=int(preset.get("height") or 720),
@@ -3323,6 +3831,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                 "rgb",
                 image_path,
                 sidecar,
+                camera_role="ground",
                 width=int(preset.get("width") or 1280),
                 height=int(preset.get("height") or 720),
                 fov_degrees=fov_degrees,
@@ -3338,50 +3847,86 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         uav_status: dict[str, Any],
         uav_debug: dict[str, Any],
     ) -> None:
+        if not self._capture_role_enabled("uav"):
+            return
         if self.client is None:
             raise RuntimeError("Host is not connected.")
-        raw_client = self.client.client
-        for entity_id, vehicle_status in sorted(uav_status.items()):
-            entity = self.roster_by_id.get(entity_id) or {}
+        uav_capture_status = dict(uav_status)
+        if not uav_capture_status:
+            expected_uavs = [
+                str(entity.get("entity_id") or "")
+                for entity in frame.get("entities") or []
+                if str(entity.get("entity_category") or "").strip().lower() == "uav"
+                and str(self._entity_resolution(entity).get("mode") or "") == "runtime_multirotor"
+                and truth_submission_state(entity) == "submit_to_ue"
+            ]
+            expected_uavs = [entity_id for entity_id in expected_uavs if entity_id]
+            if expected_uavs:
+                raise RuntimeError(
+                    "UAV capture requested but no runtime multirotor status was produced for: "
+                    + ", ".join(sorted(expected_uavs))
+                )
+            return
+
+        frame_entities_by_id = {
+            str(entity.get("entity_id") or ""): entity
+            for entity in frame.get("entities") or []
+            if str(entity.get("entity_id") or "").strip()
+        }
+
+        for entity_id, vehicle_status in sorted(uav_capture_status.items()):
+            entity = frame_entities_by_id.get(entity_id) or self.roster_by_id.get(entity_id) or {}
             if batch.site_id and str(entity.get("site_id", "")) not in {"", batch.site_id}:
                 continue
-            vehicle_name = str(vehicle_status.get("vehicle_name") or self.uav_active_by_entity.get(entity_id) or entity_id)
             for preset in self._uav_camera_presets():
                 camera_name = str(preset.get("camera_name", "front_center"))
-                modality_ids = list(preset.get("modalities") or self.capture_presets.get("default_modalities") or ["rgb", "depth", "seg"])
-                responses = self._capture_images(
-                    raw_client,
-                    self._capture_requests(camera_name, modality_ids),
-                    vehicle_name=vehicle_name,
-                    label=f"simGetImages uav '{vehicle_name}' camera '{camera_name}'",
-                )
-                sidecar = {
-                    "episode_id": self.episode_id,
-                    "frame_id": str(frame.get("frame_id", "")),
-                    "frame_seq": int(frame.get("frame_seq") or frame.get("tick") or 0),
-                    "tick": int(frame["tick"]),
-                    "sim_time_s": float(frame.get("sim_time_s", 0.0)),
-                    "map_id": self.map_id,
-                    "batch_id": batch.batch_id,
-                    "site_id": batch.site_id,
-                    "roi_id": batch.roi_id,
-                    "weather": weather_payload,
-                    "feedback": feedback_payload,
-                    "uav_runtime": vehicle_status,
-                    "uav_debug": uav_debug,
-                    "uav_entity_id": entity_id,
-                    "vehicle_name": vehicle_name,
-                    "camera_name": camera_name,
-                    "entity_records": entity_records,
-                    "roster_summary": frame.get("roster_summary", {}),
-                }
                 camera_id = f"{safe_name(entity_id)}__{safe_name(str(preset.get('camera_id_suffix', camera_name)))}"
-                self._write_capture_set(batch, frame, camera_id, "uav", modality_ids, responses, sidecar)
+                if not self._capture_camera_enabled(camera_id, str(preset.get("camera_id_suffix", "")), camera_name, entity_id):
+                    continue
+                modality_ids = self._filtered_modalities(
+                    list(preset.get("modalities") or self.capture_presets.get("default_modalities") or ["rgb", "depth", "seg"])
+                )
+                if not modality_ids:
+                    continue
+                unsupported_modalities = [item for item in modality_ids if str(item).strip().lower() not in {"rgb", "depth", "seg"}]
+                if unsupported_modalities:
+                    raise RuntimeError(
+                        "UAV capture is routed through editor-hook fixed-world follow cameras only. "
+                        f"Unsupported modalities for camera '{camera_id}': {unsupported_modalities}"
+                    )
+                for modality_id in modality_ids:
+                    self._capture_uav_editor_hook_modality(
+                        batch,
+                        frame,
+                        modality_id=str(modality_id),
+                        entity_id=entity_id,
+                        entity=entity,
+                        vehicle_status=vehicle_status,
+                        camera_id=camera_id,
+                        camera_name=camera_name,
+                        preset=preset,
+                        weather_payload=weather_payload,
+                        entity_records=entity_records,
+                        feedback_payload=feedback_payload,
+                        uav_debug=uav_debug,
+                    )
 
     def _batch_ticks(self, batch: BatchPlan) -> list[int]:
         ticks = [tick for tick in self.sorted_ticks if batch.tick_start <= tick <= batch.tick_end]
-        stride = max(1, int(getattr(self.args, "tick_stride", 1) or 1))
+        stride = max(1, int(getattr(self.args, "simulation_tick_stride", 1) or 1))
         return ticks[::stride]
+
+    def _batch_capture_tick_set(self, batch: BatchPlan) -> set[int]:
+        explicit_capture_ticks = [
+            int(value)
+            for value in (getattr(self.args, "capture_tick", None) or [])
+            if batch.tick_start <= int(value) <= batch.tick_end
+        ]
+        if explicit_capture_ticks:
+            return set(explicit_capture_ticks)
+        ticks = [tick for tick in self.sorted_ticks if batch.tick_start <= tick <= batch.tick_end]
+        stride = max(1, int(getattr(self.args, "tick_stride", 1) or 1))
+        return set(ticks[::stride])
 
     # ------------------------------------------------------------------
     # Event script action handlers
@@ -3407,7 +3952,10 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         return heading_deg_from_vector(dx, dy)
 
     def _script_transform_position(self, position_enu_m: Sequence[float], field_name: str = "position_enu_m") -> list[float]:
-        return self._transform_position_enu(self._coerce_script_vector3(position_enu_m, field_name))
+        position = self._coerce_script_vector3(position_enu_m, field_name)
+        if self._truth_frame_uses_map_enu():
+            return position
+        return self._transform_position_enu(position)
 
     def _script_transform_waypoints(self, raw_waypoints: Any) -> list[list[float]]:
         if not isinstance(raw_waypoints, Sequence) or isinstance(raw_waypoints, (str, bytes)):
@@ -3426,6 +3974,8 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                 "roll_deg": 0.0,
             }
         )
+        if self._truth_frame_uses_map_enu():
+            return raw_rotation
         return self._transform_rotation_deg(raw_rotation)
 
     @staticmethod
@@ -3524,6 +4074,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         rotation = self._script_transform_rotation(action)
         self.event_entity_assets[entity_id] = logical_asset_id
         self.event_entity_initial_positions[entity_id] = list(raw_position)
+        self.event_controlled_entity_ids.add(entity_id)
         if self.event_interpreter is not None:
             self.event_interpreter.update_entity_state(entity_id, raw_position, rotation_deg=dict(action.get("rotation_deg") or {}))
         asset_kind = self._script_asset_kind(logical_asset_id)
@@ -3534,16 +4085,25 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                 yaw_deg=float(rotation.get("yaw_deg", 0.0)),
                 map_id=self.map_id,
             )
+            self.ped_active_ids.add(entity_id)
             return {"status": "ok", "entity_id": entity_id, "ped_id": entity_id, "response": response}
         if asset_kind == "uav":
+            command_position = self._runtime_uav_command_position_enu(entity_id, position)
             response = self.client.create_runtime_multirotor(
                 asset_instance_id,
-                position_enu_m=position,
+                position_enu_m=command_position,
                 rotation_deg=rotation,
                 map_id=self.map_id,
             )
             self.uav_active_by_entity[entity_id] = asset_instance_id
-            return {"status": "ok", "entity_id": entity_id, "vehicle_name": asset_instance_id, "response": response}
+            self.uav_last_command_target_by_entity[entity_id] = list(command_position)
+            return {
+                "status": "ok",
+                "entity_id": entity_id,
+                "vehicle_name": asset_instance_id,
+                "command_position_enu_m": command_position,
+                "response": response,
+            }
         payload: dict[str, Any] = {
             "asset_id": asset_instance_id,
             "entity_id": entity_id,
@@ -3616,26 +4176,56 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             payload["velocity_mps"] = float(action.get("velocity_mps", 5.0))
         if raw_position_for_interpreter is not None:
             self.event_entity_initial_positions[entity_id] = list(raw_position_for_interpreter)
+            self.event_controlled_entity_ids.add(entity_id)
             if self.event_interpreter is not None:
                 self.event_interpreter.update_entity_state(entity_id, raw_position_for_interpreter, rotation_deg=dict(action.get("rotation_deg") or {}))
         if asset_kind == "pedestrian":
-            response = self.client.ped_set_target(
-                entity_id,
-                target_enu_m=position,
-                speed_cm_per_sec=float(action.get("velocity_mps", 1.5)) * 100.0,
-                map_id=self.map_id,
-            )
-            return {"status": "ok", "entity_id": entity_id, "ped_id": entity_id, "response": response}
+            self.ped_active_ids.add(entity_id)
+            return {
+                "status": "ok",
+                "entity_id": entity_id,
+                "ped_id": entity_id,
+                "command": "truth_frame_pose_sync",
+                "target_enu_m": [float(value) for value in position],
+                "reason": "pedestrian movement is applied deterministically from truth_frames before capture",
+            }
         if asset_kind == "uav":
             vehicle_name = self.uav_active_by_entity.get(entity_id, asset_instance_id)
-            response = self.client.move_runtime_multirotor(
-                vehicle_name,
-                target_enu_m=position,
-                velocity_mps=float(action.get("velocity_mps", 5.0)),
-                map_id=self.map_id,
-            )
+            command_position = self._runtime_uav_command_position_enu(entity_id, position)
+            velocity_mps = float(action.get("velocity_mps", 5.0))
+            previous_target = self.uav_last_command_target_by_entity.get(entity_id)
+            previous_error_m = distance_m(previous_target, command_position)
+            if previous_error_m is not None and previous_error_m <= 0.25:
+                response = {
+                    "payload": {
+                        "vehicle_name": vehicle_name,
+                        "state": "skipped",
+                        "reason": "event_target_unchanged",
+                        "target_enu_m": [float(value) for value in command_position],
+                        "previous_error_m": previous_error_m,
+                        "synthetic": True,
+                    }
+                }
+                wait_status = self._uav_status_snapshot(vehicle_name, command_position)
+            else:
+                response = self.client.move_runtime_multirotor(
+                    vehicle_name,
+                    target_enu_m=command_position,
+                    velocity_mps=velocity_mps,
+                    map_id=self.map_id,
+                )
+                wait_status = self._wait_for_uav_status(vehicle_name, command_position)
+                self._ensure_uav_status_ok(wait_status, vehicle_name=vehicle_name, context=f"event action {action.get('action_id') or '<unnamed>'}")
             self.uav_active_by_entity[entity_id] = vehicle_name
-            return {"status": "ok", "entity_id": entity_id, "vehicle_name": vehicle_name, "response": response}
+            self.uav_last_command_target_by_entity[entity_id] = list(command_position)
+            return {
+                "status": "ok",
+                "entity_id": entity_id,
+                "vehicle_name": vehicle_name,
+                "command_position_enu_m": command_position,
+                "response": response,
+                "wait_status": wait_status,
+            }
         response = self.client.move_asset(payload, map_id=self.map_id)
         return {"status": "ok", "entity_id": entity_id, "asset_id": asset_instance_id, "response": response}
 
@@ -3645,12 +4235,17 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         asset_kind = self._script_asset_kind(logical_asset_id)
         if asset_kind == "pedestrian":
             response = self.client.ped_release(entity_id, map_id=self.map_id)
+            self.event_controlled_entity_ids.discard(entity_id)
+            self.ped_active_ids.discard(entity_id)
             return {"status": "ok", "entity_id": entity_id, "response": response}
         if asset_kind == "uav":
             vehicle_name = self.uav_active_by_entity.pop(entity_id, entity_id)
             response = self.client.remove_runtime_vehicle(vehicle_name, map_id=self.map_id)
+            self.event_controlled_entity_ids.discard(entity_id)
+            self.uav_last_command_target_by_entity.pop(entity_id, None)
             return {"status": "ok", "entity_id": entity_id, "vehicle_name": vehicle_name, "response": response}
         response = self.client.remove_asset(entity_id, map_id=self.map_id)
+        self.event_controlled_entity_ids.discard(entity_id)
         return {"status": "ok", "entity_id": entity_id, "response": response}
 
     def _script_play_animation(self, action: dict[str, Any]) -> dict[str, Any]:
@@ -3681,11 +4276,13 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             role_profile_path=str(action.get("role_profile_path", "")),
             map_id=self.map_id,
         )
+        self.crowd_group_ids.add(group_id)
         return {"status": "ok", "group_id": group_id, "response": response}
 
     def _script_clear_crowd(self, action: dict[str, Any]) -> dict[str, Any]:
         group_id = str(action["group_id"])
         response = self.client.ped_clear_crowd(group_id, map_id=self.map_id)
+        self.crowd_group_ids.discard(group_id)
         return {"status": "ok", "group_id": group_id, "response": response}
 
     def _script_set_visual_state(self, action: dict[str, Any]) -> dict[str, Any]:
@@ -3694,6 +4291,47 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         for key in ("mode", "lights_on", "material_variant", "montage_tag"):
             if key in action:
                 visual_state[key] = action[key]
+        logical_asset_id = self._script_entity_logical_asset_id(entity_id, action)
+        if self._script_asset_kind(logical_asset_id) == "uav":
+            vehicle_name = self.uav_active_by_entity.get(entity_id)
+            if not vehicle_name:
+                raise RuntimeError(f"set_visual_state for UAV '{entity_id}' requires an active runtime multirotor")
+            mode = str(visual_state.get("mode") or "").strip().lower()
+            if mode == "hover":
+                raw_position = self.event_entity_initial_positions.get(entity_id)
+                if not raw_position:
+                    pose_response = self.client.get_runtime_vehicle_pose(vehicle_name, map_id=self.map_id)
+                    pose_payload = dict(pose_response.get("payload") or {})
+                    pose_position = pose_payload.get("position_enu_m")
+                    if not isinstance(pose_position, Sequence) or isinstance(pose_position, (str, bytes)):
+                        raise RuntimeError(f"Cannot resolve current runtime UAV pose for hover: {entity_id}")
+                    command_position = [
+                        float(pose_position[0]),
+                        float(pose_position[1]),
+                        float(pose_position[2] if len(pose_position) > 2 else 0.0),
+                    ]
+                else:
+                    command_position = self._runtime_uav_command_position_enu(entity_id, raw_position)
+                wait_status = self._uav_status_snapshot(vehicle_name, command_position)
+                self.event_controlled_entity_ids.add(entity_id)
+                self.uav_last_command_target_by_entity[entity_id] = list(command_position)
+                return {
+                    "status": "ok",
+                    "entity_id": entity_id,
+                    "vehicle_name": vehicle_name,
+                    "visual_state": visual_state,
+                    "command": "runtime_multirotor_hold_state",
+                    "command_position_enu_m": command_position,
+                    "response": {"status": "skipped", "reason": "hover_does_not_issue_second_move"},
+                    "wait_status": wait_status,
+                }
+            return {
+                "status": "ok",
+                "entity_id": entity_id,
+                "vehicle_name": vehicle_name,
+                "visual_state": visual_state,
+                "runtime_uav_state_only": True,
+            }
         payload: dict[str, Any] = {
             "asset_id": self._script_asset_instance_id(action, entity_id),
             "entity_id": entity_id,
@@ -3719,6 +4357,28 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             for preset in site_cfg.get("ground_cameras") or []:
                 if str(preset.get("camera_id", preset.get("camera_name", ""))) == camera_id:
                     return dict(preset)
+        for camera in self.event_scene_setup.get("cameras") or []:
+            if not isinstance(camera, dict):
+                continue
+            if str(camera.get("camera_id", camera.get("camera_name", ""))) != camera_id:
+                continue
+            placement = dict(camera.get("placement") or {})
+            position = placement.get("resolved_position_enu_m") or placement.get("position_enu_m")
+            if not isinstance(position, Sequence) or isinstance(position, (str, bytes)) or len(position) < 3:
+                return None
+            preset = {
+                "camera_id": camera_id,
+                "camera_name": camera_id,
+                "position_enu_m": [float(position[0]), float(position[1]), float(position[2])],
+                "rotation_deg": dict(placement.get("rotation_deg") or camera.get("rotation_deg") or {}),
+                "fov_degrees": float(camera.get("fov_deg", camera.get("fov_degrees", 90.0))),
+                "coordinate_space": "map_enu",
+                "resolution": {
+                    "width": int(camera.get("width", 1280)),
+                    "height": int(camera.get("height", 720)),
+                },
+            }
+            return preset
         return None
 
     def _script_capture_screenshot(self, action: dict[str, Any]) -> dict[str, Any]:
@@ -3758,10 +4418,12 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
 
     def run_batch(self, batch: BatchPlan) -> None:
         batch_ticks = self._batch_ticks(batch)
+        capture_ticks = self._batch_capture_tick_set(batch)
         print(
             f"[EpisodeHost] Starting batch {batch.batch_id} "
             f"site={batch.site_id} roi={batch.roi_id or '<none>'} "
-            f"ticks={batch.tick_start}..{batch.tick_end} ({len(batch_ticks)} frames)"
+            f"ticks={batch.tick_start}..{batch.tick_end} "
+            f"({len(batch_ticks)} simulation ticks, {len(capture_ticks)} capture frames)"
         )
         self._soft_reset_tracking()
         self.last_weather_signature = None
@@ -3780,8 +4442,11 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                     if entity_id not in self.event_interpreter.entity_states:
                         self.event_interpreter.update_entity_state(entity_id, position)
                 for rec in entity_records:
+                    rec_entity_id = str(rec.get("entity_id", ""))
+                    if rec_entity_id in self.event_controlled_entity_ids:
+                        continue
                     self.event_interpreter.update_entity_state(
-                        str(rec.get("entity_id", "")),
+                        rec_entity_id,
                         rec.get("position_enu_m", [0.0, 0.0, 0.0]),
                         rotation_deg=rec.get("rotation_deg"),
                         velocity_enu_mps=rec.get("velocity_enu_mps"),
@@ -3789,10 +4454,39 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                 event_results = self.event_interpreter.tick(tick)
                 if event_results:
                     print(f"[EpisodeHost] Event actions at tick {tick}: {len(event_results)} action(s)")
+                    failed_event_actions: list[dict[str, Any]] = []
+                    for entry in event_results:
+                        result = dict(entry.get("result") or {})
+                        status = str(result.get("status") or "").strip().lower()
+                        if status in {"error", "failed", "skipped"}:
+                            failed_event_actions.append(entry)
+                            continue
+                        wait_status = result.get("wait_status")
+                        if isinstance(wait_status, dict):
+                            wait_payload = dict(wait_status.get("status") or {})
+                            wait_state = str(wait_payload.get("state") or wait_payload.get("status") or "").strip().lower()
+                            timed_out_accepted = bool(wait_status.get("timed_out_accepted_running"))
+                            if (bool(wait_status.get("timed_out")) and not timed_out_accepted) or wait_state in {"failed", "cancelled", "timeout", "missing"}:
+                                failed_event_actions.append(entry)
+                    if failed_event_actions:
+                        summary = [
+                            {
+                                "event_id": item.get("event_id", ""),
+                                "action_id": item.get("action_id", ""),
+                                "type": item.get("type", ""),
+                                "result": item.get("result", {}),
+                            }
+                            for item in failed_event_actions[:5]
+                        ]
+                        raise RuntimeError(
+                            f"Event action failure at tick {tick}: "
+                            + json.dumps(summary, ensure_ascii=False, default=str)
+                        )
 
-            feedback_payload = self._poll_feedback()
-            self._capture_ground_views(batch, frame, weather_payload, entity_records, feedback_payload, uav_status, uav_debug)
-            self._capture_uav_views(batch, frame, weather_payload, entity_records, feedback_payload, uav_status, uav_debug)
+            if tick in capture_ticks:
+                feedback_payload = self._poll_feedback()
+                self._capture_ground_views(batch, frame, weather_payload, entity_records, feedback_payload, uav_status, uav_debug)
+                self._capture_uav_views(batch, frame, weather_payload, entity_records, feedback_payload, uav_status, uav_debug)
 
     def run(self) -> None:
         if self.client is None:
@@ -3816,7 +4510,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                     print(f"[EpisodeHost] Event trace written: {event_path} ({len(event_log)} events)")
         finally:
             if self.client is not None:
-                for asset_id in sorted(set(self.ground_camera_asset_ids.values())):
+                for asset_id in sorted(set(self.ground_camera_asset_ids.values()) | set(self.uav_camera_asset_ids.values())):
                     try:
                         self._retry("remove_asset", self.client.remove_asset, asset_id, map_id=self.map_id)
                     except Exception as exc:
@@ -3843,7 +4537,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start_tick", type=int, default=None, help="Override batch start tick filter")
     parser.add_argument("--end_tick", type=int, default=None, help="Override batch end tick filter")
     parser.add_argument("--max_batches", type=int, default=0, help="Run only the first N matching batches")
-    parser.add_argument("--tick_stride", type=int, default=1, help="Process every Nth tick. Use 5 for 0.5s sampling at 10Hz")
+    parser.add_argument("--tick_stride", type=int, default=1, help="Capture every Nth tick. Simulation still updates every tick by default")
+    parser.add_argument("--simulation_tick_stride", type=int, default=1, help="Advance runtime state every Nth tick; keep 1 for smooth actor motion")
+    parser.add_argument(
+        "--capture_tick",
+        action="append",
+        type=int,
+        default=[],
+        help="Capture only this absolute tick while still simulating the full requested tick range. Repeatable.",
+    )
+    parser.add_argument(
+        "--camera-role",
+        action="append",
+        choices=["all", "ground", "uav"],
+        default=[],
+        help="Capture only this camera role. Repeatable. Default captures all roles.",
+    )
+    parser.add_argument(
+        "--camera-id",
+        action="append",
+        default=[],
+        help="Capture only this camera id/name/suffix/entity. Repeatable.",
+    )
+    parser.add_argument(
+        "--modality",
+        action="append",
+        default=[],
+        help="Capture only this modality id, e.g. rgb, depth, or seg. Repeatable.",
+    )
     parser.add_argument("--dry_run_coords", action="store_true", help="Print raw/transformed ENU coordinates and exit")
     parser.add_argument("--preview_ground", action="store_true", help="Connect to PIE, print transformed + ground-projected ENU coordinates, and exit")
     parser.add_argument("--coord_preview_tick", type=int, default=None, help="Tick used by --dry_run_coords")

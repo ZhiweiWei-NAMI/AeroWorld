@@ -47,6 +47,7 @@ public:
 
 	bool SpawnPedestrian(const FString& PedId, const FVector& WorldLocationCm, float YawDeg, FName VariantId, FString& OutError, bool bUseProvidedGroundPoint = false) const;
 	bool ResetPedestrian(const FString& PedId, const FVector& WorldLocationCm, float YawDeg, FString& OutError, bool bUseProvidedGroundPoint = false) const;
+	bool SetPedestrianFramePose(const FString& PedId, const FVector& WorldLocationCm, float YawDeg, bool bWalking, float SpeedCmPerSec, FString& OutError, bool bUseProvidedGroundPoint = false) const;
 	bool SetPedestrianTarget(const FString& PedId, const FVector& TargetWorldCm, float SpeedCmPerSec, FString& OutError) const;
 	bool ObservePedestrian(const FString& PedId, FName StartSection, FString& OutError) const;
 	bool PlayPedestrianAnimation(const FString& PedId, const FString& AnimationAssetPath, FName StartSection, float PlayRate, int32 LoopCount, FString& OutError) const;
@@ -82,5 +83,6 @@ private:
 private:
 	mutable FCriticalSection MultirotorMoveJobsMutex;
 	TMap<FString, TSharedPtr<FMultirotorMoveJobState, ESPMode::ThreadSafe>> MultirotorMoveJobs;
+	TMap<FString, FVector> RuntimeMultirotorSpawnWorldCm;
 	uint64 NextMultirotorMoveCommandId = 1;
 };

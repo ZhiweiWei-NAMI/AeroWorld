@@ -7,6 +7,11 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_lifecycle_takeoff_uav_l3_2_v2",
+      "type": "tick",
+      "tick": 30
+    },
+    {
       "trigger_id": "trig_temporary_nfz_declared",
       "type": "tick",
       "tick": 280
@@ -26,9 +31,57 @@
       "operator": "lte",
       "metric": "3d",
       "min_true_ticks": 3
+    },
+    {
+      "trigger_id": "trig_after_nfz_proximity_alert_delay_80",
+      "type": "event_fired_after",
+      "event_id": "nfz_proximity_alert",
+      "delay_ticks": 80
     }
   ],
   "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_l3_2_v2",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_l3_2_v2",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_l3_2_v2_takeoff_entry",
+          "entity_id": "uav_l3_2_v2",
+          "waypoints_enu_m": [
+            [
+              7049.616,
+              6242.363,
+              3.0
+            ],
+            [
+              7049.616,
+              6242.363,
+              24.0
+            ],
+            [
+              7050.0,
+              6242.0,
+              31
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L3-2_v2_lifecycle_takeoff_uav_l3_2_v2",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_l3_2_v2",
+          "pad_home_uav_l3_2_v2"
+        ]
+      }
+    },
     {
       "event_id": "temporary_nfz_declared",
       "trigger_ref": "trig_temporary_nfz_declared",
@@ -145,6 +198,48 @@
         "target_ids": [
           "uav_l3_2_v2",
           "temporary_nfz_l3_2_v2"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_l3_2_v2",
+      "trigger_ref": "trig_after_nfz_proximity_alert_delay_80",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_l3_2_v2_landing_return",
+          "entity_id": "uav_l3_2_v2",
+          "waypoints_enu_m": [
+            [
+              7084.0,
+              6282.0,
+              34.0
+            ],
+            [
+              7049.616,
+              6242.363,
+              22.0
+            ],
+            [
+              7049.616,
+              6242.363,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L3-2_v2_lifecycle_landing_uav_l3_2_v2",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_l3_2_v2",
+          "pad_home_uav_l3_2_v2"
         ]
       }
     }

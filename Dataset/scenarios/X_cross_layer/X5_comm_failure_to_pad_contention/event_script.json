@@ -7,6 +7,16 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_lifecycle_takeoff_uav_x5_priority",
+      "type": "tick",
+      "tick": 30
+    },
+    {
+      "trigger_id": "trig_lifecycle_takeoff_uav_x5_second",
+      "type": "tick",
+      "tick": 38
+    },
+    {
       "trigger_id": "trig_station_failure",
       "type": "tick",
       "tick": 220
@@ -44,9 +54,99 @@
       "type": "event_fired_after",
       "event_id": "second_uav_reroute",
       "delay_ticks": 41
+    },
+    {
+      "trigger_id": "trig_after_station_recovered_delay_88",
+      "type": "event_fired_after",
+      "event_id": "station_recovered",
+      "delay_ticks": 88
     }
   ],
   "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_x5_priority",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_x5_priority",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_x5_priority_takeoff_entry",
+          "entity_id": "uav_x5_priority",
+          "waypoints_enu_m": [
+            [
+              7124.368,
+              6512.721,
+              3.0
+            ],
+            [
+              7124.368,
+              6512.721,
+              24.0
+            ],
+            [
+              7088.0,
+              6484.0,
+              33
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X5_comm_failure_to_pad_contention_lifecycle_takeoff_uav_x5_priority",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_x5_priority",
+          "pad_home_uav_x5_priority"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_takeoff_uav_x5_second",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_x5_second",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_x5_second_takeoff_entry",
+          "entity_id": "uav_x5_second",
+          "waypoints_enu_m": [
+            [
+              7134.516,
+              6466.45,
+              3.0
+            ],
+            [
+              7134.516,
+              6466.45,
+              24.0
+            ],
+            [
+              7124.0,
+              6460.0,
+              31
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X5_comm_failure_to_pad_contention_lifecycle_takeoff_uav_x5_second",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_x5_second",
+          "pad_home_uav_x5_second"
+        ]
+      }
+    },
     {
       "event_id": "station_failure",
       "trigger_ref": "trig_station_failure",
@@ -251,6 +351,48 @@
         "overlay": "infrastructure",
         "target_ids": [
           "tower_x5_comm"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_x5_second",
+      "trigger_ref": "trig_after_station_recovered_delay_88",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_x5_second_landing_return",
+          "entity_id": "uav_x5_second",
+          "waypoints_enu_m": [
+            [
+              7140.0,
+              6496.0,
+              34.0
+            ],
+            [
+              7134.516,
+              6466.45,
+              22.0
+            ],
+            [
+              7134.516,
+              6466.45,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X5_comm_failure_to_pad_contention_lifecycle_landing_uav_x5_second",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_x5_second",
+          "pad_home_uav_x5_second"
         ]
       }
     }

@@ -13,11 +13,11 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7067.816,
-      6438.3,
+      7048.625,
+      6427.55,
       0.0
     ],
-    "radius_m": 205.644,
+    "radius_m": 242.809,
     "source": "scene_entities_and_routes"
   },
   "entities": [
@@ -54,24 +54,46 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7042.0,
-          6444.0,
-          32
+          6969.922,
+          6401.798,
+          3.0
         ],
         "resolved_position_enu_m": [
-          7042.0,
-          6444.0,
-          32
+          6969.922,
+          6401.798,
+          3.0
         ],
         "rotation_deg": {
           "yaw_deg": 30
         }
       },
-      "route_waypoints_enu_m": [],
+      "route_waypoints_enu_m": [
+        [
+          7042.0,
+          6444.0,
+          32
+        ]
+      ],
       "initial_state": {
-        "mode": "rain_patrol"
+        "mode": "preflight_on_pad"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "lifecycle": {
+        "auto_lifecycle_applied": true,
+        "home_pad_entity_id": "pad_home_uav_x1_forced_landing",
+        "home_hover_enu_m": [
+          6969.922,
+          6401.798,
+          3.0
+        ],
+        "mission_start_enu_m": [
+          7042.0,
+          6444.0,
+          32
+        ],
+        "requires_takeoff": true,
+        "requires_landing_or_terminal_resolution": true
+      }
     },
     {
       "entity_id": "ped_x1_crowd_anchor",
@@ -84,7 +106,7 @@
         "offset_from_curb_m": 4.5,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": 6.4,
-        "placement_semantics": "sidewalk_or_plaza",
+        "placement_semantics": "sidewalk",
         "resolved_position_enu_m": [
           7111.449,
           6424.9,
@@ -101,6 +123,34 @@
         "mode": "standing"
       },
       "activation_tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_x1_forced_landing",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "home_uav_x1_forced_landing",
+        "approach_side": "departure",
+        "position_enu_m": [
+          6969.922,
+          6401.798,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          6969.922,
+          6401.798,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 120.045
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
+      },
+      "activation_tick": 0
     }
   ],
   "spawn_sequencing": [
@@ -114,6 +164,10 @@
     },
     {
       "entity_id": "ped_x1_crowd_anchor",
+      "tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_x1_forced_landing",
       "tick": 0
     }
   ],
@@ -136,9 +190,9 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7067.816,
-          6438.3,
-          75.0
+          7048.625,
+          6427.55,
+          165.073
         ],
         "rotation_deg": {
           "pitch_deg": -70.0,

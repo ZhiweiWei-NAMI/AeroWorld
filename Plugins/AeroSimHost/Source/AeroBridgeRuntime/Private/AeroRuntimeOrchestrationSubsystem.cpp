@@ -102,6 +102,7 @@ void UAeroRuntimeOrchestrationSubsystem::Deinitialize()
 		FScopeLock Lock(&MultirotorMoveJobsMutex);
 		MultirotorMoveJobs.Reset();
 	}
+	RuntimeMultirotorSpawnWorldCm.Empty();
 
 	Super::Deinitialize();
 }
@@ -160,6 +161,30 @@ bool UAeroRuntimeOrchestrationSubsystem::ResetPedestrian(
 	if (!PedSubsystem->ExecReset(PedId, WorldLocationCm, YawDeg, bUseProvidedGroundPoint))
 	{
 		OutError = FString::Printf(TEXT("Failed to reset pedestrian '%s'."), *PedId);
+		return false;
+	}
+
+	return true;
+}
+
+bool UAeroRuntimeOrchestrationSubsystem::SetPedestrianFramePose(
+	const FString& PedId,
+	const FVector& WorldLocationCm,
+	const float YawDeg,
+	const bool bWalking,
+	const float SpeedCmPerSec,
+	FString& OutError,
+	const bool bUseProvidedGroundPoint) const
+{
+	UPedestrianWorldSubsystem* PedSubsystem = ResolvePedestrianSubsystem(OutError);
+	if (PedSubsystem == nullptr)
+	{
+		return false;
+	}
+
+	if (!PedSubsystem->ExecSetFramePose(PedId, WorldLocationCm, YawDeg, bWalking, SpeedCmPerSec, bUseProvidedGroundPoint))
+	{
+		OutError = FString::Printf(TEXT("Failed to set frame pose for pedestrian '%s'."), *PedId);
 		return false;
 	}
 
@@ -457,6 +482,7 @@ bool UAeroRuntimeOrchestrationSubsystem::CreateRuntimeMultirotor(
 		return false;
 	}
 
+	RuntimeMultirotorSpawnWorldCm.Add(VehicleName, WorldLocationCm);
 	UE_LOG(LogAeroRuntimeOrchestration, Log, TEXT("CreateRuntimeMultirotor succeeded: name='%s'."), *VehicleName);
 	return true;
 }
@@ -560,7 +586,28 @@ bool UAeroRuntimeOrchestrationSubsystem::MoveMultirotorToPosition(
 	}
 	auto* MultirotorApi = static_cast<msr::airlib::MultirotorApiBase*>(VehicleApiBase);
 
-	const msr::airlib::Vector3r TargetNed = SimModeActor->getGlobalNedTransform().toGlobalNed(TargetWorldCm);
+	const FVector* SpawnWorldCm = RuntimeMultirotorSpawnWorldCm.Find(VehicleName);
+	FVector LocalOriginWorldCm = SpawnWorldCm != nullptr ? *SpawnWorldCm : FVector::ZeroVector;
+	if (SpawnWorldCm == nullptr)
+	{
+		APawn* RuntimePawn = ResolveSpawnedPawnByVehicleName(VehicleName);
+		if (!IsValid(RuntimePawn))
+		{
+			OutError = FString::Printf(TEXT("AirSim runtime pawn is unavailable for '%s'."), *VehicleName);
+			return false;
+		}
+		LocalOriginWorldCm = RuntimePawn->GetActorLocation();
+		RuntimeMultirotorSpawnWorldCm.Add(VehicleName, LocalOriginWorldCm);
+		UE_LOG(
+			LogAeroRuntimeOrchestration,
+			Warning,
+			TEXT("MoveMultirotorToPosition rebuilt missing spawn origin from current pawn location for '%s': origin='%s'."),
+			*VehicleName,
+			*LocalOriginWorldCm.ToString());
+	}
+	const msr::airlib::Vector3r TargetLocalNed =
+		SimModeActor->getGlobalNedTransform().toGlobalNed(TargetWorldCm) -
+		SimModeActor->getGlobalNedTransform().toGlobalNed(LocalOriginWorldCm);
 	const uint64 CommandId = NextMultirotorMoveCommandId++;
 
 	TSharedPtr<FMultirotorMoveJobState, ESPMode::ThreadSafe> Job = MakeShared<FMultirotorMoveJobState, ESPMode::ThreadSafe>();
@@ -578,13 +625,16 @@ bool UAeroRuntimeOrchestrationSubsystem::MoveMultirotorToPosition(
 	UE_LOG(
 		LogAeroRuntimeOrchestration,
 		Log,
-		TEXT("MoveMultirotorToPosition async start: vehicle='%s' command_id=%llu target='%s' velocity=%.2f."),
+		TEXT("MoveMultirotorToPosition async start: vehicle='%s' command_id=%llu target='%s' target_local_ned='(%.3f, %.3f, %.3f)' velocity=%.2f."),
 		*VehicleName,
 		CommandId,
 		*TargetWorldCm.ToString(),
+		static_cast<double>(TargetLocalNed.x()),
+		static_cast<double>(TargetLocalNed.y()),
+		static_cast<double>(TargetLocalNed.z()),
 		VelocityMps);
 
-	Async(EAsyncExecution::ThreadPool, [Job, VehicleApiBase, MultirotorApi, VehicleName, TargetWorldCm, VelocityMps, TargetNed]() {
+	Async(EAsyncExecution::ThreadPool, [Job, VehicleApiBase, MultirotorApi, VehicleName, TargetWorldCm, VelocityMps, TargetLocalNed]() {
 		bool bMoveCompleted = false;
 		FString ResultMessage = TEXT("AirSim multirotor staged move failed.");
 
@@ -700,7 +750,6 @@ bool UAeroRuntimeOrchestrationSubsystem::MoveMultirotorToPosition(
 			};
 
 			const float EffectiveVelocityMps = FMath::Max(0.5f, VelocityMps);
-			const float VerticalVelocityMps = FMath::Clamp(EffectiveVelocityMps, 0.5f, 2.0f);
 			const msr::airlib::YawMode HoldYaw(false, 0.0f);
 
 			if (!WaitForReady(DefaultMultirotorReadyTimeoutSec))
@@ -746,19 +795,55 @@ bool UAeroRuntimeOrchestrationSubsystem::MoveMultirotorToPosition(
 					}
 				}
 
-				if (ResultMessage == TEXT("AirSim multirotor staged move failed.") &&
-					LastState.landed_state == msr::airlib::LandedState::Landed)
+				if (ResultMessage != TEXT("AirSim multirotor staged move failed."))
 				{
-					LogStage(TEXT("takeoff"), TEXT("Executing takeoff."));
-					if (!MultirotorApi->takeoff(DefaultMultirotorTakeoffTimeoutSec))
+					bMoveCompleted = false;
+				}
+				else
+				{
+					if (LastState.landed_state == msr::airlib::LandedState::Landed)
 					{
-						ResultMessage = Job->bCancelRequested.Load()
-							? TEXT("Move cancelled during takeoff.")
-							: FString::Printf(TEXT("AirSim takeoff failed before staged move for '%s'."), *VehicleName);
-					}
-					else if (!SleepWithCancellation(0.25f, TEXT("Move cancelled after takeoff.")))
-					{
-						bMoveCompleted = false;
+						const float PreTakeoffSpeedMps = GetLinearSpeedMps();
+						if (PreTakeoffSpeedMps > DefaultMoveStartSpeedMps)
+						{
+							UE_LOG(
+								LogAeroRuntimeOrchestration,
+								Warning,
+								TEXT("MoveMultirotorToPosition saw '%s' as Landed but already moving at %.2f m/s; skipping takeoff and continuing with runtime move."),
+								*VehicleName,
+								PreTakeoffSpeedMps);
+						}
+						else
+						{
+							LogStage(TEXT("takeoff"), TEXT("Executing takeoff before local-NED runtime move."));
+							if (!MultirotorApi->takeoff(DefaultMultirotorTakeoffTimeoutSec))
+							{
+								if (Job->bCancelRequested.Load())
+								{
+									ResultMessage = TEXT("Move cancelled during takeoff.");
+								}
+								else
+								{
+									UpdateState();
+									if (LastState.ready && LastState.landed_state == msr::airlib::LandedState::Flying)
+									{
+										UE_LOG(
+											LogAeroRuntimeOrchestration,
+											Warning,
+											TEXT("MoveMultirotorToPosition takeoff returned false for '%s', but state is Flying; continuing with runtime move."),
+											*VehicleName);
+									}
+									else
+									{
+										ResultMessage = FString::Printf(TEXT("AirSim takeoff failed before runtime move for '%s'."), *VehicleName);
+									}
+								}
+							}
+							else if (!SleepWithCancellation(0.25f, TEXT("Move cancelled after takeoff.")))
+							{
+								bMoveCompleted = false;
+							}
+						}
 					}
 				}
 
@@ -768,7 +853,7 @@ bool UAeroRuntimeOrchestrationSubsystem::MoveMultirotorToPosition(
 				}
 				else
 				{
-					LogStage(TEXT("hover"), TEXT("Stabilizing before translation."));
+					LogStage(TEXT("hover"), TEXT("Stabilizing before local-NED runtime move."));
 					const bool bHoverAccepted = MultirotorApi->hover();
 					if (!bHoverAccepted)
 					{
@@ -781,107 +866,86 @@ bool UAeroRuntimeOrchestrationSubsystem::MoveMultirotorToPosition(
 
 					WaitForStableFlight(DefaultMultirotorSettleTimeoutSec, TEXT("Move cancelled while stabilizing before translation."));
 					UpdateState();
+					msr::airlib::Vector3r CurrentNed = GetCurrentNed();
+					float RemainingXYM = FMath::Sqrt(
+						FMath::Square(static_cast<float>(TargetLocalNed.x() - CurrentNed.x())) +
+						FMath::Square(static_cast<float>(TargetLocalNed.y() - CurrentNed.y())));
+					float RemainingZM = FMath::Abs(static_cast<float>(TargetLocalNed.z() - CurrentNed.z()));
 					UE_LOG(
 						LogAeroRuntimeOrchestration,
 						Log,
-						TEXT("MoveMultirotorToPosition stabilized: vehicle='%s' landed='%s' speed_mps=%.2f current_ned='(%.3f, %.3f, %.3f)' target='%s'."),
+						TEXT("MoveMultirotorToPosition local target check: vehicle='%s' landed='%s' speed_mps=%.2f current_local_ned='(%.3f, %.3f, %.3f)' target_local_ned='(%.3f, %.3f, %.3f)' target='%s'."),
 						*VehicleName,
 						*ToLandedStateLogString(LastState.landed_state),
 						GetLinearSpeedMps(),
-						static_cast<double>(GetCurrentNed().x()),
-						static_cast<double>(GetCurrentNed().y()),
-						static_cast<double>(GetCurrentNed().z()),
+						static_cast<double>(CurrentNed.x()),
+						static_cast<double>(CurrentNed.y()),
+						static_cast<double>(CurrentNed.z()),
+						static_cast<double>(TargetLocalNed.x()),
+						static_cast<double>(TargetLocalNed.y()),
+						static_cast<double>(TargetLocalNed.z()),
 						*TargetWorldCm.ToString());
 
-					msr::airlib::Vector3r CurrentNed = GetCurrentNed();
-					const float DeltaZM = FMath::Abs(static_cast<float>(TargetNed.z() - CurrentNed.z()));
-					if (DeltaZM > DefaultMoveVerticalToleranceM)
+					if (RemainingXYM <= DefaultMoveHorizontalToleranceM && RemainingZM <= DefaultMoveVerticalToleranceM * 2.0f)
+					{
+						bMoveCompleted = true;
+						ResultMessage = FString::Printf(
+							TEXT("Runtime multirotor already within tolerance for '%s': residual_xy=%.2f m residual_z=%.2f m."),
+							*TargetWorldCm.ToString(),
+							RemainingXYM,
+							RemainingZM);
+					}
+					else
 					{
 						LogStage(
-							TEXT("move_to_z"),
-							FString::Printf(TEXT("Adjusting altitude by %.2f m toward target z=%.2f."), DeltaZM, static_cast<double>(TargetNed.z())));
-						const bool bMoveToZAccepted = MultirotorApi->moveToZ(
-							TargetNed.z(),
-							VerticalVelocityMps,
+							TEXT("move_to_position"),
+							FString::Printf(
+								TEXT("Moving to local NED target (%.2f, %.2f, %.2f) at %.2f m/s."),
+								static_cast<double>(TargetLocalNed.x()),
+								static_cast<double>(TargetLocalNed.y()),
+								static_cast<double>(TargetLocalNed.z()),
+								EffectiveVelocityMps));
+						const bool bMoveAccepted = MultirotorApi->moveToPosition(
+							TargetLocalNed.x(),
+							TargetLocalNed.y(),
+							TargetLocalNed.z(),
+							EffectiveVelocityMps,
 							DefaultMultirotorMoveTimeoutSec,
+							msr::airlib::DrivetrainType::MaxDegreeOfFreedom,
 							HoldYaw,
 							DefaultLookahead,
 							DefaultAdaptiveLookahead);
-						if (!bMoveToZAccepted)
+						if (!bMoveAccepted)
 						{
 							ResultMessage = Job->bCancelRequested.Load()
-								? TEXT("Move cancelled during moveToZ.")
-								: FString::Printf(TEXT("moveToZ returned false for staged move target '%s'."), *TargetWorldCm.ToString());
-						}
-					}
-
-					if (ResultMessage == TEXT("AirSim multirotor staged move failed."))
-					{
-						UpdateState();
-						CurrentNed = GetCurrentNed();
-						const float DeltaXM = static_cast<float>(TargetNed.x() - CurrentNed.x());
-						const float DeltaYM = static_cast<float>(TargetNed.y() - CurrentNed.y());
-						const float DistanceXYM = FMath::Sqrt(DeltaXM * DeltaXM + DeltaYM * DeltaYM);
-						if (DistanceXYM > DefaultMoveHorizontalToleranceM)
-						{
-							const float DurationSec = FMath::Clamp(DistanceXYM / EffectiveVelocityMps, DefaultMoveMinDurationSec, DefaultMultirotorMoveTimeoutSec);
-							const float Vx = DeltaXM / DurationSec;
-							const float Vy = DeltaYM / DurationSec;
-							LogStage(
-								TEXT("move_by_velocity_z"),
-								FString::Printf(TEXT("Translating %.2f m in XY over %.2f s with velocity (%.2f, %.2f) m/s."), DistanceXYM, DurationSec, Vx, Vy));
-							const bool bMoveByVelocityAccepted = MultirotorApi->moveByVelocityZ(
-								Vx,
-								Vy,
-								TargetNed.z(),
-								DurationSec,
-								msr::airlib::DrivetrainType::MaxDegreeOfFreedom,
-								HoldYaw);
-							if (!bMoveByVelocityAccepted)
-							{
-								ResultMessage = Job->bCancelRequested.Load()
-									? TEXT("Move cancelled during moveByVelocityZ.")
-									: FString::Printf(TEXT("moveByVelocityZ returned false for staged move target '%s'."), *TargetWorldCm.ToString());
-							}
-						}
-					}
-
-					if (ResultMessage == TEXT("AirSim multirotor staged move failed."))
-					{
-						LogStage(TEXT("final_hover"), TEXT("Applying final hover hold."));
-						const bool bFinalHoverAccepted = MultirotorApi->hover();
-						if (!bFinalHoverAccepted)
-						{
-							UE_LOG(
-								LogAeroRuntimeOrchestration,
-								Warning,
-								TEXT("MoveMultirotorToPosition final hover was rejected for '%s'; validating final pose anyway."),
-								*VehicleName);
-						}
-
-						WaitForStableFlight(DefaultMultirotorSettleTimeoutSec, TEXT("Move cancelled during final hover."));
-						UpdateState();
-						CurrentNed = GetCurrentNed();
-						const float RemainingXYM = FMath::Sqrt(
-							FMath::Square(static_cast<float>(TargetNed.x() - CurrentNed.x())) +
-							FMath::Square(static_cast<float>(TargetNed.y() - CurrentNed.y())));
-						const float RemainingZM = FMath::Abs(static_cast<float>(TargetNed.z() - CurrentNed.z()));
-						if (RemainingXYM <= DefaultMoveHorizontalToleranceM && RemainingZM <= DefaultMoveVerticalToleranceM * 2.0f)
-						{
-							bMoveCompleted = true;
-							ResultMessage = FString::Printf(
-								TEXT("Staged move completed to '%s' with residual_xy=%.2f m residual_z=%.2f m."),
-								*TargetWorldCm.ToString(),
-								RemainingXYM,
-								RemainingZM);
+								? TEXT("Move cancelled during moveToPosition.")
+								: FString::Printf(TEXT("moveToPosition returned false for local NED target '%s'."), *TargetWorldCm.ToString());
 						}
 						else
 						{
-							ResultMessage = FString::Printf(
-								TEXT("Staged move ended outside tolerance for '%s': residual_xy=%.2f m residual_z=%.2f m."),
-								*TargetWorldCm.ToString(),
-								RemainingXYM,
-								RemainingZM);
+							UpdateState();
+							CurrentNed = GetCurrentNed();
+							RemainingXYM = FMath::Sqrt(
+								FMath::Square(static_cast<float>(TargetLocalNed.x() - CurrentNed.x())) +
+								FMath::Square(static_cast<float>(TargetLocalNed.y() - CurrentNed.y())));
+							RemainingZM = FMath::Abs(static_cast<float>(TargetLocalNed.z() - CurrentNed.z()));
+							if (RemainingXYM <= DefaultMoveHorizontalToleranceM && RemainingZM <= DefaultMoveVerticalToleranceM * 2.0f)
+							{
+								bMoveCompleted = true;
+								ResultMessage = FString::Printf(
+									TEXT("Runtime multirotor move completed to '%s' with residual_xy=%.2f m residual_z=%.2f m."),
+									*TargetWorldCm.ToString(),
+									RemainingXYM,
+									RemainingZM);
+							}
+							else
+							{
+								ResultMessage = FString::Printf(
+									TEXT("Runtime multirotor move ended outside tolerance for '%s': residual_xy=%.2f m residual_z=%.2f m."),
+									*TargetWorldCm.ToString(),
+									RemainingXYM,
+									RemainingZM);
+							}
 						}
 					}
 				}
@@ -997,6 +1061,7 @@ bool UAeroRuntimeOrchestrationSubsystem::RemoveRuntimeVehicle(const FString& Veh
 		FScopeLock Lock(&MultirotorMoveJobsMutex);
 		MultirotorMoveJobs.Remove(VehicleName);
 	}
+	RuntimeMultirotorSpawnWorldCm.Remove(VehicleName);
 
 	return true;
 }
@@ -1039,23 +1104,15 @@ bool UAeroRuntimeOrchestrationSubsystem::GetVehiclePose(
 	OutWorldLocationCm = FVector::ZeroVector;
 	OutWorldRotation = FRotator::ZeroRotator;
 
-	ASimModeBase* SimModeActor = ResolveSimModeActor();
-	if (!IsValid(SimModeActor))
+	APawn* RuntimePawn = ResolveSpawnedPawnByVehicleName(VehicleName);
+	if (!IsValid(RuntimePawn))
 	{
-		OutError = TEXT("AirSim SimMode is unavailable.");
+		OutError = FString::Printf(TEXT("AirSim runtime pawn is unavailable for '%s'."), *VehicleName);
 		return false;
 	}
 
-	PawnSimApi* VehicleSimApi = SimModeActor->getVehicleSimApi(TCHAR_TO_UTF8(*VehicleName));
-	if (VehicleSimApi == nullptr)
-	{
-		OutError = FString::Printf(TEXT("AirSim vehicle sim API is unavailable for '%s'."), *VehicleName);
-		return false;
-	}
-
-	const FTransform WorldTransform = SimModeActor->getGlobalNedTransform().fromGlobalNed(VehicleSimApi->getPose());
-	OutWorldLocationCm = WorldTransform.GetLocation();
-	OutWorldRotation = WorldTransform.Rotator();
+	OutWorldLocationCm = RuntimePawn->GetActorLocation();
+	OutWorldRotation = RuntimePawn->GetActorRotation();
 	return true;
 }
 

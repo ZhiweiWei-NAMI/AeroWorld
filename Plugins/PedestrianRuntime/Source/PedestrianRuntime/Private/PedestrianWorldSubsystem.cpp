@@ -308,6 +308,51 @@ bool UPedestrianWorldSubsystem::ExecReset(const FString& PedId, const FVector& L
 	return true;
 }
 
+bool UPedestrianWorldSubsystem::ExecSetFramePose(
+	const FString& PedId,
+	const FVector& Loc,
+	const float YawDeg,
+	const bool bWalking,
+	const float SpeedCmPerSec,
+	const bool bUseProvidedGroundPoint)
+{
+	APedestrianCharacter* Ped = ResolvePedestrianOrLog(PedId, TEXT("ped.frame_pose"));
+	if (!IsValid(Ped))
+	{
+		return false;
+	}
+
+	FVector GroundWorldCm = Loc;
+	FVector SurfaceNormalWorld = FVector::UpVector;
+	FString GroundSource;
+	if (!bUseProvidedGroundPoint && !TryResolveGroundPlacement(GetWorld(), Loc, GroundWorldCm, SurfaceNormalWorld, &GroundSource))
+	{
+		UE_LOG(
+			LogPedestrianRuntime,
+			Warning,
+			TEXT("ped.frame_pose ground projection failed: PedId='%s' requested='%s'."),
+			*NormalizePedId(PedId),
+			*Loc.ToString());
+	}
+	else if (!bUseProvidedGroundPoint && !GroundSource.IsEmpty())
+	{
+		UE_LOG(
+			LogPedestrianRuntime,
+			Log,
+			TEXT("ped.frame_pose grounded: PedId='%s' requested='%s' resolved='%s' source='%s' walking=%s speed=%.2f."),
+			*NormalizePedId(PedId),
+			*Loc.ToString(),
+			*GroundWorldCm.ToString(),
+			*GroundSource,
+			bWalking ? TEXT("true") : TEXT("false"),
+			SpeedCmPerSec);
+	}
+
+	Ped->CmdSetFramePose(GroundWorldCm, YawDeg, bWalking, SpeedCmPerSec);
+	AlignPedestrianToGround(Ped, GroundWorldCm, SurfaceNormalWorld);
+	return true;
+}
+
 bool UPedestrianWorldSubsystem::ExecObserve(const FString& PedId)
 {
 	APedestrianCharacter* Ped = ResolvePedestrianOrLog(PedId, TEXT("ped.observe"));

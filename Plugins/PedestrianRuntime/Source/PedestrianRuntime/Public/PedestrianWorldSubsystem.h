@@ -35,6 +35,7 @@ public:
 	APedestrianCharacter* FindPedestrian(const FString& PedId) const;
 
 	bool ExecReset(const FString& PedId, const FVector& Loc, float YawDeg, bool bUseProvidedGroundPoint = false);
+	bool ExecSetFramePose(const FString& PedId, const FVector& Loc, float YawDeg, bool bWalking, float SpeedCmPerSec, bool bUseProvidedGroundPoint = false);
 	bool ExecObserve(const FString& PedId);
 	bool ExecCommitCross(const FString& PedId, const FVector& Target, float SpeedCmPerSec);
 	bool ExecStop(const FString& PedId);

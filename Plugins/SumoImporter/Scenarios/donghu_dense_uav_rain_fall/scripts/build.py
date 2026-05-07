@@ -102,6 +102,31 @@ def _lerp_vec3(a: list[float], b: list[float], alpha: float) -> list[float]:
     return [_lerp(float(a[index]), float(b[index]), alpha) for index in range(3)]
 
 
+def _polyline_length_m(points: list[list[float]]) -> float:
+    return sum(_distance_3d(a, b) for a, b in zip(points, points[1:]))
+
+
+def _polyline_point_at_fraction(points: list[list[float]], fraction: float) -> list[float]:
+    if not points:
+        return [0.0, 0.0, 0.0]
+    if len(points) == 1:
+        return list(points[0])
+    total_m = _polyline_length_m(points)
+    if total_m <= 1e-6:
+        return list(points[0])
+    target_m = _clamp(float(fraction), 0.0, 1.0) * total_m
+    traversed_m = 0.0
+    for current, next_point in zip(points, points[1:]):
+        segment_m = _distance_3d(current, next_point)
+        if segment_m <= 1e-6:
+            continue
+        if traversed_m + segment_m >= target_m:
+            alpha = (target_m - traversed_m) / segment_m
+            return _lerp_vec3(current, next_point, _clamp(alpha, 0.0, 1.0))
+        traversed_m += segment_m
+    return list(points[-1])
+
+
 def _distance_xy(a: list[float], b: list[float]) -> float:
     return math.hypot(float(a[0]) - float(b[0]), float(a[1]) - float(b[1]))
 
@@ -363,12 +388,34 @@ class PedestrianPlan:
     hold_social_state: str
     hold_animation_hint: str
     umbrella_after_rain: bool = False
+    path_waypoints_enu_m: tuple[tuple[float, float, float], ...] = ()
+
+    @property
+    def route_points_enu_m(self) -> list[list[float]]:
+        raw_points = [list(point) for point in self.path_waypoints_enu_m]
+        if not raw_points:
+            raw_points = [list(self.start_position_enu_m), list(self.end_position_enu_m)]
+        if _distance_3d(raw_points[0], self.start_position_enu_m) > 1e-6:
+            raw_points.insert(0, list(self.start_position_enu_m))
+        if _distance_3d(raw_points[-1], self.end_position_enu_m) > 1e-6:
+            raw_points.append(list(self.end_position_enu_m))
+        deduped: list[list[float]] = []
+        for point in raw_points:
+            if not deduped or _distance_3d(deduped[-1], point) > 1e-6:
+                deduped.append(list(point))
+        return deduped
 
     @property
     def route_yaw_deg(self) -> float:
+        route = self.route_points_enu_m
+        start = route[0]
+        end = route[-1]
+        if len(route) >= 2:
+            start = route[-2]
+            end = route[-1]
         delta = [
-            float(self.end_position_enu_m[0]) - float(self.start_position_enu_m[0]),
-            float(self.end_position_enu_m[1]) - float(self.start_position_enu_m[1]),
+            float(end[0]) - float(start[0]),
+            float(end[1]) - float(start[1]),
             0.0,
         ]
         return _heading_yaw_deg(delta, 0.0)
@@ -1008,8 +1055,9 @@ class DenseUavEpisodeGenerator:
         if tick_int <= plan.end_tick:
             alpha = float(tick_int - plan.start_tick) / max(1.0, float(plan.end_tick - plan.start_tick))
             next_alpha = float(min(plan.end_tick, tick_int + 1) - plan.start_tick) / max(1.0, float(plan.end_tick - plan.start_tick))
-            position = _lerp_vec3(plan.start_position_enu_m, plan.end_position_enu_m, _clamp(alpha, 0.0, 1.0))
-            next_position = _lerp_vec3(plan.start_position_enu_m, plan.end_position_enu_m, _clamp(next_alpha, 0.0, 1.0))
+            route = plan.route_points_enu_m
+            position = _polyline_point_at_fraction(route, alpha)
+            next_position = _polyline_point_at_fraction(route, next_alpha)
             velocity = [
                 (float(next_position[index]) - float(position[index])) / self.dt_s
                 for index in range(3)

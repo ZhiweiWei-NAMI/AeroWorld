@@ -8,59 +8,93 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_lifecycle_takeoff_uav_crowd_monitor_l4_8_v1",
+      "type": "tick",
+      "tick": 30
+    },
+    {
       "trigger_id": "trig_crowd_generated",
+      "type": "tick",
+      "tick": 0
+    },
+    {
+      "trigger_id": "trig_evacuation_triggered",
       "type": "tick",
       "tick": 220
     },
     {
-      "trigger_id": "trig_after_crowd_generated_delay_30",
-      "type": "event_fired_after",
-      "event_id": "crowd_generated",
-      "delay_ticks": 30
-    },
-    {
-      "trigger_id": "trig_after_evacuation_triggered_delay_30",
+      "trigger_id": "trig_after_evacuation_triggered_delay_190",
       "type": "event_fired_after",
       "event_id": "evacuation_triggered",
-      "delay_ticks": 30
+      "delay_ticks": 190
     },
     {
-      "trigger_id": "trig_after_uav_evacuation_monitor_delay_112",
+      "trigger_id": "trig_after_uav_evacuation_monitor_delay_231",
       "type": "event_fired_after",
       "event_id": "uav_evacuation_monitor",
-      "delay_ticks": 112
+      "delay_ticks": 231
+    },
+    {
+      "trigger_id": "trig_after_crowd_safe_hold_delay_80",
+      "type": "event_fired_after",
+      "event_id": "crowd_safe_hold",
+      "delay_ticks": 80
     }
   ],
   "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_crowd_monitor_l4_8_v1",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_crowd_monitor_l4_8_v1",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_crowd_monitor_l4_8_v1_takeoff_entry",
+          "entity_id": "uav_crowd_monitor_l4_8_v1",
+          "waypoints_enu_m": [
+            [
+              7111.55,
+              6320.479,
+              3.0
+            ],
+            [
+              7111.55,
+              6320.479,
+              24.0
+            ],
+            [
+              7112.0,
+              6320.0,
+              34
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-8_v1_lifecycle_takeoff_uav_crowd_monitor_l4_8_v1",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_crowd_monitor_l4_8_v1",
+          "pad_home_uav_crowd_monitor_l4_8_v1"
+        ]
+      }
+    },
     {
       "event_id": "crowd_generated",
       "trigger_ref": "trig_crowd_generated",
       "priority": 1,
       "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "spawn_crowd",
-          "action_id": "spawn_incident_crowd",
-          "group_id": "crowd_l4_8_v1",
-          "count": 12,
-          "spawn_origin_enu_m": [
-            7132.972,
-            6333.707,
-            0.0
-          ],
-          "spawn_box_extent_cm": [
-            900,
-            600,
-            0
-          ],
-          "seed": 816
-        }
-      ],
+      "actions": [],
       "log_event": {
         "topic": "evt_L4-8_v1_crowd_generated",
         "category": "pedestrian",
-        "title": "Crowd generated in evacuation zone",
-        "severity": "warning",
+        "title": "Explicit pedestrian cohort is present in evacuation zone at episode start",
+        "severity": "info",
         "overlay": "pedestrian",
         "target_ids": [
           "crowd_anchor_l4_8_v1"
@@ -69,37 +103,199 @@
     },
     {
       "event_id": "evacuation_triggered",
-      "trigger_ref": "trig_after_crowd_generated_delay_30",
+      "trigger_ref": "trig_evacuation_triggered",
       "priority": 2,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "clear_crowd",
-          "action_id": "clear_incident_crowd_for_evacuation",
-          "group_id": "crowd_l4_8_v1"
+          "type": "move_entity",
+          "action_id": "move_crowd_evacuation_00",
+          "entity_id": "ped_evac_l4_8_v1_00",
+          "waypoints_enu_m": [
+            [
+              7087.296,
+              6328.684,
+              0.0
+            ],
+            [
+              7098.086,
+              6333.421,
+              0.0
+            ],
+            [
+              7109.034,
+              6338.355,
+              0.0
+            ]
+          ],
+          "velocity_mps": 1.4
         },
         {
-          "type": "spawn_crowd",
-          "action_id": "spawn_crowd_at_safe_zone",
-          "group_id": "crowd_safe_l4_8_v1",
-          "count": 12,
-          "spawn_origin_enu_m": [
-            7156.056,
-            6343.853,
-            0.0
+          "type": "move_entity",
+          "action_id": "move_crowd_evacuation_01",
+          "entity_id": "ped_evac_l4_8_v1_01",
+          "waypoints_enu_m": [
+            [
+              7090.191,
+              6329.372,
+              0.0
+            ],
+            [
+              7100.996,
+              6334.19,
+              0.0
+            ],
+            [
+              7111.994,
+              6339.112,
+              0.0
+            ]
           ],
-          "spawn_box_extent_cm": [
-            1000,
-            500,
-            0
+          "velocity_mps": 1.4
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_crowd_evacuation_02",
+          "entity_id": "ped_evac_l4_8_v1_02",
+          "waypoints_enu_m": [
+            [
+              7093.981,
+              6330.486,
+              0.0
+            ],
+            [
+              7104.86,
+              6335.39,
+              0.0
+            ],
+            [
+              7115.905,
+              6340.257,
+              0.0
+            ]
           ],
-          "seed": 916
+          "velocity_mps": 1.4
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_crowd_evacuation_03",
+          "entity_id": "ped_evac_l4_8_v1_03",
+          "waypoints_enu_m": [
+            [
+              7096.894,
+              6331.239,
+              0.0
+            ],
+            [
+              7107.785,
+              6336.156,
+              0.0
+            ],
+            [
+              7118.884,
+              6340.976,
+              0.0
+            ]
+          ],
+          "velocity_mps": 1.4
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_crowd_evacuation_04",
+          "entity_id": "ped_evac_l4_8_v1_04",
+          "waypoints_enu_m": [
+            [
+              7085.747,
+              6332.371,
+              0.0
+            ],
+            [
+              7096.44,
+              6337.066,
+              0.0
+            ],
+            [
+              7107.412,
+              6342.011,
+              0.0
+            ]
+          ],
+          "velocity_mps": 1.4
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_crowd_evacuation_05",
+          "entity_id": "ped_evac_l4_8_v1_05",
+          "waypoints_enu_m": [
+            [
+              7088.606,
+              6333.045,
+              0.0
+            ],
+            [
+              7099.345,
+              6337.833,
+              0.0
+            ],
+            [
+              7110.392,
+              6342.778,
+              0.0
+            ]
+          ],
+          "velocity_mps": 1.4
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_crowd_evacuation_06",
+          "entity_id": "ped_evac_l4_8_v1_06",
+          "waypoints_enu_m": [
+            [
+              7092.36,
+              6334.143,
+              0.0
+            ],
+            [
+              7103.214,
+              6339.036,
+              0.0
+            ],
+            [
+              7114.336,
+              6343.937,
+              0.0
+            ]
+          ],
+          "velocity_mps": 1.4
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_crowd_evacuation_07",
+          "entity_id": "ped_evac_l4_8_v1_07",
+          "waypoints_enu_m": [
+            [
+              7095.255,
+              6334.887,
+              0.0
+            ],
+            [
+              7106.151,
+              6339.807,
+              0.0
+            ],
+            [
+              7117.322,
+              6344.658,
+              0.0
+            ]
+          ],
+          "velocity_mps": 1.4
         }
       ],
       "log_event": {
         "topic": "evt_L4-8_v1_evacuation_triggered",
         "category": "pedestrian",
-        "title": "Crowd moves to safe evacuation zone",
+        "title": "Visible pedestrian cohort walks to safe evacuation zone",
         "severity": "warning",
         "overlay": "pedestrian",
         "target_ids": [
@@ -109,7 +305,7 @@
     },
     {
       "event_id": "uav_evacuation_monitor",
-      "trigger_ref": "trig_after_evacuation_triggered_delay_30",
+      "trigger_ref": "trig_after_evacuation_triggered_delay_190",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -124,13 +320,13 @@
               34
             ],
             [
-              7132.972,
-              6333.707,
+              7091.0,
+              6333.0,
               30
             ],
             [
-              7156.056,
-              6343.853,
+              7146.0,
+              6391.0,
               30
             ]
           ],
@@ -154,25 +350,67 @@
       }
     },
     {
-      "event_id": "crowd_clear",
-      "trigger_ref": "trig_after_uav_evacuation_monitor_delay_112",
+      "event_id": "crowd_safe_hold",
+      "trigger_ref": "trig_after_uav_evacuation_monitor_delay_231",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "clear_crowd",
-          "action_id": "clear_safe_crowd",
-          "group_id": "crowd_safe_l4_8_v1"
+          "type": "capture_screenshot",
+          "action_id": "capture_crowd_safe_hold",
+          "camera_id": "demo_high_overview"
         }
       ],
       "log_event": {
-        "topic": "evt_L4-8_v1_crowd_clear",
+        "topic": "evt_L4-8_v1_crowd_safe_hold",
         "category": "pedestrian",
-        "title": "Crowd evacuation completes and group is cleared",
+        "title": "Crowd evacuation completes without removing visible agents",
         "severity": "info",
         "overlay": "pedestrian",
         "target_ids": [
           "uav_crowd_monitor_l4_8_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_crowd_monitor_l4_8_v1",
+      "trigger_ref": "trig_after_crowd_safe_hold_delay_80",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_crowd_monitor_l4_8_v1_landing_return",
+          "entity_id": "uav_crowd_monitor_l4_8_v1",
+          "waypoints_enu_m": [
+            [
+              7146.0,
+              6391.0,
+              30.0
+            ],
+            [
+              7111.55,
+              6320.479,
+              22.0
+            ],
+            [
+              7111.55,
+              6320.479,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-8_v1_lifecycle_landing_uav_crowd_monitor_l4_8_v1",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_crowd_monitor_l4_8_v1",
+          "pad_home_uav_crowd_monitor_l4_8_v1"
         ]
       }
     }

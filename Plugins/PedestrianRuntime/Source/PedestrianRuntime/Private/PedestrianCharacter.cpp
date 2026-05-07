@@ -169,6 +169,34 @@ void APedestrianCharacter::CmdReset(const FVector& Location, float YawDeg)
 	SetActorLocationAndRotation(Location, FRotator(0.0f, YawDeg, 0.0f));
 }
 
+void APedestrianCharacter::CmdSetFramePose(const FVector& Location, float YawDeg, const bool bWalking, const float SpeedCmPerSec)
+{
+	bHasMoveTarget = false;
+	bStartCrossAfterObserve = false;
+	TargetLocation = Location;
+	PendingCrossTarget = FVector::ZeroVector;
+	MoveSpeed = FMath::Max(0.0f, SpeedCmPerSec);
+	CurrentState = bWalking ? EPedState::Cross : EPedState::Idle;
+
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->StopMovementImmediately();
+		MoveComp->MaxWalkSpeed = MoveSpeed;
+	}
+
+	if (!bWalking)
+	{
+		StopCurrentMontages(0.1f);
+	}
+
+	SetActorLocationAndRotation(
+		Location,
+		FRotator(0.0f, YawDeg, 0.0f),
+		false,
+		nullptr,
+		ETeleportType::TeleportPhysics);
+}
+
 void APedestrianCharacter::CmdSetTarget(const FVector& InTarget, float InSpeedCmPerSec)
 {
 	TargetLocation = InTarget;

@@ -8,6 +8,16 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_lifecycle_takeoff_uav_conflict_l4_1_v1_a",
+      "type": "tick",
+      "tick": 30
+    },
+    {
+      "trigger_id": "trig_lifecycle_takeoff_uav_conflict_l4_1_v1_b",
+      "type": "tick",
+      "tick": 38
+    },
+    {
       "trigger_id": "trig_converging_approach",
       "type": "tick",
       "tick": 240
@@ -27,9 +37,105 @@
       "type": "event_fired_after",
       "event_id": "uav_conflict_resolution",
       "delay_ticks": 30
+    },
+    {
+      "trigger_id": "trig_after_resume_patrols_delay_80",
+      "type": "event_fired_after",
+      "event_id": "resume_patrols",
+      "delay_ticks": 80
+    },
+    {
+      "trigger_id": "trig_after_resume_patrols_delay_88",
+      "type": "event_fired_after",
+      "event_id": "resume_patrols",
+      "delay_ticks": 88
     }
   ],
   "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_conflict_l4_1_v1_a",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_conflict_l4_1_v1_a",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_conflict_l4_1_v1_a_takeoff_entry",
+          "entity_id": "uav_conflict_l4_1_v1_a",
+          "waypoints_enu_m": [
+            [
+              7024.875,
+              6269.482,
+              3.0
+            ],
+            [
+              7024.875,
+              6269.482,
+              21.0
+            ],
+            [
+              7022.0,
+              6282.0,
+              25
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-1_v1_lifecycle_takeoff_uav_conflict_l4_1_v1_a",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_conflict_l4_1_v1_a",
+          "pad_home_uav_conflict_l4_1_v1_a"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_takeoff_uav_conflict_l4_1_v1_b",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_conflict_l4_1_v1_b",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_conflict_l4_1_v1_b_takeoff_entry",
+          "entity_id": "uav_conflict_l4_1_v1_b",
+          "waypoints_enu_m": [
+            [
+              7063.751,
+              6281.882,
+              3.0
+            ],
+            [
+              7063.751,
+              6281.882,
+              24.0
+            ],
+            [
+              7060.0,
+              6294.0,
+              30
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-1_v1_lifecycle_takeoff_uav_conflict_l4_1_v1_b",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_conflict_l4_1_v1_b",
+          "pad_home_uav_conflict_l4_1_v1_b"
+        ]
+      }
+    },
     {
       "event_id": "converging_approach",
       "trigger_ref": "trig_converging_approach",
@@ -197,6 +303,90 @@
         "target_ids": [
           "uav_conflict_l4_1_v1_a",
           "uav_conflict_l4_1_v1_b"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_conflict_l4_1_v1_a",
+      "trigger_ref": "trig_after_resume_patrols_delay_80",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_conflict_l4_1_v1_a_landing_return",
+          "entity_id": "uav_conflict_l4_1_v1_a",
+          "waypoints_enu_m": [
+            [
+              7024.0,
+              6302.0,
+              27.0
+            ],
+            [
+              7024.875,
+              6269.482,
+              22.0
+            ],
+            [
+              7024.875,
+              6269.482,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-1_v1_lifecycle_landing_uav_conflict_l4_1_v1_a",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_conflict_l4_1_v1_a",
+          "pad_home_uav_conflict_l4_1_v1_a"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_conflict_l4_1_v1_b",
+      "trigger_ref": "trig_after_resume_patrols_delay_88",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_conflict_l4_1_v1_b_landing_return",
+          "entity_id": "uav_conflict_l4_1_v1_b",
+          "waypoints_enu_m": [
+            [
+              7066.0,
+              6304.0,
+              32.0
+            ],
+            [
+              7063.751,
+              6281.882,
+              22.0
+            ],
+            [
+              7063.751,
+              6281.882,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-1_v1_lifecycle_landing_uav_conflict_l4_1_v1_b",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_conflict_l4_1_v1_b",
+          "pad_home_uav_conflict_l4_1_v1_b"
         ]
       }
     }

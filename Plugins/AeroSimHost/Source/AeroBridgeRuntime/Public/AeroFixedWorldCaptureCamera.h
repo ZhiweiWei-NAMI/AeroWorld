@@ -10,6 +10,18 @@ class USceneComponent;
 class UTextureRenderTarget2D;
 class AActor;
 
+struct FAeroFixedWorldCaptureStats
+{
+	int32 CapturedWidth = 0;
+	int32 CapturedHeight = 0;
+	FString OutputFormat;
+	bool bDepthUnitMeters = false;
+	float DepthMinM = 0.0f;
+	float DepthMaxM = 0.0f;
+	int32 DepthValidCount = 0;
+	int32 DepthInvalidCount = 0;
+};
+
 UCLASS()
 class AEROBRIDGERUNTIME_API AAeroFixedWorldCaptureCamera : public AActor
 {
@@ -19,6 +31,15 @@ public:
 	AAeroFixedWorldCaptureCamera();
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	bool CaptureToDisk(
+		const FString& Modality,
+		const FString& AbsoluteOutputPath,
+		int32 Width,
+		int32 Height,
+		float FovDegrees,
+		FString& OutError,
+		FAeroFixedWorldCaptureStats& OutStats);
 
 	bool CaptureRgbToDisk(
 		const FString& AbsoluteOutputPath,
@@ -30,7 +51,25 @@ public:
 		int32& OutCapturedHeight);
 
 private:
-	bool EnsureRenderTarget(int32 Width, int32 Height, FString& OutError);
+	bool EnsureRenderTarget(int32 Width, int32 Height, bool bFloatRenderTarget, FString& OutError);
+	bool CaptureColorPngToDisk(
+		const FString& AbsoluteOutputPath,
+		int32 Width,
+		int32 Height,
+		FString& OutError,
+		FAeroFixedWorldCaptureStats& OutStats);
+	bool CaptureDepthNpyToDisk(
+		const FString& AbsoluteOutputPath,
+		int32 Width,
+		int32 Height,
+		FString& OutError,
+		FAeroFixedWorldCaptureStats& OutStats);
+	bool CaptureSemanticPngToDisk(
+		const FString& AbsoluteOutputPath,
+		int32 Width,
+		int32 Height,
+		FString& OutError,
+		FAeroFixedWorldCaptureStats& OutStats);
 	void EnsureWeatherFollower();
 
 private:
@@ -45,6 +84,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
+
+	int32 RenderTargetWidth = 0;
+	int32 RenderTargetHeight = 0;
+	bool bRenderTargetFloat = false;
 
 	UPROPERTY(Transient)
 	TObjectPtr<AActor> WeatherFollowerActor;

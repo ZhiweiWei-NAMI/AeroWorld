@@ -7,6 +7,11 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_lifecycle_takeoff_uav_l3_3_v1",
+      "type": "tick",
+      "tick": 30
+    },
+    {
       "trigger_id": "trig_hazmat_leak",
       "type": "tick",
       "tick": 240
@@ -18,19 +23,67 @@
       "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_pedestrian_evacuation_delay_108",
+      "trigger_id": "trig_after_pedestrian_evacuation_delay_30",
       "type": "event_fired_after",
       "event_id": "pedestrian_evacuation",
-      "delay_ticks": 108
+      "delay_ticks": 30
     },
     {
       "trigger_id": "trig_after_ambulance_arrival_delay_42",
       "type": "event_fired_after",
       "event_id": "ambulance_arrival",
       "delay_ticks": 42
+    },
+    {
+      "trigger_id": "trig_after_uav_external_monitor_delay_94",
+      "type": "event_fired_after",
+      "event_id": "uav_external_monitor",
+      "delay_ticks": 94
     }
   ],
   "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_l3_3_v1",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_l3_3_v1",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_l3_3_v1_takeoff_entry",
+          "entity_id": "uav_l3_3_v1",
+          "waypoints_enu_m": [
+            [
+              7075.299,
+              6249.361,
+              3.0
+            ],
+            [
+              7075.299,
+              6249.361,
+              24.0
+            ],
+            [
+              7064.0,
+              6244.0,
+              33
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v1_lifecycle_takeoff_uav_l3_3_v1",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_l3_3_v1",
+          "pad_home_uav_l3_3_v1"
+        ]
+      }
+    },
     {
       "event_id": "hazmat_leak",
       "trigger_ref": "trig_hazmat_leak",
@@ -78,13 +131,13 @@
           "entity_id": "ped_hazmat_l3_3_v1_a",
           "waypoints_enu_m": [
             [
-              7075.075,
-              6261.529,
+              6374.81,
+              7886.949,
               0.0
             ],
             [
-              7067.73,
-              6275.323,
+              6370.992,
+              7885.526,
               0.0
             ]
           ],
@@ -96,13 +149,13 @@
           "entity_id": "ped_hazmat_l3_3_v1_b",
           "waypoints_enu_m": [
             [
-              7081.505,
-              6262.555,
+              6379.906,
+              7890.104,
               0.0
             ],
             [
-              7079.968,
-              6267.358,
+              6380.335,
+              7891.31,
               0.0
             ]
           ],
@@ -124,7 +177,7 @@
     },
     {
       "event_id": "ambulance_arrival",
-      "trigger_ref": "trig_after_pedestrian_evacuation_delay_108",
+      "trigger_ref": "trig_after_pedestrian_evacuation_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -203,6 +256,48 @@
         "target_ids": [
           "uav_l3_3_v1",
           "hazmat_zone_l3_3_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_l3_3_v1",
+      "trigger_ref": "trig_after_uav_external_monitor_delay_94",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_l3_3_v1_landing_return",
+          "entity_id": "uav_l3_3_v1",
+          "waypoints_enu_m": [
+            [
+              7090.0,
+              6277.0,
+              30.0
+            ],
+            [
+              7075.299,
+              6249.361,
+              22.0
+            ],
+            [
+              7075.299,
+              6249.361,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v1_lifecycle_landing_uav_l3_3_v1",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_l3_3_v1",
+          "pad_home_uav_l3_3_v1"
         ]
       }
     }

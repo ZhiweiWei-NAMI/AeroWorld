@@ -16,7 +16,6 @@ DEFAULT_MAP_ID = "donghu_road_topo"
 DEFAULT_SITE_ID = "site.intersection_a"
 DEFAULT_ROI_ID = "roi.intersection_a.v1"
 DEFAULT_TICK_HZ = 10
-DEFAULT_GROUND_Z_M = 5.63
 
 
 ENTITY_PROFILES: dict[str, dict[str, str]] = {
@@ -160,6 +159,13 @@ def profile_for_label(label_class: str) -> dict[str, str]:
     })
 
 
+def logical_asset_for(source_entry: dict[str, Any], profile: dict[str, str]) -> str:
+    asset_id = str(source_entry.get("asset_id") or "").strip()
+    if asset_id and asset_id.lower() not in {"unknown", "none", "null"}:
+        return asset_id
+    return str(profile.get("logical_asset_id") or "")
+
+
 def read_legacy_roster(path: Path) -> dict[str, dict[str, Any]]:
     if not path.exists():
         return {}
@@ -221,12 +227,8 @@ def sample_row_at_tick(entity_rows: Sequence[dict[str, Any]], tick: int, tick_hz
     return row
 
 
-def normalized_position_for_render(row: dict[str, Any], category: str, ground_z_m: float) -> list[float]:
-    position = normalize_vector3(row.get("pos_enu"))
-    if category != "uav":
-        # Ground-entity z in Dataset trajectories is synthetic noise, not terrain height.
-        position[2] = float(ground_z_m)
-    return position
+def normalized_position_for_render(row: dict[str, Any]) -> list[float]:
+    return normalize_vector3(row.get("pos_enu"))
 
 
 def event_text(row: dict[str, Any]) -> str:
@@ -401,7 +403,6 @@ def convert_episode(
     site_id: str = DEFAULT_SITE_ID,
     roi_id: str = DEFAULT_ROI_ID,
     tick_hz: int = DEFAULT_TICK_HZ,
-    ground_z_m: float = DEFAULT_GROUND_Z_M,
     overwrite: bool = False,
 ) -> dict[str, Any]:
     source_episode_dir = source_episode_dir.resolve()
@@ -451,8 +452,7 @@ def convert_episode(
         label_class = str(source_entry.get("label_class") or grouped[entity_id][0].get("label_class") or "unknown")
         profile = profile_for_label(label_class)
         first_row = sample_row_at_tick(grouped[entity_id], ticks[0], tick_hz)
-        category = profile["entity_category"]
-        first_position = normalized_position_for_render(first_row, category, ground_z_m)
+        first_position = normalized_position_for_render(first_row)
         first_velocity = normalize_vector3(first_row.get("vel_mps"))
         first_yaw = heading_deg_from_velocity(first_velocity)
         first_samples[entity_id] = {
@@ -475,7 +475,7 @@ def convert_episode(
                 "entity_kind": profile["entity_kind"],
                 "entity_type": profile["entity_kind"],
                 "proxy_template_id": profile["proxy_template_id"],
-                "logical_asset_id": profile["logical_asset_id"],
+                "logical_asset_id": logical_asset_for(source_entry, profile),
                 "mode": profile["mode"],
                 "initial_position_enu_m": first_position,
                 "initial_yaw_deg": round(first_yaw, 6),
@@ -491,7 +491,7 @@ def convert_episode(
             profile = profile_for_label(str(roster_entry.get("label_class") or "unknown"))
             category = str(profile["entity_category"])
             row = sample_row_at_tick(grouped[entity_id], tick, tick_hz)
-            position = normalized_position_for_render(row, category, ground_z_m)
+            position = normalized_position_for_render(row)
             velocity = normalize_vector3(row.get("vel_mps"))
             yaw = heading_deg_from_velocity(velocity, fallback_deg=last_yaw_by_entity.get(entity_id, 0.0))
             if math.hypot(velocity[0], velocity[1]) > 1e-4:
@@ -513,7 +513,7 @@ def convert_episode(
                 "site_id": site_id,
                 "roi_id": roi_id,
                 "proxy_template_id": profile["proxy_template_id"],
-                "logical_asset_id": profile["logical_asset_id"],
+                "logical_asset_id": logical_asset_for(roster_entry, profile),
                 "tags": list(roster_entry.get("tags") or []),
                 "truth_pose": truth_pose(position, yaw, velocity),
                 "render_presence": render_presence(roi_id),
@@ -715,7 +715,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--site-id", default=DEFAULT_SITE_ID)
     parser.add_argument("--roi-id", default=DEFAULT_ROI_ID)
     parser.add_argument("--tick-hz", type=int, default=DEFAULT_TICK_HZ)
-    parser.add_argument("--ground-z-m", type=float, default=DEFAULT_GROUND_Z_M)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--all", action="store_true", help="Convert every directory under --episodes-root")
     return parser.parse_args()
@@ -741,7 +740,6 @@ def main() -> None:
             site_id=args.site_id,
             roi_id=args.roi_id,
             tick_hz=max(1, int(args.tick_hz)),
-            ground_z_m=float(args.ground_z_m),
             overwrite=bool(args.overwrite),
         )
         results.append(result)

@@ -21,7 +21,12 @@ def normalize_activity_type(entity: dict[str, Any]) -> str:
 @dataclass
 class PedestrianPoseService:
     min_speed_mps: float = 0.15
+    locomotion_yaw_offset_deg: float = 180.0
     last_rotation_by_entity: dict[str, dict[str, float]] = field(default_factory=dict)
+
+    @staticmethod
+    def _normalize_yaw_deg(yaw_deg: float) -> float:
+        return ((float(yaw_deg) + 180.0) % 360.0) - 180.0
 
     def resolve_rotation(
         self,
@@ -44,7 +49,8 @@ class PedestrianPoseService:
 
         speed_xy = math.hypot(float(velocity_enu_mps[0]), float(velocity_enu_mps[1]))
         if speed_xy >= self.min_speed_mps:
-            result["yaw_deg"] = math.degrees(math.atan2(float(velocity_enu_mps[1]), float(velocity_enu_mps[0])))
+            movement_yaw_deg = math.degrees(math.atan2(float(velocity_enu_mps[1]), float(velocity_enu_mps[0])))
+            result["yaw_deg"] = self._normalize_yaw_deg(movement_yaw_deg + self.locomotion_yaw_offset_deg)
         elif previous_rotation:
             result["yaw_deg"] = float(previous_rotation.get("yaw_deg", result["yaw_deg"]))
         elif activity_type in {"medical_incident", "fall_flat"}:

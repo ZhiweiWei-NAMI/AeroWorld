@@ -13,11 +13,11 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7111.265,
-      6431.571,
+      6174.336,
+      6963.953,
       0.0
     ],
-    "radius_m": 215.419,
+    "radius_m": 210.373,
     "source": "scene_entities_and_routes"
   },
   "entities": [
@@ -27,19 +27,19 @@
       "category": "pedestrian",
       "placement_mode": "sidewalk_anchor",
       "placement": {
-        "lane_edge_id": "cg_edge_718",
-        "longitudinal_s": 72.149,
+        "lane_edge_id": "cg_edge_32",
+        "longitudinal_s": 50.0,
         "offset_from_curb_m": 1.2,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": 3.1,
-        "placement_semantics": "sidewalk_or_plaza",
+        "placement_semantics": "sidewalk",
         "resolved_position_enu_m": [
-          7114.373,
-          6426.431,
+          6180.381,
+          6970.239,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 117.638
+          "yaw_deg": -155.344
         },
         "source_lane_edge_id_hint": "cg_edge_32",
         "source_longitudinal_s_hint": 50
@@ -57,24 +57,46 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7059.0,
-          6450.0,
-          32
+          6164.572,
+          6955.014,
+          3.0
         ],
         "resolved_position_enu_m": [
-          7059.0,
-          6450.0,
-          32
+          6164.572,
+          6955.014,
+          3.0
         ],
         "rotation_deg": {
           "yaw_deg": 60
         }
       },
-      "route_waypoints_enu_m": [],
+      "route_waypoints_enu_m": [
+        [
+          6152.381,
+          6950.239,
+          32
+        ]
+      ],
       "initial_state": {
-        "mode": "patrol"
+        "mode": "preflight_on_pad"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "lifecycle": {
+        "auto_lifecycle_applied": true,
+        "home_pad_entity_id": "pad_home_uav_x3_detect",
+        "home_hover_enu_m": [
+          6164.572,
+          6955.014,
+          3.0
+        ],
+        "mission_start_enu_m": [
+          6152.381,
+          6950.239,
+          32
+        ],
+        "requires_takeoff": true,
+        "requires_landing_or_terminal_resolution": true
+      }
     },
     {
       "entity_id": "ambulance_x3",
@@ -82,23 +104,23 @@
       "category": "vehicle",
       "placement_mode": "lane_anchor",
       "placement": {
-        "edge_id": "cg_edge_718",
+        "edge_id": "cg_edge_32",
         "lane_index": 0,
-        "longitudinal_s": 12.0,
+        "longitudinal_s": 8.0,
         "lateral_offset_m": 0.0,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": 0.0,
         "placement_semantics": "lane_center",
         "resolved_position_enu_m": [
-          7157.581,
-          6423.559,
+          6217.133,
+          6990.52,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": -140.031
+          "yaw_deg": -155.344
         },
-        "source_edge_id_hint": "cg_edge_718",
-        "source_longitudinal_s_hint": 12.149
+        "source_edge_id_hint": "cg_edge_32",
+        "source_longitudinal_s_hint": 8.0
       },
       "route_waypoints_enu_m": [],
       "initial_state": {
@@ -114,13 +136,13 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7114.107,
-          6426.292,
+          6182.317,
+          6970.797,
           0.0
         ],
         "resolved_position_enu_m": [
-          7114.107,
-          6426.292,
+          6182.317,
+          6970.797,
           0.0
         ],
         "rotation_deg": {
@@ -134,6 +156,34 @@
       "activation_tick": 420,
       "enabled": false,
       "spawn_policy": "event_script_only"
+    },
+    {
+      "entity_id": "pad_home_uav_x3_detect",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "home_uav_x3_detect",
+        "approach_side": "departure",
+        "position_enu_m": [
+          6164.572,
+          6955.014,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          6164.572,
+          6955.014,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -68.722
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
+      },
+      "activation_tick": 0
     }
   ],
   "spawn_sequencing": [
@@ -152,6 +202,10 @@
     {
       "entity_id": "police_tape_x3",
       "tick": 420
+    },
+    {
+      "entity_id": "pad_home_uav_x3_detect",
+      "tick": 0
     }
   ],
   "weather_profile": {
@@ -164,9 +218,9 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7111.265,
-          6431.571,
-          75.0
+          6174.336,
+          6963.953,
+          118.04
         ],
         "rotation_deg": {
           "pitch_deg": -70.0,

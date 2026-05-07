@@ -7,6 +7,11 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_lifecycle_takeoff_uav_x3_detect",
+      "type": "tick",
+      "tick": 30
+    },
+    {
       "trigger_id": "trig_pedestrian_fall",
       "type": "tick",
       "tick": 220
@@ -18,25 +23,73 @@
       "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_uav_detection_delay_137",
+      "trigger_id": "trig_after_uav_detection_delay_84",
       "type": "event_fired_after",
       "event_id": "uav_detection",
-      "delay_ticks": 137
+      "delay_ticks": 84
     },
     {
-      "trigger_id": "trig_after_ambulance_dispatch_delay_38",
+      "trigger_id": "trig_after_ambulance_dispatch_delay_39",
       "type": "event_fired_after",
       "event_id": "ambulance_dispatch",
-      "delay_ticks": 38
+      "delay_ticks": 39
     },
     {
       "trigger_id": "trig_after_isolation_setup_delay_30",
       "type": "event_fired_after",
       "event_id": "isolation_setup",
       "delay_ticks": 30
+    },
+    {
+      "trigger_id": "trig_after_emergency_documented_delay_80",
+      "type": "event_fired_after",
+      "event_id": "emergency_documented",
+      "delay_ticks": 80
     }
   ],
   "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_x3_detect",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_x3_detect",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_x3_detect_takeoff_entry",
+          "entity_id": "uav_x3_detect",
+          "waypoints_enu_m": [
+            [
+              6164.572,
+              6955.014,
+              3.0
+            ],
+            [
+              6164.572,
+              6955.014,
+              24.0
+            ],
+            [
+              6152.381,
+              6950.239,
+              32
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_lifecycle_takeoff_uav_x3_detect",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_x3_detect",
+          "pad_home_uav_x3_detect"
+        ]
+      }
+    },
     {
       "event_id": "pedestrian_fall",
       "trigger_ref": "trig_pedestrian_fall",
@@ -76,13 +129,13 @@
           "entity_id": "uav_x3_detect",
           "waypoints_enu_m": [
             [
-              7059.0,
-              6450.0,
+              6152.381,
+              6950.239,
               32
             ],
             [
-              7114.373,
-              6426.431,
+              6180.381,
+              6970.239,
               16
             ]
           ],
@@ -108,7 +161,7 @@
     },
     {
       "event_id": "ambulance_dispatch",
-      "trigger_ref": "trig_after_uav_detection_delay_137",
+      "trigger_ref": "trig_after_uav_detection_delay_84",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -118,13 +171,13 @@
           "entity_id": "ambulance_x3",
           "waypoints_enu_m": [
             [
-              7157.581,
-              6423.559,
+              6217.133,
+              6990.52,
               0.0
             ],
             [
-              7117.119,
-              6427.869,
+              6179.088,
+              6973.056,
               0.0
             ]
           ],
@@ -145,7 +198,7 @@
     },
     {
       "event_id": "isolation_setup",
-      "trigger_ref": "trig_after_ambulance_dispatch_delay_38",
+      "trigger_ref": "trig_after_ambulance_dispatch_delay_39",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -155,8 +208,8 @@
           "entity_id": "police_tape_x3",
           "asset_id": "prop.incident.police_tape.v1",
           "position_enu_m": [
-            7114.107,
-            6426.292,
+            6182.317,
+            6970.797,
             0.0
           ],
           "rotation_deg": {
@@ -198,6 +251,48 @@
           "uav_x3_detect",
           "ambulance_x3",
           "ped_x3_fall"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_x3_detect",
+      "trigger_ref": "trig_after_emergency_documented_delay_80",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_x3_detect_landing_return",
+          "entity_id": "uav_x3_detect",
+          "waypoints_enu_m": [
+            [
+              6180.381,
+              6970.239,
+              16.0
+            ],
+            [
+              6164.572,
+              6955.014,
+              16.0
+            ],
+            [
+              6164.572,
+              6955.014,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_lifecycle_landing_uav_x3_detect",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_x3_detect",
+          "pad_home_uav_x3_detect"
         ]
       }
     }

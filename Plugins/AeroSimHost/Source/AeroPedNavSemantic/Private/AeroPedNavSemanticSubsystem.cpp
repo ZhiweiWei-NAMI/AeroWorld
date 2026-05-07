@@ -1,6 +1,7 @@
 #include "AeroPedNavSemanticSubsystem.h"
 
 #include "Algo/Reverse.h"
+#include "Components/SceneComponent.h"
 #include "Dom/JsonObject.h"
 #include "GameFramework/Actor.h"
 #include "Misc/FileHelper.h"
@@ -166,6 +167,37 @@ bool IsSemanticPreferredGroundActor(const AActor* Actor)
 	return ActorClass != nullptr && StringContainsAnyKeyword(ActorClass->GetName(), {TEXT("Road"), TEXT("Landscape"), TEXT("Bridge"), TEXT("CityBase")});
 }
 
+bool IsIgnoredGroundProjectionActor(const AActor* Actor)
+{
+	if (!IsValid(Actor) || IsSemanticPreferredGroundActor(Actor))
+	{
+		return false;
+	}
+
+	const USceneComponent* RootComponent = Actor->GetRootComponent();
+	if (RootComponent != nullptr && RootComponent->Mobility == EComponentMobility::Movable)
+	{
+		return true;
+	}
+
+	const FString ActorName = Actor->GetName();
+	const UClass* ActorClass = Actor->GetClass();
+	const FString ClassName = ActorClass != nullptr ? ActorClass->GetName() : FString();
+	return StringContainsAnyKeyword(
+		ActorName + TEXT(" ") + ClassName,
+		{
+			TEXT("uav"),
+			TEXT("drone"),
+			TEXT("pawn"),
+			TEXT("vehicle"),
+			TEXT("pedestrian"),
+			TEXT("camera"),
+			TEXT("quadrotor"),
+			TEXT("airsim"),
+			TEXT("runtime")
+		});
+}
+
 bool SampleGroundPointFromWorld(
 	const UWorld* World,
 	const FVector& WorldOriginCm,
@@ -199,12 +231,18 @@ bool SampleGroundPointFromWorld(
 				continue;
 			}
 
+			const AActor* HitActor = HitResult.GetActor();
+			if (IsIgnoredGroundProjectionActor(HitActor))
+			{
+				continue;
+			}
+
 			if (SelectedHit == nullptr || HitResult.ImpactPoint.Z > SelectedHit->ImpactPoint.Z)
 			{
 				SelectedHit = &HitResult;
 			}
 
-			if (IsSemanticPreferredGroundActor(HitResult.GetActor()))
+			if (IsSemanticPreferredGroundActor(HitActor))
 			{
 				SelectedHit = &HitResult;
 				break;

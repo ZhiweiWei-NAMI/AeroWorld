@@ -13,11 +13,11 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7076.206,
-      6300.907,
+      7078.957,
+      6303.964,
       0.0
     ],
-    "radius_m": 168.207,
+    "radius_m": 172.137,
     "source": "scene_entities_and_routes"
   },
   "entities": [
@@ -28,24 +28,46 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7068.0,
-          6301.0,
-          20
+          7067.736,
+          6302.316,
+          3.0
         ],
         "resolved_position_enu_m": [
-          7068.0,
-          6301.0,
-          20
+          7067.736,
+          6302.316,
+          3.0
         ],
         "rotation_deg": {
           "yaw_deg": 70
         }
       },
-      "route_waypoints_enu_m": [],
+      "route_waypoints_enu_m": [
+        [
+          7068.0,
+          6301.0,
+          20
+        ]
+      ],
       "initial_state": {
-        "mode": "unstable"
+        "mode": "preflight_on_pad"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "lifecycle": {
+        "auto_lifecycle_applied": true,
+        "home_pad_entity_id": "pad_home_uav_falls_vehicle_l4_4_v2",
+        "home_hover_enu_m": [
+          7067.736,
+          6302.316,
+          3.0
+        ],
+        "mission_start_enu_m": [
+          7068.0,
+          6301.0,
+          20
+        ],
+        "requires_takeoff": true,
+        "requires_landing_or_terminal_resolution": true
+      }
     },
     {
       "entity_id": "car_under_uav_l4_4_v2",
@@ -76,6 +98,34 @@
         "mode": "moving"
       },
       "activation_tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_falls_vehicle_l4_4_v2",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "home_uav_falls_vehicle_l4_4_v2",
+        "approach_side": "departure",
+        "position_enu_m": [
+          7067.736,
+          6302.316,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          7067.736,
+          6302.316,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 28.965
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
+      },
+      "activation_tick": 0
     }
   ],
   "spawn_sequencing": [
@@ -85,6 +135,10 @@
     },
     {
       "entity_id": "car_under_uav_l4_4_v2",
+      "tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_falls_vehicle_l4_4_v2",
       "tick": 0
     }
   ],
@@ -98,8 +152,8 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7076.206,
-          6300.907,
+          7078.957,
+          6303.964,
           75.0
         ],
         "rotation_deg": {

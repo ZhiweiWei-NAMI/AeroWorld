@@ -27,6 +27,7 @@ from spec_compiler import (  # noqa: E402
     TriggerSpec,
     WaypointSpec,
 )
+from map_spatial_index import MapSpatialIndex, SpatialValidationError  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -50,6 +51,10 @@ SIDEWALK_MIN_OFFSET_FROM_CURB_M = 1.2
 GATHERING_MIN_OFFSET_FROM_CURB_M = 4.5
 ROADWORK_MIN_OFFSET_FROM_EDGE_M = 1.5
 GROUND_Z_M = 0.0
+UAV_PAD_HOVER_Z_M = 3.0
+UAV_TAKEOFF_ENTRY_TICK = 30
+UAV_LANDING_AFTER_SCENARIO_DELAY_TICKS = 80
+UAV_LANDING_ALTITUDE_MAX_M = 8.0
 SCRIPT_TICK_HZ = 10.0
 DELAY_SAFETY_FACTOR = 1.1
 
@@ -180,7 +185,8 @@ class BuildingCatalog:
         return str(self.path.relative_to(ROOT)).replace("\\", "/")
 
 
-LANES = LaneSampleResolver(LANE_SAMPLES_CSV)
+SPATIAL = MapSpatialIndex.default(ROOT)
+LANES = SPATIAL.lanes
 BUILDINGS = BuildingCatalog(BUILDING_GEOJSON)
 
 
@@ -190,6 +196,10 @@ def p(x: float, y: float, z: float = 0.0) -> list[float]:
 
 def q(x: float, y: float, z: float = 0.0) -> list[float]:
     return [round(x, 3), round(y, 3), round(z, 3)]
+
+
+def dist_xy(a: list[float], b: list[float]) -> float:
+    return math.hypot(float(a[0]) - float(b[0]), float(a[1]) - float(b[1]))
 
 
 def _lane_normal(sample: LaneSample) -> tuple[float, float]:
@@ -215,20 +225,17 @@ def road_center_point(pos_enu: list[float], z_m: float = GROUND_Z_M) -> list[flo
 
 
 def sidewalk_point(pos_enu: list[float], offset_from_curb_m: float = SIDEWALK_MIN_OFFSET_FROM_CURB_M) -> list[float]:
-    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
-    sign = _side_sign_for_desired(sample, pos_enu)
-    lateral = sign * (LANE_HALF_WIDTH_M + max(abs(offset_from_curb_m), SIDEWALK_MIN_OFFSET_FROM_CURB_M))
-    return _offset_from_lane(sample, lateral, GROUND_Z_M)
+    anchor = SPATIAL.plan_sidewalk_anchor(
+        pos_enu,
+        offset_from_curb_m=offset_from_curb_m,
+        allow_green=False,
+        placement_semantics="sidewalk",
+    )
+    return anchor.position_enu_m
 
 
 def gathering_point(pos_enu: list[float], extent_cm: list[float] | None = None) -> list[float]:
-    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
-    sign = _side_sign_for_desired(sample, pos_enu)
-    half_extent_m = 0.0
-    if extent_cm:
-        half_extent_m = max(float(extent_cm[0]), float(extent_cm[1])) / 200.0
-    offset_from_curb = max(GATHERING_MIN_OFFSET_FROM_CURB_M, half_extent_m + 1.0)
-    return _offset_from_lane(sample, sign * (LANE_HALF_WIDTH_M + offset_from_curb), GROUND_Z_M)
+    return SPATIAL.plan_crowd_zone(pos_enu, extent_cm or [0.0, 0.0, 0.0], allow_green=True)
 
 
 def scene_pos(scene: dict[str, Any]) -> list[float]:
@@ -237,7 +244,29 @@ def scene_pos(scene: dict[str, Any]) -> list[float]:
 
 
 def shifted_sidewalk_point(base_pos_enu: list[float], dx_m: float, dy_m: float, offset_from_curb_m: float = SIDEWALK_MIN_OFFSET_FROM_CURB_M) -> list[float]:
-    return sidewalk_point([base_pos_enu[0] + dx_m, base_pos_enu[1] + dy_m, GROUND_Z_M], offset_from_curb_m)
+    base_sample = LANES.nearest_to_xy(float(base_pos_enu[0]), float(base_pos_enu[1]))
+    yaw_rad = math.radians(base_sample.yaw_deg)
+    s_delta = dx_m * math.cos(yaw_rad) + dy_m * math.sin(yaw_rad)
+    s_delta = max(-18.0, min(18.0, s_delta))
+    sign = _side_sign_for_desired(base_sample, base_pos_enu)
+    min_s, max_s = LANES.edge_s_bounds(base_sample.edge_id)
+    target_s = max(min_s, min(max_s, base_sample.s_m + s_delta))
+    errors: list[str] = []
+    for delta_s in (0.0, -2.0, 2.0, -5.0, 5.0, -10.0, 10.0, -15.0, 15.0):
+        sample = LANES.resolve_edge_s(base_sample.edge_id, max(min_s, min(max_s, target_s + delta_s)))
+        for extra_offset in (0.0, 0.8, 1.6, 3.0, 5.0):
+            offset = max(abs(offset_from_curb_m), SIDEWALK_MIN_OFFSET_FROM_CURB_M) + extra_offset
+            point = _offset_from_lane(sample, sign * (LANE_HALF_WIDTH_M + offset), GROUND_Z_M)
+            point_errors = SPATIAL.validation_errors_for_point(
+                point,
+                context="sidewalk_shifted_target",
+                allow_road=False,
+                allow_green=True,
+            )
+            if not point_errors:
+                return point
+            errors.extend(point_errors[:2])
+    raise RuntimeError(f"Unable to plan shifted sidewalk target from {base_pos_enu}: {errors[:6]}")
 
 
 def rot(yaw: float = 0.0, pitch: float | None = None, roll: float | None = None) -> dict[str, float]:
@@ -306,7 +335,35 @@ def action(action_id: str, action_type: str, **params: Any) -> dict[str, Any]:
     return {"type": action_type, "params": {"action_id": action_id, **params}}
 
 
+def _is_pedestrian_entity_id(entity_id: str) -> bool:
+    clean = str(entity_id or "").lower()
+    return clean.startswith(("ped", "pedestrian"))
+
+
+def _is_crossing_move(action_id: str) -> bool:
+    clean = str(action_id or "").lower()
+    return any(token in clean for token in ("crosswalk", "roadway", "retreat", "jaywalk"))
+
+
+def _move_allows_green(action_id: str) -> bool:
+    clean = str(action_id or "").lower()
+    return any(token in clean for token in ("crowd", "evac", "gather", "safe"))
+
+
+def _planned_pedestrian_waypoints(action_id: str, entity_id: str, waypoints: list[list[float]]) -> list[list[float]]:
+    if not _is_pedestrian_entity_id(entity_id):
+        return waypoints
+    if _is_crossing_move(action_id):
+        return SPATIAL.plan_crossing_path(waypoints, context=f"{action_id} {entity_id}")
+    return SPATIAL.plan_sidewalk_route(
+        waypoints,
+        allow_green=_move_allows_green(action_id),
+        context=f"{action_id} {entity_id}",
+    )
+
+
 def move(action_id: str, entity_id: str, waypoints: list[list[float]], velocity: float) -> dict[str, Any]:
+    waypoints = _planned_pedestrian_waypoints(action_id, entity_id, waypoints)
     return action(
         action_id,
         "move_entity",
@@ -368,6 +425,12 @@ def play(action_id: str, ped_id: str) -> dict[str, Any]:
 
 
 def crowd(action_id: str, group_id: str, count: int, origin: list[float], extent_cm: list[float], seed: int) -> dict[str, Any]:
+    SPATIAL.validate_spawn_envelope(
+        origin,
+        extent_cm,
+        context=f"spawn_crowd {group_id}",
+        allow_green=True,
+    )
     return action(
         action_id,
         "spawn_crowd",
@@ -385,6 +448,10 @@ def clear_crowd(action_id: str, group_id: str) -> dict[str, Any]:
 
 def set_weather(action_id: str, profile: str, **overrides: float) -> dict[str, Any]:
     return action(action_id, "set_weather", profile=profile, overrides=overrides)
+
+
+def safe_id(value: str) -> str:
+    return "".join(ch.lower() if ch.isalnum() else "_" for ch in str(value)).strip("_")
 
 
 def event(
@@ -512,11 +579,18 @@ def sidewalk_entity(
     mode: str | None = None,
     route: list[list[float]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
-    sign = _side_sign_for_desired(sample, pos_enu)
-    offset_from_curb = max(abs(float(offset)), SIDEWALK_MIN_OFFSET_FROM_CURB_M)
-    resolved_lateral = sign * (LANE_HALF_WIDTH_M + offset_from_curb)
-    pos_enu = _offset_from_lane(sample, resolved_lateral, float(pos_enu[2] if len(pos_enu) > 2 else GROUND_Z_M))
+    anchor = SPATIAL.plan_sidewalk_anchor(
+        pos_enu,
+        edge_id_hint=edge_id,
+        s_hint=s,
+        offset_from_curb_m=offset,
+        allow_green=False,
+        placement_semantics="sidewalk",
+    )
+    sample = anchor.sample
+    offset_from_curb = anchor.offset_from_curb_m
+    resolved_lateral = anchor.resolved_lateral_from_center_m
+    pos_enu = anchor.position_enu_m
     yaw = sample.yaw_deg
     spec, scene = world_entity(entity_id, asset, category, pos_enu, yaw, mode, route=route)
     scene["placement_mode"] = "sidewalk_anchor"
@@ -526,7 +600,7 @@ def sidewalk_entity(
         "offset_from_curb_m": round(offset_from_curb, 3),
         "lane_half_width_m": LANE_HALF_WIDTH_M,
         "resolved_lateral_from_center_m": round(resolved_lateral, 3),
-        "placement_semantics": "sidewalk_or_plaza",
+        "placement_semantics": anchor.placement_semantics,
         "resolved_position_enu_m": pos_enu,
         "rotation_deg": rot(yaw),
         "source_lane_edge_id_hint": edge_id,
@@ -544,11 +618,11 @@ def crosswalk_entity(
     yaw: float = 0.0,
     route: list[list[float]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
-    sign = _side_sign_for_desired(sample, pos_enu)
-    start_pos = _offset_from_lane(sample, sign * (LANE_HALF_WIDTH_M + SIDEWALK_MIN_OFFSET_FROM_CURB_M), GROUND_Z_M)
-    road_pos = _offset_from_lane(sample, 0.0, GROUND_Z_M)
-    opposite_pos = _offset_from_lane(sample, -sign * (LANE_HALF_WIDTH_M + SIDEWALK_MIN_OFFSET_FROM_CURB_M), GROUND_Z_M)
+    crossing = SPATIAL.plan_crossing_route(pos_enu, offset_from_curb_m=SIDEWALK_MIN_OFFSET_FROM_CURB_M)
+    sample = crossing.sample
+    start_pos = crossing.start_position_enu_m
+    road_pos = crossing.roadway_center_position_enu_m
+    opposite_pos = crossing.opposite_curb_position_enu_m
     spec, scene = world_entity(entity_id, asset, "pedestrian", start_pos, sample.yaw_deg, "walking", route=route)
     scene["placement_mode"] = "crosswalk_anchor"
     scene["placement"] = {
@@ -558,7 +632,7 @@ def crosswalk_entity(
         "longitudinal_s": round(sample.s_m, 3),
         "lane_half_width_m": LANE_HALF_WIDTH_M,
         "offset_from_curb_m": SIDEWALK_MIN_OFFSET_FROM_CURB_M,
-        "resolved_lateral_from_center_m": round(sign * (LANE_HALF_WIDTH_M + SIDEWALK_MIN_OFFSET_FROM_CURB_M), 3),
+        "resolved_lateral_from_center_m": crossing.resolved_lateral_from_center_m,
         "resolved_position_enu_m": start_pos,
         "roadway_center_position_enu_m": road_pos,
         "opposite_curb_position_enu_m": opposite_pos,
@@ -644,6 +718,129 @@ def pad_entity(
     return spec, scene
 
 
+def add_evacuation_ped_cohort(
+    specs: list[dict[str, Any]],
+    scenes: list[dict[str, Any]],
+    sid: str,
+    prefix: str,
+    start_origin: list[float],
+    safe_origin: list[float],
+    count: int = 8,
+) -> list[tuple[str, list[float], list[list[float]]]]:
+    def cohort_sidewalk_point(origin: list[float], index: int) -> tuple[LaneSample, float, float, list[float]]:
+        base = LANES.nearest_to_xy(float(origin[0]), float(origin[1]))
+        col = index % 4
+        row = index // 4
+        s_offset = (col - 1.5) * 3.5
+        offset_from_curb = GATHERING_MIN_OFFSET_FROM_CURB_M + row * 4.0 - col * 0.5
+        anchor = SPATIAL.plan_sidewalk_anchor(
+            [origin[0], origin[1], GROUND_Z_M],
+            edge_id_hint=base.edge_id,
+            s_hint=base.s_m + s_offset,
+            offset_from_curb_m=offset_from_curb,
+            allow_green=True,
+            placement_semantics="sidewalk_evacuation_cohort",
+        )
+        return anchor.sample, anchor.offset_from_curb_m, anchor.resolved_lateral_from_center_m, anchor.position_enu_m
+
+    direction_sample = LANES.nearest_to_xy(float(start_origin[0]), float(start_origin[1]))
+    direction_yaw_rad = math.radians(direction_sample.yaw_deg)
+    direction_dx = float(safe_origin[0]) - float(start_origin[0])
+    direction_dy = float(safe_origin[1]) - float(start_origin[1])
+    evacuation_direction = 1.0 if direction_dx * math.cos(direction_yaw_rad) + direction_dy * math.sin(direction_yaw_rad) >= 0.0 else -1.0
+
+    def cohort_route(
+        start_sample: LaneSample,
+        target_sample: LaneSample,
+        side_sign: float,
+        offset_from_curb: float,
+        start: list[float],
+        target: list[float],
+    ) -> list[list[float]]:
+        s0 = float(start_sample.s_m)
+        s1 = float(target_sample.s_m)
+        steps = max(1, int(math.ceil(abs(s1 - s0) / 18.0)))
+        points: list[list[float]] = [start]
+        for step in range(1, steps):
+            s_m = s0 + (s1 - s0) * step / float(steps)
+            sample = LANES.resolve_edge_s(start_sample.edge_id, s_m)
+            points.append(_offset_from_lane(sample, side_sign * (LANE_HALF_WIDTH_M + offset_from_curb), GROUND_Z_M))
+        points.append(target)
+        deduped: list[list[float]] = []
+        for point in points:
+            if not deduped or math.hypot(deduped[-1][0] - point[0], deduped[-1][1] - point[1]) > 0.001:
+                deduped.append(point)
+        for segment_index, (a, b) in enumerate(zip(deduped, deduped[1:])):
+            SPATIAL.validate_segment(
+                a,
+                b,
+                context=f"sidewalk_evacuation_route {start_sample.edge_id} segment {segment_index}",
+                allow_road=False,
+                allow_green=True,
+            )
+        return deduped
+
+    def cohort_safe_route(start_sample: LaneSample, start_offset: float, start: list[float]) -> tuple[list[float], list[list[float]]]:
+        side_sign = _side_sign_for_desired(start_sample, start)
+        min_s, max_s = LANES.edge_s_bounds(start_sample.edge_id)
+        errors: list[str] = []
+        for dir_sign in (evacuation_direction,):
+            for travel_m in (24.0, 21.0, 18.0, 15.0, 12.0, 9.0, 6.0):
+                target_s = max(min_s, min(max_s, start_sample.s_m + dir_sign * travel_m))
+                target_sample = LANES.resolve_edge_s(start_sample.edge_id, target_s)
+                for extra_offset in (0.0, 0.8, 1.6, 3.0, 5.0):
+                    target = _offset_from_lane(
+                        target_sample,
+                        side_sign * (LANE_HALF_WIDTH_M + start_offset + extra_offset),
+                        GROUND_Z_M,
+                    )
+                    point_errors = SPATIAL.validation_errors_for_point(
+                        target,
+                        context="sidewalk_evacuation_safe_target",
+                        allow_road=False,
+                        allow_green=True,
+                    )
+                    if not point_errors and math.hypot(start[0] - target[0], start[1] - target[1]) >= 4.0:
+                        try:
+                            route = cohort_route(start_sample, target_sample, side_sign, start_offset + extra_offset, start, target)
+                            return target, route
+                        except SpatialValidationError as exc:
+                            errors.append(str(exc))
+                            continue
+                    errors.extend(point_errors[:2])
+        raise RuntimeError(f"Unable to plan same-edge evacuation target from {start}: {errors[:6]}")
+
+    cohort: list[tuple[str, list[float], list[list[float]]]] = []
+    for index in range(count):
+        start_sample, start_offset, start_lateral, start = cohort_sidewalk_point(start_origin, index)
+        _safe, route = cohort_safe_route(start_sample, start_offset, start)
+        ped_id = f"{prefix}_{sid}_{index:02d}"
+        spec, ped_scene = world_entity(ped_id, "pedestrian.cityops.basic.v1", "pedestrian", start, start_sample.yaw_deg, "standing")
+        ped_scene["placement_mode"] = "sidewalk_anchor"
+        ped_scene["placement"] = {
+            "lane_edge_id": start_sample.edge_id,
+            "longitudinal_s": round(start_sample.s_m, 3),
+            "offset_from_curb_m": round(start_offset, 3),
+            "lane_half_width_m": LANE_HALF_WIDTH_M,
+            "resolved_lateral_from_center_m": round(start_lateral, 3),
+            "placement_semantics": "sidewalk_evacuation_cohort",
+            "resolved_position_enu_m": start,
+            "rotation_deg": rot(start_sample.yaw_deg),
+        }
+        add(specs, scenes, (spec, ped_scene))
+        cohort.append((ped_id, start, route))
+    return cohort
+
+
+def evacuation_move_actions(cohort: list[tuple[str, list[float], list[list[float]]]], action_prefix: str) -> list[dict[str, Any]]:
+    actions: list[dict[str, Any]] = []
+    for index, (ped_id, start, route) in enumerate(cohort):
+        if not route or math.hypot(route[0][0] - start[0], route[0][1] - start[1]) > 0.001:
+            raise RuntimeError(f"{action_prefix}_{index:02d} {ped_id}: evacuation route does not start at scene position")
+        actions.append(move(f"{action_prefix}_{index:02d}", ped_id, route, 1.4))
+    return actions
+
+
 def camera_for(cx: float, cy: float, z: float = 75.0) -> list[dict[str, Any]]:
     return [
         {
@@ -722,6 +919,21 @@ def enforce_physical_delays(events: list[dict[str, Any]]) -> None:
             trigger["delay_ticks"] = required_delay
 
 
+def event_action_points(events: list[dict[str, Any]]) -> list[list[float]]:
+    points: list[list[float]] = []
+    for event_def in events:
+        for action_def in event_def.get("actions") or []:
+            params = action_params(action_def)
+            for key in ("position_enu_m", "spawn_origin_enu_m"):
+                point = params.get(key)
+                if isinstance(point, list) and len(point) >= 3:
+                    points.append([float(point[0]), float(point[1]), float(point[2])])
+            for waypoint in params.get("waypoints_enu_m") or []:
+                if isinstance(waypoint, list) and len(waypoint) >= 3:
+                    points.append([float(waypoint[0]), float(waypoint[1]), float(waypoint[2])])
+    return points
+
+
 def collect_scene_bound_points(bundle: ScenarioBundle) -> list[list[float]]:
     points: list[list[float]] = []
     for entity in bundle.scene_entities:
@@ -731,7 +943,168 @@ def collect_scene_bound_points(bundle: ScenarioBundle) -> list[list[float]]:
         for waypoint in entity.get("route_waypoints_enu_m") or []:
             if isinstance(waypoint, list) and len(waypoint) >= 3:
                 points.append([float(waypoint[0]), float(waypoint[1]), float(waypoint[2])])
+    points.extend(event_action_points(bundle.events))
     return points
+
+
+def default_cameras_for_bundle(scene_entities: list[dict[str, Any]], events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    points: list[list[float]] = []
+    for entity in scene_entities:
+        position = scene_pos(entity)
+        if position:
+            points.append(position)
+        for waypoint in entity.get("route_waypoints_enu_m") or []:
+            if isinstance(waypoint, list) and len(waypoint) >= 3:
+                points.append([float(waypoint[0]), float(waypoint[1]), float(waypoint[2])])
+    points.extend(event_action_points(events))
+    if not points:
+        return camera_for(WORLD_OFFSET_X_M, WORLD_OFFSET_Y_M)
+    cx = sum(point[0] for point in points) / len(points)
+    cy = sum(point[1] for point in points) / len(points)
+    radius = max(math.hypot(point[0] - cx, point[1] - cy) for point in points)
+    altitude = max(75.0, min(180.0, radius * 1.45 + 45.0))
+    return camera_for(cx, cy, altitude)
+
+
+def uav_home_pad_pose(mission_start_enu: list[float], slot_index: int) -> tuple[list[float], float]:
+    sample = LANES.nearest_to_xy(float(mission_start_enu[0]), float(mission_start_enu[1]))
+    base_offset = LANE_HALF_WIDTH_M + GATHERING_MIN_OFFSET_FROM_CURB_M + 2.0
+    side = 1.0 if slot_index % 2 == 0 else -1.0
+    ring = slot_index // 2
+    lateral = side * (base_offset + ring * 4.0)
+    pad_position = _offset_from_lane(sample, lateral, GROUND_Z_M)
+    yaw = sample.yaw_deg
+    return pad_position, yaw
+
+
+def update_world_entity_position(spec: dict[str, Any], scene: dict[str, Any], position_enu: list[float]) -> None:
+    spec["initial_pos_enu"] = position_enu
+    placement = scene.setdefault("placement", {})
+    placement["position_enu_m"] = position_enu
+    placement["resolved_position_enu_m"] = position_enu
+
+
+def terminal_uav_action(action_id: str, final_z_m: float) -> bool:
+    lowered = action_id.lower()
+    if final_z_m <= UAV_LANDING_ALTITUDE_MAX_M:
+        return True
+    return any(token in lowered for token in ("touchdown", "landing", "debris", "crash"))
+
+
+def add_uav_lifecycle(
+    scenario_id: str,
+    specs: list[dict[str, Any]],
+    scenes: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> None:
+    spec_by_id = {spec["entity_id"]: spec for spec in specs}
+    uav_scenes = [
+        scene
+        for scene in scenes
+        if str(scene.get("logical_asset_id", "")).startswith("uav.")
+        and not scene.get("lifecycle", {}).get("auto_lifecycle_applied")
+    ]
+    if not uav_scenes:
+        return
+
+    original_positions: dict[str, list[float]] = {}
+    current_positions: dict[str, list[float]] = {}
+    last_event_for_uav: dict[str, str] = {}
+    last_action_for_uav: dict[str, str] = {}
+    last_scenario_event_id = ""
+    for scene in uav_scenes:
+        entity_id = str(scene["entity_id"])
+        start_position = scene_pos(scene)
+        if start_position:
+            original_positions[entity_id] = start_position
+            current_positions[entity_id] = start_position
+
+    for event_def in events:
+        event_id = str(event_def["event_id"])
+        if event_id and not event_id.startswith("lifecycle_"):
+            last_scenario_event_id = event_id
+        for action_def in event_def.get("actions") or []:
+            params = action_params(action_def)
+            if params.get("type") != "move_entity":
+                continue
+            entity_id = str(params.get("entity_id") or "")
+            if entity_id not in current_positions:
+                continue
+            waypoints = [wp for wp in params.get("waypoints_enu_m") or [] if isinstance(wp, list) and len(wp) >= 3]
+            if not waypoints:
+                continue
+            current_positions[entity_id] = [float(waypoints[-1][0]), float(waypoints[-1][1]), float(waypoints[-1][2])]
+            last_event_for_uav[entity_id] = event_id
+            last_action_for_uav[entity_id] = str(params.get("action_id") or "")
+
+    lifecycle_events: list[dict[str, Any]] = []
+    landing_events: list[dict[str, Any]] = []
+    for slot_index, scene in enumerate(uav_scenes):
+        entity_id = str(scene["entity_id"])
+        spec = spec_by_id.get(entity_id)
+        mission_start = original_positions.get(entity_id)
+        if spec is None or not mission_start:
+            continue
+
+        suffix = safe_id(entity_id)
+        pad_id = f"pad_home_{suffix}"
+        pad_position, pad_yaw = uav_home_pad_pose(mission_start, slot_index)
+        pad_hover = q(pad_position[0], pad_position[1], UAV_PAD_HOVER_Z_M)
+        climb = q(pad_position[0], pad_position[1], max(18.0, min(float(mission_start[2]) - 4.0, 24.0)))
+
+        add(specs, scenes, pad_entity(pad_id, pad_position, f"home_{suffix}", "departure", pad_yaw))
+        update_world_entity_position(spec, scene, pad_hover)
+        scene["initial_state"] = {**(scene.get("initial_state") or {}), "mode": "preflight_on_pad"}
+        scene["route_waypoints_enu_m"] = [mission_start] + list(scene.get("route_waypoints_enu_m") or [])
+        scene["lifecycle"] = {
+            "auto_lifecycle_applied": True,
+            "home_pad_entity_id": pad_id,
+            "home_hover_enu_m": pad_hover,
+            "mission_start_enu_m": mission_start,
+            "requires_takeoff": True,
+            "requires_landing_or_terminal_resolution": True,
+        }
+        spec["movement_waypoints"] = [mission_start] + list(spec.get("movement_waypoints") or [])
+        spec["visual_state"] = {**(spec.get("visual_state") or {}), "mode": "preflight_on_pad"}
+
+        lifecycle_events.append(
+            event(
+                f"lifecycle_takeoff_{suffix}",
+                tick(UAV_TAKEOFF_ENTRY_TICK + slot_index * 8),
+                [move(f"move_{suffix}_takeoff_entry", entity_id, [pad_hover, climb, mission_start], 5.0)],
+                0,
+                scenario_id,
+                "UAV takes off from visible home pad and enters mission airspace",
+                "uav_lifecycle",
+                [entity_id, pad_id],
+                "info",
+            )
+        )
+
+        final_position = current_positions.get(entity_id, mission_start)
+        final_z = float(final_position[2])
+        last_action = last_action_for_uav.get(entity_id, "")
+        if not terminal_uav_action(last_action, final_z):
+            approach = q(pad_position[0], pad_position[1], max(12.0, min(final_z, 22.0)))
+            landing_after_event = last_scenario_event_id or last_event_for_uav.get(entity_id, f"lifecycle_takeoff_{suffix}")
+            landing_events.append(
+                event(
+                    f"lifecycle_landing_{suffix}",
+                    fired(landing_after_event, UAV_LANDING_AFTER_SCENARIO_DELAY_TICKS + slot_index * 8),
+                    [move(f"move_{suffix}_landing_return", entity_id, [final_position, approach, pad_hover], 4.0)],
+                    9,
+                    scenario_id,
+                    "UAV returns to the visible home pad and lands after mission resolution",
+                    "uav_lifecycle",
+                    [entity_id, pad_id],
+                    "info",
+                )
+            )
+
+    if lifecycle_events:
+        events[:0] = lifecycle_events
+    if landing_events:
+        events.extend(landing_events)
 
 
 def local_bounds_for_bundle(bundle: ScenarioBundle) -> dict[str, Any]:
@@ -761,6 +1134,7 @@ def make_bundle(
     cameras: list[dict[str, Any]] | None = None,
     validation_rules: list[dict[str, Any]] | None = None,
 ) -> ScenarioBundle:
+    add_uav_lifecycle(scenario_id, spec_entities, scene_entities, events)
     ids = [e["entity_id"] for e in scene_entities]
     rules = base_rules(ids, scenario_id) + asset_rules(scene_entities)
     if validation_rules:
@@ -768,8 +1142,6 @@ def make_bundle(
     if len(rules) < 2 and ids:
         rules.append({"rule": "entity_resolvable", "entity_id": ids[0], "description": "Entity must resolve"})
     enforce_physical_delays(events)
-    cx = sum(e["initial_pos_enu"][0] for e in spec_entities) / max(1, len(spec_entities))
-    cy = sum(e["initial_pos_enu"][1] for e in spec_entities) / max(1, len(spec_entities))
     return ScenarioBundle(
         scenario_id=scenario_id,
         directory=directory,
@@ -780,7 +1152,7 @@ def make_bundle(
         parameters=parameters,
         events=events,
         weather_profile=weather_profile or {"initial": "clear", "transitions": []},
-        cameras=cameras or camera_for(cx, cy),
+        cameras=cameras or default_cameras_for_bundle(scene_entities, events),
         validation_rules=rules,
     )
 
@@ -1175,24 +1547,26 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         uav = f"uav_forced_landing_{sid}"
         ped_a = f"ped_landing_{sid}_a"
         ped_b = f"ped_landing_{sid}_b"
-        start = p(ox - 12, oy - 12, 30)
-        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 45, "fault"))
         _, ped_a_scene = add(specs, scenes, sidewalk_entity(ped_a, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 24, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 2, oy + 2, 0), 0, "standing"))
         _, ped_b_scene = add(specs, scenes, sidewalk_entity(ped_b, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 28, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 7, oy + 2, 0), 180, "standing"))
         ped_a_start = scene_pos(ped_a_scene)
         ped_b_start = scene_pos(ped_b_scene)
-        crowd_origin = gathering_point(p(ox + 4, oy + 3, 0), [650, 420, 0])
         landing_x = (ped_a_start[0] + ped_b_start[0]) / 2.0
         landing_y = (ped_a_start[1] + ped_b_start[1]) / 2.0
+        start = q(landing_x - 28.0, landing_y - 22.0, 30)
+        descent_mid = q(landing_x - 12.0, landing_y - 9.0, 18)
         low = q(landing_x, landing_y, 8)
         land = q(landing_x, landing_y, 3)
+        crowd_origin = gathering_point(q(landing_x, landing_y, GROUND_Z_M), [650, 420, 0])
+        add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 45, "fault"))
         ped_a_evade = shifted_sidewalk_point(ped_a_start, -8, 8, GATHERING_MIN_OFFSET_FROM_CURB_M)
         ped_b_evade = shifted_sidewalk_point(ped_b_start, 8, 8, GATHERING_MIN_OFFSET_FROM_CURB_M)
         events = [
-            event("forced_landing_fault", tick(230), [visual("set_uav_forced_landing_fault", uav, "propulsion_fault"), crowd("spawn_landing_crowd", f"crowd_{sid}", 8, crowd_origin, [650, 420, 0], 700 + idx)], 1, scenario_id, "UAV fault appears near a ground crowd", "uav_mission", [uav, ped_a, ped_b], "critical"),
-            event("descent_to_low_altitude", fired("forced_landing_fault"), [move("move_uav_forced_descent", uav, [start, p(ox - 3, oy - 4, 18), low, land], 3.0)], 2, scenario_id, "UAV descends from 30m to low height", "uav_mission", [uav], "critical"),
+            event("crowd_present", tick(0), [crowd("spawn_landing_crowd_initial", f"crowd_{sid}", 8, crowd_origin, [650, 420, 0], 700 + idx)], 0, scenario_id, "Ground crowd is visible before the UAV fault begins", "pedestrian", [ped_a, ped_b], "info"),
+            event("forced_landing_fault", tick(230), [visual("set_uav_forced_landing_fault", uav, "propulsion_fault")], 1, scenario_id, "UAV fault appears near a ground crowd", "uav_mission", [uav, ped_a, ped_b], "critical"),
+            event("descent_to_low_altitude", fired("forced_landing_fault"), [move("move_uav_forced_descent", uav, [start, descent_mid, low, land], 3.0)], 2, scenario_id, "UAV descends from 30m to low height", "uav_mission", [uav], "critical"),
             event("crowd_proximity_response", prox(uav, ped_a, 5.0, 2), [move("move_ped_a_evade_landing", ped_a, [ped_a_start, ped_a_evade], 2.0), move("move_ped_b_evade_landing", ped_b, [ped_b_start, ped_b_evade], 2.0), screenshot("capture_forced_landing")], 3, scenario_id, "Crowd evades forced landing zone", "pedestrian", [ped_a, ped_b, uav], "warning"),
-            event("safe_landing", fired("crowd_proximity_response"), [move("move_uav_safe_touchdown", uav, [land, q(land[0] + 1, land[1] + 1, 0.8)], 1.0), clear_crowd("clear_landing_crowd", f"crowd_{sid}")], 4, scenario_id, "UAV completes safe landing", "uav_mission", [uav], "info"),
+            event("safe_landing", fired("crowd_proximity_response"), [move("move_uav_safe_touchdown", uav, [land, q(land[0] + 1, land[1] + 1, 0.8)], 1.0)], 4, scenario_id, "UAV completes safe landing", "uav_mission", [uav], "info"),
         ]
         desc = "UAV forced landing near crowd"
         rules.append({"rule": "forced_landing_descent_profile", "z_sequence": [30, 8, 3], "description": "UAV descends through low-altitude forced landing profile"})
@@ -1253,11 +1627,30 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         ambulance = f"ambulance_fall_{sid}"
         _, ped_scene = add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_23", 42, 1.2, p(ox + 3, oy + 2, 0), 0, "walking"))
         ped_start = scene_pos(ped_scene)
-        uav_start = p(ox - 14, oy - 8, 31)
+        uav_start = q(ped_start[0] - 28.0, ped_start[1] - 20.0, 31)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", uav_start, 55, "patrol"))
-        _, ambulance_scene = add(specs, scenes, lane_entity(ambulance, "vehicle.emergency.ambulance.v1", "vehicle", "cg_edge_24", 30, 0.0, p(ox - 32, oy - 18, 0), 65, "response", visual_state={"mode": "response", "lights_on": True}))
-        ambulance_start = scene_pos(ambulance_scene)
         ambulance_arrival = road_center_point(ped_start)
+        arrival_sample = LANES.nearest_to_xy(ambulance_arrival[0], ambulance_arrival[1])
+        ambulance_s = max(0.0, arrival_sample.s_m - 42.0)
+        ambulance_start_hint = _offset_from_lane(LANES.resolve_edge_s(arrival_sample.edge_id, ambulance_s), 0.0, GROUND_Z_M)
+        _, ambulance_scene = add(
+            specs,
+            scenes,
+            lane_entity(
+                ambulance,
+                "vehicle.emergency.ambulance.v1",
+                "vehicle",
+                arrival_sample.edge_id,
+                ambulance_s,
+                0.0,
+                ambulance_start_hint,
+                arrival_sample.yaw_deg,
+                "response",
+                visual_state={"mode": "response", "lights_on": True},
+                prefer_edge_hint=True,
+            ),
+        )
+        ambulance_start = scene_pos(ambulance_scene)
         uav_observe = q(ped_start[0], ped_start[1], 16)
         events = [
             event("pedestrian_fall", tick(230), [play("play_pedestrian_fall", ped)], 1, scenario_id, "Pedestrian fall animation starts", "pedestrian", [ped], "critical"),
@@ -1268,8 +1661,6 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         desc = "Pedestrian fall detected by UAV and response chain"
     elif scenario_id.startswith("L4-8_"):
         uav = f"uav_crowd_monitor_{sid}"
-        group = f"crowd_{sid}"
-        safe_group = f"crowd_safe_{sid}"
         uav_start = p(ox - 18, oy - 10, 34)
         crowd_extent = [900, 600, 0]
         safe_extent = [1000, 500, 0]
@@ -1277,14 +1668,15 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         safe_origin = gathering_point(p(ox + 24, oy + 19, 0), safe_extent)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", uav_start, 50, "monitor"))
         add(specs, scenes, world_entity(f"crowd_anchor_{sid}", "semantic.spawn_zone", "crowd_anchor", crowd_origin, 0))
+        cohort = add_evacuation_ped_cohort(specs, scenes, sid, "ped_evac", crowd_origin, safe_origin, 8)
         events = [
-            event("crowd_generated", tick(220), [crowd("spawn_incident_crowd", group, 12 if scenario_id.endswith("v1") else 16, crowd_origin, crowd_extent, 800 + idx)], 1, scenario_id, "Crowd generated in evacuation zone", "pedestrian", [f"crowd_anchor_{sid}"], "warning"),
-            event("evacuation_triggered", fired("crowd_generated"), [clear_crowd("clear_incident_crowd_for_evacuation", group), crowd("spawn_crowd_at_safe_zone", safe_group, 12 if scenario_id.endswith("v1") else 16, safe_origin, safe_extent, 900 + idx)], 2, scenario_id, "Crowd moves to safe evacuation zone", "pedestrian", [f"crowd_anchor_{sid}"], "warning"),
+            event("crowd_generated", tick(0), [], 1, scenario_id, "Explicit pedestrian cohort is present in evacuation zone at episode start", "pedestrian", [f"crowd_anchor_{sid}"], "info"),
+            event("evacuation_triggered", tick(220), evacuation_move_actions(cohort, "move_crowd_evacuation"), 2, scenario_id, "Visible pedestrian cohort walks to safe evacuation zone", "pedestrian", [f"crowd_anchor_{sid}"], "warning"),
             event("uav_evacuation_monitor", fired("evacuation_triggered"), [move("move_uav_monitor_evacuation", uav, [uav_start, q(crowd_origin[0], crowd_origin[1], 30), q(safe_origin[0], safe_origin[1], 30)], 5.0), screenshot("capture_crowd_evacuation")], 3, scenario_id, "UAV monitors evacuation movement", "uav_mission", [uav], "info"),
-            event("crowd_clear", fired("uav_evacuation_monitor"), [clear_crowd("clear_safe_crowd", safe_group)], 4, scenario_id, "Crowd evacuation completes and group is cleared", "pedestrian", [uav], "info"),
+            event("crowd_safe_hold", fired("uav_evacuation_monitor"), [screenshot("capture_crowd_safe_hold")], 4, scenario_id, "Crowd evacuation completes without removing visible agents", "pedestrian", [uav], "info"),
         ]
         desc = "Crowd evacuation with UAV monitoring"
-        rules.append({"rule": "crowd_spawn_count_min", "min_count": 8, "description": "Crowd evacuation scenario uses spawn_crowd with at least 8 people"})
+        rules.append({"rule": "explicit_pedestrian_count_min", "min_count": 8, "description": "Crowd evacuation scenario uses at least 8 individually controlled pedestrians"})
     elif scenario_id.startswith("L4-9_"):
         car_a = f"car_intersection_{sid}_a"
         car_b = f"car_intersection_{sid}_b"
@@ -1536,12 +1928,13 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
         ped_evade = shifted_sidewalk_point(ped_start, 12, 10, GATHERING_MIN_OFFSET_FROM_CURB_M)
         weather_profile = {"initial": "clear", "transitions": [{"tick": 180, "profile": "rain", "overrides": {"rain": 0.62, "visibility_m": 1600.0}}]}
         events = [
+            event("crowd_present", tick(0), [crowd("spawn_x1_crowd_initial", "crowd_x1", 10, crowd_origin, [800, 500, 0], 1101)], 0, scenario_id, "Crowd is visible near the future forced-landing area at episode start", "pedestrian", [ped], "info"),
             event("rain_onset", tick(180), [set_weather("set_x1_rain_onset", "rain", rain=0.62, visibility_m=1600.0)], 1, scenario_id, "Rain onset is applied before C2 coupling", "weather", [uav, tower], "info"),
             event("rain_threshold", weather("rain", "gte", 0.5, 5), [set_weather("set_x1_rain", "rain", rain=0.65, visibility_m=1500.0)], 1, scenario_id, "Rain threshold triggers L5 degradation", "weather", [uav, tower], "warning"),
             event("c2_loss_tick", tick(260), [visual("set_x1_tower_stressed", tower, "rain_stressed")], 2, scenario_id, "C2 loss timing condition becomes true", "digital_layer", [tower], "warning"),
             event("c2_loss_after_rain", composite("AND", ["rain_threshold", "c2_loss_tick"]), [visual("set_x1_tower_c2_loss", tower, "link_lost"), move("move_x1_uav_degraded", uav, [start, p(ox + 9, oy + 4, 26)], 3.0)], 3, scenario_id, "Rain and C2 condition combine into C2 loss", "digital_layer", [uav, tower], "critical"),
-            event("forced_landing_descent", fired("c2_loss_after_rain"), [move("move_x1_forced_landing", uav, [p(ox + 9, oy + 4, 26), low, landing], 2.5), crowd("spawn_x1_crowd", "crowd_x1", 10, crowd_origin, [800, 500, 0], 1101)], 4, scenario_id, "C2 loss causes forced landing near crowd", "uav_mission", [uav, ped], "critical"),
-            event("crowd_reacts_to_landing", prox(uav, ped, 5.0, 2), [move("move_x1_ped_evade", ped, [ped_start, ped_evade], 2.0), clear_crowd("clear_x1_crowd", "crowd_x1"), screenshot("capture_x1_forced_landing")], 5, scenario_id, "Crowd reacts to forced landing", "pedestrian", [uav, ped], "warning"),
+            event("forced_landing_descent", fired("c2_loss_after_rain"), [move("move_x1_forced_landing", uav, [p(ox + 9, oy + 4, 26), low, landing], 2.5)], 4, scenario_id, "C2 loss causes forced landing near crowd", "uav_mission", [uav, ped], "critical"),
+            event("crowd_reacts_to_landing", prox(uav, ped, 5.0, 2), [move("move_x1_ped_evade", ped, [ped_start, ped_evade], 2.0), screenshot("capture_x1_forced_landing")], 5, scenario_id, "Crowd reacts to forced landing", "pedestrian", [uav, ped], "warning"),
             event("x1_recovery", fired("crowd_reacts_to_landing"), [visual("set_x1_tower_restored", tower, "online"), visual("set_x1_uav_landed", uav, "landed_safe")], 6, scenario_id, "Cross-layer chain recovers", "digital_layer", [uav, tower], "info"),
         ]
         desc = "Rain to C2 loss to forced landing cross-layer chain"
@@ -1564,11 +1957,11 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
         ped, uav, ambulance, tape = "ped_x3_fall", "uav_x3_detect", "ambulance_x3", "police_tape_x3"
         _, ped_scene = add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_32", 50, 1.2, p(ox + 4, oy + 3, 0), 0, "walking"))
         ped_start = scene_pos(ped_scene)
-        uav_start = p(ox - 15, oy - 8, 32)
+        uav_start = q(ped_start[0] - 28.0, ped_start[1] - 20.0, 32)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", uav_start, 60, "patrol"))
         ambulance_arrival = road_center_point(ped_start)
         arrival_sample = LANES.nearest_to_xy(ambulance_arrival[0], ambulance_arrival[1])
-        ambulance_s = max(0.0, arrival_sample.s_m - 60.0)
+        ambulance_s = max(0.0, arrival_sample.s_m - 42.0)
         ambulance_start_hint = _offset_from_lane(LANES.resolve_edge_s(arrival_sample.edge_id, ambulance_s), 0.0, GROUND_Z_M)
         _, ambulance_scene = add(
             specs,
@@ -1644,13 +2037,15 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
         safe_origin = gathering_point(p(ox + 28, oy + 18, 0), safe_extent)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", uav_start, 55, "monitor"))
         add(specs, scenes, world_entity(anchor, "semantic.spawn_zone", "crowd_anchor", crowd_origin, 0))
+        cohort = add_evacuation_ped_cohort(specs, scenes, "x6", "ped_x6_evac", crowd_origin, safe_origin, 8)
         _, nfz_scene = add(specs, scenes, box_entity(nfz, "trigger.no_fly.box.v1", "airspace_constraint", p(ox + 6, oy + 4, 28), [18, 13, 16], activation_tick=310))
         events = [
-            event("crowd_evacuation", tick(220), [crowd("spawn_x6_crowd", "crowd_x6", 14, crowd_origin, crowd_extent, 1606)], 1, scenario_id, "Crowd evacuation begins", "pedestrian", [anchor], "warning"),
-            event("crowd_safe_zone_move", fired("crowd_evacuation"), [clear_crowd("clear_x6_origin_crowd", "crowd_x6"), crowd("spawn_x6_safe_crowd", "crowd_x6_safe", 14, safe_origin, safe_extent, 1607)], 2, scenario_id, "Crowd moves to safe zone", "pedestrian", [anchor], "warning"),
+            event("crowd_present", tick(0), [], 0, scenario_id, "Explicit pedestrian cohort is visible before evacuation begins", "pedestrian", [anchor], "info"),
+            event("crowd_evacuation", tick(220), evacuation_move_actions(cohort, "move_x6_crowd_evacuation"), 1, scenario_id, "Crowd evacuation begins with visible pedestrian movement", "pedestrian", [anchor], "warning"),
+            event("crowd_safe_zone_move", fired("crowd_evacuation"), [screenshot("capture_x6_crowd_safe_zone")], 2, scenario_id, "Crowd reaches safe zone without mid-script disappearance", "pedestrian", [anchor], "warning"),
             event("airspace_lockdown", fired("crowd_safe_zone_move"), [spawn_from_scene("spawn_x6_nfz", nfz_scene, visual_state={"mode": "active"})], 3, scenario_id, "Airspace lockdown declares temporary NFZ", "dynamic_constraint", [nfz], "critical"),
             event("uav_reroute_lockdown", fired("airspace_lockdown"), [move("move_x6_uav_avoid_nfz", uav, [uav_start, p(ox - 5, oy + 14, 36), p(ox + 22, oy + 28, 36)], 7.0), screenshot("capture_x6_lockdown")], 4, scenario_id, "UAV reroutes around lockdown NFZ", "uav_mission", [uav, nfz], "warning"),
-            event("lockdown_cleared", fired("uav_reroute_lockdown"), [clear_crowd("clear_x6_safe_crowd", "crowd_x6_safe"), visual("set_x6_nfz_standdown", nfz, "standdown")], 5, scenario_id, "Crowd evacuation and airspace lockdown clear", "dynamic_constraint", [uav, nfz], "info"),
+            event("lockdown_cleared", fired("uav_reroute_lockdown"), [visual("set_x6_nfz_standdown", nfz, "standdown")], 5, scenario_id, "Crowd evacuation and airspace lockdown clear", "dynamic_constraint", [uav, nfz], "info"),
         ]
         desc = "Crowd evacuation to airspace lockdown chain"
     return make_bundle(

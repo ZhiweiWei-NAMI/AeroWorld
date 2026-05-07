@@ -13,11 +13,11 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7025.87,
-      6339.903,
+      7072.842,
+      6419.743,
       0.0
     ],
-    "radius_m": 196.427,
+    "radius_m": 1545.576,
     "source": "scene_entities_and_routes"
   },
   "entities": [
@@ -28,24 +28,46 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7030.0,
-          6346.0,
-          32
+          7006.796,
+          6360.666,
+          3.0
         ],
         "resolved_position_enu_m": [
-          7030.0,
-          6346.0,
-          32
+          7006.796,
+          6360.666,
+          3.0
         ],
         "rotation_deg": {
           "yaw_deg": 35
         }
       },
-      "route_waypoints_enu_m": [],
+      "route_waypoints_enu_m": [
+        [
+          7030.0,
+          6346.0,
+          32
+        ]
+      ],
       "initial_state": {
-        "mode": "patrol"
+        "mode": "preflight_on_pad"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "lifecycle": {
+        "auto_lifecycle_applied": true,
+        "home_pad_entity_id": "pad_home_uav_weather_l5_1_v1",
+        "home_hover_enu_m": [
+          7006.796,
+          6360.666,
+          3.0
+        ],
+        "mission_start_enu_m": [
+          7030.0,
+          6346.0,
+          32
+        ],
+        "requires_takeoff": true,
+        "requires_landing_or_terminal_resolution": true
+      }
     },
     {
       "entity_id": "weather_car_l5_1_v1",
@@ -83,19 +105,19 @@
       "category": "pedestrian",
       "placement_mode": "sidewalk_anchor",
       "placement": {
-        "lane_edge_id": "cg_edge_784",
-        "longitudinal_s": 15.0,
+        "lane_edge_id": "cg_edge_29",
+        "longitudinal_s": 40.0,
         "offset_from_curb_m": 1.2,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": 3.1,
-        "placement_semantics": "sidewalk_or_plaza",
+        "placement_semantics": "sidewalk",
         "resolved_position_enu_m": [
-          7003.282,
-          6365.21,
+          7838.902,
+          7574.288,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": -111.942
+          "yaw_deg": 9.662
         },
         "source_lane_edge_id_hint": "cg_edge_29",
         "source_longitudinal_s_hint": 40
@@ -103,6 +125,34 @@
       "route_waypoints_enu_m": [],
       "initial_state": {
         "mode": "walking"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_weather_l5_1_v1",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "home_uav_weather_l5_1_v1",
+        "approach_side": "departure",
+        "position_enu_m": [
+          7006.796,
+          6360.666,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          7006.796,
+          6360.666,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -125.162
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
       },
       "activation_tick": 0
     }
@@ -118,6 +168,10 @@
     },
     {
       "entity_id": "weather_ped_l5_1_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_weather_l5_1_v1",
       "tick": 0
     }
   ],
@@ -140,9 +194,9 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7025.87,
-          6339.903,
-          75.0
+          7072.842,
+          6419.743,
+          180.0
         ],
         "rotation_deg": {
           "pitch_deg": -70.0,

@@ -9,6 +9,11 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_lifecycle_takeoff_uav_digital_l6_3_v1",
+      "type": "tick",
+      "tick": 30
+    },
+    {
       "trigger_id": "trig_spoofing_start",
       "type": "tick",
       "tick": 240
@@ -30,9 +35,57 @@
       "type": "event_fired_after",
       "event_id": "safety_route_lock",
       "delay_ticks": 54
+    },
+    {
+      "trigger_id": "trig_after_spoof_recovery_delay_80",
+      "type": "event_fired_after",
+      "event_id": "spoof_recovery",
+      "delay_ticks": 80
     }
   ],
   "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_digital_l6_3_v1",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_digital_l6_3_v1",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_digital_l6_3_v1_takeoff_entry",
+          "entity_id": "uav_digital_l6_3_v1",
+          "waypoints_enu_m": [
+            [
+              7109.677,
+              6423.972,
+              3.0
+            ],
+            [
+              7109.677,
+              6423.972,
+              24.0
+            ],
+            [
+              7066.0,
+              6408.8,
+              32
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L6-3_v1_lifecycle_takeoff_uav_digital_l6_3_v1",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_digital_l6_3_v1",
+          "pad_home_uav_digital_l6_3_v1"
+        ]
+      }
+    },
     {
       "event_id": "spoofing_start",
       "trigger_ref": "trig_spoofing_start",
@@ -175,6 +228,48 @@
         "target_ids": [
           "tower_l6_3_v1",
           "uav_digital_l6_3_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_digital_l6_3_v1",
+      "trigger_ref": "trig_after_spoof_recovery_delay_80",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_digital_l6_3_v1_landing_return",
+          "entity_id": "uav_digital_l6_3_v1",
+          "waypoints_enu_m": [
+            [
+              7074.0,
+              6430.8,
+              32.0
+            ],
+            [
+              7109.677,
+              6423.972,
+              22.0
+            ],
+            [
+              7109.677,
+              6423.972,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L6-3_v1_lifecycle_landing_uav_digital_l6_3_v1",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_digital_l6_3_v1",
+          "pad_home_uav_digital_l6_3_v1"
         ]
       }
     }

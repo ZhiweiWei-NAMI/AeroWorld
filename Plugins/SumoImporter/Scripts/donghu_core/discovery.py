@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from .interfaces import MapPackage, ScenarioPackage
@@ -12,10 +13,23 @@ DEFAULT_EPISODE_ID = "episode_demo_dense_uav_rain_fall_90s"
 
 
 def project_root_from(path: Path | None = None) -> Path:
-    current = (path or Path(__file__)).resolve()
-    for candidate in [current, *current.parents]:
-        if candidate.is_dir() and (candidate / "DynamicCityCreatorEx.uproject").exists():
-            return candidate
+    roots: list[Path] = []
+    if path is not None:
+        roots.append(path)
+    env_root = os.environ.get("AEROWORLD_PROJECT_ROOT") or os.environ.get("DCC_PROJECT_ROOT")
+    if env_root:
+        roots.append(Path(env_root))
+    roots.extend([Path.cwd(), Path(__file__)])
+
+    seen: set[Path] = set()
+    for root in roots:
+        current = root.resolve()
+        for candidate in [current, *current.parents]:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            if candidate.is_dir() and (candidate / "DynamicCityCreatorEx.uproject").exists():
+                return candidate
     raise FileNotFoundError("Unable to resolve project root from current path.")
 
 

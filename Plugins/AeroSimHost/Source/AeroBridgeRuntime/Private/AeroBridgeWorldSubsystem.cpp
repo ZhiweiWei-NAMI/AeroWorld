@@ -86,6 +86,36 @@ void SetRotatorObjectField(const TSharedPtr<FJsonObject>& Object, const FString&
 	Object->SetObjectField(FieldName, RotatorObject);
 }
 
+TSharedPtr<FJsonObject> MakeSemanticPalettePayload()
+{
+	TSharedPtr<FJsonObject> Palette = MakeShared<FJsonObject>();
+	struct FPaletteEntry
+	{
+		const TCHAR* ClassName;
+		FColor Color;
+	};
+	const FPaletteEntry Entries[] = {
+		{TEXT("background"), FColor(0, 0, 0)},
+		{TEXT("static_map"), FColor(90, 90, 90)},
+		{TEXT("uav"), FColor(255, 0, 0)},
+		{TEXT("vehicle"), FColor(0, 128, 255)},
+		{TEXT("pedestrian"), FColor(255, 255, 0)},
+		{TEXT("roadwork_prop"), FColor(255, 128, 0)},
+		{TEXT("traffic_control"), FColor(0, 255, 255)},
+		{TEXT("facility"), FColor(128, 0, 255)},
+		{TEXT("hazard_trigger"), FColor(255, 0, 255)},
+	};
+	for (const FPaletteEntry& Entry : Entries)
+	{
+		TArray<TSharedPtr<FJsonValue>> ColorValues;
+		ColorValues.Add(MakeShared<FJsonValueNumber>(Entry.Color.R));
+		ColorValues.Add(MakeShared<FJsonValueNumber>(Entry.Color.G));
+		ColorValues.Add(MakeShared<FJsonValueNumber>(Entry.Color.B));
+		Palette->SetArrayField(Entry.ClassName, ColorValues);
+	}
+	return Palette;
+}
+
 bool TryReadVectorField(const TSharedPtr<FJsonObject>& Object, const FString& FieldName, FVector& OutVector, double DefaultZ = 0.0)
 {
 	if (!Object.IsValid())
@@ -298,6 +328,59 @@ bool SnapWorldPointToGround(UWorld* World, FVector& InOutWorldCm, bool* bOutUsed
 			: Placement.Source;
 	}
 	return true;
+}
+
+bool SnapWorldPointToGroundPreserveXY(UWorld* World, FVector& InOutWorldCm, float VerticalOffsetCm = 0.0f, FString* OutGroundSource = nullptr)
+{
+	if (OutGroundSource != nullptr)
+	{
+		OutGroundSource->Reset();
+	}
+
+	const FVector RequestedWorldCm = InOutWorldCm;
+	FVector ProjectedWorldCm = RequestedWorldCm;
+	FVector SurfaceNormalWorld = FVector::UpVector;
+	if (AeroGroundPlacement::TryProjectWorldPointToGround(World, RequestedWorldCm, ProjectedWorldCm, &SurfaceNormalWorld))
+	{
+		InOutWorldCm = RequestedWorldCm;
+		InOutWorldCm.Z = ProjectedWorldCm.Z + VerticalOffsetCm;
+		if (OutGroundSource != nullptr)
+		{
+			*OutGroundSource = TEXT("trace_preserve_xy");
+		}
+		return true;
+	}
+
+	AeroGroundPlacement::FResolvedGroundPlacement Placement;
+	if (AeroGroundPlacement::ResolveGroundPlacement(World, RequestedWorldCm, Placement))
+	{
+		InOutWorldCm = RequestedWorldCm;
+		InOutWorldCm.Z = Placement.GroundWorldCm.Z + VerticalOffsetCm;
+		if (OutGroundSource != nullptr)
+		{
+			if (Placement.Source.IsEmpty())
+			{
+				*OutGroundSource = TEXT("ground_z_preserve_xy");
+			}
+			else
+			{
+				*OutGroundSource = FString::Printf(TEXT("%s_z_preserve_xy"), *Placement.Source);
+			}
+		}
+		return true;
+	}
+
+	return false;
+}
+
+float ReadEnuVerticalOffsetCm(const TSharedPtr<FJsonObject>& Payload, const FString& FieldName)
+{
+	FVector EnuM = FVector::ZeroVector;
+	if (TryReadVectorField(Payload, FieldName, EnuM))
+	{
+		return static_cast<float>(EnuM.Z * 100.0);
+	}
+	return 0.0f;
 }
 
 TSharedPtr<FJsonObject> MakeVectorPayloadField(const FVector& VectorValue)
@@ -918,21 +1001,27 @@ FString UAeroBridgeWorldSubsystem::HandlePedSpawn(const FString& RequestJson)
 
 	bool bSnapToGround = true;
 	TryReadBoolField(Payload, TEXT("snap_to_ground"), bSnapToGround);
-	bool bUseProvidedGroundPoint = false;
+	bool bPreserveXY = true;
+	TryReadBoolField(Payload, TEXT("preserve_xy"), bPreserveXY);
+	bool bUseProvidedGroundPoint = !bSnapToGround;
 	FString GroundSource;
 	if (bSnapToGround)
 	{
-		bUseProvidedGroundPoint = SnapWorldPointToGround(GetWorld(), SpawnWorldCm, nullptr, &GroundSource);
+		const float VerticalOffsetCm = ReadEnuVerticalOffsetCm(Payload, TEXT("position_enu_m"));
+		bUseProvidedGroundPoint = bPreserveXY
+			? SnapWorldPointToGroundPreserveXY(GetWorld(), SpawnWorldCm, VerticalOffsetCm, &GroundSource)
+			: SnapWorldPointToGround(GetWorld(), SpawnWorldCm, nullptr, &GroundSource);
 		if (!GroundSource.IsEmpty())
 		{
 			UE_LOG(
 				LogAeroBridgeWorld,
 				Log,
-				TEXT("simAeroPedSpawn grounded: map_id='%s' ped_id='%s' world='%s' source='%s'."),
+				TEXT("simAeroPedSpawn grounded: map_id='%s' ped_id='%s' world='%s' source='%s' preserve_xy=%s."),
 				*(MapId.IsEmpty() ? CurrentMapId : MapId),
 				*PedId,
 				*SpawnWorldCm.ToString(),
-				*GroundSource);
+				*GroundSource,
+				bPreserveXY ? TEXT("true") : TEXT("false"));
 		}
 	}
 
@@ -952,6 +1041,7 @@ FString UAeroBridgeWorldSubsystem::HandlePedSpawn(const FString& RequestJson)
 	ResponsePayload->SetObjectField(TEXT("position_world_cm"), MakeVectorPayloadField(SpawnWorldCm));
 	SetVectorArrayField(ResponsePayload, TEXT("position_enu_m"), (SpawnWorldCm - WorldOriginCm) / 100.0);
 	ResponsePayload->SetBoolField(TEXT("used_provided_ground_point"), bUseProvidedGroundPoint);
+	ResponsePayload->SetBoolField(TEXT("preserve_xy"), bPreserveXY);
 	if (!GroundSource.IsEmpty())
 	{
 		ResponsePayload->SetStringField(TEXT("ground_source"), GroundSource);
@@ -1000,27 +1090,50 @@ FString UAeroBridgeWorldSubsystem::HandlePedReset(const FString& RequestJson)
 
 	bool bSnapToGround = true;
 	TryReadBoolField(Payload, TEXT("snap_to_ground"), bSnapToGround);
-	bool bUseProvidedGroundPoint = false;
+	bool bPreserveXY = true;
+	TryReadBoolField(Payload, TEXT("preserve_xy"), bPreserveXY);
+	bool bUseProvidedGroundPoint = !bSnapToGround;
 	FString GroundSource;
 	if (bSnapToGround)
 	{
-		bUseProvidedGroundPoint = SnapWorldPointToGround(GetWorld(), ResetWorldCm, nullptr, &GroundSource);
+		const float VerticalOffsetCm = ReadEnuVerticalOffsetCm(Payload, TEXT("position_enu_m"));
+		bUseProvidedGroundPoint = bPreserveXY
+			? SnapWorldPointToGroundPreserveXY(GetWorld(), ResetWorldCm, VerticalOffsetCm, &GroundSource)
+			: SnapWorldPointToGround(GetWorld(), ResetWorldCm, nullptr, &GroundSource);
 		if (!GroundSource.IsEmpty())
 		{
 			UE_LOG(
 				LogAeroBridgeWorld,
 				Log,
-				TEXT("simAeroPedReset grounded: map_id='%s' ped_id='%s' world='%s' source='%s'."),
+				TEXT("simAeroPedReset grounded: map_id='%s' ped_id='%s' world='%s' source='%s' preserve_xy=%s."),
 				*(MapId.IsEmpty() ? CurrentMapId : MapId),
 				*PedId,
 				*ResetWorldCm.ToString(),
-				*GroundSource);
+				*GroundSource,
+				bPreserveXY ? TEXT("true") : TEXT("false"));
 		}
 	}
 
 	double YawDeg = 0.0;
 	Payload->TryGetNumberField(TEXT("yaw_deg"), YawDeg);
-	if (!RuntimeSubsystem->ResetPedestrian(PedId, ResetWorldCm, static_cast<float>(YawDeg), Error, bUseProvidedGroundPoint))
+	bool bFramePose = false;
+	TryReadBoolField(Payload, TEXT("frame_pose"), bFramePose);
+	bool bWalking = false;
+	TryReadBoolField(Payload, TEXT("walking"), bWalking);
+	double SpeedCmPerSec = 0.0;
+	Payload->TryGetNumberField(TEXT("speed_cm_per_sec"), SpeedCmPerSec);
+
+	const bool bSuccess = bFramePose
+		? RuntimeSubsystem->SetPedestrianFramePose(
+			PedId,
+			ResetWorldCm,
+			static_cast<float>(YawDeg),
+			bWalking,
+			static_cast<float>(SpeedCmPerSec),
+			Error,
+			bUseProvidedGroundPoint)
+		: RuntimeSubsystem->ResetPedestrian(PedId, ResetWorldCm, static_cast<float>(YawDeg), Error, bUseProvidedGroundPoint);
+	if (!bSuccess)
 	{
 		return MakeErrorResponse(TEXT("simAeroPedReset"), RequestId, MapId, Error);
 	}
@@ -1028,6 +1141,10 @@ FString UAeroBridgeWorldSubsystem::HandlePedReset(const FString& RequestJson)
 	TSharedPtr<FJsonObject> ResponsePayload = MakeShared<FJsonObject>();
 	ResponsePayload->SetStringField(TEXT("ped_id"), PedId);
 	ResponsePayload->SetNumberField(TEXT("yaw_deg"), YawDeg);
+	ResponsePayload->SetBoolField(TEXT("frame_pose"), bFramePose);
+	ResponsePayload->SetBoolField(TEXT("walking"), bWalking);
+	ResponsePayload->SetBoolField(TEXT("preserve_xy"), bPreserveXY);
+	ResponsePayload->SetNumberField(TEXT("speed_cm_per_sec"), SpeedCmPerSec);
 	ResponsePayload->SetObjectField(TEXT("position_world_cm"), MakeVectorPayloadField(ResetWorldCm));
 	SetVectorArrayField(ResponsePayload, TEXT("position_enu_m"), (ResetWorldCm - WorldOriginCm) / 100.0);
 	ResponsePayload->SetBoolField(TEXT("used_provided_ground_point"), bUseProvidedGroundPoint);
@@ -1773,6 +1890,25 @@ FString UAeroBridgeWorldSubsystem::HandleCaptureWorldCamera(const FString& Reque
 	const int32 Width = FMath::Max(1, FMath::RoundToInt(WidthValue));
 	const int32 Height = FMath::Max(1, FMath::RoundToInt(HeightValue));
 
+	FString Modality;
+	Payload->TryGetStringField(TEXT("modality"), Modality);
+	Modality = Modality.TrimStartAndEnd().ToLower();
+	if (Modality.IsEmpty())
+	{
+		Modality = TEXT("rgb");
+	}
+	if (!Modality.Equals(TEXT("rgb"), ESearchCase::IgnoreCase)
+		&& !Modality.Equals(TEXT("depth"), ESearchCase::IgnoreCase)
+		&& !Modality.Equals(TEXT("seg"), ESearchCase::IgnoreCase))
+	{
+		return MakeErrorResponse(
+			TEXT("simAeroCaptureWorldCamera"),
+			RequestId,
+			MapId,
+			FString::Printf(TEXT("Unsupported capture modality '%s'. Expected rgb, depth, or seg."), *Modality));
+	}
+	const FString Extension = Modality.Equals(TEXT("depth"), ESearchCase::IgnoreCase) ? TEXT("npy") : TEXT("png");
+
 	FString OutputPath;
 	Payload->TryGetStringField(TEXT("output_path"), OutputPath);
 	if (OutputPath.IsEmpty())
@@ -1787,34 +1923,34 @@ FString UAeroBridgeWorldSubsystem::HandleCaptureWorldCamera(const FString& Reque
 		}
 		if (FileName.IsEmpty())
 		{
-			FileName = FString::Printf(TEXT("%s.png"), *AssetId);
+			FileName = FString::Printf(TEXT("%s.%s"), *AssetId, *Extension);
 		}
-		else if (!FileName.EndsWith(TEXT(".png"), ESearchCase::IgnoreCase))
+		else if (!FileName.EndsWith(FString::Printf(TEXT(".%s"), *Extension), ESearchCase::IgnoreCase))
 		{
-			FileName += TEXT(".png");
+			FileName = FPaths::SetExtension(FileName, Extension);
 		}
 		OutputPath = FPaths::Combine(ResolveRelativePath(OutputDir), FileName);
 	}
 	else
 	{
 		OutputPath = ResolveRelativePath(OutputPath);
-		if (!OutputPath.EndsWith(TEXT(".png"), ESearchCase::IgnoreCase))
+		if (!OutputPath.EndsWith(FString::Printf(TEXT(".%s"), *Extension), ESearchCase::IgnoreCase))
 		{
-			OutputPath += TEXT(".png");
+			OutputPath = FPaths::SetExtension(OutputPath, Extension);
 		}
 	}
 
-	int32 CapturedWidth = 0;
-	int32 CapturedHeight = 0;
-	if (!CaptureActor->CaptureRgbToDisk(OutputPath, Width, Height, static_cast<float>(FovDegreesValue), Error, CapturedWidth, CapturedHeight))
+	FAeroFixedWorldCaptureStats CaptureStats;
+	if (!CaptureActor->CaptureToDisk(Modality, OutputPath, Width, Height, static_cast<float>(FovDegreesValue), Error, CaptureStats))
 	{
 		UE_LOG(
 			LogAeroBridgeWorld,
 			Warning,
-			TEXT("simAeroCaptureWorldCamera failed: map_id='%s' asset_id='%s' actor='%s' output='%s' error='%s'."),
+			TEXT("simAeroCaptureWorldCamera failed: map_id='%s' asset_id='%s' actor='%s' modality='%s' output='%s' error='%s'."),
 			*(MapId.IsEmpty() ? CurrentMapId : MapId),
 			*AssetId,
 			*CaptureActor->GetName(),
+			*Modality,
 			*OutputPath,
 			*Error);
 		return MakeErrorResponse(TEXT("simAeroCaptureWorldCamera"), RequestId, MapId, Error);
@@ -1829,9 +1965,23 @@ FString UAeroBridgeWorldSubsystem::HandleCaptureWorldCamera(const FString& Reque
 	ResponsePayload->SetStringField(TEXT("asset_id"), AssetId);
 	ResponsePayload->SetStringField(TEXT("logical_asset_id"), Instance->LogicalAssetId);
 	ResponsePayload->SetStringField(TEXT("actor_name"), CaptureActor->GetName());
+	ResponsePayload->SetStringField(TEXT("modality"), Modality);
+	ResponsePayload->SetStringField(TEXT("output_format"), CaptureStats.OutputFormat);
 	ResponsePayload->SetStringField(TEXT("output_path"), OutputPath);
-	ResponsePayload->SetNumberField(TEXT("width"), CapturedWidth);
-	ResponsePayload->SetNumberField(TEXT("height"), CapturedHeight);
+	ResponsePayload->SetNumberField(TEXT("width"), CaptureStats.CapturedWidth);
+	ResponsePayload->SetNumberField(TEXT("height"), CaptureStats.CapturedHeight);
+	if (Modality.Equals(TEXT("depth"), ESearchCase::IgnoreCase))
+	{
+		ResponsePayload->SetBoolField(TEXT("depth_unit_m"), CaptureStats.bDepthUnitMeters);
+		ResponsePayload->SetNumberField(TEXT("depth_min_m"), CaptureStats.DepthMinM);
+		ResponsePayload->SetNumberField(TEXT("depth_max_m"), CaptureStats.DepthMaxM);
+		ResponsePayload->SetNumberField(TEXT("depth_valid_count"), CaptureStats.DepthValidCount);
+		ResponsePayload->SetNumberField(TEXT("depth_invalid_count"), CaptureStats.DepthInvalidCount);
+	}
+	if (Modality.Equals(TEXT("seg"), ESearchCase::IgnoreCase))
+	{
+		ResponsePayload->SetObjectField(TEXT("semantic_palette"), MakeSemanticPalettePayload());
+	}
 	ResponsePayload->SetObjectField(TEXT("position_world_cm"), MakeVectorPayloadField(ActorWorldCm));
 	SetVectorArrayField(ResponsePayload, TEXT("position_enu_m"), PositionEnuM);
 	SetRotatorObjectField(ResponsePayload, TEXT("rotation_deg"), RotationDeg);
@@ -1839,11 +1989,13 @@ FString UAeroBridgeWorldSubsystem::HandleCaptureWorldCamera(const FString& Reque
 	UE_LOG(
 		LogAeroBridgeWorld,
 		Log,
-		TEXT("simAeroCaptureWorldCamera resolved: map_id='%s' asset_id='%s' logical_asset_id='%s' actor='%s' output='%s' enu_m='%s' rotation='%s'."),
+		TEXT("simAeroCaptureWorldCamera resolved: map_id='%s' asset_id='%s' logical_asset_id='%s' actor='%s' modality='%s' output_format='%s' output='%s' enu_m='%s' rotation='%s'."),
 		*(MapId.IsEmpty() ? CurrentMapId : MapId),
 		*AssetId,
 		*Instance->LogicalAssetId,
 		*CaptureActor->GetName(),
+		*Modality,
+		*CaptureStats.OutputFormat,
 		*OutputPath,
 		*PositionEnuM.ToString(),
 		*RotationDeg.ToString());

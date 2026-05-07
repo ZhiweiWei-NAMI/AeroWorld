@@ -13,59 +13,33 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7061.706,
-      6293.568,
+      7830.631,
+      6416.494,
       0.0
     ],
-    "radius_m": 175.101,
+    "radius_m": 188.431,
     "source": "scene_entities_and_routes"
   },
   "entities": [
-    {
-      "entity_id": "uav_forced_landing_l4_3_v1",
-      "logical_asset_id": "uav.inspect.quad.v1",
-      "category": "uav",
-      "placement_mode": "world_pose",
-      "placement": {
-        "position_enu_m": [
-          7052.0,
-          6282.0,
-          30
-        ],
-        "resolved_position_enu_m": [
-          7052.0,
-          6282.0,
-          30
-        ],
-        "rotation_deg": {
-          "yaw_deg": 45
-        }
-      },
-      "route_waypoints_enu_m": [],
-      "initial_state": {
-        "mode": "fault"
-      },
-      "activation_tick": 0
-    },
     {
       "entity_id": "ped_landing_l4_3_v1_a",
       "logical_asset_id": "pedestrian.cityops.basic.v1",
       "category": "pedestrian",
       "placement_mode": "sidewalk_anchor",
       "placement": {
-        "lane_edge_id": "cg_edge_204",
-        "longitudinal_s": 3.0,
+        "lane_edge_id": "cg_edge_19",
+        "longitudinal_s": 24.0,
         "offset_from_curb_m": 4.5,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": 6.4,
-        "placement_semantics": "sidewalk_or_plaza",
+        "placement_semantics": "sidewalk",
         "resolved_position_enu_m": [
-          7064.413,
-          6298.139,
+          7835.09,
+          6420.09,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 28.68
+          "yaw_deg": -2.115
         },
         "source_lane_edge_id_hint": "cg_edge_19",
         "source_longitudinal_s_hint": 24
@@ -82,19 +56,19 @@
       "category": "pedestrian",
       "placement_mode": "sidewalk_anchor",
       "placement": {
-        "lane_edge_id": "cg_edge_204",
-        "longitudinal_s": 8.0,
+        "lane_edge_id": "cg_edge_19",
+        "longitudinal_s": 28.0,
         "offset_from_curb_m": 4.5,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": 6.4,
-        "placement_semantics": "sidewalk_or_plaza",
+        "placement_semantics": "sidewalk",
         "resolved_position_enu_m": [
-          7068.705,
-          6300.566,
+          7838.943,
+          6419.957,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 28.965
+          "yaw_deg": -0.803
         },
         "source_lane_edge_id_hint": "cg_edge_19",
         "source_longitudinal_s_hint": 28
@@ -104,19 +78,99 @@
         "mode": "standing"
       },
       "activation_tick": 0
+    },
+    {
+      "entity_id": "uav_forced_landing_l4_3_v1",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          7830.076,
+          6421.707,
+          3.0
+        ],
+        "resolved_position_enu_m": [
+          7830.076,
+          6421.707,
+          3.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 45
+        }
+      },
+      "route_waypoints_enu_m": [
+        [
+          7809.016,
+          6398.024,
+          30
+        ]
+      ],
+      "initial_state": {
+        "mode": "preflight_on_pad"
+      },
+      "activation_tick": 0,
+      "lifecycle": {
+        "auto_lifecycle_applied": true,
+        "home_pad_entity_id": "pad_home_uav_forced_landing_l4_3_v1",
+        "home_hover_enu_m": [
+          7830.076,
+          6421.707,
+          3.0
+        ],
+        "mission_start_enu_m": [
+          7809.016,
+          6398.024,
+          30
+        ],
+        "requires_takeoff": true,
+        "requires_landing_or_terminal_resolution": true
+      }
+    },
+    {
+      "entity_id": "pad_home_uav_forced_landing_l4_3_v1",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "home_uav_forced_landing_l4_3_v1",
+        "approach_side": "departure",
+        "position_enu_m": [
+          7830.076,
+          6421.707,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          7830.076,
+          6421.707,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -43.132
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available"
+      },
+      "activation_tick": 0
     }
   ],
   "spawn_sequencing": [
-    {
-      "entity_id": "uav_forced_landing_l4_3_v1",
-      "tick": 0
-    },
     {
       "entity_id": "ped_landing_l4_3_v1_a",
       "tick": 0
     },
     {
       "entity_id": "ped_landing_l4_3_v1_b",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_forced_landing_l4_3_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_forced_landing_l4_3_v1",
       "tick": 0
     }
   ],
@@ -130,9 +184,9 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7061.706,
-          6293.568,
-          75.0
+          7830.631,
+          6416.494,
+          86.225
         ],
         "rotation_deg": {
           "pitch_deg": -70.0,
@@ -145,23 +199,23 @@
   "validation_rules": [
     {
       "rule": "entity_resolvable",
-      "entity_id": "uav_forced_landing_l4_3_v1",
-      "description": "uav_forced_landing_l4_3_v1 is declared before event_script references it in L4-3_v1"
-    },
-    {
-      "rule": "entity_resolvable",
       "entity_id": "ped_landing_l4_3_v1_a",
       "description": "ped_landing_l4_3_v1_a is declared before event_script references it in L4-3_v1"
     },
     {
-      "rule": "asset_in_catalog",
-      "entity_id": "uav_forced_landing_l4_3_v1",
-      "logical_asset_id": "uav.inspect.quad.v1",
-      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+      "rule": "entity_resolvable",
+      "entity_id": "ped_landing_l4_3_v1_b",
+      "description": "ped_landing_l4_3_v1_b is declared before event_script references it in L4-3_v1"
     },
     {
       "rule": "asset_in_catalog",
       "entity_id": "ped_landing_l4_3_v1_a",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "asset_in_catalog",
+      "entity_id": "ped_landing_l4_3_v1_b",
       "logical_asset_id": "pedestrian.cityops.basic.v1",
       "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
     },

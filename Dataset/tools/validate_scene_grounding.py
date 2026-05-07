@@ -17,18 +17,30 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from map_spatial_index import MapSpatialIndex  # noqa: E402
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATASET_ROOT = ROOT / "Dataset"
 DEFAULT_ASSET_CATALOG = ROOT / "Config" / "LowAltitude" / "asset_catalog.json"
 DEFAULT_TRAFFIC_BUNDLE = ROOT / "Config" / "LowAltitude" / "Maps" / "donghu_road_topo" / "traffic_bundle"
 DEFAULT_BUILDING_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "building" / "building.geojson"
+DEFAULT_RENDER_READY_ROOT = ROOT / "Dataset" / "render_ready_episodes"
 LANE_HALF_WIDTH_M = 1.9
 PEDESTRIAN_ROAD_BUFFER_M = 0.25
 CROWD_ROAD_BUFFER_M = 0.5
 POSITION_MATCH_TOLERANCE_M = 1.25
 MOVE_START_TOLERANCE_GROUND_M = 8.0
 MOVE_START_TOLERANCE_UAV_M = 18.0
+UAV_INITIAL_ALTITUDE_MAX_M = 5.0
+UAV_MISSION_ALTITUDE_MIN_M = 18.0
+UAV_TERMINAL_ALTITUDE_MAX_M = 8.0
+INITIAL_OVERLAP_MIN_M = {
+    ("pedestrian", "pedestrian"): 0.75,
+    ("vehicle", "vehicle"): 2.2,
+    ("pedestrian", "vehicle"): 1.5,
+}
 ROI_MARGIN_M = 1000.0
 SCRIPT_TICK_HZ = 10.0
 DELAY_SAFETY_FACTOR = 1.1
@@ -143,6 +155,11 @@ def entity_pos(entity: dict[str, Any]) -> list[float] | None:
     return None
 
 
+def entity_mission_start_pos(entity: dict[str, Any]) -> list[float] | None:
+    lifecycle = entity.get("lifecycle") or {}
+    return pos3(lifecycle.get("mission_start_enu_m")) or entity_pos(entity)
+
+
 def dist_xy(a: list[float], b: list[float]) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
 
@@ -183,8 +200,56 @@ def motion_class(asset_id: str) -> str:
     return "asset"
 
 
+def placement_allows_green(entity: dict[str, Any]) -> bool:
+    placement = dict(entity.get("placement") or {})
+    semantics = str(placement.get("placement_semantics") or "").lower()
+    if semantics == "sidewalk_or_plaza":
+        return False
+    text = " ".join(
+        str(value or "").lower()
+        for value in (
+            semantics,
+            entity.get("placement_mode"),
+            entity.get("category"),
+            entity.get("entity_id"),
+        )
+    )
+    return any(token in text for token in ("gather", "evacuation", "crowd", "park", "plaza", "safe"))
+
+
+def action_allows_green(action_id: Any) -> bool:
+    text = str(action_id or "").lower()
+    return any(token in text for token in ("crowd", "evac", "gather", "safe"))
+
+
+def is_crossing_action(action_id: Any) -> bool:
+    text = str(action_id or "").lower()
+    return any(token in text for token in ("crosswalk", "roadway", "retreat", "jaywalk"))
+
+
 def path_length_m(waypoints: list[list[float]]) -> float:
     return sum(dist3(a, b) for a, b in zip(waypoints, waypoints[1:]))
+
+
+def point_at_path_fraction(waypoints: list[list[float]], fraction: float) -> list[float] | None:
+    if not waypoints:
+        return None
+    if len(waypoints) == 1:
+        return list(waypoints[0])
+    total = path_length_m(waypoints)
+    if total <= 1e-6:
+        return list(waypoints[0])
+    target = max(0.0, min(1.0, fraction)) * total
+    traversed = 0.0
+    for a, b in zip(waypoints, waypoints[1:]):
+        segment = dist3(a, b)
+        if segment <= 1e-6:
+            continue
+        if traversed + segment >= target:
+            alpha = (target - traversed) / segment
+            return [a[i] + (b[i] - a[i]) * alpha for i in range(3)]
+        traversed += segment
+    return list(waypoints[-1])
 
 
 def action_move_duration_ticks(action: dict[str, Any]) -> int:
@@ -304,7 +369,13 @@ def check_spawn_schema(scene: dict[str, Any], script: dict[str, Any], known_asse
             issues.append(f"{script['scenario_id']}: spawn_entity {action_id} yaw {action_yaw:.1f} differs from scene_setup yaw {scene_yaw:.1f}")
 
 
-def check_placements(scene: dict[str, Any], lanes: LaneResolver, known_buildings: set[str], issues: list[str]) -> None:
+def check_placements(
+    scene: dict[str, Any],
+    lanes: LaneResolver,
+    spatial: MapSpatialIndex,
+    known_buildings: set[str],
+    issues: list[str],
+) -> None:
     roadwork_laterals: list[float] = []
     for entity in scene.get("entities", []):
         placement = entity.get("placement", {})
@@ -316,8 +387,44 @@ def check_placements(scene: dict[str, Any], lanes: LaneResolver, known_buildings
         check_roi_point(scene["scenario_id"], f"entity {entity['entity_id']} position", position, lanes, issues)
         asset_id = entity.get("logical_asset_id", "")
         category = entity.get("category", "")
-        if asset_id.startswith("uav.") and position[2] < 20.0:
-            issues.append(f"{scene['scenario_id']}: UAV {entity['entity_id']} starts below 20m: z={position[2]}")
+        if str(asset_id).startswith("pedestrian."):
+            allow_green = placement_allows_green(entity)
+            for error in spatial.validation_errors_for_point(
+                position,
+                context=f"{scene['scenario_id']}: pedestrian {entity['entity_id']} position",
+                allow_road=(mode == "crosswalk_anchor"),
+                allow_green=allow_green,
+            ):
+                issues.append(error)
+            route = [pos3(point) for point in entity.get("route_waypoints_enu_m") or []]
+            route = [point for point in route if point]
+            for index, point in enumerate(route):
+                for error in spatial.validation_errors_for_point(
+                    point,
+                    context=f"{scene['scenario_id']}: pedestrian {entity['entity_id']} route waypoint {index}",
+                    allow_road=(mode == "crosswalk_anchor"),
+                    allow_green=allow_green,
+                ):
+                    issues.append(error)
+            for index, (a, b) in enumerate(zip(route, route[1:])):
+                for error in spatial.validation_errors_for_segment(
+                    a,
+                    b,
+                    context=f"{scene['scenario_id']}: pedestrian {entity['entity_id']} route segment {index}",
+                    allow_road=(mode == "crosswalk_anchor"),
+                    allow_green=allow_green,
+                ):
+                    issues.append(error)
+        if asset_id.startswith("uav."):
+            lifecycle = entity.get("lifecycle") or {}
+            mission_start = pos3(lifecycle.get("mission_start_enu_m"))
+            if lifecycle:
+                if position[2] > UAV_INITIAL_ALTITUDE_MAX_M:
+                    issues.append(f"{scene['scenario_id']}: UAV {entity['entity_id']} lifecycle initial z is too high: z={position[2]}")
+                if not mission_start or mission_start[2] < UAV_MISSION_ALTITUDE_MIN_M:
+                    issues.append(f"{scene['scenario_id']}: UAV {entity['entity_id']} lifecycle mission start is below mission altitude")
+            elif position[2] < 20.0:
+                issues.append(f"{scene['scenario_id']}: UAV {entity['entity_id']} starts below 20m without lifecycle takeoff metadata: z={position[2]}")
         if is_ground_asset(asset_id) and not asset_id.startswith("uav.") and abs(position[2]) > 5.0:
             if category not in {"traffic_signal", "airspace_constraint", "hazard_zone", "facade_anchor"} and not entity.get("initial_state", {}).get("mode") == "attached":
                 issues.append(f"{scene['scenario_id']}: ground entity {entity['entity_id']} has unexpected z={position[2]}")
@@ -362,8 +469,39 @@ def check_placements(scene: dict[str, Any], lanes: LaneResolver, known_buildings
             check_roi_point(scene["scenario_id"], f"crosswalk {entity['entity_id']} opposite curb", opposite, lanes, issues)
             if not (start and road and opposite):
                 issues.append(f"{scene['scenario_id']}: crosswalk_anchor {entity['entity_id']} lacks start/road/opposite resolved positions")
-            elif nearest_lane_clearance(lanes, start) <= LANE_HALF_WIDTH_M:
-                issues.append(f"{scene['scenario_id']}: crosswalk start {entity['entity_id']} is in roadway instead of curb side")
+            else:
+                if nearest_lane_clearance(lanes, start) <= LANE_HALF_WIDTH_M:
+                    issues.append(f"{scene['scenario_id']}: crosswalk start {entity['entity_id']} is in roadway instead of curb side")
+                for error in spatial.validation_errors_for_point(
+                    start,
+                    context=f"{scene['scenario_id']}: crosswalk {entity['entity_id']} start",
+                    allow_road=False,
+                    allow_green=False,
+                ):
+                    issues.append(error)
+                for error in spatial.validation_errors_for_point(
+                    road,
+                    context=f"{scene['scenario_id']}: crosswalk {entity['entity_id']} roadway center",
+                    allow_road=True,
+                    allow_green=False,
+                ):
+                    issues.append(error)
+                for error in spatial.validation_errors_for_point(
+                    opposite,
+                    context=f"{scene['scenario_id']}: crosswalk {entity['entity_id']} opposite curb",
+                    allow_road=False,
+                    allow_green=False,
+                ):
+                    issues.append(error)
+                for label, a, b in (("start_to_road", start, road), ("road_to_opposite", road, opposite)):
+                    for error in spatial.validation_errors_for_segment(
+                        a,
+                        b,
+                        context=f"{scene['scenario_id']}: crosswalk {entity['entity_id']} {label}",
+                        allow_road=True,
+                        allow_green=False,
+                    ):
+                        issues.append(error)
 
         if mode == "facade_anchor":
             building_id = placement.get("building_id")
@@ -391,7 +529,7 @@ def check_placements(scene: dict[str, Any], lanes: LaneResolver, known_buildings
         issues.append(f"{scene['scenario_id']}: roadwork props are split across both lane sides")
 
 
-def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: LaneResolver, issues: list[str]) -> None:
+def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: LaneResolver, spatial: MapSpatialIndex, issues: list[str]) -> None:
     entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
     current = {entity_id: entity_pos(entity) for entity_id, entity in entities.items()}
     asset = {entity_id: entity.get("logical_asset_id", "") for entity_id, entity in entities.items()}
@@ -437,12 +575,29 @@ def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: 
                     if abs(point[2]) > 0.75:
                         issues.append(f"{script['scenario_id']}: vehicle waypoint z is not ground level in {action.get('action_id')}: {point}")
             if asset[entity_id].startswith("pedestrian."):
-                crossing_context = "crosswalk" in action.get("action_id", "") or "roadway" in action.get("action_id", "") or "retreat" in action.get("action_id", "")
-                for point in waypoints:
+                crossing_context = is_crossing_action(action.get("action_id"))
+                allow_green = action_allows_green(action.get("action_id"))
+                for index, point in enumerate(waypoints):
                     if abs(point[2]) > 0.75:
                         issues.append(f"{script['scenario_id']}: pedestrian waypoint z is not ground level in {action.get('action_id')}: {point}")
+                    for error in spatial.validation_errors_for_point(
+                        point,
+                        context=f"{script['scenario_id']}: pedestrian {entity_id} waypoint {index} in {action.get('action_id')}",
+                        allow_road=crossing_context,
+                        allow_green=allow_green,
+                    ):
+                        issues.append(error)
                     if not crossing_context and nearest_lane_clearance(lanes, point) < LANE_HALF_WIDTH_M + PEDESTRIAN_ROAD_BUFFER_M:
                         issues.append(f"{script['scenario_id']}: pedestrian non-crossing waypoint is inside roadway in {action.get('action_id')}: {point}")
+                for index, (a, b) in enumerate(zip(waypoints, waypoints[1:])):
+                    for error in spatial.validation_errors_for_segment(
+                        a,
+                        b,
+                        context=f"{script['scenario_id']}: pedestrian {entity_id} segment {index} in {action.get('action_id')}",
+                        allow_road=crossing_context,
+                        allow_green=allow_green,
+                    ):
+                        issues.append(error)
             current[entity_id] = waypoints[-1]
 
         if action_type == "move_entity" and entity_id in entities:
@@ -454,6 +609,13 @@ def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: 
             extent = action.get("spawn_box_extent_cm") or [0, 0, 0]
             check_roi_point(script["scenario_id"], f"spawn_crowd {action.get('group_id')} origin", origin, lanes, issues)
             if origin:
+                for error in spatial.validation_errors_for_spawn_envelope(
+                    origin,
+                    extent,
+                    context=f"{script['scenario_id']}: spawn_crowd {action.get('group_id')}",
+                    allow_green=True,
+                ):
+                    issues.append(error)
                 half_extent = max(float(extent[0]), float(extent[1])) / 200.0
                 required = LANE_HALF_WIDTH_M + half_extent + CROWD_ROAD_BUFFER_M
                 clearance = nearest_lane_clearance(lanes, origin)
@@ -575,6 +737,144 @@ def check_proximity_metrics(scene: dict[str, Any], script: dict[str, Any], issue
                 issues.append(f"{script['scenario_id']}: proximity trigger {trigger['trigger_id']} needs 3d/xy_plus_z metric")
 
 
+def mobile_overlap_class(entity: dict[str, Any]) -> str | None:
+    asset_id = str(entity.get("logical_asset_id", ""))
+    if asset_id.startswith("pedestrian."):
+        return "pedestrian"
+    if asset_id.startswith("vehicle."):
+        return "vehicle"
+    return None
+
+
+def check_initial_mobile_overlaps(scene: dict[str, Any], issues: list[str]) -> None:
+    rows: list[tuple[str, str, list[float]]] = []
+    for entity in scene.get("entities", []):
+        if int(entity.get("activation_tick", 0) or 0) > 0 or entity.get("enabled") is False:
+            continue
+        cls = mobile_overlap_class(entity)
+        pos = entity_pos(entity)
+        if cls and pos:
+            rows.append((str(entity["entity_id"]), cls, pos))
+    for index, (entity_a, class_a, pos_a) in enumerate(rows):
+        for entity_b, class_b, pos_b in rows[index + 1 :]:
+            key = tuple(sorted((class_a, class_b)))
+            threshold = INITIAL_OVERLAP_MIN_M.get(key)
+            if threshold is None:
+                continue
+            distance = dist_xy(pos_a, pos_b)
+            if distance < threshold:
+                issues.append(
+                    f"{scene['scenario_id']}: initial {class_a}/{class_b} overlap {entity_a} vs {entity_b}: {distance:.2f}m < {threshold:.2f}m"
+                )
+
+
+def check_evacuation_pedestrian_spacing(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    scenario_id = str(script.get("scenario_id") or scene.get("scenario_id") or "")
+    if not (scenario_id.startswith("L4-8") or scenario_id.startswith("X6")):
+        return
+    entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
+    routes: list[tuple[str, list[list[float]]]] = []
+    for _event, action in action_iter(script):
+        if action.get("type") != "move_entity":
+            continue
+        entity_id = str(action.get("entity_id") or "")
+        entity = entities.get(entity_id)
+        if not entity or not str(entity.get("logical_asset_id", "")).startswith("pedestrian."):
+            continue
+        waypoints = [pos3(item) for item in action.get("waypoints_enu_m", [])]
+        waypoints = [item for item in waypoints if item]
+        if len(waypoints) >= 2:
+            routes.append((entity_id, waypoints))
+    if len(routes) < 2:
+        return
+    min_allowed_m = INITIAL_OVERLAP_MIN_M[("pedestrian", "pedestrian")]
+    for step in range(21):
+        fraction = step / 20.0
+        samples = [(entity_id, point_at_path_fraction(route, fraction)) for entity_id, route in routes]
+        samples = [(entity_id, point) for entity_id, point in samples if point is not None]
+        for index, (id_a, point_a) in enumerate(samples):
+            for id_b, point_b in samples[index + 1 :]:
+                distance = dist_xy(point_a, point_b)
+                if distance < min_allowed_m:
+                    issues.append(
+                        f"{scenario_id}: evacuation pedestrian routes overlap at fraction={fraction:.2f}: "
+                        f"{id_a} vs {id_b}: {distance:.2f}m < {min_allowed_m:.2f}m"
+                    )
+                    return
+
+
+def check_lifecycle_closure(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
+    trigger_by_id = {trigger["trigger_id"]: trigger for trigger in script.get("triggers", [])}
+    mobile_ids = {
+        entity_id
+        for entity_id, entity in entities.items()
+        if str(entity.get("logical_asset_id", "")).startswith(("uav.", "vehicle.", "pedestrian."))
+    }
+    move_actions_by_entity: dict[str, list[dict[str, Any]]] = {}
+    for event, action in action_iter(script):
+        action_type = action.get("type")
+        entity_id = action.get("entity_id")
+        if action_type == "move_entity" and entity_id in entities:
+            move_actions_by_entity.setdefault(entity_id, []).append(action)
+        if action_type == "spawn_entity" and entity_id in mobile_ids:
+            issues.append(f"{script['scenario_id']}: mobile entity {entity_id} uses mid-script spawn_entity; declare it at scene start instead")
+        if action_type == "remove_entity" and entity_id in mobile_ids:
+            issues.append(f"{script['scenario_id']}: mobile entity {entity_id} uses remove_entity and would disappear from camera")
+        if action_type == "clear_crowd":
+            issues.append(f"{script['scenario_id']}: clear_crowd {action.get('group_id')} would make visible pedestrians disappear during capture")
+        if action_type == "spawn_crowd":
+            trigger = trigger_by_id.get(event.get("trigger_ref"), {})
+            tick_value = trigger.get("tick", -1)
+            if trigger.get("type") != "tick" or int(tick_value if tick_value is not None else -1) != 0:
+                issues.append(f"{script['scenario_id']}: spawn_crowd {action.get('group_id')} is not initialized at tick 0")
+            if str(script["scenario_id"]).startswith(("L4-8", "X6")):
+                issues.append(f"{script['scenario_id']}: evacuation scenes must use explicit movable pedestrians, not static spawn_crowd {action.get('group_id')}")
+
+    for entity_id, entity in entities.items():
+        asset_id = str(entity.get("logical_asset_id", ""))
+        if not asset_id.startswith("uav."):
+            continue
+        start = entity_pos(entity)
+        lifecycle = entity.get("lifecycle") or {}
+        pad_id = lifecycle.get("home_pad_entity_id")
+        mission_start = pos3(lifecycle.get("mission_start_enu_m"))
+        if not start:
+            issues.append(f"{script['scenario_id']}: UAV {entity_id} lacks resolved initial position")
+            continue
+        if start[2] > UAV_INITIAL_ALTITUDE_MAX_M:
+            issues.append(f"{script['scenario_id']}: UAV {entity_id} starts at {start[2]:.1f}m; expected visible low-altitude pad/preflight start")
+        if not pad_id or pad_id not in entities:
+            issues.append(f"{script['scenario_id']}: UAV {entity_id} lacks declared lifecycle home pad")
+        if not mission_start or mission_start[2] < UAV_MISSION_ALTITUDE_MIN_M:
+            issues.append(f"{script['scenario_id']}: UAV {entity_id} lacks high-altitude lifecycle mission_start_enu_m")
+
+        moves = move_actions_by_entity.get(entity_id, [])
+        if not moves:
+            issues.append(f"{script['scenario_id']}: UAV {entity_id} has no move_entity lifecycle")
+            continue
+        first = moves[0]
+        first_waypoints = [pos3(point) for point in first.get("waypoints_enu_m", [])]
+        first_waypoints = [point for point in first_waypoints if point]
+        if "takeoff" not in str(first.get("action_id", "")).lower():
+            issues.append(f"{script['scenario_id']}: first UAV move for {entity_id} is not an explicit takeoff action")
+        if first_waypoints:
+            if dist3(first_waypoints[0], start) > MOVE_START_TOLERANCE_UAV_M:
+                issues.append(f"{script['scenario_id']}: UAV {entity_id} takeoff does not start at declared pad/preflight position")
+            if max(point[2] for point in first_waypoints) < UAV_MISSION_ALTITUDE_MIN_M:
+                issues.append(f"{script['scenario_id']}: UAV {entity_id} takeoff never reaches mission altitude")
+
+        last = moves[-1]
+        last_waypoints = [pos3(point) for point in last.get("waypoints_enu_m", [])]
+        last_waypoints = [point for point in last_waypoints if point]
+        if last_waypoints:
+            final_z = last_waypoints[-1][2]
+            terminal_action = str(last.get("action_id", "")).lower()
+            terminal_by_name = any(token in terminal_action for token in ("landing", "touchdown", "debris", "crash"))
+            if final_z > UAV_TERMINAL_ALTITUDE_MAX_M and not terminal_by_name:
+                issues.append(f"{script['scenario_id']}: UAV {entity_id} ends at {final_z:.1f}m without landing/crash terminal action")
+
+
 def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], known_assets: set[str], issues: list[str]) -> None:
     entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
     events = script.get("events", [])
@@ -594,7 +894,7 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             constraints = [entity for entity in entities.values() if entity.get("logical_asset_id", "").startswith("trigger.")]
             uavs = [entity for entity in entities.values() if entity.get("logical_asset_id", "").startswith("uav.")]
             for uav in uavs:
-                uav_pos = entity_pos(uav)
+                uav_pos = entity_mission_start_pos(uav)
                 for constraint in constraints:
                     placement = constraint.get("placement", {})
                     center = entity_pos(constraint)
@@ -623,7 +923,7 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             }
             ok = counts["pedestrian"] >= int(rule.get("pedestrian_min", 0)) and counts["ambulance"] >= int(rule.get("ambulance_min", 0)) and counts["uav"] >= int(rule.get("uav_min", 0))
         elif name == "uav_start_separation":
-            uav_positions = [entity_pos(entity) for entity in entities.values() if entity.get("logical_asset_id", "").startswith("uav.")]
+            uav_positions = [entity_mission_start_pos(entity) for entity in entities.values() if entity.get("logical_asset_id", "").startswith("uav.")]
             uav_positions = [item for item in uav_positions if item]
             ok = len(uav_positions) >= 2 and dist_xy(uav_positions[0], uav_positions[1]) >= float(rule.get("min_horizontal_distance_m", 0.0)) and abs(uav_positions[0][2] - uav_positions[1][2]) > 0.5
         elif name == "facade_approach_distance":
@@ -639,6 +939,8 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             ok = any(up and vp and dist_xy(up, vp) <= 3.5 for up in uav_points for vp in vehicle_points)
         elif name == "crowd_spawn_count_min":
             ok = any(action.get("type") == "spawn_crowd" and int(action.get("count", 0)) >= int(rule.get("min_count", 0)) for action in actions)
+        elif name == "explicit_pedestrian_count_min":
+            ok = sum(1 for entity in entities.values() if str(entity.get("logical_asset_id", "")).startswith("pedestrian.")) >= int(rule.get("min_count", 0))
         elif name == "ambulance_lights_on":
             target = entities.get(rule.get("entity_id"))
             ok = bool(target and target.get("initial_state", {}).get("lights_on") is True)
@@ -654,7 +956,23 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             issues.append(f"{script['scenario_id']}: validation_rule failed or unsupported: {name}")
 
 
-def validate_scenario(scene_path: Path, lanes: LaneResolver, known_assets: set[str], known_buildings: set[str]) -> list[str]:
+def check_render_ready_configs(render_ready_root: Path, issues: list[str]) -> None:
+    if not render_ready_root.exists():
+        return
+    for config_path in sorted(render_ready_root.rglob("render_host_config.json")):
+        config = load_json(config_path)
+        projection = dict(config.get("pedestrian_roadside_projection") or {})
+        if bool(projection.get("enabled", False)):
+            issues.append(f"{config_path}: Dataset render config must disable pedestrian_roadside_projection.enabled")
+
+
+def validate_scenario(
+    scene_path: Path,
+    lanes: LaneResolver,
+    spatial: MapSpatialIndex,
+    known_assets: set[str],
+    known_buildings: set[str],
+) -> list[str]:
     scene = load_json(scene_path)
     script_path = scene_path.with_name("event_script.json")
     if not script_path.exists():
@@ -665,13 +983,16 @@ def validate_scenario(scene_path: Path, lanes: LaneResolver, known_assets: set[s
     check_assets(scene, known_assets, issues)
     check_dynamic_spawn_policy(scene, script, issues)
     check_spawn_schema(scene, script, known_assets, issues)
-    check_placements(scene, lanes, known_buildings, issues)
+    check_placements(scene, lanes, spatial, known_buildings, issues)
+    check_initial_mobile_overlaps(scene, issues)
     check_cameras(scene, lanes, issues)
-    check_event_positions(scene, script, lanes, issues)
+    check_event_positions(scene, script, lanes, spatial, issues)
     check_event_delay_physics(script, issues)
+    check_evacuation_pedestrian_spacing(scene, script, issues)
     check_local_bounds(scene, script, issues)
     check_weather_bootstrap(scene, script, issues)
     check_proximity_metrics(scene, script, issues)
+    check_lifecycle_closure(scene, script, issues)
     execute_validation_rules(scene, script, known_assets, issues)
     return issues
 
@@ -682,6 +1003,8 @@ def main() -> None:
     parser.add_argument("--asset-catalog", default=str(DEFAULT_ASSET_CATALOG))
     parser.add_argument("--traffic-bundle", default=str(DEFAULT_TRAFFIC_BUNDLE))
     parser.add_argument("--building-geojson", default=str(DEFAULT_BUILDING_GEOJSON))
+    parser.add_argument("--render-ready-root", default=str(DEFAULT_RENDER_READY_ROOT))
+    parser.add_argument("--skip-render-ready-configs", action="store_true")
     parser.add_argument("--limit", type=int, default=0, help="Stop after N scenario files for debugging")
     args = parser.parse_args()
 
@@ -689,6 +1012,7 @@ def main() -> None:
     scenarios_root = dataset_root / "scenarios"
     traffic_bundle = Path(args.traffic_bundle).resolve()
     lanes = LaneResolver(traffic_bundle / "lane_center_samples.csv")
+    spatial = MapSpatialIndex.default(ROOT)
     known_assets = asset_ids(Path(args.asset_catalog).resolve())
     known_buildings = building_ids(Path(args.building_geojson).resolve())
 
@@ -697,7 +1021,9 @@ def main() -> None:
         scene_paths = scene_paths[: args.limit]
     all_issues: list[str] = []
     for scene_path in scene_paths:
-        all_issues.extend(validate_scenario(scene_path, lanes, known_assets, known_buildings))
+        all_issues.extend(validate_scenario(scene_path, lanes, spatial, known_assets, known_buildings))
+    if not args.skip_render_ready_configs:
+        check_render_ready_configs(Path(args.render_ready_root).resolve(), all_issues)
 
     print("=" * 72)
     print("Scene Grounding Validation")

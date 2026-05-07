@@ -71,6 +71,9 @@ public:
 	void CmdReset(const FVector& Location, float YawDeg);
 
 	UFUNCTION(BlueprintCallable, Category = "Pedestrian|Command")
+	void CmdSetFramePose(const FVector& Location, float YawDeg, bool bWalking, float SpeedCmPerSec);
+
+	UFUNCTION(BlueprintCallable, Category = "Pedestrian|Command")
 	void CmdSetTarget(const FVector& InTarget, float InSpeedCmPerSec);
 
 	UFUNCTION(BlueprintCallable, Category = "Pedestrian|Command")

@@ -8,6 +8,11 @@
   },
   "triggers": [
     {
+      "trigger_id": "trig_lifecycle_takeoff_uav_ped_nearmiss_l4_5_v3",
+      "type": "tick",
+      "tick": 30
+    },
+    {
       "trigger_id": "trig_uav_low_descent",
       "type": "tick",
       "tick": 230
@@ -29,9 +34,57 @@
       "type": "event_fired_after",
       "event_id": "pedestrian_near_miss",
       "delay_ticks": 41
+    },
+    {
+      "trigger_id": "trig_after_pedestrian_clears_area_delay_80",
+      "type": "event_fired_after",
+      "event_id": "pedestrian_clears_area",
+      "delay_ticks": 80
     }
   ],
   "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_ped_nearmiss_l4_5_v3",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_ped_nearmiss_l4_5_v3",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_ped_nearmiss_l4_5_v3_takeoff_entry",
+          "entity_id": "uav_ped_nearmiss_l4_5_v3",
+          "waypoints_enu_m": [
+            [
+              7091.333,
+              6312.651,
+              3.0
+            ],
+            [
+              7091.333,
+              6312.651,
+              24.0
+            ],
+            [
+              7093.5,
+              6307.0,
+              30
+            ]
+          ],
+          "velocity_mps": 5.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-5_v3_lifecycle_takeoff_uav_ped_nearmiss_l4_5_v3",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_ped_nearmiss_l4_5_v3",
+          "pad_home_uav_ped_nearmiss_l4_5_v3"
+        ]
+      }
+    },
     {
       "event_id": "uav_low_descent",
       "trigger_ref": "trig_uav_low_descent",
@@ -54,8 +107,8 @@
               15
             ],
             [
-              7106.079,
-              6312.704,
+              6857.804,
+              6138.514,
               5
             ]
           ],
@@ -94,13 +147,13 @@
           "entity_id": "uav_ped_nearmiss_l4_5_v3",
           "waypoints_enu_m": [
             [
-              7106.079,
-              6312.704,
+              6857.804,
+              6138.514,
               5
             ],
             [
-              7098.079,
-              6320.704,
+              6849.804,
+              6146.514,
               24
             ]
           ],
@@ -136,13 +189,13 @@
           "entity_id": "ped_nearmiss_l4_5_v3",
           "waypoints_enu_m": [
             [
-              7106.079,
-              6312.704,
+              6857.804,
+              6138.514,
               0.0
             ],
             [
-              7117.831,
-              6317.844,
+              6856.76,
+              6141.388,
               0.0
             ]
           ],
@@ -157,6 +210,48 @@
         "overlay": "pedestrian",
         "target_ids": [
           "ped_nearmiss_l4_5_v3"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_ped_nearmiss_l4_5_v3",
+      "trigger_ref": "trig_after_pedestrian_clears_area_delay_80",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_ped_nearmiss_l4_5_v3_landing_return",
+          "entity_id": "uav_ped_nearmiss_l4_5_v3",
+          "waypoints_enu_m": [
+            [
+              6849.804,
+              6146.514,
+              24.0
+            ],
+            [
+              7091.333,
+              6312.651,
+              22.0
+            ],
+            [
+              7091.333,
+              6312.651,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-5_v3_lifecycle_landing_uav_ped_nearmiss_l4_5_v3",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_ped_nearmiss_l4_5_v3",
+          "pad_home_uav_ped_nearmiss_l4_5_v3"
         ]
       }
     }
