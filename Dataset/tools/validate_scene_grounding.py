@@ -19,6 +19,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from map_spatial_index import MapSpatialIndex  # noqa: E402
+from pedestrian_activity_catalog import get_activity, normalize_activity_type, validate_local_animation_assets  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -287,6 +288,36 @@ def action_iter(script: dict[str, Any]):
             yield event, action
 
 
+def known_pedestrian_activity(value: Any, *, moving: bool = False) -> str | None:
+    try:
+        return get_activity(str(value or ""), moving=moving).activity_type
+    except ValueError:
+        return None
+
+
+def event_entity_refs(event: dict[str, Any]) -> set[str]:
+    refs: set[str] = set()
+    for target in event.get("log_event", {}).get("target_ids", []):
+        if target:
+            refs.add(str(target))
+    for action in event.get("actions", []):
+        for key in ("entity_id", "ped_id"):
+            value = action.get(key)
+            if value:
+                refs.add(str(value))
+    return refs
+
+
+def referenced_events(script: dict[str, Any]) -> set[str]:
+    refs: set[str] = set()
+    for trigger in script.get("triggers", []):
+        if trigger.get("type") in {"event_fired_after", "event_fired"}:
+            value = trigger.get("event_id") or trigger.get("event_ref")
+            if value:
+                refs.add(str(value))
+    return refs
+
+
 def declared_ids(scene: dict[str, Any]) -> set[str]:
     return {entity["entity_id"] for entity in scene.get("entities", [])}
 
@@ -388,6 +419,15 @@ def check_placements(
         asset_id = entity.get("logical_asset_id", "")
         category = entity.get("category", "")
         if str(asset_id).startswith("pedestrian."):
+            initial_state = dict(entity.get("initial_state") or {})
+            activity_state = dict((initial_state.get("state_facets") or {}).get("activity") or {})
+            initial_activity = (
+                initial_state.get("activity_type")
+                or activity_state.get("activity_type")
+                or initial_state.get("mode")
+            )
+            if not known_pedestrian_activity(initial_activity):
+                issues.append(f"{scene['scenario_id']}: pedestrian {entity['entity_id']} has unknown initial activity_type {initial_activity!r}")
             allow_green = placement_allows_green(entity)
             for error in spatial.validation_errors_for_point(
                 position,
@@ -537,6 +577,17 @@ def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: 
     for event, action in action_iter(script):
         action_type = action.get("type")
         entity_id = action.get("entity_id")
+        if action_type == "play_animation":
+            issues.append(f"{script['scenario_id']}: raw pedestrian play_animation action is forbidden in Dataset scenarios: {action.get('action_id')}")
+        if action_type == "set_pedestrian_activity":
+            activity_type = action.get("activity_type")
+            normalized = known_pedestrian_activity(activity_type)
+            if not normalized:
+                issues.append(f"{script['scenario_id']}: set_pedestrian_activity {action.get('action_id')} has unknown activity_type {activity_type!r}")
+            if entity_id not in entities:
+                issues.append(f"{script['scenario_id']}: set_pedestrian_activity {action.get('action_id')} references undeclared pedestrian {entity_id}")
+            elif not asset[entity_id].startswith("pedestrian."):
+                issues.append(f"{script['scenario_id']}: set_pedestrian_activity {action.get('action_id')} target is not pedestrian: {entity_id}")
         if action_type == "spawn_entity" and entity_id in entities:
             spawn_pos = pos3(action.get("position_enu_m"))
             expected = entity_pos(entities[entity_id])
@@ -575,6 +626,18 @@ def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: 
                     if abs(point[2]) > 0.75:
                         issues.append(f"{script['scenario_id']}: vehicle waypoint z is not ground level in {action.get('action_id')}: {point}")
             if asset[entity_id].startswith("pedestrian."):
+                for field_name, moving in (("activity_type", True), ("post_activity_type", False)):
+                    if field_name not in action:
+                        issues.append(f"{script['scenario_id']}: pedestrian move_entity {action.get('action_id')} missing {field_name}")
+                        continue
+                    normalized = known_pedestrian_activity(action.get(field_name), moving=moving)
+                    if not normalized:
+                        issues.append(f"{script['scenario_id']}: pedestrian move_entity {action.get('action_id')} has unknown {field_name}={action.get(field_name)!r}")
+                        continue
+                    if field_name == "activity_type" and not get_activity(normalized).moving:
+                        issues.append(f"{script['scenario_id']}: pedestrian move_entity {action.get('action_id')} uses non-moving activity_type={normalized}")
+                    if field_name == "post_activity_type" and get_activity(normalized).moving:
+                        issues.append(f"{script['scenario_id']}: pedestrian move_entity {action.get('action_id')} post_activity_type must be stationary, got {normalized}")
                 crossing_context = is_crossing_action(action.get("action_id"))
                 allow_green = action_allows_green(action.get("action_id"))
                 for index, point in enumerate(waypoints):
@@ -605,6 +668,7 @@ def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: 
                 issues.append(f"{script['scenario_id']}: non-movable infrastructure has move_entity action: {entity_id}")
 
         if action_type == "spawn_crowd":
+            issues.append(f"{script['scenario_id']}: raw spawn_crowd action is forbidden; use explicit pedestrian cohort entities: {action.get('group_id')}")
             origin = pos3(action.get("spawn_origin_enu_m"))
             extent = action.get("spawn_box_extent_cm") or [0, 0, 0]
             check_roi_point(script["scenario_id"], f"spawn_crowd {action.get('group_id')} origin", origin, lanes, issues)
@@ -737,6 +801,53 @@ def check_proximity_metrics(scene: dict[str, Any], script: dict[str, Any], issue
                 issues.append(f"{script['scenario_id']}: proximity trigger {trigger['trigger_id']} needs 3d/xy_plus_z metric")
 
 
+def check_activity_causality(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
+    trigger_entity_refs: dict[str, set[str]] = {}
+    for trigger in script.get("triggers", []):
+        refs = {str(trigger.get(key)) for key in ("entity_a", "entity_b") if trigger.get(key)}
+        if refs:
+            trigger_entity_refs[str(trigger.get("trigger_id") or "")] = refs
+
+    events = list(script.get("events", []))
+    refs_by_event = [
+        event_entity_refs(event) | trigger_entity_refs.get(str(event.get("trigger_ref") or ""), set())
+        for event in events
+    ]
+    downstream_event_ids = referenced_events(script)
+    for event_index, event in enumerate(events):
+        log_targets = {str(target) for target in event.get("log_event", {}).get("target_ids", []) if target}
+        later_refs: set[str] = set()
+        for refs in refs_by_event[event_index + 1 :]:
+            later_refs.update(refs)
+        group_chain_related = bool(log_targets & later_refs)
+        event_has_concrete_action = any(
+            action.get("type") in {"move_entity", "capture_screenshot", "set_visual_state", "set_weather", "spawn_entity"}
+            for action in event.get("actions", [])
+        )
+        event_id = str(event.get("event_id") or "")
+        for action in event.get("actions", []):
+            if action.get("type") != "set_pedestrian_activity":
+                continue
+            entity_id = str(action.get("entity_id") or "")
+            if entity_id not in entities or not str(entities[entity_id].get("logical_asset_id", "")).startswith("pedestrian."):
+                continue
+            if entity_id not in log_targets:
+                issues.append(
+                    f"{script['scenario_id']}: semantic pedestrian action {action.get('action_id')} must include {entity_id} in log_event.target_ids"
+                )
+            chain_related = (
+                event_id in downstream_event_ids
+                or entity_id in later_refs
+                or event_has_concrete_action
+                or group_chain_related
+            )
+            if not chain_related:
+                issues.append(
+                    f"{script['scenario_id']}: semantic pedestrian action {action.get('action_id')} is not connected to a downstream trigger/action chain"
+                )
+
+
 def mobile_overlap_class(entity: dict[str, Any]) -> str | None:
     asset_id = str(entity.get("logical_asset_id", ""))
     if asset_id.startswith("pedestrian."):
@@ -824,6 +935,7 @@ def check_lifecycle_closure(scene: dict[str, Any], script: dict[str, Any], issue
         if action_type == "clear_crowd":
             issues.append(f"{script['scenario_id']}: clear_crowd {action.get('group_id')} would make visible pedestrians disappear during capture")
         if action_type == "spawn_crowd":
+            issues.append(f"{script['scenario_id']}: Dataset scenarios must use explicit pedestrian cohort entities, not spawn_crowd {action.get('group_id')}")
             trigger = trigger_by_id.get(event.get("trigger_ref"), {})
             tick_value = trigger.get("tick", -1)
             if trigger.get("type") != "tick" or int(tick_value if tick_value is not None else -1) != 0:
@@ -992,6 +1104,7 @@ def validate_scenario(
     check_local_bounds(scene, script, issues)
     check_weather_bootstrap(scene, script, issues)
     check_proximity_metrics(scene, script, issues)
+    check_activity_causality(scene, script, issues)
     check_lifecycle_closure(scene, script, issues)
     execute_validation_rules(scene, script, known_assets, issues)
     return issues
@@ -1020,6 +1133,7 @@ def main() -> None:
     if args.limit:
         scene_paths = scene_paths[: args.limit]
     all_issues: list[str] = []
+    all_issues.extend(f"pedestrian activity catalog: {issue}" for issue in validate_local_animation_assets(ROOT))
     for scene_path in scene_paths:
         all_issues.extend(validate_scenario(scene_path, lanes, spatial, known_assets, known_buildings))
     if not args.skip_render_ready_configs:

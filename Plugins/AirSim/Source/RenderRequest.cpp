@@ -35,24 +35,34 @@ void RenderRequest::getScreenshot(std::shared_ptr<RenderParams> params[], std::v
     CheckNotBlockedOnRenderThread();
 
     if (use_safe_method) {
-        for (unsigned int i = 0; i < req_size; ++i) {
-            if (params[i]->render_target != nullptr && params[i]->render_component != nullptr) {
-                //TODO: below doesn't work right now because it must be running in game thread
-                FIntPoint img_size;
-                if (!params[i]->pixels_as_float) {
-                    //below is documented method but more expensive because it forces flush
+        auto capture_on_game_thread = [this, params, &results, req_size]() {
+            check(IsInGameThread());
+
+            query_camera_pose_cb_();
+
+            for (unsigned int i = 0; i < req_size; ++i) {
+                if (params[i]->render_target != nullptr && params[i]->render_component != nullptr) {
+                    params[i]->render_component->CaptureScene();
+
+                    FIntPoint img_size;
                     FTextureRenderTargetResource* rt_resource = params[i]->render_target->GameThread_GetRenderTargetResource();
                     auto flags = setupRenderResource(rt_resource, params[i].get(), results[i].get(), img_size);
-                    if (params[i]->disable_gamma)flags.SetLinearToGamma(false);
-                    rt_resource->ReadPixels(results[i]->bmp, flags);
-                }
-                else {
-                    FTextureRenderTargetResource* rt_resource = params[i]->render_target->GetRenderTargetResource();
-                    setupRenderResource(rt_resource, params[i].get(), results[i].get(), img_size);
-                    rt_resource->ReadFloat16Pixels(results[i]->bmp_float);
+                    if (params[i]->disable_gamma)
+                        flags.SetLinearToGamma(false);
+
+                    if (!params[i]->pixels_as_float) {
+                        rt_resource->ReadPixels(results[i]->bmp, flags);
+                    }
+                    else {
+                        rt_resource->ReadFloat16Pixels(results[i]->bmp_float);
+                    }
+
+                    results[i]->time_stamp = msr::airlib::ClockFactory::get()->nowNanos();
                 }
             }
-        }
+        };
+
+        UAirBlueprintLib::RunCommandOnGameThread(capture_on_game_thread, true);
     }
     else {
         //wait for render thread to pick up our task

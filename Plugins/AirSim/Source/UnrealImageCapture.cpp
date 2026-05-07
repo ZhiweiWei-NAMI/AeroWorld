@@ -26,7 +26,7 @@ void UnrealImageCapture::getImages(const std::vector<msr::airlib::ImageCaptureBa
         }
     }
     else
-        getSceneCaptureImage(requests, responses, false);
+        getSceneCaptureImage(requests, responses, true);
 }
 
 void UnrealImageCapture::getSceneCaptureImage(const std::vector<msr::airlib::ImageCaptureBase::ImageRequest>& requests,
@@ -103,7 +103,7 @@ void UnrealImageCapture::getSceneCaptureImage(const std::vector<msr::airlib::Ima
         render_params.push_back(std::make_shared<RenderRequest::RenderParams>(capture, textureTarget, requests[i].pixels_as_float, requests[i].compress, disable_gamma));
     }
 
-    if (nullptr == gameViewport) {
+    if (nullptr == gameViewport && !use_safe_method) {
         return;
     }
 

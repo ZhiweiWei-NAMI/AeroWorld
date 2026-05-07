@@ -120,6 +120,8 @@ def validate_scene(scene_path: Path) -> list[str]:
         elif action_type == "set_weather":
             weather.update(weather_payload_from_profile(str(action.get("profile") or "clear"), dict(action.get("overrides") or {})))
             interpreter.update_weather_state(weather)
+        elif action_type == "set_pedestrian_activity" and entity_id:
+            interpreter.update_entity_activity(entity_id, str(action.get("activity_type") or ""))
         return {"status": "ok"}
 
     for action_type in (
@@ -127,6 +129,7 @@ def validate_scene(scene_path: Path) -> list[str]:
         "move_entity",
         "remove_entity",
         "set_visual_state",
+        "set_pedestrian_activity",
         "play_animation",
         "spawn_crowd",
         "clear_crowd",

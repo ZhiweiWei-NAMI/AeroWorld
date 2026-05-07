@@ -239,53 +239,15 @@ void UAnnotationComponent::OnRegister()
 			UE_LOG(LogTemp, Warning, TEXT("AirSim Annotation: ColorAnnotationMaterial is not correctly initialized"));
 			return;
 		}
-		const float OneOver255 = 1.0f / 255.0f;
-		FLinearColor LinearAnnotationColor = FLinearColor(
-			this->AnnotationColor.R * OneOver255,
-			this->AnnotationColor.G * OneOver255,
-			this->AnnotationColor.B * OneOver255,
-			1.0
-		);
+		const FLinearColor LinearAnnotationColor = FLinearColor::FromSRGBColor(this->AnnotationColor);
 		AnnotationMID->SetVectorParameterValue("AnnotationColor", LinearAnnotationColor);
 	}
 }
 
-/** 
- * Note: The "exposure compensation" in "PostProcessVolume3" in the RR map will destroy the color
- * Saturate the color to 1. This is a mysterious behavior after tedious debug.
- */
 void UAnnotationComponent::SetAnnotationColor(FColor NewAnnotationColor)
 {
-	if (NewAnnotationColor.R == 27)NewAnnotationColor.R = 26;
-	if (NewAnnotationColor.G == 27)NewAnnotationColor.G = 26;
-	if (NewAnnotationColor.B == 27)NewAnnotationColor.B = 26;
-	if (NewAnnotationColor.R == 32)NewAnnotationColor.R = 31;
-	if (NewAnnotationColor.G == 32)NewAnnotationColor.G = 31;
-	if (NewAnnotationColor.B == 32)NewAnnotationColor.B = 31;
-	if (NewAnnotationColor.R == 35)NewAnnotationColor.R = 34;
-	if (NewAnnotationColor.G == 35)NewAnnotationColor.G = 34;
-	if (NewAnnotationColor.B == 35)NewAnnotationColor.B = 34;
-	if (NewAnnotationColor.R == 41)NewAnnotationColor.R = 40;
-	if (NewAnnotationColor.G == 41)NewAnnotationColor.G = 40;
-	if (NewAnnotationColor.B == 41)NewAnnotationColor.B = 40;
-	if (NewAnnotationColor.R == 44)NewAnnotationColor.R = 43;
-	if (NewAnnotationColor.G == 44)NewAnnotationColor.G = 43;
-	if (NewAnnotationColor.B == 44)NewAnnotationColor.B = 43;
-	if (NewAnnotationColor.R == 49)NewAnnotationColor.R = 48;
-	if (NewAnnotationColor.G == 49)NewAnnotationColor.G = 48;
-	if (NewAnnotationColor.B == 49)NewAnnotationColor.B = 48;
-	if (NewAnnotationColor.R == 51)NewAnnotationColor.R = 50;
-	if (NewAnnotationColor.G == 51)NewAnnotationColor.G = 50;
-	if (NewAnnotationColor.B == 51)NewAnnotationColor.B = 50;
 	this->AnnotationColor = NewAnnotationColor;
-	const float OneOver255 = 1.0f / 255.0f; // TODO: Check 255 or 256?
-
-	FLinearColor LinearAnnotationColor = FLinearColor(
-		AnnotationColor.R * OneOver255,
-		AnnotationColor.G * OneOver255,
-		AnnotationColor.B * OneOver255,
-		1.0
-	);
+	const FLinearColor LinearAnnotationColor = FLinearColor::FromSRGBColor(AnnotationColor);
 
 	if (IsValid(AnnotationMID))
 	{

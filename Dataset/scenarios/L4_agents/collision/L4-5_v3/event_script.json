@@ -92,6 +92,12 @@
       "max_fire_count": 1,
       "actions": [
         {
+          "type": "set_pedestrian_activity",
+          "action_id": "set_ped_phone_distraction",
+          "entity_id": "ped_nearmiss_l4_5_v3",
+          "activity_type": "phone_call"
+        },
+        {
           "type": "move_entity",
           "action_id": "move_uav_ped_descent",
           "entity_id": "uav_ped_nearmiss_l4_5_v3",
@@ -118,7 +124,7 @@
       "log_event": {
         "topic": "evt_L4-5_v3_uav_low_descent",
         "category": "uav_mission",
-        "title": "UAV descends toward pedestrian head height",
+        "title": "UAV descends toward pedestrian head height while pedestrian is distracted by a phone call",
         "severity": "warning",
         "overlay": "uav_mission",
         "target_ids": [
@@ -199,7 +205,9 @@
               0.0
             ]
           ],
-          "velocity_mps": 1.5
+          "velocity_mps": 1.5,
+          "activity_type": "walking",
+          "post_activity_type": "waiting"
         }
       ],
       "log_event": {

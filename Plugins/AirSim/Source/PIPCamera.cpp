@@ -722,9 +722,11 @@ void APIPCamera::setupCameraFromSettings(const APIPCamera::CameraSetting& camera
                 break;
             case ImageType::Lighting:
                 updateCaptureComponentSetting(captures_[image_type], render_targets_[image_type], false, pixel_format, capture_setting, ned_transform, false);
+                break;
             case ImageType::Segmentation:
                 updateCaptureComponentSetting(captures_[image_type], render_targets_[image_type], false, pixel_format, capture_setting, ned_transform, false);
                 render_targets_[image_type]->TargetGamma = 1;
+                break;
             case ImageType::SurfaceNormals:
                 updateCaptureComponentSetting(captures_[image_type], render_targets_[image_type], true, pixel_format, capture_setting, ned_transform, true);
                 break;

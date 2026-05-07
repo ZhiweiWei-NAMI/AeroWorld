@@ -161,8 +161,22 @@ def event_ticks(script: dict[str, Any]) -> dict[str, int]:
     return resolved
 
 
-def _append_frame(frames: list[tuple[int, list[float], str]], tick: int, pos: list[float], state: str) -> None:
-    state = normalize_activity_type(state)
+def _state_label(state: str, *, pedestrian: bool, moving: bool = False) -> str:
+    if pedestrian:
+        return normalize_activity_type(state, moving=moving)
+    return str(state or ("moving" if moving else "idle"))
+
+
+def _append_frame(
+    frames: list[tuple[int, list[float], str]],
+    tick: int,
+    pos: list[float],
+    state: str,
+    *,
+    pedestrian: bool,
+    moving: bool = False,
+) -> None:
+    state = _state_label(state, pedestrian=pedestrian, moving=moving)
     if frames and frames[-1][0] == tick:
         frames[-1] = (tick, list(pos), state)
         return
@@ -173,8 +187,10 @@ def keyframes_for(
     initial_pos: list[float],
     schedules: list[dict[str, Any]],
     initial_state: str,
+    *,
+    pedestrian: bool = False,
 ) -> list[tuple[int, list[float], str]]:
-    current_activity = normalize_activity_type(initial_state)
+    current_activity = _state_label(initial_state, pedestrian=pedestrian)
     frames = [(0, list(initial_pos), current_activity)]
     current_pos = list(initial_pos)
     current_tick = 0
@@ -182,19 +198,22 @@ def keyframes_for(
         schedule_type = str(schedule.get("type") or "move")
         start_tick = max(current_tick, int(schedule.get("tick", 0)))
         if start_tick > current_tick:
-            _append_frame(frames, start_tick, current_pos, current_activity)
+            _append_frame(frames, start_tick, current_pos, current_activity, pedestrian=pedestrian)
             current_tick = start_tick
         if schedule_type == "activity":
-            current_activity = normalize_activity_type(str(schedule.get("activity_type") or current_activity))
-            _append_frame(frames, start_tick, current_pos, current_activity)
+            current_activity = _state_label(str(schedule.get("activity_type") or current_activity), pedestrian=pedestrian)
+            _append_frame(frames, start_tick, current_pos, current_activity, pedestrian=pedestrian)
             continue
         velocity = max(0.1, float(schedule.get("velocity_mps") or 1.0))
         waypoints = list(schedule.get("waypoints_enu_m", []) or [])
         if not waypoints:
             continue
-        moving_activity = normalize_activity_type(str(schedule.get("activity_type") or current_activity), moving=True)
-        post_activity = normalize_activity_type(str(schedule.get("post_activity_type") or "waiting"))
-        _append_frame(frames, start_tick, current_pos, moving_activity)
+        moving_activity = _state_label(str(schedule.get("activity_type") or current_activity), pedestrian=pedestrian, moving=True)
+        post_activity = _state_label(
+            str(schedule.get("post_activity_type") or ("waiting" if pedestrian else moving_activity)),
+            pedestrian=pedestrian,
+        )
+        _append_frame(frames, start_tick, current_pos, moving_activity, pedestrian=pedestrian, moving=True)
         for waypoint_index, waypoint in enumerate(waypoints):
             target = vector3(waypoint, current_pos)
             distance = distance3(current_pos, target)
@@ -203,7 +222,7 @@ def keyframes_for(
             current_tick += max(1, int(math.ceil(distance / velocity * TICK_HZ)))
             current_pos = target
             frame_activity = post_activity if waypoint_index == len(waypoints) - 1 else moving_activity
-            _append_frame(frames, current_tick, current_pos, frame_activity)
+            _append_frame(frames, current_tick, current_pos, frame_activity, pedestrian=pedestrian)
             current_activity = frame_activity
     return frames
 
@@ -323,7 +342,12 @@ def build_entities(scene_setup: dict[str, Any], script: dict[str, Any]) -> dict[
 def generate_trajectories(scene_setup: dict[str, Any], script: dict[str, Any], duration_ticks: int) -> list[dict[str, Any]]:
     entities = build_entities(scene_setup, script)
     keyframes = {
-        entity_id: keyframes_for(vector3(entity["pos"]), list(entity.get("schedules") or []), str(entity.get("state") or "idle"))
+        entity_id: keyframes_for(
+            vector3(entity["pos"]),
+            list(entity.get("schedules") or []),
+            str(entity.get("state") or "idle"),
+            pedestrian=str(entity.get("label_class") or "") == "pedestrian",
+        )
         for entity_id, entity in entities.items()
     }
     rows: list[dict[str, Any]] = []

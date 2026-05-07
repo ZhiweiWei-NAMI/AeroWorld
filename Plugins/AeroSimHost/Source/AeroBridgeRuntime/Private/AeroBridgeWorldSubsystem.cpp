@@ -5,6 +5,7 @@
 #include "AeroRuntimeOrchestrationSubsystem.h"
 #include "AeroFeedbackSubsystem.h"
 #include "AeroBridgeRuntimeSettings.h"
+#include "AeroSemanticStencil.h"
 #include "AeroPedNavSemanticSubsystem.h"
 #include "AeroSceneSyncSubsystem.h"
 #include "AeroWeatherRenderSubsystem.h"
@@ -114,6 +115,32 @@ TSharedPtr<FJsonObject> MakeSemanticPalettePayload()
 		Palette->SetArrayField(Entry.ClassName, ColorValues);
 	}
 	return Palette;
+}
+
+TSharedPtr<FJsonObject> MakeClassIdToNamePayload(const TMap<uint8, FString>& Values)
+{
+	TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+	TArray<uint8> Keys;
+	Values.GetKeys(Keys);
+	Keys.Sort();
+	for (const uint8 Key : Keys)
+	{
+		Object->SetStringField(FString::FromInt(Key), Values[Key]);
+	}
+	return Object;
+}
+
+TSharedPtr<FJsonObject> MakeClassIdHistogramPayload(const TMap<uint8, int32>& Values)
+{
+	TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+	TArray<uint8> Keys;
+	Values.GetKeys(Keys);
+	Keys.Sort();
+	for (const uint8 Key : Keys)
+	{
+		Object->SetNumberField(FString::FromInt(Key), Values[Key]);
+	}
+	return Object;
 }
 
 bool TryReadVectorField(const TSharedPtr<FJsonObject>& Object, const FString& FieldName, FVector& OutVector, double DefaultZ = 0.0)
@@ -627,6 +654,7 @@ FString UAeroBridgeWorldSubsystem::HandleDescribeCapabilities(const FString& Req
 			TEXT("simAeroMoveAsset"),
 			TEXT("simAeroRemoveAsset"),
 			TEXT("simAeroCaptureWorldCamera"),
+			TEXT("aero.semantic_stencil_audit_json"),
 			TEXT("simAeroReserveOccupancy"),
 			TEXT("simAeroReleaseOccupancy"),
 			TEXT("simAeroQueryNearest"),
@@ -1940,8 +1968,37 @@ FString UAeroBridgeWorldSubsystem::HandleCaptureWorldCamera(const FString& Reque
 		}
 	}
 
+	FString SemanticRulesPath;
+	FString SemanticAuditPath;
+	if (Modality.Equals(TEXT("seg"), ESearchCase::IgnoreCase))
+	{
+		Payload->TryGetStringField(TEXT("semantic_rules_path"), SemanticRulesPath);
+		Payload->TryGetStringField(TEXT("semantic_audit_path"), SemanticAuditPath);
+		if (SemanticRulesPath.TrimStartAndEnd().IsEmpty())
+		{
+			SemanticRulesPath = AeroSemanticStencil::DefaultRulesPath();
+		}
+		else
+		{
+			SemanticRulesPath = ResolveRelativePath(SemanticRulesPath);
+		}
+		if (!SemanticAuditPath.TrimStartAndEnd().IsEmpty())
+		{
+			SemanticAuditPath = ResolveRelativePath(SemanticAuditPath);
+		}
+	}
+
 	FAeroFixedWorldCaptureStats CaptureStats;
-	if (!CaptureActor->CaptureToDisk(Modality, OutputPath, Width, Height, static_cast<float>(FovDegreesValue), Error, CaptureStats))
+	if (!CaptureActor->CaptureToDisk(
+		Modality,
+		OutputPath,
+		Width,
+		Height,
+		static_cast<float>(FovDegreesValue),
+		Error,
+		CaptureStats,
+		SemanticRulesPath,
+		SemanticAuditPath))
 	{
 		UE_LOG(
 			LogAeroBridgeWorld,
@@ -1980,7 +2037,14 @@ FString UAeroBridgeWorldSubsystem::HandleCaptureWorldCamera(const FString& Reque
 	}
 	if (Modality.Equals(TEXT("seg"), ESearchCase::IgnoreCase))
 	{
-		ResponsePayload->SetObjectField(TEXT("semantic_palette"), MakeSemanticPalettePayload());
+		ResponsePayload->SetStringField(TEXT("segmentation_kind"), CaptureStats.SegmentationKind);
+		ResponsePayload->SetStringField(TEXT("semantic_rules_path"), CaptureStats.SemanticRulesPath);
+		ResponsePayload->SetStringField(TEXT("semantic_audit_path"), CaptureStats.SemanticAuditPath);
+		ResponsePayload->SetObjectField(TEXT("semantic_class_by_id"), MakeClassIdToNamePayload(CaptureStats.SemanticClassById));
+		ResponsePayload->SetObjectField(TEXT("class_histogram"), MakeClassIdHistogramPayload(CaptureStats.SemanticClassHistogram));
+		ResponsePayload->SetNumberField(TEXT("ignore_pixel_count"), CaptureStats.IgnorePixelCount);
+		ResponsePayload->SetNumberField(TEXT("unknown_semantic_color_pixel_count"), CaptureStats.SemanticUnknownColorPixelCount);
+		ResponsePayload->SetNumberField(TEXT("semantic_assigned_component_count"), CaptureStats.SemanticAssignedComponentCount);
 	}
 	ResponsePayload->SetObjectField(TEXT("position_world_cm"), MakeVectorPayloadField(ActorWorldCm));
 	SetVectorArrayField(ResponsePayload, TEXT("position_enu_m"), PositionEnuM);
@@ -2001,6 +2065,51 @@ FString UAeroBridgeWorldSubsystem::HandleCaptureWorldCamera(const FString& Reque
 		*RotationDeg.ToString());
 
 	return MakeSuccessResponse(TEXT("simAeroCaptureWorldCamera"), RequestId, MapId.IsEmpty() ? CurrentMapId : MapId, ResponsePayload);
+}
+
+FString UAeroBridgeWorldSubsystem::HandleSemanticStencilAudit(const FString& RequestJson)
+{
+	FString RequestId;
+	FString MapId;
+	FString Error;
+	TSharedPtr<FJsonObject> Payload = ParseRequestEnvelope(RequestJson, RequestId, MapId, Error);
+	if (!Payload.IsValid())
+	{
+		return MakeErrorResponse(TEXT("aero.semantic_stencil_audit_json"), RequestId, MapId, Error);
+	}
+	if (!MapId.IsEmpty() && MapId != CurrentMapId && !LoadContextByMapId(MapId, Error))
+	{
+		return MakeErrorResponse(TEXT("aero.semantic_stencil_audit_json"), RequestId, MapId, Error);
+	}
+
+	FString RulesPath;
+	FString AuditPath;
+	bool bAssign = false;
+	Payload->TryGetStringField(TEXT("semantic_rules_path"), RulesPath);
+	Payload->TryGetStringField(TEXT("rules_path"), RulesPath);
+	Payload->TryGetStringField(TEXT("semantic_audit_path"), AuditPath);
+	Payload->TryGetStringField(TEXT("audit_path"), AuditPath);
+	Payload->TryGetBoolField(TEXT("assign"), bAssign);
+	RulesPath = RulesPath.TrimStartAndEnd().IsEmpty() ? AeroSemanticStencil::DefaultRulesPath() : ResolveRelativePath(RulesPath);
+	if (!AuditPath.TrimStartAndEnd().IsEmpty())
+	{
+		AuditPath = ResolveRelativePath(AuditPath);
+	}
+
+	TSet<const AActor*> IgnoredActors;
+	FAeroSemanticStencilAudit Audit;
+	if (!AeroSemanticStencil::AuditAndAssign(GetWorld(), RulesPath, bAssign, IgnoredActors, Audit, Error))
+	{
+		return MakeErrorResponse(TEXT("aero.semantic_stencil_audit_json"), RequestId, MapId, Error);
+	}
+	if (!AuditPath.IsEmpty() && !AeroSemanticStencil::SaveAuditJson(Audit, AuditPath, Error))
+	{
+		return MakeErrorResponse(TEXT("aero.semantic_stencil_audit_json"), RequestId, MapId, Error);
+	}
+
+	TSharedPtr<FJsonObject> ResponsePayload = AeroSemanticStencil::AuditToJson(Audit, false);
+	ResponsePayload->SetStringField(TEXT("audit_path"), AuditPath);
+	return MakeSuccessResponse(TEXT("aero.semantic_stencil_audit_json"), RequestId, MapId.IsEmpty() ? CurrentMapId : MapId, ResponsePayload);
 }
 
 FString UAeroBridgeWorldSubsystem::HandleReserveOccupancy(const FString& RequestJson)

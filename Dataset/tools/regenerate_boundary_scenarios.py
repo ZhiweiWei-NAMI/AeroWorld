@@ -28,6 +28,7 @@ from spec_compiler import (  # noqa: E402
     WaypointSpec,
 )
 from map_spatial_index import MapSpatialIndex, SpatialValidationError  # noqa: E402
+from pedestrian_activity_catalog import get_activity, normalize_activity_type  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -362,14 +363,37 @@ def _planned_pedestrian_waypoints(action_id: str, entity_id: str, waypoints: lis
     )
 
 
-def move(action_id: str, entity_id: str, waypoints: list[list[float]], velocity: float) -> dict[str, Any]:
+def move(
+    action_id: str,
+    entity_id: str,
+    waypoints: list[list[float]],
+    velocity: float,
+    activity_type: str | None = None,
+    post_activity_type: str | None = None,
+) -> dict[str, Any]:
     waypoints = _planned_pedestrian_waypoints(action_id, entity_id, waypoints)
+    params: dict[str, Any] = {
+        "entity_id": entity_id,
+        "waypoints_enu_m": waypoints,
+        "velocity_mps": velocity,
+    }
+    if _is_pedestrian_entity_id(entity_id):
+        inferred = activity_type
+        if inferred is None:
+            if _is_crossing_move(action_id):
+                inferred = "crossing"
+            elif "evac" in action_id.lower():
+                inferred = "evacuating"
+            elif "clear" in action_id.lower() or "evade" in action_id.lower() or "retreat" in action_id.lower():
+                inferred = "walking"
+            else:
+                inferred = "walking"
+        params["activity_type"] = normalize_activity_type(inferred, moving=True)
+        params["post_activity_type"] = normalize_activity_type(post_activity_type or "waiting")
     return action(
         action_id,
         "move_entity",
-        entity_id=entity_id,
-        waypoints_enu_m=waypoints,
-        velocity_mps=velocity,
+        **params,
     )
 
 
@@ -413,15 +437,12 @@ def screenshot(action_id: str, camera_id: str = "demo_high_overview") -> dict[st
 
 
 def play(action_id: str, ped_id: str) -> dict[str, Any]:
-    return action(
-        action_id,
-        "play_animation",
-        ped_id=ped_id,
-        animation_path="/AeroSimHost/Animations/AM_Crouch",
-        start_section="",
-        play_rate=1.0,
-        loop_count=1,
-    )
+    return ped_activity(action_id, ped_id, "medical_incident")
+
+
+def ped_activity(action_id: str, ped_id: str, activity_type: str) -> dict[str, Any]:
+    activity_type = normalize_activity_type(activity_type)
+    return action(action_id, "set_pedestrian_activity", entity_id=ped_id, activity_type=activity_type)
 
 
 def crowd(action_id: str, group_id: str, count: int, origin: list[float], extent_cm: list[float], seed: int) -> dict[str, Any]:
@@ -497,6 +518,20 @@ def world_entity(
     state = visual_state.copy() if visual_state else {}
     if mode and "mode" not in state:
         state["mode"] = mode
+    if asset.startswith("pedestrian.") or category == "pedestrian":
+        raw_activity = str(state.get("activity_type") or state.get("mode") or "waiting")
+        if raw_activity == "walking" and not route:
+            raw_activity = "waiting"
+        activity = get_activity(raw_activity)
+        state.update(
+            {
+                "mode": activity.activity_type,
+                "activity_type": activity.activity_type,
+                "animation_hint": activity.animation_hint,
+                "posture": activity.posture,
+                "social_state": activity.social_state,
+            }
+        )
     spec = {
         "entity_id": entity_id,
         "asset_id": asset,
@@ -839,6 +874,78 @@ def evacuation_move_actions(cohort: list[tuple[str, list[float], list[list[float
             raise RuntimeError(f"{action_prefix}_{index:02d} {ped_id}: evacuation route does not start at scene position")
         actions.append(move(f"{action_prefix}_{index:02d}", ped_id, route, 1.4))
     return actions
+
+
+def add_static_ped_cohort(
+    specs: list[dict[str, Any]],
+    scenes: list[dict[str, Any]],
+    sid: str,
+    prefix: str,
+    origin: list[float],
+    count: int,
+    *,
+    activity_type: str = "chatting",
+    allow_green: bool = True,
+) -> list[str]:
+    base = LANES.nearest_to_xy(float(origin[0]), float(origin[1]))
+    min_s, max_s = LANES.edge_s_bounds(base.edge_id)
+    occupied = [
+        scene_pos(scene)
+        for scene in scenes
+        if str(scene.get("logical_asset_id", "")).startswith("pedestrian.")
+    ]
+    ids: list[str] = []
+    for index in range(count):
+        anchor = None
+        errors: list[str] = []
+        s_offsets = [0.0, -4.0, 4.0, -8.0, 8.0, -12.0, 12.0, -16.0, 16.0, -20.0, 20.0, -24.0, 24.0]
+        offset_values = [GATHERING_MIN_OFFSET_FROM_CURB_M + 1.35 * row for row in range(9)]
+        for offset_from_curb in offset_values:
+            for s_offset in s_offsets:
+                try:
+                    candidate = SPATIAL.plan_sidewalk_anchor(
+                        [origin[0], origin[1], GROUND_Z_M],
+                        edge_id_hint=base.edge_id,
+                        s_hint=max(min_s, min(max_s, base.s_m + s_offset)),
+                        offset_from_curb_m=offset_from_curb,
+                        allow_green=allow_green,
+                        placement_semantics="sidewalk_static_ped_cohort",
+                    )
+                except SpatialValidationError as exc:
+                    errors.append(str(exc))
+                    continue
+                if all(dist_xy(candidate.position_enu_m, other) >= 0.9 for other in occupied):
+                    anchor = candidate
+                    occupied.append(candidate.position_enu_m)
+                    break
+            if anchor is not None:
+                break
+        if anchor is None:
+            raise RuntimeError(f"Unable to place static pedestrian cohort member {prefix}_{sid}_{index:02d}: {errors[:6]}")
+        ped_id = f"{prefix}_{sid}_{index:02d}"
+        spec, ped_scene = world_entity(
+            ped_id,
+            "pedestrian.cityops.basic.v1",
+            "pedestrian",
+            anchor.position_enu_m,
+            anchor.sample.yaw_deg,
+            activity_type,
+        )
+        ped_scene["placement_mode"] = "sidewalk_anchor"
+        ped_scene["placement"] = {
+            "lane_edge_id": anchor.sample.edge_id,
+            "longitudinal_s": round(anchor.sample.s_m, 3),
+            "offset_from_curb_m": round(anchor.offset_from_curb_m, 3),
+            "lane_half_width_m": LANE_HALF_WIDTH_M,
+            "resolved_lateral_from_center_m": round(anchor.resolved_lateral_from_center_m, 3),
+            "placement_semantics": "sidewalk_static_ped_cohort",
+            "resolved_position_enu_m": anchor.position_enu_m,
+            "rotation_deg": rot(anchor.sample.yaw_deg),
+            "cohort_id": f"{prefix}_{sid}",
+        }
+        add(specs, scenes, (spec, ped_scene))
+        ids.append(ped_id)
+    return ids
 
 
 def camera_for(cx: float, cy: float, z: float = 75.0) -> list[dict[str, Any]]:
@@ -1488,7 +1595,7 @@ def build_l3(scenario_id: str, idx: int) -> ScenarioBundle:
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", p(ox - 8, oy - 15, 33), 45, "monitor"))
         events = [
             event("hazmat_leak", tick(240), [spawn_from_scene("spawn_hazmat_zone", hazard_scene, visual_state={"mode": "isolation_active"})], 1, scenario_id, "Hazmat leak declares isolation zone", "dynamic_constraint", [hazard], "critical"),
-            event("pedestrian_evacuation", fired("hazmat_leak"), [move("move_ped_a_safe", ped_a, [ped_a_start, ped_a_safe], 1.6), move("move_ped_b_safe", ped_b, [ped_b_start, ped_b_safe], 1.4)], 2, scenario_id, "Pedestrians evacuate from hazmat zone", "pedestrian", [ped_a, ped_b, hazard], "warning"),
+            event("pedestrian_evacuation", fired("hazmat_leak"), [move("move_ped_a_safe", ped_a, [ped_a_start, ped_a_safe], 1.6, activity_type="evacuating"), move("move_ped_b_safe", ped_b, [ped_b_start, ped_b_safe], 1.4, activity_type="evacuating")], 2, scenario_id, "Pedestrians evacuate from hazmat zone", "pedestrian", [ped_a, ped_b, hazard], "warning"),
             event("ambulance_arrival", fired("pedestrian_evacuation"), [move("move_ambulance_hazmat", ambulance, [ambulance_start, ambulance_arrival], 11.0)], 3, scenario_id, "Ambulance arrives at isolation perimeter", "vehicle", [ambulance, hazard], "warning"),
             event("uav_external_monitor", fired("ambulance_arrival"), [move("move_uav_hazmat_orbit", uav, [p(ox - 8, oy - 15, 33), p(ox + 2, oy - 5, 30), p(ox + 18, oy + 18, 30)], 5.0), screenshot("capture_hazmat_monitor")], 4, scenario_id, "UAV monitors hazmat zone from outside", "uav_mission", [uav, hazard], "info"),
         ]
@@ -1547,8 +1654,8 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         uav = f"uav_forced_landing_{sid}"
         ped_a = f"ped_landing_{sid}_a"
         ped_b = f"ped_landing_{sid}_b"
-        _, ped_a_scene = add(specs, scenes, sidewalk_entity(ped_a, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 24, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 2, oy + 2, 0), 0, "standing"))
-        _, ped_b_scene = add(specs, scenes, sidewalk_entity(ped_b, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 28, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 7, oy + 2, 0), 180, "standing"))
+        _, ped_a_scene = add(specs, scenes, sidewalk_entity(ped_a, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 24, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 2, oy + 2, 0), 0, "chatting"))
+        _, ped_b_scene = add(specs, scenes, sidewalk_entity(ped_b, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_19", 28, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 7, oy + 2, 0), 180, "chatting"))
         ped_a_start = scene_pos(ped_a_scene)
         ped_b_start = scene_pos(ped_b_scene)
         landing_x = (ped_a_start[0] + ped_b_start[0]) / 2.0
@@ -1558,14 +1665,16 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         low = q(landing_x, landing_y, 8)
         land = q(landing_x, landing_y, 3)
         crowd_origin = gathering_point(q(landing_x, landing_y, GROUND_Z_M), [650, 420, 0])
+        extra_crowd_ids = add_static_ped_cohort(specs, scenes, sid, "ped_landing_crowd", crowd_origin, 6, activity_type="chatting")
+        crowd_ids = [ped_a, ped_b, *extra_crowd_ids]
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 45, "fault"))
         ped_a_evade = shifted_sidewalk_point(ped_a_start, -8, 8, GATHERING_MIN_OFFSET_FROM_CURB_M)
         ped_b_evade = shifted_sidewalk_point(ped_b_start, 8, 8, GATHERING_MIN_OFFSET_FROM_CURB_M)
         events = [
-            event("crowd_present", tick(0), [crowd("spawn_landing_crowd_initial", f"crowd_{sid}", 8, crowd_origin, [650, 420, 0], 700 + idx)], 0, scenario_id, "Ground crowd is visible before the UAV fault begins", "pedestrian", [ped_a, ped_b], "info"),
+            event("crowd_present", tick(0), [ped_activity(f"set_{ped_id}_crowd_chatting", ped_id, "chatting") for ped_id in crowd_ids], 0, scenario_id, "Ground crowd is visible before the UAV fault begins", "pedestrian", crowd_ids, "info"),
             event("forced_landing_fault", tick(230), [visual("set_uav_forced_landing_fault", uav, "propulsion_fault")], 1, scenario_id, "UAV fault appears near a ground crowd", "uav_mission", [uav, ped_a, ped_b], "critical"),
             event("descent_to_low_altitude", fired("forced_landing_fault"), [move("move_uav_forced_descent", uav, [start, descent_mid, low, land], 3.0)], 2, scenario_id, "UAV descends from 30m to low height", "uav_mission", [uav], "critical"),
-            event("crowd_proximity_response", prox(uav, ped_a, 5.0, 2), [move("move_ped_a_evade_landing", ped_a, [ped_a_start, ped_a_evade], 2.0), move("move_ped_b_evade_landing", ped_b, [ped_b_start, ped_b_evade], 2.0), screenshot("capture_forced_landing")], 3, scenario_id, "Crowd evades forced landing zone", "pedestrian", [ped_a, ped_b, uav], "warning"),
+            event("crowd_proximity_response", prox(uav, ped_a, 5.0, 2), [move("move_ped_a_evade_landing", ped_a, [ped_a_start, ped_a_evade], 2.0, post_activity_type="quarrel"), move("move_ped_b_evade_landing", ped_b, [ped_b_start, ped_b_evade], 2.0, post_activity_type="quarrel"), screenshot("capture_forced_landing")], 3, scenario_id, "Crowd evades forced landing zone and yells at the forced landing site", "pedestrian", [ped_a, ped_b, uav], "warning"),
             event("safe_landing", fired("crowd_proximity_response"), [move("move_uav_safe_touchdown", uav, [land, q(land[0] + 1, land[1] + 1, 0.8)], 1.0)], 4, scenario_id, "UAV completes safe landing", "uav_mission", [uav], "info"),
         ]
         desc = "UAV forced landing near crowd"
@@ -1597,7 +1706,7 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         pull_up = q(ped_start[0] - 8, ped_start[1] + 8, 24)
         ped_clear = shifted_sidewalk_point(ped_start, 10, 10, 1.8)
         events = [
-            event("uav_low_descent", tick(230), [move("move_uav_ped_descent", uav, [start, p(ox - 3, oy - 2, 15), over], 4.5)], 1, scenario_id, "UAV descends toward pedestrian head height", "uav_mission", [uav, ped], "warning"),
+            event("uav_low_descent", tick(230), [ped_activity("set_ped_phone_distraction", ped, "phone_call"), move("move_uav_ped_descent", uav, [start, p(ox - 3, oy - 2, 15), over], 4.5)], 1, scenario_id, "UAV descends toward pedestrian head height while pedestrian is distracted by a phone call", "uav_mission", [uav, ped], "warning"),
             event("pedestrian_near_miss", prox(uav, ped, 5.0, 2, metric="xy_plus_z", horizontal_distance_m=3.0, vertical_distance_m=6.0), [visual("set_uav_hover_nearmiss", uav, "hover"), move("move_uav_pull_up_after_nearmiss", uav, [over, pull_up], 6.0), screenshot("capture_ped_nearmiss")], 2, scenario_id, "UAV near-miss with pedestrian triggers pull-up", "uav_mission", [uav, ped], "critical"),
             event("pedestrian_clears_area", fired("pedestrian_near_miss"), [move("move_ped_clear_nearmiss", ped, [ped_start, ped_clear], 1.5)], 3, scenario_id, "Pedestrian clears UAV operating area", "pedestrian", [ped], "info"),
         ]
@@ -1616,7 +1725,7 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         car_conflict = road
         car_stop = q(road[0] + 1.0, road[1] + 0.3, GROUND_Z_M)
         events = [
-            event("ped_enters_roadway", tick(220), [move("move_ped_from_crosswalk_to_lane", ped, [p0, road], 1.6), move("move_car_toward_crosswalk", car, [car_start, car_conflict], 8.0)], 1, scenario_id, "Pedestrian moves from sidewalk into roadway", "pedestrian", [ped, car], "warning"),
+            event("ped_enters_roadway", tick(220), [move("move_ped_from_crosswalk_to_lane", ped, [p0, road], 1.6, activity_type="texting_walk"), move("move_car_toward_crosswalk", car, [car_start, car_conflict], 8.0)], 1, scenario_id, "Texting pedestrian moves from sidewalk into roadway", "pedestrian", [ped, car], "warning"),
             event("vehicle_ped_proximity", prox(ped, car, 4.0, 2, metric="xy_plus_z", horizontal_distance_m=4.0, vertical_distance_m=1.5), [move("move_car_hard_brake_ped", car, [car_conflict, car_stop], 0.8), screenshot("capture_ped_vehicle_conflict")], 2, scenario_id, "Vehicle brakes for pedestrian conflict", "vehicle", [ped, car], "critical"),
             event("ped_retreats", fired("vehicle_ped_proximity"), [move("move_ped_retreat_sidewalk", ped, [road, retreat], 1.8)], 3, scenario_id, "Pedestrian retreats from roadway", "pedestrian", [ped], "info"),
         ]
@@ -1920,15 +2029,17 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
         start = p(ox, oy, 32)
         add(specs, scenes, world_entity(tower, "facility.radio.base_tower.v1", "facility", p(ox + 8, oy + 2, 0), 0, "online"))
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", start, 30, "rain_patrol"))
-        _, ped_scene = add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_31", 42, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 16, oy + 9, 0), 0, "standing"))
+        _, ped_scene = add(specs, scenes, sidewalk_entity(ped, "pedestrian.cityops.basic.v1", "pedestrian", "cg_edge_31", 42, GATHERING_MIN_OFFSET_FROM_CURB_M, p(ox + 16, oy + 9, 0), 0, "observing"))
         ped_start = scene_pos(ped_scene)
         crowd_origin = gathering_point(ped_start, [800, 500, 0])
+        extra_crowd_ids = add_static_ped_cohort(specs, scenes, "x1", "ped_x1_crowd", crowd_origin, 9, activity_type="observing")
+        crowd_ids = [ped, *extra_crowd_ids]
         low = q(ped_start[0], ped_start[1], 8)
         landing = q(ped_start[0], ped_start[1], 3)
         ped_evade = shifted_sidewalk_point(ped_start, 12, 10, GATHERING_MIN_OFFSET_FROM_CURB_M)
         weather_profile = {"initial": "clear", "transitions": [{"tick": 180, "profile": "rain", "overrides": {"rain": 0.62, "visibility_m": 1600.0}}]}
         events = [
-            event("crowd_present", tick(0), [crowd("spawn_x1_crowd_initial", "crowd_x1", 10, crowd_origin, [800, 500, 0], 1101)], 0, scenario_id, "Crowd is visible near the future forced-landing area at episode start", "pedestrian", [ped], "info"),
+            event("crowd_present", tick(0), [ped_activity(f"set_{ped_id}_crowd_observing", ped_id, "observing") for ped_id in crowd_ids], 0, scenario_id, "Crowd is visible near the future forced-landing area at episode start", "pedestrian", crowd_ids, "info"),
             event("rain_onset", tick(180), [set_weather("set_x1_rain_onset", "rain", rain=0.62, visibility_m=1600.0)], 1, scenario_id, "Rain onset is applied before C2 coupling", "weather", [uav, tower], "info"),
             event("rain_threshold", weather("rain", "gte", 0.5, 5), [set_weather("set_x1_rain", "rain", rain=0.65, visibility_m=1500.0)], 1, scenario_id, "Rain threshold triggers L5 degradation", "weather", [uav, tower], "warning"),
             event("c2_loss_tick", tick(260), [visual("set_x1_tower_stressed", tower, "rain_stressed")], 2, scenario_id, "C2 loss timing condition becomes true", "digital_layer", [tower], "warning"),
@@ -2331,6 +2442,16 @@ def validate_bundle(bundle: ScenarioBundle, compiled: dict[str, Any], catalog_id
             ent_id = a.get("entity_id") or a.get("ped_id")
             if ent_id and ent_id not in scene_ids:
                 errors.append(f"{bundle.scenario_id}: action references undeclared entity {ent_id}")
+            if a["type"] in {"play_animation", "spawn_crowd"}:
+                errors.append(f"{bundle.scenario_id}: Dataset generation must not emit {a['type']}")
+            if a["type"] == "set_pedestrian_activity":
+                activity = a.get("activity_type")
+                try:
+                    normalize_activity_type(str(activity or ""))
+                except ValueError as exc:
+                    errors.append(f"{bundle.scenario_id}: {exc}")
+                if ent_id and not scene_assets.get(ent_id, "").startswith("pedestrian."):
+                    errors.append(f"{bundle.scenario_id}: set_pedestrian_activity target is not pedestrian: {ent_id}")
             if a["type"] == "move_entity":
                 asset = scene_assets.get(ent_id, "")
                 if asset in {"prop.traffic_control.signal_light.v1", "facility.radio.base_tower.v1"}:

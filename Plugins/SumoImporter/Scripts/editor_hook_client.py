@@ -324,6 +324,8 @@ print("EDITOR_HOOK_SENT", {command_name!r}, payload.get("request_id"))
         width: int,
         height: int,
         fov_degrees: float,
+        semantic_rules_path: Path | str | None = None,
+        semantic_audit_path: Path | str | None = None,
     ) -> dict[str, Any]:
         normalized_modality = str(modality or "rgb").strip().lower()
         if normalized_modality not in {"rgb", "depth", "seg"}:
@@ -343,6 +345,10 @@ print("EDITOR_HOOK_SENT", {command_name!r}, payload.get("request_id"))
                 "fov_degrees": float(fov_degrees),
             },
         )
+        if semantic_rules_path is not None and str(semantic_rules_path).strip():
+            request_json["payload"]["semantic_rules_path"] = str(Path(str(semantic_rules_path)).resolve()).replace("\\", "/")
+        if semantic_audit_path is not None and str(semantic_audit_path).strip():
+            request_json["payload"]["semantic_audit_path"] = str(Path(str(semantic_audit_path)).resolve()).replace("\\", "/")
         response = self._run_console_json_command("aero.capture_world_camera_json", request_json)
         self._wait_for_output(absolute_output_path, previous_mtime)
         return {
@@ -352,6 +358,8 @@ print("EDITOR_HOOK_SENT", {command_name!r}, payload.get("request_id"))
             "width": int(width),
             "height": int(height),
             "fov_degrees": float(fov_degrees),
+            "semantic_rules_path": str(Path(str(semantic_rules_path)).resolve()) if semantic_rules_path else "",
+            "semantic_audit_path": str(Path(str(semantic_audit_path)).resolve()) if semantic_audit_path else "",
         }
 
     def capture_rgb(
@@ -373,6 +381,32 @@ print("EDITOR_HOOK_SENT", {command_name!r}, payload.get("request_id"))
             height=height,
             fov_degrees=fov_degrees,
         )
+
+    def semantic_stencil_audit(
+        self,
+        *,
+        map_id: str,
+        semantic_rules_path: Path | str,
+        semantic_audit_path: Path | str,
+        assign: bool = False,
+    ) -> dict[str, Any]:
+        request_json = self._make_request_json(
+            map_id,
+            "semantic_stencil_audit",
+            {
+                "semantic_rules_path": str(Path(str(semantic_rules_path)).resolve()).replace("\\", "/"),
+                "semantic_audit_path": str(Path(str(semantic_audit_path)).resolve()).replace("\\", "/"),
+                "assign": bool(assign),
+            },
+        )
+        response = self._run_console_json_command("aero.semantic_stencil_audit_json", request_json)
+        self._wait_for_output(Path(str(semantic_audit_path)).resolve(), None)
+        return {
+            "editor_hook_response": response,
+            "semantic_rules_path": str(Path(str(semantic_rules_path)).resolve()),
+            "semantic_audit_path": str(Path(str(semantic_audit_path)).resolve()),
+            "assign": bool(assign),
+        }
 
     def _wait_for_output(self, output_path: Path, previous_mtime: float | None) -> None:
         deadline = time.perf_counter() + self.capture_timeout_s

@@ -6,6 +6,7 @@ import bisect
 import csv
 import json
 import math
+import re
 import shutil
 import sys
 import time
@@ -60,17 +61,129 @@ REQUIRED_CAPABILITIES = {
     "simAeroGetRuntimeVehiclePose",
 }
 
-SEMANTIC_PALETTE: dict[str, list[int]] = {
-    "background": [0, 0, 0],
-    "static_map": [90, 90, 90],
-    "uav": [255, 0, 0],
-    "vehicle": [0, 128, 255],
-    "pedestrian": [255, 255, 0],
-    "roadwork_prop": [255, 128, 0],
-    "traffic_control": [0, 255, 255],
-    "facility": [128, 0, 255],
-    "hazard_trigger": [255, 0, 255],
-}
+SEMANTIC_SEGMENTATION_CLASSES: tuple[dict[str, Any], ...] = (
+    {
+        "class_id": 1,
+        "class_name": "city_base_background",
+        "actor_regex": r".*(BP_CityBaseGenerator0|BP_CityBaseGenerator_C.*|BP_CityBaseGenerator.*).*",
+        "component_regex": r".*(BP_CityBaseGenerator0|BP_CityBaseGenerator_C.*|BP_CityBaseGenerator.*).*",
+        "canonical_actor_label": "BP_CityBaseGenerator0",
+        "required_for_static_audit": True,
+        "category": "static_city_base",
+    },
+    {
+        "class_id": 2,
+        "class_name": "building_style1",
+        "actor_regex": r".*BP_Archi_Style1_C.*",
+        "component_regex": r".*BP_Archi_Style1_C.*",
+        "required_for_static_audit": False,
+        "category": "building",
+    },
+    {
+        "class_id": 3,
+        "class_name": "building_style3",
+        "actor_regex": r".*BP_Archi_Style3_C.*",
+        "component_regex": r".*BP_Archi_Style3_C.*",
+        "required_for_static_audit": False,
+        "category": "building",
+    },
+    {
+        "class_id": 4,
+        "class_name": "building_style4",
+        "actor_regex": r".*BP_Archi_Style4_C.*",
+        "component_regex": r".*BP_Archi_Style4_C.*",
+        "required_for_static_audit": False,
+        "category": "building",
+    },
+    {
+        "class_id": 5,
+        "class_name": "building_style05",
+        "actor_regex": r".*BP_Archi_Style05_C.*",
+        "component_regex": r".*BP_Archi_Style05_C.*",
+        "required_for_static_audit": False,
+        "category": "building",
+    },
+    {
+        "class_id": 6,
+        "class_name": "building_roof",
+        "actor_regex": r".*BP_Archi_Roof_C.*",
+        "component_regex": r".*BP_Archi_Roof_C.*",
+        "required_for_static_audit": False,
+        "category": "building",
+    },
+    {
+        "class_id": 7,
+        "class_name": "building_pitched_roof",
+        "actor_regex": r".*BP_Archi_PitchedRoof_C.*",
+        "component_regex": r".*BP_Archi_PitchedRoof_C.*",
+        "required_for_static_audit": False,
+        "category": "building",
+    },
+    {
+        "class_id": 20,
+        "class_name": "uav",
+        "actor_regex": r".*(CaptureUAV_0|Quadrotor|RuntimeMultirotor|uav).*",
+        "component_regex": r".*(CaptureUAV_0|Quadrotor|RuntimeMultirotor|uav).*",
+        "required_for_static_audit": False,
+        "category": "dynamic_actor",
+    },
+    {
+        "class_id": 21,
+        "class_name": "vehicle",
+        "actor_regex": r".*(Vehicle|BoxCar|SUV|Ambulance|Police).*",
+        "component_regex": r".*(Vehicle|BoxCar|SUV|Ambulance|Police).*",
+        "required_for_static_audit": False,
+        "category": "dynamic_actor",
+    },
+    {
+        "class_id": 22,
+        "class_name": "pedestrian",
+        "actor_regex": r".*(Pedestrian|ped_).*",
+        "component_regex": r".*(Pedestrian|ped_).*",
+        "required_for_static_audit": False,
+        "category": "dynamic_actor",
+    },
+    {
+        "class_id": 23,
+        "class_name": "roadwork_prop",
+        "actor_regex": r".*(Roadwork|ConstructionFence|TrafficCone|Barrier).*",
+        "component_regex": r".*(Roadwork|ConstructionFence|TrafficCone|Barrier).*",
+        "required_for_static_audit": False,
+        "category": "dynamic_actor",
+    },
+    {
+        "class_id": 24,
+        "class_name": "traffic_control",
+        "actor_regex": r".*(TrafficControl|Signal|PoliceSign|PoliceTape).*",
+        "component_regex": r".*(TrafficControl|Signal|PoliceSign|PoliceTape).*",
+        "required_for_static_audit": False,
+        "category": "dynamic_actor",
+    },
+    {
+        "class_id": 25,
+        "class_name": "facility",
+        "actor_regex": r".*(LandingPad|Charger|BaseTower|Facility).*",
+        "component_regex": r".*(LandingPad|Charger|BaseTower|Facility).*",
+        "required_for_static_audit": False,
+        "category": "dynamic_actor",
+    },
+    {
+        "class_id": 26,
+        "class_name": "hazard_trigger",
+        "actor_regex": r".*(NoFly|Hazard|Trigger).*",
+        "component_regex": r".*(NoFly|Hazard|Trigger).*",
+        "required_for_static_audit": False,
+        "category": "optional_rendered_trigger",
+    },
+    {
+        "class_id": 27,
+        "class_name": "service_misc_prop",
+        "actor_regex": r".*(DeliveryBag|Backpack|Phone|Umbrella|Service).*",
+        "component_regex": r".*(DeliveryBag|Backpack|Phone|Umbrella|Service).*",
+        "required_for_static_audit": False,
+        "category": "dynamic_actor",
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -888,7 +1001,23 @@ class EpisodeRenderHost:
         self.vehicle_lane_offsets_cfg = dict(self.config.get("vehicle_lane_offsets") or {})
         self.pedestrian_roadside_cfg = dict(self.config.get("pedestrian_roadside_projection") or {})
         self.entity_overlap_cfg = dict(self.config.get("entity_overlap_filter") or {})
-        self.pie_scene_cleanup_cfg = dict(self.config.get("pie_scene_cleanup") or {})
+        default_pie_cleanup_cfg: dict[str, Any] = {
+            "enabled": True,
+            "destroy_actor_class_names": [
+                "BP_AW_UAV_Inspection_Quad_01_C",
+                "BP_AW_Pedestrian_CityOps_01_C",
+            ],
+            "destroy_actor_name_prefixes": [
+                "drone_demo_",
+            ],
+            "preserve_actor_names": [
+                "CaptureUAV_0",
+            ],
+        }
+        configured_pie_cleanup = dict(self.config.get("pie_scene_cleanup") or {})
+        for key, value in configured_pie_cleanup.items():
+            default_pie_cleanup_cfg[key] = value
+        self.pie_scene_cleanup_cfg = default_pie_cleanup_cfg
         self.road_geometry: RoadGeometryIndex | None = None
         road_geometry_enabled = bool(self.vehicle_lane_offsets_cfg.get("enabled", False)) or bool(
             self.pedestrian_roadside_cfg.get("enabled", False)
@@ -943,7 +1072,6 @@ class EpisodeRenderHost:
         self.client: AeroSimClient | None = None
         self.fixed_world_capture_hook: FixedWorldCaptureEditorHook | None = None
         self.ground_camera_asset_ids: dict[tuple[str, str], str] = {}
-        self.uav_camera_asset_ids: dict[tuple[str, str], str] = {}
         self.prepared_capture_output_dirs: set[Path] = set()
         self.crowd_group_ids: set[str] = set()
         self.runtime_uav_direct_rpc_enabled = True
@@ -972,10 +1100,31 @@ class EpisodeRenderHost:
             for value in (getattr(self.args, "modality", None) or [])
             if str(value).strip()
         }
+        self.uav_capture_backend = str(getattr(self.args, "uav_capture_backend", "airsim_native") or "airsim_native").strip().lower()
+        self.segmentation_backend = str(
+            getattr(self.args, "segmentation_backend", "ue_custom_stencil") or "ue_custom_stencil"
+        ).strip().lower()
+        semantic_rules_arg = str(getattr(self.args, "semantic_rules_path", "") or "").strip()
+        self.semantic_rules_path = (
+            self._resolve_path(semantic_rules_arg)
+            if semantic_rules_arg
+            else PROJECT_ROOT / "Config" / "LowAltitude" / "semantic_stencil_rules.json"
+        )
+        self.semantic_class_by_id = self._load_semantic_class_by_id(self.semantic_rules_path)
+        self.airsim_capture_vehicle = str(getattr(self.args, "airsim_capture_vehicle", "CaptureUAV_0") or "CaptureUAV_0").strip()
+        self.requested_airsim_capture_entity = str(getattr(self.args, "airsim_capture_entity", "") or "").strip()
+        self.requested_capture_view_id = str(getattr(self.args, "capture_view_id", "") or "").strip()
+        self.active_airsim_capture_entity_id = ""
+        self.active_capture_view_id = ""
+        self.airsim_capture_vehicle_ready = False
+        self.airsim_capture_ned_origin_world_cm: list[float] | None = None
+        self.airsim_segmentation_ready = False
+        self.airsim_segmentation_registry_payload: dict[str, Any] | None = None
         self.event_weather_overlay: dict[str, Any] = {}
         self.event_scene_setup: dict[str, Any] = {}
         self.event_entity_assets: dict[str, str] = {}
         self.event_entity_initial_positions: dict[str, list[float]] = {}
+        self.event_pedestrian_activity_state: dict[str, str] = {}
         self.event_capture_bbox_enu_m: list[float] | None = None
 
         # Optional event script interpreter
@@ -1441,6 +1590,186 @@ class EpisodeRenderHost:
                 time.sleep(delay_s)
         raise RuntimeError(f"{label} failed without an exception")
 
+    def _airsim_capture_cfg(self) -> dict[str, Any]:
+        return dict(self.config.get("airsim_capture") or {})
+
+    def _airsim_capture_enabled(self) -> bool:
+        return self.uav_capture_backend == "airsim_native" and self._capture_role_enabled("uav")
+
+    def _airsim_capture_pose_tolerance_m(self) -> float:
+        return max(0.05, float(self._airsim_capture_cfg().get("pose_tolerance_m", 2.0)))
+
+    def _airsim_capture_park_pose(self) -> tuple[list[float], dict[str, float]]:
+        cfg = self._airsim_capture_cfg()
+        position = cfg.get("park_position_enu_m") or [0.0, 0.0, 20.0]
+        rotation = cfg.get("park_rotation_deg") or {"pitch_deg": 0.0, "yaw_deg": 0.0, "roll_deg": 0.0}
+        return (
+            [float(position[0]), float(position[1]), float(position[2] if len(position) > 2 else 20.0)],
+            {
+                "pitch_deg": float(rotation.get("pitch_deg", rotation.get("pitch", 0.0))),
+                "yaw_deg": float(rotation.get("yaw_deg", rotation.get("yaw", 0.0))),
+                "roll_deg": float(rotation.get("roll_deg", rotation.get("roll", 0.0))),
+            },
+        )
+
+    def _ensure_airsim_capture_vehicle(self) -> None:
+        if not self._airsim_capture_enabled():
+            return
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        if self.airsim_capture_vehicle_ready:
+            return
+        try:
+            settings_text = self._retry("getSettingsString", self.client.get_settings_string)
+            settings = json.loads(settings_text)
+        except Exception as exc:
+            print(f"[EpisodeHost] AirSim settings inspection warning: {exc}")
+            settings = {}
+        view_mode = str(settings.get("ViewMode") or "").strip()
+        if view_mode.lower() == "nodisplay":
+            raise RuntimeError(
+                "AirSim native image capture cannot run with ViewMode='NoDisplay'; "
+                "CameraDirector disables world rendering and PIP camera capture updates in this mode. "
+                "Change Huawei Share AirSim settings.json ViewMode to 'FlyWithMe' and re-enter PIE."
+            )
+        if not self.airsim_capture_vehicle:
+            raise RuntimeError("--airsim-capture-vehicle cannot be empty in airsim_native mode.")
+        park_position, park_rotation = self._airsim_capture_park_pose()
+        vehicles = set(self._retry("list_vehicles", self.client.list_vehicles))
+        if self.airsim_capture_vehicle not in vehicles:
+            added = self._retry(
+                "simAddVehicle",
+                self.client.add_vehicle,
+                self.airsim_capture_vehicle,
+                vehicle_type="SimpleFlight",
+                position_enu_m=park_position,
+                rotation_deg=park_rotation,
+            )
+            if not added:
+                raise RuntimeError(f"simAddVehicle failed for capture vehicle '{self.airsim_capture_vehicle}'.")
+        self._retry("enableApiControl", self.client.enable_api_control, True, self.airsim_capture_vehicle)
+        self._retry("armDisarm", self.client.arm_disarm, True, self.airsim_capture_vehicle)
+        self._measure_airsim_capture_ned_origin_world_cm()
+        self._pin_airsim_capture_vehicle(park_position, park_rotation, context="capture vehicle park")
+        self.airsim_capture_vehicle_ready = True
+
+    def _measure_airsim_capture_ned_origin_world_cm(self) -> list[float]:
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        self._retry(
+            "simSetKinematicsNedOriginProbe",
+            self.client.set_vehicle_pose_ned,
+            self.airsim_capture_vehicle,
+            position_ned_m=[0.0, 0.0, 0.0],
+            rotation_deg={"pitch_deg": 0.0, "yaw_deg": 0.0, "roll_deg": 0.0},
+            ignore_collision=True,
+        )
+        probe, _ = self._probe_runtime_uav_actor(self.airsim_capture_vehicle)
+        actor = dict(probe.get("actor") or {})
+        world_cm = actor.get("position_world_cm")
+        if not isinstance(world_cm, Sequence) or isinstance(world_cm, (str, bytes)) or len(world_cm) < 3:
+            raise RuntimeError(
+                f"Unable to measure AirSim NED origin for '{self.airsim_capture_vehicle}': actor probe={probe}"
+            )
+        self.airsim_capture_ned_origin_world_cm = [
+            float(world_cm[0]),
+            float(world_cm[1]),
+            float(world_cm[2]),
+        ]
+        print(
+            "[EpisodeHost] AirSim capture NED origin "
+            f"vehicle={self.airsim_capture_vehicle} world_cm={self.airsim_capture_ned_origin_world_cm}"
+        )
+        return list(self.airsim_capture_ned_origin_world_cm)
+
+    def _capture_anchor_world_cm(self, position_enu_m: Sequence[float], rotation_deg: dict[str, Any], *, context: str) -> list[float]:
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        target = [float(position_enu_m[0]), float(position_enu_m[1]), float(position_enu_m[2] if len(position_enu_m) > 2 else 0.0)]
+        rotation = {
+            "pitch_deg": float(rotation_deg.get("pitch_deg", rotation_deg.get("pitch", 0.0))),
+            "yaw_deg": float(rotation_deg.get("yaw_deg", rotation_deg.get("yaw", 0.0))),
+            "roll_deg": float(rotation_deg.get("roll_deg", rotation_deg.get("roll", 0.0))),
+        }
+        asset_id = safe_name(f"coord_anchor.{self.airsim_capture_vehicle}")
+        payload = {
+            "asset_id": asset_id,
+            "entity_id": asset_id,
+            "logical_asset_id": "semantic.asset_anchor",
+            "proxy_template_id": "semantic.asset_anchor",
+            "pose_enu_m": {"position_enu_m": target, "rotation_deg": rotation},
+            "position_enu_m": target,
+            "rotation_deg": rotation,
+            "tags": ["coord_anchor", "airsim_capture", safe_name(context)],
+        }
+        response = self._retry("spawn_capture_coord_anchor", self.client.spawn_asset, payload, map_id=self.map_id)
+        response_payload = dict(response.get("payload") or {})
+        raw_world = response_payload.get("position_world_cm")
+        if isinstance(raw_world, dict):
+            world_cm = [raw_world.get("x"), raw_world.get("y"), raw_world.get("z")]
+        else:
+            world_cm = raw_world
+        if not isinstance(world_cm, Sequence) or isinstance(world_cm, (str, bytes)) or len(world_cm) < 3:
+            raise RuntimeError(
+                f"Capture anchor did not return position_world_cm during {context}: {response}"
+            )
+        return [float(world_cm[0]), float(world_cm[1]), float(world_cm[2])]
+
+    def _world_cm_to_airsim_ned_m(self, world_cm: Sequence[float]) -> list[float]:
+        origin = self.airsim_capture_ned_origin_world_cm
+        if not isinstance(origin, Sequence) or len(origin) < 3:
+            origin = self._measure_airsim_capture_ned_origin_world_cm()
+        return [
+            (float(world_cm[0]) - float(origin[0])) / 100.0,
+            (float(world_cm[1]) - float(origin[1])) / 100.0,
+            -(float(world_cm[2]) - float(origin[2])) / 100.0,
+        ]
+
+    def _pin_airsim_capture_vehicle(
+        self,
+        position_enu_m: Sequence[float],
+        rotation_deg: dict[str, Any],
+        *,
+        context: str,
+    ) -> dict[str, Any]:
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        target = [float(position_enu_m[0]), float(position_enu_m[1]), float(position_enu_m[2] if len(position_enu_m) > 2 else 0.0)]
+        rotation = {
+            "pitch_deg": float(rotation_deg.get("pitch_deg", rotation_deg.get("pitch", 0.0))),
+            "yaw_deg": float(rotation_deg.get("yaw_deg", rotation_deg.get("yaw", 0.0))),
+            "roll_deg": float(rotation_deg.get("roll_deg", rotation_deg.get("roll", 0.0))),
+        }
+        target_world_cm = self._capture_anchor_world_cm(target, rotation, context=context)
+        target_ned_m = self._world_cm_to_airsim_ned_m(target_world_cm)
+        self._retry(
+            "simSetKinematicsNed",
+            self.client.set_vehicle_pose_ned,
+            self.airsim_capture_vehicle,
+            position_ned_m=target_ned_m,
+            rotation_deg=rotation,
+            ignore_collision=True,
+        )
+        pose = self._retry("simGetVehiclePoseNed", self.client.get_vehicle_pose_ned, self.airsim_capture_vehicle)
+        actual_ned = list((pose or {}).get("position_ned_m") or [])
+        error = distance_m(target_ned_m, actual_ned)
+        if error is None or error > self._airsim_capture_pose_tolerance_m():
+            raise RuntimeError(
+                f"AirSim capture vehicle pose error during {context}: "
+                f"target_ned_m={target_ned_m} actual_ned_m={actual_ned} error_m={error}"
+            )
+        return {
+            "vehicle_name": self.airsim_capture_vehicle,
+            "requested_position_enu_m": target,
+            "requested_position_world_cm": target_world_cm,
+            "requested_position_ned_m": target_ned_m,
+            "requested_rotation_deg": rotation,
+            "pose": pose,
+            "pose_error_m": float(error),
+            "capture_pose_mode": "semantic_anchor_world_cm_to_airsim_ned_simSetKinematics",
+            "context": context,
+        }
+
     def connect(self) -> None:
         self._import_airsim()
         rpc_timeout_s = float((self.config.get("timeouts") or {}).get("airsim_timeout_s", 120.0))
@@ -1485,6 +1814,8 @@ class EpisodeRenderHost:
             f"uav_ground_relative={bool(self.ground_reference_cfg.get('uav_ground_relative', False))} "
             f"ground_camera_ground_relative={bool(self.ground_reference_cfg.get('ground_camera_ground_relative', False))}"
         )
+        if not bool(getattr(self.args, "segmentation_registry_audit_only", False)):
+            self._ensure_airsim_capture_vehicle()
 
     def _transform_position_enu(self, position_enu_m: Sequence[float]) -> list[float]:
         return self.coordinate_transform.apply_position(position_enu_m)
@@ -1689,12 +2020,30 @@ class EpisodeRenderHost:
         ]
         anchor_id = str(payload.get("anchor_id") or "")
         ground_resolved = bool(anchor_id) or abs(projected_enu_m[2] - resolved[2]) > 1e-3
+        fallback_payload: dict[str, Any] | None = None
+        if not ground_resolved and self.road_geometry is not None:
+            search_radius_m = float(self.ground_reference_cfg.get("traffic_bundle_fallback_radius_m", 25.0))
+            projection = self.road_geometry.project_point(resolved, radius_m=search_radius_m)
+            if projection is not None:
+                projected_enu_m = [
+                    float(projection.projected_enu_m[0]),
+                    float(projection.projected_enu_m[1]),
+                    float(projection.projected_enu_m[2]),
+                ]
+                surface_normal_enu = [0.0, 0.0, 1.0]
+                ground_resolved = True
+                fallback_payload = {
+                    "source": "traffic_bundle_lane_center_samples",
+                    "search_radius_m": search_radius_m,
+                    "projection": projection.to_dict(),
+                }
         return {
             "input_enu_m": resolved,
             "projected_enu_m": projected_enu_m,
             "surface_normal_enu": surface_normal_enu,
             "anchor_id": anchor_id,
             "ground_resolved": ground_resolved,
+            "ground_projection_fallback": fallback_payload,
             "ground_relative_enu_m": (
                 [resolved[0], resolved[1], projected_enu_m[2] + resolved[2]]
                 if ground_resolved
@@ -2353,7 +2702,7 @@ class EpisodeRenderHost:
             velocity = list(record.get("velocity_enu_mps") or [0.0, 0.0, 0.0])
             speed_mps = math.sqrt(sum(float(value) * float(value) for value in velocity[:2]))
             frame_pose = not preserve_pose and not is_fallen_activity(entity)
-            locomotion_activity = activity_type in {"walking", "crossing", "evacuating"}
+            locomotion_activity = activity_type in {"walking", "crossing", "evacuating", "texting_walk"}
             moving_locomotion = locomotion_activity and speed_mps > 0.05
             walking = frame_pose and moving_locomotion
             effective_activity_type = activity_type
@@ -2595,6 +2944,37 @@ class EpisodeRenderHost:
 
             entity_id = str(entity["entity_id"])
             vehicle_name = str(resolution.get("vehicle_name") or entity_id)
+            if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
+                self._ensure_airsim_capture_vehicle()
+                target_enu_m = self._entity_position_enu(entity)
+                target_enu_m = self._ground_relative_position(
+                    target_enu_m,
+                    enabled=bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
+                    cache_namespace=f"capture_uav:{self.airsim_capture_vehicle}",
+                    use_cache=True,
+                )
+                rotation_deg = self._entity_rotation_deg(entity)
+                wait_status = self._pin_airsim_capture_vehicle(
+                    target_enu_m,
+                    rotation_deg,
+                    context=f"truth-frame sync {entity_id}",
+                )
+                wait_status["path_used"] = "airsim_native_capture_vehicle"
+                wait_status["source_entity_id"] = entity_id
+                wait_status["replaces_runtime_multirotor"] = True
+                wait_status["status"] = {
+                    "state": "ok",
+                    "reason": "capture_entity_pinned_to_airsim_vehicle",
+                }
+                wait_status["capture_gate"] = {
+                    "wait_for_arrival": False,
+                    "hover_before_capture": False,
+                    "arrival_tolerance_m": self._airsim_capture_pose_tolerance_m(),
+                    "degraded": False,
+                }
+                current_entities.add(entity_id)
+                results[entity_id] = wait_status
+                continue
             if entity_id in self.event_controlled_entity_ids and entity_id in self.uav_active_by_entity:
                 vehicle_name = self.uav_active_by_entity.get(entity_id, vehicle_name)
                 current_entities.add(entity_id)
@@ -3000,6 +3380,55 @@ class EpisodeRenderHost:
         uav = dict(self.capture_presets.get("uav_cameras") or {})
         return [dict(item) for item in (uav.get("default") or [])]
 
+    def _frame_active_runtime_uavs(self, frame: dict[str, Any], *, site_id: str = "") -> list[str]:
+        ids: list[str] = []
+        for entity in frame.get("entities") or []:
+            entity_id = str(entity.get("entity_id") or "")
+            if not entity_id:
+                continue
+            if str(entity.get("entity_category") or "").strip().lower() != "uav":
+                continue
+            if site_id and str(entity.get("site_id") or "") not in {"", site_id}:
+                continue
+            if truth_submission_state(entity) != "submit_to_ue":
+                continue
+            if str(self._entity_resolution(entity).get("mode") or "") != "runtime_multirotor":
+                continue
+            ids.append(entity_id)
+        return sorted(set(ids))
+
+    def _select_airsim_capture_entity(self, batch: BatchPlan, capture_ticks: set[int]) -> None:
+        self.active_airsim_capture_entity_id = ""
+        self.active_capture_view_id = ""
+        if not self._airsim_capture_enabled():
+            return
+        explicit = self.requested_airsim_capture_entity
+        candidate_ticks = sorted(capture_ticks) if capture_ticks else [batch.tick_start]
+        for tick in candidate_ticks:
+            frame = self.frames_by_tick.get(int(tick))
+            if not frame:
+                continue
+            active_ids = self._frame_active_runtime_uavs(frame, site_id=batch.site_id)
+            if explicit:
+                if explicit in active_ids:
+                    self.active_airsim_capture_entity_id = explicit
+                    break
+            elif active_ids:
+                self.active_airsim_capture_entity_id = active_ids[0]
+                break
+        if explicit and not self.active_airsim_capture_entity_id:
+            raise RuntimeError(
+                f"Requested --airsim-capture-entity '{explicit}' is not an active runtime UAV in batch {batch.batch_id}."
+            )
+        if not self.active_airsim_capture_entity_id:
+            raise RuntimeError(f"AirSim native UAV capture requested but no active runtime UAV exists in batch {batch.batch_id}.")
+        self.active_capture_view_id = self.requested_capture_view_id or f"uav_view_000__{safe_name(self.active_airsim_capture_entity_id)}"
+        print(
+            "[EpisodeHost] AirSim native capture source "
+            f"entity={self.active_airsim_capture_entity_id} vehicle={self.airsim_capture_vehicle} "
+            f"view_id={self.active_capture_view_id}"
+        )
+
     def _capture_role_enabled(self, role: str) -> bool:
         role_name = str(role).strip().lower()
         return not self.capture_role_filters or role_name in self.capture_role_filters
@@ -3380,13 +3809,27 @@ class EpisodeRenderHost:
         cfg = dict(self.pie_scene_cleanup_cfg or {})
         if not bool(cfg.get("enabled", False)):
             return
+        destroy_class_names = [str(value).strip() for value in (cfg.get("destroy_actor_class_names") or []) if str(value).strip()]
+        destroy_class_prefixes = [str(value).strip() for value in (cfg.get("destroy_actor_class_prefixes") or []) if str(value).strip()]
+        destroy_name_prefixes = [str(value).strip().lower() for value in (cfg.get("destroy_actor_name_prefixes") or []) if str(value).strip()]
+        preserve_names = {
+            str(value).strip().lower()
+            for value in (cfg.get("preserve_actor_names") or [])
+            if str(value).strip()
+        }
+        if self.airsim_capture_vehicle:
+            preserve_names.add(str(self.airsim_capture_vehicle).strip().lower())
         class_prefixes = [str(value).strip() for value in (cfg.get("hide_actor_class_prefixes") or []) if str(value).strip()]
         name_keywords = [str(value).strip().lower() for value in (cfg.get("hide_actor_name_keywords") or []) if str(value).strip()]
         skip_prefixes = [str(value).strip() for value in (cfg.get("skip_actor_class_prefixes") or []) if str(value).strip()]
-        if not class_prefixes and not name_keywords:
+        if not destroy_class_names and not destroy_class_prefixes and not destroy_name_prefixes and not class_prefixes and not name_keywords:
             return
 
         request = {
+            "destroy_class_names": destroy_class_names,
+            "destroy_class_prefixes": destroy_class_prefixes,
+            "destroy_name_prefixes": destroy_name_prefixes,
+            "preserve_names": sorted(preserve_names),
             "class_prefixes": class_prefixes,
             "name_keywords": name_keywords,
             "skip_prefixes": skip_prefixes,
@@ -3402,6 +3845,7 @@ if not worlds:
     raise RuntimeError("No PIE world available for scene cleanup.")
 world = worlds[0]
 actors = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.Actor)
+destroyed = []
 hidden = []
 for actor in actors:
     cls = actor.get_class().get_name()
@@ -3413,7 +3857,22 @@ for actor in actors:
         label = actor.get_actor_label()
     except Exception:
         label = ""
+    identity = set([name.lower(), label.lower()])
+    if identity & set(cfg.get("preserve_names", [])):
+        continue
     hay = (name + " " + label + " " + cls).lower()
+    destroy_match = cls in set(cfg.get("destroy_class_names", []))
+    if not destroy_match:
+        destroy_match = any(cls.startswith(prefix) for prefix in cfg.get("destroy_class_prefixes", []))
+    if not destroy_match:
+        destroy_match = any(name.lower().startswith(prefix) or label.lower().startswith(prefix) for prefix in cfg.get("destroy_name_prefixes", []))
+    if destroy_match:
+        try:
+            actor.destroy_actor()
+            destroyed.append({{"name": name, "label": label, "class": cls}})
+        except Exception:
+            pass
+        continue
     matched = any(cls.startswith(prefix) for prefix in cfg.get("class_prefixes", []))
     if not matched:
         matched = any(keyword in hay for keyword in cfg.get("name_keywords", []))
@@ -3432,6 +3891,9 @@ for actor in actors:
     except Exception:
         pass
     hidden.append({{"name": name, "label": label, "class": cls}})
+for item in destroyed[:100]:
+    print("PIE_SCENE_DESTROY", item)
+print("PIE_SCENE_DESTROY_COUNT", len(destroyed))
 for item in hidden[:100]:
     print("PIE_SCENE_CLEANUP", item)
 print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
@@ -3452,12 +3914,6 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             self.ground_camera_asset_ids[key] = safe_name(f"fixed_world_camera.{site_id}.{camera_id}")
         return self.ground_camera_asset_ids[key]
 
-    def _uav_follow_camera_asset_id(self, entity_id: str, camera_id: str) -> str:
-        key = (str(entity_id), str(camera_id))
-        if key not in self.uav_camera_asset_ids:
-            self.uav_camera_asset_ids[key] = safe_name(f"fixed_uav_camera.{entity_id}.{camera_id}")
-        return self.uav_camera_asset_ids[key]
-
     def _prepare_capture_output_dir(self, output_dir: Path) -> None:
         resolved_output = output_dir.resolve()
         resolved_root = self.output_dir.resolve()
@@ -3473,25 +3929,518 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         ensure_dir(resolved_output)
         self.prepared_capture_output_dirs.add(resolved_output)
 
+    def _relative_to_output_root(self, path: Path) -> str:
+        try:
+            return str(path.resolve().relative_to(self.output_dir.resolve()))
+        except ValueError:
+            return str(path)
+
+    def _capture_storage_payload(
+        self,
+        *,
+        batch: BatchPlan,
+        view_id: str,
+        modality: str,
+        modality_output_dir: Path,
+        primary_output_path: Path,
+        camera_role: str,
+    ) -> dict[str, Any]:
+        normalized_modality = safe_name(str(modality or "rgb").strip().lower())
+        return {
+            "storage_layout_version": "capture_storage_v1",
+            "storage_rule": "<episode_output_root>/<batch_id>/<capture_view_id>/<modality>/<frame_stem>.<ext>",
+            "episode_output_root": str(self.output_dir),
+            "batch_id": batch.batch_id,
+            "batch_output_dir": str(self.output_dir / batch.batch_id),
+            "capture_view_id": view_id,
+            "capture_view_output_dir": str(self.output_dir / batch.batch_id / safe_name(view_id)),
+            "camera_role": camera_role,
+            "channel_id": normalized_modality,
+            "modality": normalized_modality,
+            "modality_output_dir": str(modality_output_dir),
+            "primary_output_path": str(primary_output_path),
+            "relative_modality_output_dir": self._relative_to_output_root(modality_output_dir),
+            "relative_primary_output_path": self._relative_to_output_root(primary_output_path),
+            "deterministic_overwrite_scope": "modality_output_dir",
+            "single_camera_single_modality_capture": True,
+        }
+
+    @staticmethod
+    def semantic_segmentation_classes() -> list[dict[str, Any]]:
+        return [dict(item) for item in SEMANTIC_SEGMENTATION_CLASSES]
+
+    @staticmethod
+    def _load_semantic_class_by_id(rules_path: Path) -> dict[str, str]:
+        fallback = {
+            "0": "ignore",
+            "1": "city_base_background",
+            "2": "building",
+            "3": "vegetation",
+            "4": "water",
+            "5": "vehicle",
+            "6": "pedestrian",
+            "7": "drone",
+            "8": "obstacle",
+            "9": "traffic_control",
+            "10": "facility",
+            "11": "hazard_trigger",
+        }
+        try:
+            root = json.loads(Path(rules_path).read_text(encoding="utf-8-sig"))
+        except Exception:
+            return fallback
+        classes = dict(root.get("classes") or {})
+        if not classes:
+            return fallback
+        result: dict[str, str] = {}
+        for class_name, class_id in classes.items():
+            try:
+                result[str(int(class_id))] = str(class_name)
+            except Exception:
+                continue
+        return result or fallback
+
+    @staticmethod
+    def _semantic_class_by_name() -> dict[str, dict[str, Any]]:
+        return {str(item["class_name"]): dict(item) for item in SEMANTIC_SEGMENTATION_CLASSES}
+
+    @staticmethod
+    def _semantic_color_from_map(color_map: Any, class_id: int) -> list[int] | None:
+        if not isinstance(color_map, Sequence) or isinstance(color_map, (str, bytes)):
+            return None
+        if class_id < 0 or class_id >= len(color_map):
+            return None
+        value = color_map[class_id]
+        if isinstance(value, dict):
+            raw = [value.get("r", value.get("R", 0)), value.get("g", value.get("G", 0)), value.get("b", value.get("B", 0))]
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            raw = list(value)[:3]
+        else:
+            return None
+        if len(raw) < 3:
+            return None
+        result: list[int] = []
+        for channel in raw[:3]:
+            number = float(channel)
+            if 0.0 <= number <= 1.0:
+                number *= 255.0
+            result.append(max(0, min(255, int(round(number)))))
+        return result
+
+    @staticmethod
+    def _semantic_assign_class_for_actor_name(name: str) -> str:
+        haystack = str(name or "")
+        for item in SEMANTIC_SEGMENTATION_CLASSES:
+            if re.fullmatch(str(item["actor_regex"]), haystack, flags=re.IGNORECASE):
+                return str(item["class_name"])
+        return ""
+
+    def _register_pie_semantic_segmentation_actors(self, *, allow_mutation: bool = False) -> dict[str, Any]:
+        classes_for_remote = [
+            {
+                "class_name": str(item["class_name"]),
+                "actor_regex": str(item["actor_regex"]),
+                "canonical_actor_label": str(item.get("canonical_actor_label") or ""),
+            }
+            for item in SEMANTIC_SEGMENTATION_CLASSES
+        ]
+        mutation_enabled = bool(allow_mutation)
+        mutation_enabled_literal = "True" if mutation_enabled else "False"
+        script = f"""
+import json
+import re
+import unreal
+
+classes = json.loads({json.dumps(json.dumps(classes_for_remote, ensure_ascii=True))})
+mutation_enabled = {mutation_enabled_literal}
+payload = {{
+    "world": "",
+    "actor_count": 0,
+    "sim_mode_found": False,
+    "sim_mode_name": "",
+    "mutation_enabled": mutation_enabled,
+    "mutation_policy": "disabled_by_default_after_oom_crash" if not mutation_enabled else "explicitly_enabled_unsafe_actor_registration",
+    "registered_actor_count": 0,
+    "classes": {{}},
+    "errors": [],
+}}
+for item in classes:
+    payload["classes"][item["class_name"]] = {{
+        "actor_match_count": 0,
+        "registered_actor_count": 0,
+    }}
+
+try:
+    world = unreal.EditorLevelLibrary.get_game_world()
+    payload["world"] = "game_world"
+except Exception as exc:
+    world = None
+    payload["errors"].append("get_game_world: " + str(exc))
+
+actors = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.Actor) if world else []
+payload["actor_count"] = len(actors)
+sim_mode = None
+for actor in actors:
+    cls = actor.get_class().get_name()
+    name = actor.get_name()
+    label = actor.get_actor_label()
+    if "SimMode" in cls or "SimMode" in name or "SimMode" in label:
+        sim_mode = actor
+        payload["sim_mode_found"] = True
+        payload["sim_mode_name"] = name + "|" + label + "|" + cls
+        break
+
+if sim_mode is None:
+    payload["errors"].append("SimModeWorldMultiRotor actor not found")
+else:
+    compiled = [(item["class_name"], item["actor_regex"], re.compile(item["actor_regex"], re.IGNORECASE)) for item in classes]
+    for actor in actors:
+        name = actor.get_name()
+        label = actor.get_actor_label()
+        cls = actor.get_class().get_name()
+        values = [name, label, cls, name + "|" + label + "|" + cls]
+        for class_name, actor_regex, pattern in compiled:
+            if any(pattern.fullmatch(value) for value in values):
+                row = payload["classes"][class_name]
+                row["actor_match_count"] += 1
+                if mutation_enabled:
+                    try:
+                        if sim_mode.add_new_actor_to_instance_segmentation(actor, False):
+                            row["registered_actor_count"] += 1
+                            payload["registered_actor_count"] += 1
+                    except Exception as exc:
+                        payload["errors"].append("register " + name + ": " + str(exc))
+                break
+    if mutation_enabled:
+        try:
+            sim_mode.force_update_instance_segmentation()
+            payload["force_update_instance_segmentation"] = True
+        except Exception as exc:
+            payload["force_update_instance_segmentation"] = False
+            payload["errors"].append("force_update_instance_segmentation: " + str(exc))
+    else:
+        payload["force_update_instance_segmentation"] = False
+        payload["errors"].append("PIE actor mutation skipped: unsafe AirSim annotation registration can exhaust UE memory")
+
+print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "AEROWORLD_SEMANTIC_REGISTRY_JSON_END")
+"""
+        result = self._fixed_world_capture_hook().remote.run_python(
+            script,
+            unattended=False,
+            raise_on_failure=True,
+        )
+        output_text = "".join(str(item.get("output", "")) for item in result.get("output") or [] if isinstance(item, dict))
+        match = re.search(
+            r"AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN(.*?)AEROWORLD_SEMANTIC_REGISTRY_JSON_END",
+            output_text,
+            flags=re.S,
+        )
+        if not match:
+            raise RuntimeError(f"Unable to parse semantic registry remote output: {output_text[:2000]}")
+        return json.loads(match.group(1))
+
+    def _semantic_component_matches(self, component_names: list[str]) -> dict[str, dict[str, Any]]:
+        rows: dict[str, dict[str, Any]] = {}
+        for item in SEMANTIC_SEGMENTATION_CLASSES:
+            class_name = str(item["class_name"])
+            component_regex = str(item["component_regex"])
+            compiled = re.compile(component_regex, flags=re.IGNORECASE)
+            matches = [name for name in component_names if compiled.fullmatch(str(name))]
+            rows[class_name] = {
+                "class_id": int(item["class_id"]),
+                "class_name": class_name,
+                "category": str(item.get("category") or ""),
+                "actor_regex": str(item["actor_regex"]),
+                "component_regex": component_regex,
+                "required_for_static_audit": bool(item.get("required_for_static_audit", False)),
+                "matched_component_count": int(len(matches)),
+                "matched_component_sample": matches[:20],
+            }
+        return rows
+
+    def _configure_semantic_segmentation_registry(self, entity_records: list[dict[str, Any]]) -> dict[str, Any]:
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        audit_only = bool(getattr(self.args, "segmentation_registry_audit_only", False))
+        if (
+            not audit_only
+            and self.airsim_segmentation_ready
+            and self.airsim_segmentation_registry_payload is not None
+        ):
+            payload = dict(self.airsim_segmentation_registry_payload)
+            payload["registry_reused"] = True
+            payload["entity_records_considered"] = int(len(entity_records))
+            return payload
+        allow_actor_registration = bool(
+            getattr(self.args, "enable_unsafe_pie_segmentation_actor_registration", False)
+        )
+        actor_payload = self._register_pie_semantic_segmentation_actors(
+            allow_mutation=allow_actor_registration
+        )
+        if audit_only:
+            component_rows = self._semantic_component_matches([])
+            configured_rows: list[dict[str, Any]] = []
+            for item in SEMANTIC_SEGMENTATION_CLASSES:
+                class_name = str(item["class_name"])
+                row = dict(component_rows[class_name])
+                row["actor_match_count"] = int(
+                    ((actor_payload.get("classes") or {}).get(class_name) or {}).get("actor_match_count") or 0
+                )
+                row["registered_actor_count"] = int(
+                    ((actor_payload.get("classes") or {}).get(class_name) or {}).get("registered_actor_count") or 0
+                )
+                row["canonical_actor_label"] = str(item.get("canonical_actor_label") or "")
+                row["actor_sample"] = []
+                row["color_rgb"] = None
+                row["set_segmentation_object_id_result"] = False
+                row["set_segmentation_object_id_skipped"] = "audit_only_no_airsim_component_query_or_mutation"
+                configured_rows.append(row)
+            return {
+                "segmentation_kind": "airsim_semantic_class_id_color",
+                "semantic_segmentation_claim": True,
+                "registry_version": "semantic_class_registry_v1",
+                "registry_authority": "ue_actor_counts_only_audit_no_airsim_mutation",
+                "registry_reused": False,
+                "audit_only": True,
+                "component_query_skipped": True,
+                "component_query_skip_reason": (
+                    "simListInstanceSegmentationObjects can add AirSim annotation objects; "
+                    "audit-only must not mutate PIE state"
+                ),
+                "unsafe_pie_actor_registration_enabled": allow_actor_registration,
+                "unsafe_pie_actor_registration_risk": (
+                    "disabled by default because prior logs show AirSim annotation actor registration "
+                    "on DynamicMeshComponent/CityBaseMeshComponent can exhaust UE memory"
+                ),
+                "hazard_trigger_pixel_policy": "only_rendered_trigger_or_hazard_proxies_can_appear_in_pixels",
+                "city_base_policy": "BP_CityBaseGenerator is a merged road_terrain_ground_water background class; no material split is claimed",
+                "ignored_actor_classes": ["SumoRoadNetworkActor"],
+                "entity_records_considered": int(len(entity_records)),
+                "pie_actor_registration": actor_payload,
+                "registered_instance_segmentation_object_count": 0,
+                "registered_instance_segmentation_object_sample": [],
+                "semantic_classes": configured_rows,
+                "semantic_class_by_id": {str(row["class_id"]): row["class_name"] for row in configured_rows},
+                "airsim_segmentation_color_map": [],
+            }
+        component_names = self._retry(
+            "simListInstanceSegmentationObjects",
+            self.client.list_instance_segmentation_objects,
+        )
+        component_names = [str(value) for value in component_names]
+        component_rows = self._semantic_component_matches(component_names)
+        color_map: list[Any] = []
+        try:
+            color_map = self._retry("simGetSegmentationColorMap", self.client.get_segmentation_color_map)
+        except Exception as exc:
+            print(f"[EpisodeHost] AirSim segmentation color map warning: {exc}")
+        configured_rows: list[dict[str, Any]] = []
+        for item in SEMANTIC_SEGMENTATION_CLASSES:
+            class_name = str(item["class_name"])
+            class_id = int(item["class_id"])
+            row = dict(component_rows[class_name])
+            row["actor_match_count"] = int(
+                ((actor_payload.get("classes") or {}).get(class_name) or {}).get("actor_match_count") or 0
+            )
+            row["registered_actor_count"] = int(
+                ((actor_payload.get("classes") or {}).get(class_name) or {}).get("registered_actor_count") or 0
+            )
+            row["canonical_actor_label"] = str(item.get("canonical_actor_label") or "")
+            row["actor_sample"] = list(((actor_payload.get("classes") or {}).get(class_name) or {}).get("actor_sample") or [])
+            row["color_rgb"] = self._semantic_color_from_map(color_map, class_id)
+            row["set_segmentation_object_id_result"] = False
+            row["set_segmentation_object_id_skipped"] = ""
+            configured_rows.append(row)
+
+        required_failures = [
+            row
+            for row in configured_rows
+            if row.get("required_for_static_audit")
+            and row.get("actor_match_count", 0) > 0
+            and row.get("matched_component_count", 0) <= 0
+        ]
+        building_rows = [row for row in configured_rows if str(row.get("category")) == "building"]
+        building_actor_matches = sum(int(row.get("actor_match_count") or 0) for row in building_rows)
+        building_component_matches = sum(int(row.get("matched_component_count") or 0) for row in building_rows)
+        if required_failures:
+            raise RuntimeError(
+                "Semantic segmentation required static classes had actors but no AirSim components: "
+                + json.dumps(required_failures, ensure_ascii=False)
+            )
+        if building_actor_matches > 0 and building_component_matches <= 0:
+            raise RuntimeError(
+                "Semantic segmentation found building actors but no AirSim building components after PIE registration."
+            )
+        for item in SEMANTIC_SEGMENTATION_CLASSES:
+            class_name = str(item["class_name"])
+            class_id = int(item["class_id"])
+            row = next(value for value in configured_rows if str(value.get("class_name")) == class_name)
+            if row["matched_component_count"] <= 0:
+                row["set_segmentation_object_id_skipped"] = "no_matching_airsim_components"
+                continue
+            if audit_only:
+                row["set_segmentation_object_id_skipped"] = "audit_only_no_mutation"
+                continue
+            row["set_segmentation_object_id_result"] = bool(
+                self._retry(
+                    "simSetSegmentationObjectID",
+                    self.client.set_segmentation_object_id,
+                    str(item["component_regex"]),
+                    class_id,
+                    is_name_regex=True,
+                )
+            )
+        static_set_failures = [
+            row
+            for row in configured_rows
+            if row.get("matched_component_count", 0) > 0
+            and (
+                row.get("required_for_static_audit")
+                or str(row.get("category")) == "building"
+            )
+            and not bool(row.get("set_segmentation_object_id_result"))
+        ]
+        if static_set_failures:
+            raise RuntimeError(
+                "Semantic segmentation failed to assign AirSim IDs for required static/building classes: "
+                + json.dumps(static_set_failures, ensure_ascii=False)
+            )
+        payload = {
+            "segmentation_kind": "airsim_semantic_class_id_color",
+            "semantic_segmentation_claim": True,
+            "registry_version": "semantic_class_registry_v1",
+            "registry_authority": (
+                "ue_pie_actor_registration_then_airsim_component_regex_ids"
+                if allow_actor_registration
+                else "airsim_existing_component_regex_ids_only"
+            ),
+            "unsafe_pie_actor_registration_enabled": allow_actor_registration,
+            "unsafe_pie_actor_registration_risk": (
+                "disabled by default because prior logs show AirSim annotation actor registration "
+                "on DynamicMeshComponent/CityBaseMeshComponent can exhaust UE memory"
+            ),
+            "hazard_trigger_pixel_policy": "only_rendered_trigger_or_hazard_proxies_can_appear_in_pixels",
+            "city_base_policy": "BP_CityBaseGenerator is a merged road_terrain_ground_water background class; no material split is claimed",
+            "ignored_actor_classes": ["SumoRoadNetworkActor"],
+            "entity_records_considered": int(len(entity_records)),
+            "pie_actor_registration": actor_payload,
+            "registered_instance_segmentation_object_count": int(len(component_names)),
+            "registered_instance_segmentation_object_sample": component_names[:80],
+            "semantic_classes": configured_rows,
+            "semantic_class_by_id": {str(row["class_id"]): row["class_name"] for row in configured_rows},
+            "airsim_segmentation_color_map": color_map,
+        }
+        if not audit_only:
+            self.airsim_segmentation_ready = True
+            self.airsim_segmentation_registry_payload = dict(payload)
+        return payload
+
+    @staticmethod
+    def _semantic_pixel_counts(raw_rgb: Any, registry_payload: dict[str, Any]) -> dict[str, Any]:
+        import numpy as np  # type: ignore
+
+        flat_rgb = raw_rgb.reshape((-1, 3))
+        colors, counts = np.unique(flat_rgb, axis=0, return_counts=True)
+        raw_counts = [
+            {
+                "color_rgb": [int(channel) for channel in colors[index].tolist()],
+                "pixel_count": int(counts[index]),
+            }
+            for index in np.argsort(counts)[::-1]
+        ]
+        class_pixel_counts: dict[str, int] = {}
+        color_to_class: dict[tuple[int, int, int], str] = {}
+        for row in registry_payload.get("semantic_classes") or []:
+            color = row.get("color_rgb")
+            if isinstance(color, Sequence) and not isinstance(color, (str, bytes)) and len(color) >= 3:
+                color_to_class[tuple(int(channel) for channel in list(color)[:3])] = str(row.get("class_name") or "")
+                class_pixel_counts[str(row.get("class_name") or "")] = 0
+        unknown_pixel_count = 0
+        for color_row in raw_counts:
+            color_tuple = tuple(int(channel) for channel in color_row["color_rgb"])
+            class_name = color_to_class.get(color_tuple)
+            if class_name:
+                class_pixel_counts[class_name] = class_pixel_counts.get(class_name, 0) + int(color_row["pixel_count"])
+            else:
+                unknown_pixel_count += int(color_row["pixel_count"])
+        return {
+            "semantic_raw_unique_color_count": int(len(raw_counts)),
+            "semantic_raw_top_colors": raw_counts[:40],
+            "class_pixel_counts": class_pixel_counts,
+            "unknown_semantic_color_pixel_count": int(unknown_pixel_count),
+            "known_semantic_color_pixel_count": int(flat_rgb.shape[0] - unknown_pixel_count),
+        }
+
+    def _write_capture_storage_manifest(self) -> Path:
+        path = self.output_dir / "capture_storage_manifest.json"
+        ensure_dir(path.parent)
+        payload = {
+            "$schema": "aeroworld_capture_storage_manifest_v1",
+            "episode_id": self.episode_id,
+            "output_root": str(self.output_dir),
+            "storage_layout_version": "capture_storage_v1",
+            "storage_rule": "<episode_output_root>/<batch_id>/<capture_view_id>/<modality>/<frame_stem>.<ext>",
+            "determinism_contract": {
+                "timestamp_or_version_directories": False,
+                "rerun_overwrites_same_modality_directory": True,
+                "batch_id_from_site_contract": True,
+                "capture_view_id_required_for_auditable_multi_uav_runs": True,
+            },
+            "capture_route_contract": {
+                "ground_backend": "editor_hook_fixed_world_camera",
+                "ground_modalities": ["rgb"],
+                "uav_backend": "airsim_native_uav_camera",
+                "uav_capture_vehicle": self.airsim_capture_vehicle,
+                "uav_modalities": ["rgb", "depth", "seg"],
+                "single_camera_single_modality_per_run": True,
+                "uav_editor_hook_fallback_enabled": False,
+                "python_segmentation_id_assignment_enabled": False,
+                "segmentation_backend": self.segmentation_backend,
+                "segmentation_kind": "ue_custom_stencil_class_id_u8",
+                "semantic_segmentation_claim": True,
+                "semantic_rules_path": str(self.semantic_rules_path),
+                "semantic_class_by_id": self.semantic_class_by_id,
+            },
+            "requested_filters": {
+                "camera_role": str(getattr(self.args, "camera_role", "") or ""),
+                "camera_id": list(getattr(self.args, "camera_id", []) or []),
+                "modality": list(getattr(self.args, "modality", []) or []),
+                "airsim_capture_entity": str(getattr(self.args, "airsim_capture_entity", "") or ""),
+                "capture_view_id": str(getattr(self.args, "capture_view_id", "") or ""),
+                "segmentation_backend": self.segmentation_backend,
+                "semantic_rules_path": str(self.semantic_rules_path),
+                "batch_id": str(getattr(self.args, "batch_id", "") or ""),
+                "capture_tick": [int(value) for value in (getattr(self.args, "capture_tick", []) or [])],
+            },
+            "modalities": {
+                "rgb": {
+                    "primary_format": "png",
+                    "route": "AirSim ImageType.Scene for UAV; editor hook fixed-world RGB for ground",
+                },
+                "depth": {
+                    "primary_format": "npy_float32_m",
+                    "route": "AirSim ImageType.DepthPerspective for UAV only",
+                    "debug_preview_optional": bool(getattr(self.args, "write_depth_preview", False)),
+                },
+                "seg": {
+                    "primary_format": "png_uint8_class_id",
+                    "audit_format": "json_semantic_stencil_audit",
+                    "route": "UE CustomDepth/CustomStencil fixed-world capture for UAV segmentation; AirSim native segmentation is not used by default",
+                },
+            },
+        }
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return path
+
     @staticmethod
     def _editor_hook_output_format(modality_id: str) -> str:
         normalized = str(modality_id or "rgb").strip().lower()
-        if normalized == "depth":
-            return "npy_float32_m"
-        if normalized == "seg":
-            return "png_semantic_rgb"
+        if normalized != "rgb":
+            raise RuntimeError(
+                "Editor-hook fixed-world capture is restricted to rgb. "
+                f"Unsupported modality: {modality_id}"
+            )
         return "png"
-
-    def _write_semantic_palette_file(self) -> Path:
-        palette_path = self.output_dir / "semantic_palette.json"
-        ensure_dir(palette_path.parent)
-        palette_payload = {
-            "$schema": "semantic_palette_v1",
-            "segmentation_kind": "semantic_class_rgb",
-            "palette": SEMANTIC_PALETTE,
-        }
-        palette_path.write_text(json.dumps(palette_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        return palette_path
 
     @staticmethod
     def _depth_stats_for_npy(image_path: Path) -> dict[str, Any]:
@@ -3523,6 +4472,29 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             "depth_invalid_count": invalid_count,
             "depth_min_m": depth_min_m,
             "depth_max_m": depth_max_m,
+        }
+
+    @staticmethod
+    def _semantic_stencil_pixel_counts(image_path: Path) -> dict[str, Any]:
+        try:
+            import numpy as np  # type: ignore
+            from PIL import Image  # type: ignore
+        except Exception as exc:
+            return {"class_histogram_error": f"Pillow/numpy import failed: {exc}"}
+
+        try:
+            image = Image.open(image_path).convert("L")
+            values = np.asarray(image, dtype=np.uint8)
+        except Exception as exc:
+            return {"class_histogram_error": f"semantic stencil PNG load failed: {exc}"}
+
+        unique, counts = np.unique(values, return_counts=True)
+        histogram = {str(int(class_id)): int(count) for class_id, count in zip(unique, counts)}
+        return {
+            "class_histogram": histogram,
+            "ignore_pixel_count": int(histogram.get("0", 0)),
+            "non_ignore_pixel_count": int(values.size - int(histogram.get("0", 0))),
+            "semantic_unique_class_ids": [int(value) for value in unique.tolist()],
         }
 
     def _write_fixed_world_capture_output(
@@ -3565,24 +4537,274 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                 "fov_degrees": float(fov_degrees),
             }
         )
+        sidecar.update(
+            self._capture_storage_payload(
+                batch=batch,
+                view_id=camera_id,
+                modality=normalized_modality,
+                modality_output_dir=image_path.parent,
+                primary_output_path=image_path,
+                camera_role=camera_role,
+            )
+        )
         if normalized_modality == "depth":
             sidecar.update(self._depth_stats_for_npy(image_path))
-        elif normalized_modality == "seg":
-            palette_path = self._write_semantic_palette_file()
-            sidecar["semantic_palette"] = SEMANTIC_PALETTE
-            sidecar["semantic_palette_path"] = str(palette_path)
-            sidecar["segmentation_kind"] = "semantic_class_rgb"
+        self.capture_orchestrator.write_sidecar(sidecar_path, sidecar)
+
+    def _write_ue_stencil_capture_output(
+        self,
+        batch: BatchPlan,
+        frame: dict[str, Any],
+        *,
+        view_id: str,
+        camera_id: str,
+        camera_name: str,
+        image_path: Path,
+        common_sidecar: dict[str, Any],
+        width: int,
+        height: int,
+        fov_degrees: float,
+        semantic_audit_path: Path,
+    ) -> None:
+        sidecar_path = image_path.with_suffix(".json")
+        sidecar = dict(common_sidecar)
+        sidecar.update(
+            {
+                "camera_id": camera_id,
+                "camera_role": "uav",
+                "camera_name": camera_name,
+                "modality": "seg",
+                "image_type": "UECustomStencil",
+                "pixels_as_float": False,
+                "compress": True,
+                "image_path": str(image_path),
+                "output_path": str(image_path),
+                "capture_backend": "ue_custom_stencil_fixed_world_camera",
+                "capture_view_id": view_id,
+                "segmentation_backend": "ue_custom_stencil",
+                "segmentation_kind": "ue_custom_stencil_class_id_u8",
+                "semantic_segmentation_claim": True,
+                "semantic_rules_path": str(self.semantic_rules_path),
+                "semantic_audit_path": str(semantic_audit_path),
+                "semantic_class_by_id": dict(self.semantic_class_by_id),
+                "width": int(width),
+                "height": int(height),
+                "fov_degrees": float(fov_degrees),
+                "output_format": "png_uint8_class_id",
+            }
+        )
+        sidecar.update(
+            self._capture_storage_payload(
+                batch=batch,
+                view_id=view_id,
+                modality="seg",
+                modality_output_dir=image_path.parent,
+                primary_output_path=image_path,
+                camera_role="uav",
+            )
+        )
+        sidecar.update(self._semantic_stencil_pixel_counts(image_path))
         self.capture_orchestrator.write_sidecar(sidecar_path, sidecar)
 
     @staticmethod
-    def _body_offset_to_enu(position_enu_m: Sequence[float], rotation_deg: dict[str, Any], offset_body_m: Sequence[float]) -> list[float]:
-        position = [float(position_enu_m[0]), float(position_enu_m[1]), float(position_enu_m[2] if len(position_enu_m) > 2 else 0.0)]
-        offset = [float(offset_body_m[0]), float(offset_body_m[1]), float(offset_body_m[2] if len(offset_body_m) > 2 else 0.0)]
-        yaw_rad = math.radians(float(rotation_deg.get("yaw_deg", rotation_deg.get("yaw", 0.0))))
-        forward_m, right_m, up_m = offset
-        dx = math.cos(yaw_rad) * forward_m - math.sin(yaw_rad) * right_m
-        dy = math.sin(yaw_rad) * forward_m + math.cos(yaw_rad) * right_m
-        return [position[0] + dx, position[1] + dy, position[2] + up_m]
+    def _airsim_image_bytes(response: Any) -> bytes:
+        raw = getattr(response, "image_data_uint8", b"")
+        if isinstance(raw, (bytes, bytearray)):
+            return bytes(raw)
+        try:
+            return bytes(int(value) & 0xFF for value in raw)
+        except TypeError as exc:
+            raise RuntimeError("AirSim image response does not contain uint8 image bytes") from exc
+
+    @staticmethod
+    def _airsim_response_pose_payload(response: Any) -> dict[str, Any]:
+        position = getattr(response, "camera_position", None)
+        orientation = getattr(response, "camera_orientation", None)
+        return {
+            "camera_position_ned_m": [
+                float(getattr(position, "x_val", 0.0)),
+                float(getattr(position, "y_val", 0.0)),
+                float(getattr(position, "z_val", 0.0)),
+            ],
+            "camera_position_enu_m": [
+                float(getattr(position, "x_val", 0.0)),
+                float(getattr(position, "y_val", 0.0)),
+                float(-getattr(position, "z_val", 0.0)),
+            ],
+            "camera_orientation": {
+                "x_val": float(getattr(orientation, "x_val", 0.0)),
+                "y_val": float(getattr(orientation, "y_val", 0.0)),
+                "z_val": float(getattr(orientation, "z_val", 0.0)),
+                "w_val": float(getattr(orientation, "w_val", 1.0)),
+            },
+        }
+
+    def _write_airsim_native_capture_output(
+        self,
+        batch: BatchPlan,
+        frame: dict[str, Any],
+        *,
+        view_id: str,
+        camera_id: str,
+        camera_name: str,
+        modality_id: str,
+        response: Any,
+        common_sidecar: dict[str, Any],
+        width: int,
+        height: int,
+        fov_degrees: float,
+        segmentation_payload: dict[str, Any] | None = None,
+    ) -> None:
+        modalities = dict(self.capture_presets.get("modalities") or {})
+        modality = dict(modalities.get(modality_id) or {})
+        normalized_modality = str(modality_id or "rgb").strip().lower()
+        output_dir = self.output_dir / batch.batch_id / safe_name(view_id) / safe_name(normalized_modality)
+        self._prepare_capture_output_dir(output_dir)
+        frame_stem = self.capture_orchestrator.frame_stem(frame)
+        extension = str(modality.get("extension") or ("npy" if normalized_modality == "depth" else "png"))
+        image_path = output_dir / f"{frame_stem}.{extension}"
+        depth_preview_path: Path | None = None
+        seg_raw_path: Path | None = None
+        semantic_pixel_payload: dict[str, Any] | None = None
+        if normalized_modality == "depth":
+            try:
+                import numpy as np  # type: ignore
+            except Exception as exc:
+                raise RuntimeError("numpy is required to write AirSim depth output") from exc
+            values = np.asarray(list(getattr(response, "image_data_float", []) or []), dtype=np.float32)
+            response_width = int(getattr(response, "width", 0) or width)
+            response_height = int(getattr(response, "height", 0) or height)
+            expected_size = response_width * response_height
+            if expected_size <= 0 or values.size != expected_size:
+                raise RuntimeError(
+                    f"AirSim depth response size mismatch: values={values.size} width={response_width} height={response_height}"
+                )
+            depth_image = values.reshape((response_height, response_width))
+            np.save(image_path, depth_image)
+            if bool(getattr(self.args, "write_depth_preview", False)):
+                try:
+                    from PIL import Image  # type: ignore
+                except Exception as exc:
+                    raise RuntimeError("Pillow is required to write AirSim depth preview output") from exc
+                finite = np.isfinite(depth_image)
+                if finite.any():
+                    finite_values = depth_image[finite]
+                    near = float(np.percentile(finite_values, 2.0))
+                    far = float(np.percentile(finite_values, 98.0))
+                    if far <= near:
+                        far = near + 1.0
+                    preview = np.clip((depth_image - near) / (far - near), 0.0, 1.0)
+                    preview[~finite] = 0.0
+                    preview_u8 = (preview * 255.0).astype(np.uint8)
+                else:
+                    preview_u8 = np.zeros_like(depth_image, dtype=np.uint8)
+                depth_preview_path = output_dir / f"{frame_stem}__depth_preview.png"
+                Image.fromarray(preview_u8, mode="L").save(depth_preview_path)
+        else:
+            data = self._airsim_image_bytes(response)
+            if not data:
+                raise RuntimeError(f"AirSim {normalized_modality} response is empty for {camera_id}")
+            response_width = int(getattr(response, "width", 0) or width)
+            response_height = int(getattr(response, "height", 0) or height)
+            response_compress = bool(getattr(response, "compress", modality.get("compress", normalized_modality != "depth")))
+            if normalized_modality == "seg":
+                try:
+                    import numpy as np  # type: ignore
+                    from PIL import Image  # type: ignore
+                except Exception as exc:
+                    raise RuntimeError("Pillow and numpy are required to write AirSim semantic segmentation output") from exc
+                if response_compress:
+                    from io import BytesIO
+
+                    raw_image = Image.open(BytesIO(data)).convert("RGB")
+                    response_width, response_height = raw_image.size
+                else:
+                    expected_rgb_size = response_width * response_height * 3
+                    if response_width <= 0 or response_height <= 0 or len(data) != expected_rgb_size:
+                        raise RuntimeError(
+                            f"AirSim raw {normalized_modality} response size mismatch: bytes={len(data)} "
+                            f"width={response_width} height={response_height} expected={expected_rgb_size}"
+                        )
+                    raw_image = Image.frombytes("RGB", (response_width, response_height), data)
+                seg_raw_path = output_dir / f"{frame_stem}__airsim_raw.png"
+                raw_image.save(seg_raw_path)
+                raw_rgb = np.asarray(raw_image.convert("RGB"), dtype=np.uint8)
+                semantic_pixel_payload = self._semantic_pixel_counts(raw_rgb, dict(segmentation_payload or {}))
+                raw_image.save(image_path)
+            elif response_compress:
+                image_path.write_bytes(data)
+            else:
+                expected_rgb_size = response_width * response_height * 3
+                if response_width <= 0 or response_height <= 0 or len(data) != expected_rgb_size:
+                    raise RuntimeError(
+                        f"AirSim raw {normalized_modality} response size mismatch: bytes={len(data)} "
+                        f"width={response_width} height={response_height} expected={expected_rgb_size}"
+                    )
+                try:
+                    from PIL import Image  # type: ignore
+                except Exception as exc:
+                    raise RuntimeError("Pillow is required to encode uncompressed AirSim RGB/seg output") from exc
+                Image.frombytes("RGB", (response_width, response_height), data).save(image_path)
+
+        sidecar_path = image_path.with_suffix(".json")
+        sidecar = dict(common_sidecar)
+        response_pose = self._airsim_response_pose_payload(response)
+        sidecar.update(
+            {
+                "camera_id": camera_id,
+                "camera_role": "uav",
+                "camera_name": camera_name,
+                "modality": normalized_modality,
+                "image_type": "Segmentation" if normalized_modality == "seg" else modality.get("image_type", "Scene"),
+                "pixels_as_float": bool(modality.get("pixels_as_float", normalized_modality == "depth")),
+                "compress": bool(modality.get("compress", normalized_modality != "depth")),
+                "image_path": str(image_path),
+                "output_path": str(image_path),
+                "capture_backend": "airsim_native_uav_camera",
+                "capture_view_id": view_id,
+                "airsim_capture_vehicle": str(common_sidecar.get("capture_vehicle_name") or common_sidecar.get("vehicle_name") or ""),
+                "width": int(getattr(response, "width", 0) or width),
+                "height": int(getattr(response, "height", 0) or height),
+                "fov_degrees": float(fov_degrees),
+                "airsim_response": {
+                    "time_stamp": int(getattr(response, "time_stamp", 0) or 0),
+                    "message": str(getattr(response, "message", "") or ""),
+                    "image_type": int(getattr(response, "image_type", 0) or 0),
+                    "pixels_as_float": bool(getattr(response, "pixels_as_float", False)),
+                    "compress": bool(getattr(response, "compress", False)),
+                    "encoded_from_uncompressed_rgb": bool(
+                        normalized_modality != "depth"
+                        and not bool(getattr(response, "compress", modality.get("compress", normalized_modality != "depth")))
+                    ),
+                    **response_pose,
+                },
+            }
+        )
+        sidecar.update(
+            self._capture_storage_payload(
+                batch=batch,
+                view_id=view_id,
+                modality=normalized_modality,
+                modality_output_dir=output_dir,
+                primary_output_path=image_path,
+                camera_role="uav",
+            )
+        )
+        if normalized_modality == "depth":
+            sidecar.update(self._depth_stats_for_npy(image_path))
+            sidecar["output_format"] = "npy_float32_m"
+            if depth_preview_path is not None:
+                sidecar["depth_preview_path"] = str(depth_preview_path)
+                sidecar["depth_preview_for_debug_only"] = True
+        elif normalized_modality == "seg":
+            sidecar.update(dict(segmentation_payload or {}))
+            sidecar.update(dict(semantic_pixel_payload or {}))
+            sidecar["output_format"] = "png_airsim_semantic_class_id_color"
+            sidecar["raw_airsim_seg_path"] = str(seg_raw_path) if seg_raw_path is not None else ""
+            sidecar["semantic_seg_path"] = str(image_path)
+        else:
+            sidecar["output_format"] = "png"
+        self.capture_orchestrator.write_sidecar(sidecar_path, sidecar)
 
     @staticmethod
     def _add_rotation_offsets(rotation_deg: dict[str, Any], offset_deg: dict[str, Any] | None) -> dict[str, float]:
@@ -3624,7 +4846,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             self._add_rotation_offsets(dict(rotation), None),
         )
 
-    def _capture_uav_editor_hook_modality(
+    def _capture_uav_airsim_native_modality(
         self,
         batch: BatchPlan,
         frame: dict[str, Any],
@@ -3641,43 +4863,169 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         feedback_payload: dict[str, Any],
         uav_debug: dict[str, Any],
     ) -> None:
-        hook = self._fixed_world_capture_hook()
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        if entity_id != self.active_airsim_capture_entity_id:
+            raise RuntimeError(
+                f"AirSim native capture can only capture active source '{self.active_airsim_capture_entity_id}', got '{entity_id}'."
+            )
+        self._ensure_airsim_capture_vehicle()
         uav_position_enu_m, uav_rotation_deg = self._uav_pose_for_capture(entity, vehicle_status)
-        offset_body_m = preset.get("camera_offset_body_m")
-        if not isinstance(offset_body_m, Sequence) or isinstance(offset_body_m, (str, bytes)):
-            offset_body_m = [0.6, 0.0, 0.0]
-        camera_position_enu_m = self._body_offset_to_enu(uav_position_enu_m, uav_rotation_deg, offset_body_m)
-        camera_rotation_deg = self._add_rotation_offsets(
+        source_uav_position_enu_m = list(uav_position_enu_m)
+        uav_position_enu_m = self._ground_relative_position(
+            uav_position_enu_m,
+            enabled=bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
+            cache_namespace=f"capture_pre:{entity_id}",
+            use_cache=True,
+        )
+        capture_pose = self._pin_airsim_capture_vehicle(
+            uav_position_enu_m,
             uav_rotation_deg,
-            dict(preset.get("rotation_offset_deg") or preset.get("fixed_rotation_offset_deg") or {}),
+            context=f"pre-capture {entity_id} tick {int(frame['tick'])}",
         )
-        asset_id = self._uav_follow_camera_asset_id(entity_id, camera_id)
-        hook.ensure_fixed_world_camera(
-            map_id=self.map_id,
-            asset_id=asset_id,
-            logical_asset_id="camera.fixed_world_capture.rgb.v1",
-            position_enu_m=camera_position_enu_m,
-            rotation_deg=camera_rotation_deg,
+        settle_s = float((self.config.get("timeouts") or {}).get("camera_settle_s", 0.25))
+        if settle_s > 0.0:
+            time.sleep(settle_s)
+        fov_degrees = float(preset.get("fov_degrees") or 85.0)
+        camera_offset_body_m = [
+            float(value)
+            for value in (preset.get("camera_offset_body_ned_m") or preset.get("camera_offset_body_m") or [0.0, 0.0, 0.0])
+        ][:3]
+        while len(camera_offset_body_m) < 3:
+            camera_offset_body_m.append(0.0)
+        camera_rotation_body_deg = dict(preset.get("fixed_rotation_offset_deg") or {})
+        if not camera_rotation_body_deg:
+            camera_rotation_body_deg = {"pitch_deg": 0.0, "yaw_deg": 0.0, "roll_deg": 0.0}
+        set_runtime_camera_pose = bool(preset.get("set_runtime_camera_pose", False))
+        if set_runtime_camera_pose:
+            camera_pose_frame = str(preset.get("camera_pose_frame") or preset.get("camera_pose_coordinate_frame") or "ned").strip().lower()
+            if camera_pose_frame not in {"ned", "enu"}:
+                raise RuntimeError(f"Unsupported AirSim camera pose frame '{camera_pose_frame}' for preset {preset}")
+            set_camera_pose_fn = self.client.set_camera_pose_ned if camera_pose_frame == "ned" else self.client.set_camera_pose
+            set_camera_pose_kwargs = (
+                {"position_ned_m": camera_offset_body_m}
+                if camera_pose_frame == "ned"
+                else {"position_enu_m": camera_offset_body_m}
+            )
+            self._retry(
+                "simSetCameraPose",
+                set_camera_pose_fn,
+                self.airsim_capture_vehicle,
+                camera_name,
+                rotation_deg=camera_rotation_body_deg,
+                **set_camera_pose_kwargs,
+            )
+        self._retry("simSetCameraFov", self.client.set_camera_fov, self.airsim_capture_vehicle, camera_name, fov_degrees)
+        camera_info_before_capture = self._retry(
+            "simGetCameraInfo",
+            self.client.get_camera_info,
+            self.airsim_capture_vehicle,
+            camera_name,
         )
-        frame_stem = self.capture_orchestrator.frame_stem(frame)
+
         normalized_modality = str(modality_id or "rgb").strip().lower()
-        if normalized_modality not in {"rgb", "depth", "seg"}:
-            raise RuntimeError(f"Editor hook UAV capture does not support modality '{modality_id}'.")
-        output_dir = self.output_dir / batch.batch_id / safe_name(camera_id) / safe_name(normalized_modality)
-        self._prepare_capture_output_dir(output_dir)
         modalities = dict(self.capture_presets.get("modalities") or {})
-        image_path = output_dir / f"{frame_stem}.{str((modalities.get(normalized_modality) or {}).get('extension', 'png'))}"
-        width = int(preset.get("width") or 1280)
-        height = int(preset.get("height") or 720)
-        fov_degrees = float(preset.get("fov_degrees") or 90.0)
-        hook.capture_modality(
-            map_id=self.map_id,
-            asset_id=asset_id,
-            modality=normalized_modality,
-            output_path=image_path,
-            width=width,
-            height=height,
-            fov_degrees=fov_degrees,
+        modality = dict(modalities.get(normalized_modality) or {})
+        if normalized_modality not in {"rgb", "depth", "seg"}:
+            raise RuntimeError(f"AirSim native UAV capture does not support modality '{modality_id}'.")
+        camera_suffix = safe_name(str(preset.get("camera_id_suffix", camera_name)))
+        view_id = self.requested_capture_view_id or f"{safe_name(self.active_capture_view_id)}__{camera_suffix}"
+        if normalized_modality == "seg" and self.segmentation_backend == "ue_custom_stencil":
+            hook = self._fixed_world_capture_hook()
+            output_dir = self.output_dir / batch.batch_id / safe_name(view_id) / "seg"
+            self._prepare_capture_output_dir(output_dir)
+            frame_stem = self.capture_orchestrator.frame_stem(frame)
+            image_path = output_dir / f"{frame_stem}.png"
+            semantic_audit_path = output_dir / f"{frame_stem}__semantic_stencil_audit.json"
+            camera_world_rotation_deg = self._add_rotation_offsets(uav_rotation_deg, camera_rotation_body_deg)
+            semantic_camera_asset_id = safe_name(f"fixed_world_camera.semantic.{view_id}")
+            self.ground_camera_asset_ids[("uav_semantic_stencil", view_id)] = semantic_camera_asset_id
+            hook.ensure_fixed_world_camera(
+                map_id=self.map_id,
+                asset_id=semantic_camera_asset_id,
+                logical_asset_id="camera.fixed_world_capture.semantic_stencil.v1",
+                position_enu_m=uav_position_enu_m,
+                rotation_deg=camera_world_rotation_deg,
+            )
+            hook.capture_modality(
+                map_id=self.map_id,
+                asset_id=semantic_camera_asset_id,
+                modality="seg",
+                output_path=image_path,
+                width=int(preset.get("width") or 1280),
+                height=int(preset.get("height") or 720),
+                fov_degrees=fov_degrees,
+                semantic_rules_path=self.semantic_rules_path,
+                semantic_audit_path=semantic_audit_path,
+            )
+            sidecar = {
+                "episode_id": self.episode_id,
+                "frame_id": str(frame.get("frame_id", "")),
+                "frame_seq": int(frame.get("frame_seq") or frame.get("tick") or 0),
+                "tick": int(frame["tick"]),
+                "sim_time_s": float(frame.get("sim_time_s", 0.0)),
+                "map_id": self.map_id,
+                "batch_id": batch.batch_id,
+                "site_id": batch.site_id,
+                "roi_id": batch.roi_id,
+                "weather": weather_payload,
+                "feedback": feedback_payload,
+                "uav_runtime": vehicle_status,
+                "uav_debug": uav_debug,
+                "uav_entity_id": entity_id,
+                "source_uav_entity_id": entity_id,
+                "capture_vehicle_name": self.airsim_capture_vehicle,
+                "vehicle_name": self.airsim_capture_vehicle,
+                "camera_name": camera_name,
+                "requested_camera_pose_body_m": camera_offset_body_m,
+                "requested_camera_rotation_body_deg": camera_rotation_body_deg,
+                "set_runtime_camera_pose": set_runtime_camera_pose,
+                "camera_pose_frame": str(preset.get("camera_pose_frame") or preset.get("camera_pose_coordinate_frame") or "ned").strip().lower(),
+                "camera_info_before_capture": camera_info_before_capture,
+                "source_uav_pose_enu_m": source_uav_position_enu_m,
+                "expected_uav_pose_enu_m": uav_position_enu_m,
+                "expected_uav_rotation_deg": uav_rotation_deg,
+                "requested_capture_pose_enu_m": capture_pose.get("requested_position_enu_m"),
+                "requested_capture_rotation_deg": capture_pose.get("requested_rotation_deg"),
+                "airsim_pose_before_capture": capture_pose.get("pose"),
+                "pose_error_m": capture_pose.get("pose_error_m"),
+                "capture_pose_mode": capture_pose.get("capture_pose_mode"),
+                "ue_stencil_camera_asset_id": semantic_camera_asset_id,
+                "ue_stencil_camera_position_enu_m": uav_position_enu_m,
+                "ue_stencil_camera_rotation_deg": camera_world_rotation_deg,
+                "capture_alignment_key": f"{self.episode_id}:{batch.batch_id}:{int(frame['tick'])}:{view_id}",
+                "capture_alignment_source": "deterministic_episode_frame",
+                "capture_backend": "ue_custom_stencil_fixed_world_camera",
+                "capture_view_id": view_id,
+                "entity_records": entity_records,
+                "roster_summary": frame.get("roster_summary", {}),
+            }
+            self._write_ue_stencil_capture_output(
+                batch,
+                frame,
+                view_id=view_id,
+                camera_id=camera_id,
+                camera_name=camera_name,
+                image_path=image_path,
+                common_sidecar=sidecar,
+                width=int(preset.get("width") or 1280),
+                height=int(preset.get("height") or 720),
+                fov_degrees=fov_degrees,
+                semantic_audit_path=semantic_audit_path,
+            )
+            return
+        segmentation_payload = None
+        if normalized_modality == "seg":
+            segmentation_payload = self._configure_semantic_segmentation_registry(entity_records)
+        response = self._retry(
+            "simGetImages",
+            self.client.capture_vehicle_image,
+            self.airsim_capture_vehicle,
+            camera_name=camera_name,
+            image_type=("Segmentation" if normalized_modality == "seg" else str(modality.get("image_type") or "Scene")),
+            pixels_as_float=bool(modality.get("pixels_as_float", normalized_modality == "depth")),
+            compress=bool(modality.get("compress", normalized_modality != "depth")),
+            annotation_name=str(modality.get("annotation_name") or ""),
         )
         sidecar = {
             "episode_id": self.episode_id,
@@ -3694,34 +5042,43 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             "uav_runtime": vehicle_status,
             "uav_debug": uav_debug,
             "uav_entity_id": entity_id,
-            "vehicle_name": str(vehicle_status.get("vehicle_name") or self.uav_active_by_entity.get(entity_id) or entity_id),
+            "source_uav_entity_id": entity_id,
+            "capture_vehicle_name": self.airsim_capture_vehicle,
+            "vehicle_name": self.airsim_capture_vehicle,
             "camera_name": camera_name,
-            "camera_pose_enu_m": camera_position_enu_m,
-            "camera_rotation_deg": camera_rotation_deg,
-            "expected_camera_pose_enu_m": camera_position_enu_m,
-            "expected_camera_rotation_deg": camera_rotation_deg,
-            "uav_pose_enu_m": uav_position_enu_m,
-            "uav_rotation_deg": uav_rotation_deg,
+            "requested_camera_pose_body_m": camera_offset_body_m,
+            "requested_camera_rotation_body_deg": camera_rotation_body_deg,
+            "set_runtime_camera_pose": set_runtime_camera_pose,
+            "camera_pose_frame": str(preset.get("camera_pose_frame") or preset.get("camera_pose_coordinate_frame") or "ned").strip().lower(),
+            "camera_info_before_capture": camera_info_before_capture,
+            "source_uav_pose_enu_m": source_uav_position_enu_m,
             "expected_uav_pose_enu_m": uav_position_enu_m,
             "expected_uav_rotation_deg": uav_rotation_deg,
-            "capture_alignment_key": f"{self.episode_id}:{int(frame['tick'])}:{camera_id}",
+            "requested_capture_pose_enu_m": capture_pose.get("requested_position_enu_m"),
+            "requested_capture_rotation_deg": capture_pose.get("requested_rotation_deg"),
+            "airsim_pose_before_capture": capture_pose.get("pose"),
+            "pose_error_m": capture_pose.get("pose_error_m"),
+            "capture_pose_mode": capture_pose.get("capture_pose_mode"),
+            "capture_alignment_key": f"{self.episode_id}:{batch.batch_id}:{int(frame['tick'])}:{view_id}",
             "capture_alignment_source": "deterministic_episode_frame",
-            "capture_backend": "editor_hook_uav_follow_camera",
-            "asset_id": asset_id,
+            "capture_backend": "airsim_native_uav_camera",
+            "capture_view_id": view_id,
             "entity_records": entity_records,
             "roster_summary": frame.get("roster_summary", {}),
         }
-        self._write_fixed_world_capture_output(
+        self._write_airsim_native_capture_output(
             batch,
             frame,
-            camera_id,
-            normalized_modality,
-            image_path,
-            sidecar,
-            camera_role="uav",
-            width=width,
-            height=height,
+            view_id=view_id,
+            camera_id=camera_id,
+            camera_name=camera_name,
+            modality_id=normalized_modality,
+            response=response,
+            common_sidecar=sidecar,
+            width=int(preset.get("width") or 1280),
+            height=int(preset.get("height") or 720),
             fov_degrees=fov_degrees,
+            segmentation_payload=segmentation_payload,
         )
 
     def _capture_ground_views(
@@ -3874,10 +5231,17 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             if str(entity.get("entity_id") or "").strip()
         }
 
-        for entity_id, vehicle_status in sorted(uav_capture_status.items()):
+        if self._airsim_capture_enabled():
+            entity_id = self.active_airsim_capture_entity_id
+            if not entity_id:
+                raise RuntimeError("AirSim native UAV capture has no active source entity.")
+            if entity_id not in uav_capture_status:
+                raise RuntimeError(
+                    f"AirSim native UAV capture source '{entity_id}' has no capture status at tick {int(frame['tick'])}."
+                )
             entity = frame_entities_by_id.get(entity_id) or self.roster_by_id.get(entity_id) or {}
-            if batch.site_id and str(entity.get("site_id", "")) not in {"", batch.site_id}:
-                continue
+            vehicle_status = dict(uav_capture_status.get(entity_id) or {})
+            jobs: list[tuple[str, str, str, dict[str, Any]]] = []
             for preset in self._uav_camera_presets():
                 camera_name = str(preset.get("camera_name", "front_center"))
                 camera_id = f"{safe_name(entity_id)}__{safe_name(str(preset.get('camera_id_suffix', camera_name)))}"
@@ -3886,30 +5250,40 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                 modality_ids = self._filtered_modalities(
                     list(preset.get("modalities") or self.capture_presets.get("default_modalities") or ["rgb", "depth", "seg"])
                 )
-                if not modality_ids:
-                    continue
-                unsupported_modalities = [item for item in modality_ids if str(item).strip().lower() not in {"rgb", "depth", "seg"}]
-                if unsupported_modalities:
-                    raise RuntimeError(
-                        "UAV capture is routed through editor-hook fixed-world follow cameras only. "
-                        f"Unsupported modalities for camera '{camera_id}': {unsupported_modalities}"
-                    )
                 for modality_id in modality_ids:
-                    self._capture_uav_editor_hook_modality(
-                        batch,
-                        frame,
-                        modality_id=str(modality_id),
-                        entity_id=entity_id,
-                        entity=entity,
-                        vehicle_status=vehicle_status,
-                        camera_id=camera_id,
-                        camera_name=camera_name,
-                        preset=preset,
-                        weather_payload=weather_payload,
-                        entity_records=entity_records,
-                        feedback_payload=feedback_payload,
-                        uav_debug=uav_debug,
-                    )
+                    jobs.append((camera_id, camera_name, str(modality_id), preset))
+            if not jobs:
+                raise RuntimeError(
+                    "AirSim native UAV capture found no camera/modality job. "
+                    "Check --camera-id and --modality filters."
+                )
+            if len(jobs) != 1:
+                raise RuntimeError(
+                    "AirSim native UAV capture requires exactly one camera and one modality per run. "
+                    f"Matched jobs: {[{'camera_id': job[0], 'camera_name': job[1], 'modality': job[2]} for job in jobs]}"
+                )
+            camera_id, camera_name, modality_id, preset = jobs[0]
+            self._capture_uav_airsim_native_modality(
+                batch,
+                frame,
+                modality_id=modality_id,
+                entity_id=entity_id,
+                entity=entity,
+                vehicle_status=vehicle_status,
+                camera_id=camera_id,
+                camera_name=camera_name,
+                preset=preset,
+                weather_payload=weather_payload,
+                entity_records=entity_records,
+                feedback_payload=feedback_payload,
+                uav_debug=uav_debug,
+            )
+            return
+
+        raise RuntimeError(
+            "UAV image capture requires --uav-capture-backend airsim_native. "
+            "The editor-hook UAV capture fallback is disabled so long runs cannot silently switch capture routes."
+        )
 
     def _batch_ticks(self, batch: BatchPlan) -> list[int]:
         ticks = [tick for tick in self.sorted_ticks if batch.tick_start <= tick <= batch.tick_end]
@@ -4025,6 +5399,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         interp.register_handler("move_entity", self._script_move_entity)
         interp.register_handler("remove_entity", self._script_remove_entity)
         interp.register_handler("play_animation", self._script_play_animation)
+        interp.register_handler("set_pedestrian_activity", self._script_set_pedestrian_activity)
         interp.register_handler("spawn_crowd", self._script_spawn_crowd)
         interp.register_handler("clear_crowd", self._script_clear_crowd)
         interp.register_handler("set_visual_state", self._script_set_visual_state)
@@ -4193,6 +5568,39 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             vehicle_name = self.uav_active_by_entity.get(entity_id, asset_instance_id)
             command_position = self._runtime_uav_command_position_enu(entity_id, position)
             velocity_mps = float(action.get("velocity_mps", 5.0))
+            if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
+                self._ensure_airsim_capture_vehicle()
+                command_rotation = rotation or self._entity_rotation_deg({"entity_id": entity_id})
+                wait_status = self._pin_airsim_capture_vehicle(
+                    command_position,
+                    command_rotation,
+                    context=f"event action {action.get('action_id') or '<unnamed>'}",
+                )
+                response = {
+                    "payload": {
+                        "vehicle_name": self.airsim_capture_vehicle,
+                        "source_entity_id": entity_id,
+                        "state": "ok",
+                        "reason": "capture_entity_event_move_pinned_to_airsim_vehicle",
+                        "target_enu_m": [float(value) for value in command_position],
+                        "rotation_deg": dict(command_rotation or {}),
+                        "velocity_mps": velocity_mps,
+                        "synthetic": True,
+                    }
+                }
+                self.uav_active_by_entity[entity_id] = self.airsim_capture_vehicle
+                self.uav_last_command_target_by_entity[entity_id] = list(command_position)
+                wait_status["path_used"] = "airsim_native_capture_vehicle"
+                wait_status["source_entity_id"] = entity_id
+                wait_status["replaces_runtime_multirotor"] = True
+                return {
+                    "status": "ok",
+                    "entity_id": entity_id,
+                    "vehicle_name": self.airsim_capture_vehicle,
+                    "command_position_enu_m": command_position,
+                    "response": response,
+                    "wait_status": wait_status,
+                }
             previous_target = self.uav_last_command_target_by_entity.get(entity_id)
             previous_error_m = distance_m(previous_target, command_position)
             if previous_error_m is not None and previous_error_m <= 0.25:
@@ -4260,6 +5668,23 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
             map_id=self.map_id,
         )
         return {"status": "ok", "ped_id": ped_id, "response": response}
+
+    def _script_set_pedestrian_activity(self, action: dict[str, Any]) -> dict[str, Any]:
+        ped_id = str(action.get("entity_id") or action.get("ped_id") or "").strip()
+        activity_type = str(action.get("activity_type") or "").strip().lower()
+        if not ped_id:
+            raise ValueError("set_pedestrian_activity requires entity_id")
+        if not activity_type:
+            raise ValueError("set_pedestrian_activity requires activity_type")
+        self.event_pedestrian_activity_state[ped_id] = activity_type
+        if self.event_interpreter is not None:
+            self.event_interpreter.update_entity_activity(ped_id, activity_type)
+        return {
+            "status": "ok",
+            "ped_id": ped_id,
+            "activity_type": activity_type,
+            "command": "python_activity_state_only",
+        }
 
     def _script_spawn_crowd(self, action: dict[str, Any]) -> dict[str, Any]:
         group_id = str(action["group_id"])
@@ -4419,6 +5844,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
     def run_batch(self, batch: BatchPlan) -> None:
         batch_ticks = self._batch_ticks(batch)
         capture_ticks = self._batch_capture_tick_set(batch)
+        self._select_airsim_capture_entity(batch, capture_ticks)
         print(
             f"[EpisodeHost] Starting batch {batch.batch_id} "
             f"site={batch.site_id} roi={batch.roi_id or '<none>'} "
@@ -4492,6 +5918,24 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         if self.client is None:
             self.connect()
         ensure_dir(self.output_dir)
+        manifest_path = self._write_capture_storage_manifest()
+        print(f"[EpisodeHost] Capture storage manifest written: {manifest_path}")
+        if bool(getattr(self.args, "semantic_stencil_audit_only", False)):
+            audit_path = self.output_dir / "semantic_stencil_audit.json"
+            self._fixed_world_capture_hook().semantic_stencil_audit(
+                map_id=self.map_id,
+                semantic_rules_path=self.semantic_rules_path,
+                semantic_audit_path=audit_path,
+                assign=False,
+            )
+            print(f"[EpisodeHost] Semantic stencil audit written: {audit_path}")
+            return
+        if bool(getattr(self.args, "segmentation_registry_audit_only", False)):
+            payload = self._configure_semantic_segmentation_registry([])
+            audit_path = self.output_dir / "semantic_segmentation_registry_audit.json"
+            audit_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            print(f"[EpisodeHost] Semantic segmentation registry audit written: {audit_path}")
+            return
         self._cleanup_pie_world_actors()
         self.hard_reset_world_state()
         try:
@@ -4510,7 +5954,7 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
                     print(f"[EpisodeHost] Event trace written: {event_path} ({len(event_log)} events)")
         finally:
             if self.client is not None:
-                for asset_id in sorted(set(self.ground_camera_asset_ids.values()) | set(self.uav_camera_asset_ids.values())):
+                for asset_id in sorted(set(self.ground_camera_asset_ids.values())):
                     try:
                         self._retry("remove_asset", self.client.remove_asset, asset_id, map_id=self.map_id)
                     except Exception as exc:
@@ -4564,6 +6008,61 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=[],
         help="Capture only this modality id, e.g. rgb, depth, or seg. Repeatable.",
+    )
+    parser.add_argument(
+        "--uav-capture-backend",
+        choices=["editor_hook", "airsim_native"],
+        default="airsim_native",
+        help="Backend for UAV camera captures. Ground cameras still use editor hook RGB.",
+    )
+    parser.add_argument(
+        "--segmentation-backend",
+        choices=["ue_custom_stencil", "airsim_native"],
+        default="ue_custom_stencil",
+        help="Backend for UAV seg captures. Default uses UE CustomDepth/CustomStencil instead of AirSim ImageType.Segmentation.",
+    )
+    parser.add_argument(
+        "--semantic-rules-path",
+        default="",
+        help="Semantic CustomStencil rules JSON. Default: Config/LowAltitude/semantic_stencil_rules.json.",
+    )
+    parser.add_argument(
+        "--airsim-capture-vehicle",
+        default="CaptureUAV_0",
+        help="Single AirSim vehicle used as the native UAV capture platform.",
+    )
+    parser.add_argument(
+        "--airsim-capture-entity",
+        default="",
+        help="Runtime UAV entity id to replace with the AirSim capture platform. Default selects the first active UAV.",
+    )
+    parser.add_argument(
+        "--capture-view-id",
+        default="",
+        help="Stable deterministic view id used as the UAV capture output subdirectory.",
+    )
+    parser.add_argument(
+        "--write-depth-preview",
+        action="store_true",
+        help="Write an extra 8-bit PNG preview next to depth .npy for smoke/debug only. Formal dataset generation should leave this off.",
+    )
+    parser.add_argument(
+        "--segmentation-registry-audit-only",
+        action="store_true",
+        help="Deprecated AirSim segmentation registry audit path. Prefer --semantic-stencil-audit-only.",
+    )
+    parser.add_argument(
+        "--semantic-stencil-audit-only",
+        action="store_true",
+        help="Write a read-only UE CustomStencil semantic component audit JSON and exit without capturing images.",
+    )
+    parser.add_argument(
+        "--enable-unsafe-pie-segmentation-actor-registration",
+        action="store_true",
+        help=(
+            "Unsafe diagnostic switch: call AirSim SimMode add_new_actor_to_instance_segmentation for matched PIE actors. "
+            "Disabled by default because prior UE logs show this path can exhaust editor memory."
+        ),
     )
     parser.add_argument("--dry_run_coords", action="store_true", help="Print raw/transformed ENU coordinates and exit")
     parser.add_argument("--preview_ground", action="store_true", help="Connect to PIE, print transformed + ground-projected ENU coordinates, and exit")

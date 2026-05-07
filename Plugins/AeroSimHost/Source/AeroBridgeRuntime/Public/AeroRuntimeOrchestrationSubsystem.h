@@ -78,6 +78,7 @@ private:
 
 	UPedestrianWorldSubsystem* ResolvePedestrianSubsystem(FString& OutError) const;
 	ASimModeBase* ResolveSimModeActor() const;
+	bool RegisterActorWithAirSimInstanceSegmentation(AActor* Actor, const FString& Context, int32 ObjectId) const;
 	bool CancelTrackedMove(const FString& VehicleName, bool bWaitForCompletion, FString& OutError);
 
 private:

@@ -95,21 +95,52 @@
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "spawn_crowd",
-          "action_id": "spawn_landing_crowd_initial",
-          "group_id": "crowd_l4_3_v2",
-          "count": 8,
-          "spawn_origin_enu_m": [
-            7837.078,
-            6420.002,
-            0.0
-          ],
-          "spawn_box_extent_cm": [
-            650,
-            420,
-            0
-          ],
-          "seed": 705
+          "type": "set_pedestrian_activity",
+          "action_id": "set_ped_landing_l4_3_v2_a_crowd_chatting",
+          "entity_id": "ped_landing_l4_3_v2_a",
+          "activity_type": "chatting"
+        },
+        {
+          "type": "set_pedestrian_activity",
+          "action_id": "set_ped_landing_l4_3_v2_b_crowd_chatting",
+          "entity_id": "ped_landing_l4_3_v2_b",
+          "activity_type": "chatting"
+        },
+        {
+          "type": "set_pedestrian_activity",
+          "action_id": "set_ped_landing_crowd_l4_3_v2_00_crowd_chatting",
+          "entity_id": "ped_landing_crowd_l4_3_v2_00",
+          "activity_type": "chatting"
+        },
+        {
+          "type": "set_pedestrian_activity",
+          "action_id": "set_ped_landing_crowd_l4_3_v2_01_crowd_chatting",
+          "entity_id": "ped_landing_crowd_l4_3_v2_01",
+          "activity_type": "chatting"
+        },
+        {
+          "type": "set_pedestrian_activity",
+          "action_id": "set_ped_landing_crowd_l4_3_v2_02_crowd_chatting",
+          "entity_id": "ped_landing_crowd_l4_3_v2_02",
+          "activity_type": "chatting"
+        },
+        {
+          "type": "set_pedestrian_activity",
+          "action_id": "set_ped_landing_crowd_l4_3_v2_03_crowd_chatting",
+          "entity_id": "ped_landing_crowd_l4_3_v2_03",
+          "activity_type": "chatting"
+        },
+        {
+          "type": "set_pedestrian_activity",
+          "action_id": "set_ped_landing_crowd_l4_3_v2_04_crowd_chatting",
+          "entity_id": "ped_landing_crowd_l4_3_v2_04",
+          "activity_type": "chatting"
+        },
+        {
+          "type": "set_pedestrian_activity",
+          "action_id": "set_ped_landing_crowd_l4_3_v2_05_crowd_chatting",
+          "entity_id": "ped_landing_crowd_l4_3_v2_05",
+          "activity_type": "chatting"
         }
       ],
       "log_event": {
@@ -120,7 +151,13 @@
         "overlay": "pedestrian",
         "target_ids": [
           "ped_landing_l4_3_v2_a",
-          "ped_landing_l4_3_v2_b"
+          "ped_landing_l4_3_v2_b",
+          "ped_landing_crowd_l4_3_v2_00",
+          "ped_landing_crowd_l4_3_v2_01",
+          "ped_landing_crowd_l4_3_v2_02",
+          "ped_landing_crowd_l4_3_v2_03",
+          "ped_landing_crowd_l4_3_v2_04",
+          "ped_landing_crowd_l4_3_v2_05"
         ]
       }
     },
@@ -220,7 +257,9 @@
               0.0
             ]
           ],
-          "velocity_mps": 2.0
+          "velocity_mps": 2.0,
+          "activity_type": "walking",
+          "post_activity_type": "quarrel"
         },
         {
           "type": "move_entity",
@@ -238,7 +277,9 @@
               0.0
             ]
           ],
-          "velocity_mps": 2.0
+          "velocity_mps": 2.0,
+          "activity_type": "walking",
+          "post_activity_type": "quarrel"
         },
         {
           "type": "capture_screenshot",
@@ -249,7 +290,7 @@
       "log_event": {
         "topic": "evt_L4-3_v2_crowd_proximity_response",
         "category": "pedestrian",
-        "title": "Crowd evades forced landing zone",
+        "title": "Crowd evades forced landing zone and yells at the forced landing site",
         "severity": "warning",
         "overlay": "pedestrian",
         "target_ids": [

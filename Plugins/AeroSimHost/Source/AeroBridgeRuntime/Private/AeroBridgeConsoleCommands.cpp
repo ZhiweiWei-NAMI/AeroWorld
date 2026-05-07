@@ -274,6 +274,26 @@ static FAutoConsoleCommand GAeroCaptureWorldCameraJsonCmd(
 			LogResponse(Ar, Bridge->HandleCaptureWorldCamera(JoinArgs(Args)));
 		}));
 
+static FAutoConsoleCommand GAeroSemanticStencilAuditJsonCmd(
+	TEXT("aero.semantic_stencil_audit_json"),
+	TEXT("aero.semantic_stencil_audit_json <RequestJson>"),
+	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(
+		[](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+		{
+			if (Args.Num() < 1)
+			{
+				Ar.Log(TEXT("usage: aero.semantic_stencil_audit_json <RequestJson>"));
+				return;
+			}
+
+			UAeroBridgeWorldSubsystem* Bridge = ResolveBridge(World, Ar);
+			if (Bridge == nullptr)
+			{
+				return;
+			}
+			LogResponse(Ar, Bridge->HandleSemanticStencilAudit(JoinArgs(Args)));
+		}));
+
 static FAutoConsoleCommand GAeroReserveOccupancyJsonCmd(
 	TEXT("aero.reserve_occupancy_json"),
 	TEXT("aero.reserve_occupancy_json <RequestJson>"),

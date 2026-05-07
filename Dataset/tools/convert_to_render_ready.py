@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
+from pedestrian_activity_catalog import activity_annotations, normalize_activity_type
+
 
 DEFAULT_MAP_ID = "donghu_road_topo"
 DEFAULT_SITE_ID = "site.intersection_a"
@@ -280,9 +282,20 @@ def activity_for_sample(
     category: str,
     tick: int,
     state: str,
+    row_activity_type: str = "",
     velocity_enu_mps: Sequence[float],
     overrides: dict[str, list[tuple[int, str]]],
 ) -> str:
+    # The batch generator writes explicit pedestrian activity fields when the
+    # source scenario carries semantic activity actions. Prefer those over text
+    # inference so render-ready output remains driven by generated truth data.
+    # Non-pedestrian rows keep the historical speed/state fallback below.
+    speed_xy = math.hypot(float(velocity_enu_mps[0]), float(velocity_enu_mps[1]))
+    state_text = str(state or "").strip().lower()
+    if category == "pedestrian":
+        row_activity = str(row_activity_type or "").strip().lower()
+        if row_activity:
+            return normalize_activity_type(row_activity, moving=speed_xy > 0.15)
     activity = ""
     for override_tick, override_activity in overrides.get(entity_id, []):
         if tick >= override_tick:
@@ -291,10 +304,11 @@ def activity_for_sample(
             break
     if activity:
         return activity
-    speed_xy = math.hypot(float(velocity_enu_mps[0]), float(velocity_enu_mps[1]))
-    state_text = str(state or "").strip().lower()
     if category == "pedestrian":
-        return "walking" if speed_xy > 0.15 or state_text == "moving" else "idle"
+        row_activity = state_text if state_text not in {"moving", "idle"} else ""
+        if row_activity:
+            return normalize_activity_type(row_activity, moving=speed_xy > 0.15)
+        return "walking" if speed_xy > 0.15 or state_text == "moving" else "waiting"
     if category == "uav":
         return "flight" if speed_xy > 0.1 or state_text == "moving" else "idle"
     if category == "vehicle":
@@ -304,8 +318,16 @@ def activity_for_sample(
 
 def build_annotations(activity_type: str, row: dict[str, Any], category: str) -> dict[str, Any]:
     speed_mps = math.sqrt(sum(float(value) ** 2 for value in normalize_vector3(row.get("vel_mps"))))
-    posture = "fallen" if activity_type == "medical_incident" else "standing"
-    animation_hint = "pedestrian_fall" if activity_type == "medical_incident" else activity_type
+    if category == "pedestrian":
+        annotations = activity_annotations(activity_type, speed_mps=speed_mps)
+        annotations["state_facets"]["network"] = {
+            "status": "nominal",
+            "latency_ms": 0.0,
+            "packet_loss": 0.0,
+        }
+        return annotations
+    posture = "standing"
+    animation_hint = activity_type
     annotations: dict[str, Any] = {
         "activity_type": activity_type,
         "speed_mps": round(speed_mps, 4),
@@ -501,6 +523,7 @@ def convert_episode(
                 category=category,
                 tick=tick,
                 state=str(row.get("state") or ""),
+                row_activity_type=str(row.get("activity_type") or ""),
                 velocity_enu_mps=velocity,
                 overrides=activity_overrides,
             )

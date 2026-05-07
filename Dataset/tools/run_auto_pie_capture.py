@@ -59,6 +59,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-role", action="append", default=[], choices=["all", "ground", "uav"])
     parser.add_argument("--camera-id", action="append", default=[])
     parser.add_argument("--modality", action="append", default=[])
+    parser.add_argument("--segmentation-backend", choices=["ue_custom_stencil", "airsim_native"], default="ue_custom_stencil")
+    parser.add_argument("--semantic-rules-path", type=Path, default=Path("Config/LowAltitude/semantic_stencil_rules.json"))
+    parser.add_argument("--semantic-stencil-audit-only", action="store_true")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=41451)
     parser.add_argument("--startup-delay-s", type=float, default=8.0)
@@ -264,6 +267,11 @@ def run_batch(args: argparse.Namespace, episodes: list[str]) -> None:
         command.extend(["--camera-id", str(camera_id)])
     for modality in args.modality or []:
         command.extend(["--modality", str(modality)])
+    command.extend(["--segmentation-backend", str(args.segmentation_backend)])
+    if args.semantic_rules_path:
+        command.extend(["--semantic-rules-path", str(args.semantic_rules_path)])
+    if args.semantic_stencil_audit_only:
+        command.append("--semantic-stencil-audit-only")
     for episode in episodes:
         command.extend(["--episode", episode])
 

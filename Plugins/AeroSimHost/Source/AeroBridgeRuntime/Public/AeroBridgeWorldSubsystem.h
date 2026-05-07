@@ -58,6 +58,8 @@ public:
 	UFUNCTION()
 	FString HandleCaptureWorldCamera(const FString& RequestJson);
 	UFUNCTION()
+	FString HandleSemanticStencilAudit(const FString& RequestJson);
+	UFUNCTION()
 	FString HandleReserveOccupancy(const FString& RequestJson);
 	UFUNCTION()
 	FString HandleReleaseOccupancy(const FString& RequestJson);

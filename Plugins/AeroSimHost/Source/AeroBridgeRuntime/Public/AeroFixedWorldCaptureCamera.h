@@ -8,6 +8,7 @@ class UCameraComponent;
 class USceneCaptureComponent2D;
 class USceneComponent;
 class UTextureRenderTarget2D;
+class UMaterialInterface;
 class AActor;
 
 struct FAeroFixedWorldCaptureStats
@@ -20,6 +21,14 @@ struct FAeroFixedWorldCaptureStats
 	float DepthMaxM = 0.0f;
 	int32 DepthValidCount = 0;
 	int32 DepthInvalidCount = 0;
+	FString SegmentationKind;
+	FString SemanticRulesPath;
+	FString SemanticAuditPath;
+	TMap<uint8, FString> SemanticClassById;
+	TMap<uint8, int32> SemanticClassHistogram;
+	int32 IgnorePixelCount = 0;
+	int32 SemanticUnknownColorPixelCount = 0;
+	int32 SemanticAssignedComponentCount = 0;
 };
 
 UCLASS()
@@ -39,7 +48,9 @@ public:
 		int32 Height,
 		float FovDegrees,
 		FString& OutError,
-		FAeroFixedWorldCaptureStats& OutStats);
+		FAeroFixedWorldCaptureStats& OutStats,
+		const FString& SemanticRulesPath = FString(),
+		const FString& SemanticAuditPath = FString());
 
 	bool CaptureRgbToDisk(
 		const FString& AbsoluteOutputPath,
@@ -69,7 +80,9 @@ private:
 		int32 Width,
 		int32 Height,
 		FString& OutError,
-		FAeroFixedWorldCaptureStats& OutStats);
+		FAeroFixedWorldCaptureStats& OutStats,
+		const FString& SemanticRulesPath,
+		const FString& SemanticAuditPath);
 	void EnsureWeatherFollower();
 
 private:
@@ -84,6 +97,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> SemanticStencilMaterial;
 
 	int32 RenderTargetWidth = 0;
 	int32 RenderTargetHeight = 0;

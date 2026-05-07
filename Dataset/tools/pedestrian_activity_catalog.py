@@ -16,6 +16,7 @@ class PedestrianActivity:
 
 
 WALKING_ASSET = "/Game/MixamoAssets/Animations/Walking.Walking"
+START_CROSS_ASSET = "/Game/MixamoAssets/Animations/AM_StartCross.AM_StartCross"
 TEXTING_ASSET = "/Game/MixamoAssets/Animations/Walking_While_Texting.Walking_While_Texting"
 PHONE_ASSET = "/Game/MixamoAssets/Animations/Talking_Phone_Pacing.Talking_Phone_Pacing"
 TALKING_ASSET = "/Game/MixamoAssets/Animations/Talking.Talking"
@@ -44,6 +45,7 @@ ACTIVITIES: dict[str, PedestrianActivity] = {
     "stopped": PedestrianActivity("stopped", "pedestrian_idle", render_action={"op": "ped_stop"}),
     "observing": PedestrianActivity("observing", "pedestrian_observe", social_state="observer", render_action={"op": "ped_observe"}),
     "walking": PedestrianActivity("walking", "pedestrian_walk", moving=True, render_action=_play(WALKING_ASSET, reapply=True)),
+    "crossing_start": PedestrianActivity("crossing_start", "pedestrian_crossing_start", moving=True, render_action=_play(START_CROSS_ASSET, loop_count=1)),
     "crossing": PedestrianActivity("crossing", "pedestrian_crossing", moving=True, render_action=_play(WALKING_ASSET, reapply=True)),
     "evacuating": PedestrianActivity("evacuating", "pedestrian_evacuation_walk", social_state="group", moving=True, render_action=_play(WALKING_ASSET, reapply=True)),
     "texting_walk": PedestrianActivity("texting_walk", "pedestrian_texting_walk", moving=True, render_action=_play(TEXTING_ASSET, reapply=True)),
@@ -79,6 +81,7 @@ ALIASES = {
     "fall_flat": "medical_incident",
     "fallen_hold": "medical_incident",
     "fall_start": "medical_incident",
+    "start_cross": "crossing_start",
     "moving": "walking",
 }
 

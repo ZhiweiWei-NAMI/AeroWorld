@@ -142,6 +142,8 @@ bool UAeroRuntimeOrchestrationSubsystem::SpawnPedestrian(
 		return false;
 	}
 
+	RegisterActorWithAirSimInstanceSegmentation(PedSubsystem->FindPedestrian(PedId), PedId, 4);
+
 	return true;
 }
 
@@ -371,6 +373,10 @@ bool UAeroRuntimeOrchestrationSubsystem::SpawnCrowd(
 	}
 
 	OutResult = PedSubsystem->SpawnCrowd(Request);
+	for (const FString& SpawnedId : OutResult.SpawnedIds)
+	{
+		RegisterActorWithAirSimInstanceSegmentation(PedSubsystem->FindPedestrian(SpawnedId), SpawnedId, 4);
+	}
 	return true;
 }
 
@@ -406,6 +412,10 @@ bool UAeroRuntimeOrchestrationSubsystem::RespawnCrowd(
 	}
 
 	OutResult = PedSubsystem->RespawnCrowd(GroupId, NewSeed);
+	for (const FString& SpawnedId : OutResult.SpawnedIds)
+	{
+		RegisterActorWithAirSimInstanceSegmentation(PedSubsystem->FindPedestrian(SpawnedId), SpawnedId, 4);
+	}
 	return true;
 }
 
@@ -476,12 +486,14 @@ bool UAeroRuntimeOrchestrationSubsystem::CreateRuntimeMultirotor(
 		return false;
 	}
 
-	if (ResolveSpawnedPawnByVehicleName(VehicleName) == nullptr)
+	APawn* SpawnedPawn = ResolveSpawnedPawnByVehicleName(VehicleName);
+	if (SpawnedPawn == nullptr)
 	{
 		OutError = FString::Printf(TEXT("AirSim created runtime UAV '%s' but no pawn was resolved."), *VehicleName);
 		return false;
 	}
 
+	RegisterActorWithAirSimInstanceSegmentation(SpawnedPawn, VehicleName, 2);
 	RuntimeMultirotorSpawnWorldCm.Add(VehicleName, WorldLocationCm);
 	UE_LOG(LogAeroRuntimeOrchestration, Log, TEXT("CreateRuntimeMultirotor succeeded: name='%s'."), *VehicleName);
 	return true;
@@ -1144,6 +1156,52 @@ ASimModeBase* UAeroRuntimeOrchestrationSubsystem::ResolveSimModeActor() const
 	}
 
 	return nullptr;
+}
+
+bool UAeroRuntimeOrchestrationSubsystem::RegisterActorWithAirSimInstanceSegmentation(AActor* Actor, const FString& Context, const int32 ObjectId) const
+{
+	if (!IsValid(Actor))
+	{
+		return false;
+	}
+
+	ASimModeBase* SimModeActor = ResolveSimModeActor();
+	if (!IsValid(SimModeActor))
+	{
+		return false;
+	}
+
+	TSet<FString> BeforeNames;
+	for (const std::string& Name : SimModeActor->GetAllInstanceSegmentationMeshIDs())
+	{
+		BeforeNames.Add(UTF8_TO_TCHAR(Name.c_str()));
+	}
+
+	const bool bRegistered = SimModeActor->AddNewActorToInstanceSegmentation(Actor, true);
+	int32 AddedMeshCount = 0;
+	for (const std::string& Name : SimModeActor->GetAllInstanceSegmentationMeshIDs())
+	{
+		const FString MeshName = UTF8_TO_TCHAR(Name.c_str());
+		if (!BeforeNames.Contains(MeshName))
+		{
+			++AddedMeshCount;
+			if (ObjectId > 0)
+			{
+				SimModeActor->SetMeshInstanceSegmentationID(TCHAR_TO_UTF8(*MeshName), ObjectId, false, true);
+			}
+		}
+	}
+
+	UE_LOG(
+		LogAeroRuntimeOrchestration,
+		Verbose,
+		TEXT("AirSim instance segmentation registration %s: actor='%s' context='%s' object_id=%d added_mesh_count=%d."),
+		bRegistered ? TEXT("succeeded") : TEXT("skipped"),
+		*Actor->GetName(),
+		*Context,
+		ObjectId,
+		AddedMeshCount);
+	return bRegistered;
 }
 
 bool UAeroRuntimeOrchestrationSubsystem::CancelTrackedMove(const FString& VehicleName, const bool bWaitForCompletion, FString& OutError)

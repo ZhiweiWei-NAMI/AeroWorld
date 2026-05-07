@@ -188,6 +188,15 @@ class ActionTemplates:
         }
 
     @staticmethod
+    def set_pedestrian_activity(ped_id: str, activity_type: str, action_id: Optional[str] = None) -> dict:
+        return {
+            "action_id": action_id or _next_action_id("ped_activity"),
+            "type": "set_pedestrian_activity",
+            "entity_id": ped_id,
+            "activity_type": activity_type,
+        }
+
+    @staticmethod
     def ped_fall_flat(ped_id: str, action_id: Optional[str] = None) -> dict:
         """行人跌倒动画。"""
         return ActionTemplates.play_animation(

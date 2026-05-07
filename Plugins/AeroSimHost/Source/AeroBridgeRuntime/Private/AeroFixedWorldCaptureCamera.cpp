@@ -1,7 +1,9 @@
 #include "AeroFixedWorldCaptureCamera.h"
 
 #include "AeroSemanticBindingComponent.h"
+#include "AeroSemanticStencil.h"
 #include "Annotation/AnnotationComponent.h"
+#include "Annotation/ObjectAnnotator.h"
 #include "Camera/CameraComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
@@ -12,11 +14,14 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
 #include "ImageUtils.h"
+#include "Materials/MaterialInterface.h"
 #include "Misc/Char.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "RenderingThread.h"
+#include "UObject/ConstructorHelpers.h"
 
 #include <initializer_list>
 #include <limits>
@@ -149,6 +154,7 @@ FString SemanticClassForActor(const AActor* Actor)
 
 void ConfigureSemanticCaptureShowFlags(FEngineShowFlags& ShowFlags)
 {
+	FObjectAnnotator::SetViewForAnnotationRender(ShowFlags);
 	ShowFlags.SetMaterials(false);
 	ShowFlags.SetLighting(false);
 	ShowFlags.SetBSPTriangles(true);
@@ -171,6 +177,136 @@ void ConfigureSemanticCaptureShowFlags(FEngineShowFlags& ShowFlags)
 	ShowFlags.SetDecals(false);
 }
 
+void ConfigureStencilCaptureShowFlags(FEngineShowFlags& ShowFlags)
+{
+	FObjectAnnotator::SetViewForAnnotationRender(ShowFlags);
+	ShowFlags.SetMaterials(false);
+	ShowFlags.SetLighting(false);
+	ShowFlags.SetBSPTriangles(true);
+	ShowFlags.SetPostProcessing(true);
+	ShowFlags.SetHMDDistortion(false);
+	ShowFlags.SetTonemapper(false);
+	ShowFlags.SetEyeAdaptation(false);
+	ShowFlags.SetFog(false);
+	ShowFlags.SetPaper2DSprites(false);
+	ShowFlags.SetBloom(false);
+	ShowFlags.SetMotionBlur(false);
+	ShowFlags.SetSkyLighting(false);
+	ShowFlags.SetVisualizeSkyAtmosphere(false);
+	ShowFlags.SetAmbientOcclusion(false);
+	ShowFlags.SetAtmosphere(false);
+	ShowFlags.SetTextRender(false);
+	ShowFlags.SetTemporalAA(false);
+	ShowFlags.SetDecals(false);
+}
+
+void EnsureCustomDepthStencilEnabled()
+{
+	if (IConsoleVariable* CustomDepthVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth")))
+	{
+		if (CustomDepthVar->GetInt() < 3)
+		{
+			CustomDepthVar->Set(3, ECVF_SetByCode);
+		}
+	}
+}
+
+void BuildSegmentationColorToClassIdMap(TMap<FColor, uint8>& OutColorToClassId)
+{
+	OutColorToClassId.Reset();
+
+	int32 ChannelValues[256] = {0};
+	float Step = 256.0f;
+	uint32 Iter = 0;
+	ChannelValues[0] = 0;
+	while (Step >= 1.0f && Iter < 255)
+	{
+		for (uint32 Value = static_cast<uint32>(Step - 1.0f); Value <= 256 && Iter < 255; Value += static_cast<uint32>(Step * 2.0f))
+		{
+			++Iter;
+			ChannelValues[Iter] = static_cast<int32>(Value);
+		}
+		Step /= 2.0f;
+	}
+
+	TArray<int32> OkValues;
+	const int32 UnevenStart = 79;
+	const int32 FullStart = 149;
+	for (int32 Value = UnevenStart; Value <= FullStart; Value += 2)
+	{
+		OkValues.Add(Value);
+	}
+	for (int32 Value = FullStart + 1; Value < 256; ++Value)
+	{
+		OkValues.Add(Value);
+	}
+
+	TArray<FColor> ColorMap;
+	auto AddColors = [&ChannelValues, &OkValues, &ColorMap](int32 MaxValue, bool bEnableR, bool bEnableG, bool bEnableB)
+	{
+		for (int32 I = 0; I <= (bEnableR ? 0 : MaxValue - 1); ++I)
+		{
+			for (int32 J = 0; J <= (bEnableG ? 0 : MaxValue - 1); ++J)
+			{
+				for (int32 K = 0; K <= (bEnableB ? 0 : MaxValue - 1); ++K)
+				{
+					const uint8 R = static_cast<uint8>(ChannelValues[bEnableR ? MaxValue : I]);
+					const uint8 G = static_cast<uint8>(ChannelValues[bEnableG ? MaxValue : J]);
+					const uint8 B = static_cast<uint8>(ChannelValues[bEnableB ? MaxValue : K]);
+					if (OkValues.Contains(R) && OkValues.Contains(G) && OkValues.Contains(B) && R != 149 && G != 149 && B != 149)
+					{
+						ColorMap.Add(FColor(R, G, B, 255));
+					}
+				}
+			}
+		}
+	};
+
+	for (int32 MaxChannelIndex = 0; MaxChannelIndex < 256 && ColorMap.Num() <= 255; ++MaxChannelIndex)
+	{
+		AddColors(MaxChannelIndex, false, false, true);
+		AddColors(MaxChannelIndex, false, true, false);
+		AddColors(MaxChannelIndex, false, true, true);
+		AddColors(MaxChannelIndex, true, false, false);
+		AddColors(MaxChannelIndex, true, false, true);
+		AddColors(MaxChannelIndex, true, true, false);
+		AddColors(MaxChannelIndex, true, true, true);
+	}
+
+	for (int32 ClassId = 0; ClassId <= 255 && ClassId < ColorMap.Num(); ++ClassId)
+	{
+		OutColorToClassId.Add(ColorMap[ClassId], static_cast<uint8>(ClassId));
+	}
+}
+
+uint8 ResolveClassIdFromSegmentationColor(const FColor& Pixel, const TMap<FColor, uint8>& ColorToClassId, bool& bExactMatch)
+{
+	FColor Key(Pixel.R, Pixel.G, Pixel.B, 255);
+	if (const uint8* Exact = ColorToClassId.Find(Key))
+	{
+		bExactMatch = true;
+		return *Exact;
+	}
+
+	bExactMatch = false;
+	int32 BestDistance = MAX_int32;
+	uint8 BestClassId = 0;
+	for (const TPair<FColor, uint8>& Pair : ColorToClassId)
+	{
+		const int32 Dr = static_cast<int32>(Key.R) - static_cast<int32>(Pair.Key.R);
+		const int32 Dg = static_cast<int32>(Key.G) - static_cast<int32>(Pair.Key.G);
+		const int32 Db = static_cast<int32>(Key.B) - static_cast<int32>(Pair.Key.B);
+		const int32 Dist = Dr * Dr + Dg * Dg + Db * Db;
+		if (Dist < BestDistance)
+		{
+			BestDistance = Dist;
+			BestClassId = Pair.Value;
+		}
+	}
+
+	return BestDistance <= 48 ? BestClassId : 0;
+}
+
 struct FSceneCaptureStateGuard
 {
 	explicit FSceneCaptureStateGuard(USceneCaptureComponent2D* InCapture)
@@ -178,6 +314,8 @@ struct FSceneCaptureStateGuard
 		, CaptureSource(InCapture != nullptr ? InCapture->CaptureSource : ESceneCaptureSource::SCS_FinalColorLDR)
 		, PrimitiveRenderMode(InCapture != nullptr ? InCapture->PrimitiveRenderMode : ESceneCapturePrimitiveRenderMode::PRM_RenderScenePrimitives)
 		, ShowFlags(InCapture != nullptr ? InCapture->ShowFlags : FEngineShowFlags(ESFIM_Game))
+		, PostProcessSettings(InCapture != nullptr ? InCapture->PostProcessSettings : FPostProcessSettings())
+		, PostProcessBlendWeight(InCapture != nullptr ? InCapture->PostProcessBlendWeight : 0.0f)
 		, ShowOnlyComponents(InCapture != nullptr ? InCapture->ShowOnlyComponents : TArray<TWeakObjectPtr<UPrimitiveComponent>>())
 		, HiddenComponents(InCapture != nullptr ? InCapture->HiddenComponents : TArray<TWeakObjectPtr<UPrimitiveComponent>>())
 	{
@@ -191,6 +329,8 @@ struct FSceneCaptureStateGuard
 			CapturePtr->CaptureSource = CaptureSource;
 			CapturePtr->PrimitiveRenderMode = PrimitiveRenderMode;
 			CapturePtr->ShowFlags = ShowFlags;
+			CapturePtr->PostProcessSettings = PostProcessSettings;
+			CapturePtr->PostProcessBlendWeight = PostProcessBlendWeight;
 			CapturePtr->ShowOnlyComponents = ShowOnlyComponents;
 			CapturePtr->HiddenComponents = HiddenComponents;
 		}
@@ -200,6 +340,8 @@ struct FSceneCaptureStateGuard
 	ESceneCaptureSource CaptureSource;
 	ESceneCapturePrimitiveRenderMode PrimitiveRenderMode;
 	FEngineShowFlags ShowFlags;
+	FPostProcessSettings PostProcessSettings;
+	float PostProcessBlendWeight;
 	TArray<TWeakObjectPtr<UPrimitiveComponent>> ShowOnlyComponents;
 	TArray<TWeakObjectPtr<UPrimitiveComponent>> HiddenComponents;
 };
@@ -329,6 +471,13 @@ AAeroFixedWorldCaptureCamera::AAeroFixedWorldCaptureCamera()
 	SceneCapture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_RenderScenePrimitives;
 	SceneCapture->ShowFlags.SetDepthOfField(false);
 	SceneCapture->ShowFlags.SetMotionBlur(false);
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SegmentationMaterialFinder(
+		TEXT("Material'/AirSim/HUDAssets/SegmentationMaterial.SegmentationMaterial'"));
+	if (SegmentationMaterialFinder.Succeeded())
+	{
+		SemanticStencilMaterial = SegmentationMaterialFinder.Object;
+	}
 }
 
 void AAeroFixedWorldCaptureCamera::BeginPlay()
@@ -440,7 +589,9 @@ bool AAeroFixedWorldCaptureCamera::CaptureToDisk(
 	int32 Height,
 	float FovDegrees,
 	FString& OutError,
-	FAeroFixedWorldCaptureStats& OutStats)
+	FAeroFixedWorldCaptureStats& OutStats,
+	const FString& SemanticRulesPath,
+	const FString& SemanticAuditPath)
 {
 	OutStats = FAeroFixedWorldCaptureStats();
 	if (!IsValid(SceneCapture) || !IsValid(PreviewCamera))
@@ -478,6 +629,7 @@ bool AAeroFixedWorldCaptureCamera::CaptureToDisk(
 	FSceneCaptureStateGuard CaptureStateGuard(SceneCapture);
 	if (NormalizedModality.Equals(TEXT("depth"), ESearchCase::IgnoreCase))
 	{
+		RenderTarget->TargetGamma = 1.0f;
 		SceneCapture->CaptureSource = ESceneCaptureSource::SCS_SceneDepth;
 		SceneCapture->ShowFlags.SetPostProcessing(false);
 		SceneCapture->ShowFlags.SetMotionBlur(false);
@@ -486,11 +638,13 @@ bool AAeroFixedWorldCaptureCamera::CaptureToDisk(
 	}
 	if (NormalizedModality.Equals(TEXT("seg"), ESearchCase::IgnoreCase))
 	{
+		RenderTarget->TargetGamma = 1.0f;
 		SceneCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
-		ConfigureSemanticCaptureShowFlags(SceneCapture->ShowFlags);
-		return CaptureSemanticPngToDisk(AbsoluteOutputPath, Width, Height, OutError, OutStats);
+		ConfigureStencilCaptureShowFlags(SceneCapture->ShowFlags);
+		return CaptureSemanticPngToDisk(AbsoluteOutputPath, Width, Height, OutError, OutStats, SemanticRulesPath, SemanticAuditPath);
 	}
 
+	RenderTarget->TargetGamma = 2.2f;
 	SceneCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 	SceneCapture->ShowFlags.SetDepthOfField(false);
 	SceneCapture->ShowFlags.SetMotionBlur(false);
@@ -639,19 +793,41 @@ bool AAeroFixedWorldCaptureCamera::CaptureSemanticPngToDisk(
 	int32 Width,
 	int32 Height,
 	FString& OutError,
-	FAeroFixedWorldCaptureStats& OutStats)
+	FAeroFixedWorldCaptureStats& OutStats,
+	const FString& SemanticRulesPath,
+	const FString& SemanticAuditPath)
 {
-	TArray<TWeakObjectPtr<UAnnotationComponent>> AnnotationComponents;
-	CreateSemanticAnnotations(GetWorld(), this, WeatherFollowerActor.Get(), AnnotationComponents);
-	SceneCapture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
-	SceneCapture->ShowOnlyComponents.Empty();
-	for (const TWeakObjectPtr<UAnnotationComponent>& AnnotationPtr : AnnotationComponents)
+	if (!IsValid(SemanticStencilMaterial))
 	{
-		if (UAnnotationComponent* AnnotationComponent = AnnotationPtr.Get())
-		{
-			SceneCapture->ShowOnlyComponents.Add(AnnotationComponent);
-		}
+		OutError = TEXT("semantic stencil capture material is unavailable.");
+		return false;
 	}
+
+	EnsureCustomDepthStencilEnabled();
+
+	TSet<const AActor*> IgnoredActors;
+	IgnoredActors.Add(this);
+	if (IsValid(WeatherFollowerActor))
+	{
+		IgnoredActors.Add(WeatherFollowerActor.Get());
+	}
+
+	FAeroSemanticStencilAudit Audit;
+	if (!AeroSemanticStencil::AuditAndAssign(GetWorld(), SemanticRulesPath, true, IgnoredActors, Audit, OutError))
+	{
+		return false;
+	}
+	if (!SemanticAuditPath.TrimStartAndEnd().IsEmpty() && !AeroSemanticStencil::SaveAuditJson(Audit, SemanticAuditPath, OutError))
+	{
+		return false;
+	}
+
+	SceneCapture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_RenderScenePrimitives;
+	SceneCapture->ShowOnlyComponents.Empty();
+	SceneCapture->HiddenComponents.Empty();
+	SceneCapture->PostProcessSettings.WeightedBlendables.Array.Reset();
+	SceneCapture->PostProcessSettings.AddBlendable(SemanticStencilMaterial, 1.0f);
+	SceneCapture->PostProcessBlendWeight = 1.0f;
 	FlushRenderingCommands();
 
 	SceneCapture->CaptureScene();
@@ -659,17 +835,32 @@ bool AAeroFixedWorldCaptureCamera::CaptureSemanticPngToDisk(
 
 	TArray<FColor> Bitmap;
 	const bool bReadOk = ReadRenderTargetColorPixels(RenderTarget, Width, Height, Bitmap, OutError);
-
-	DestroySemanticAnnotations(AnnotationComponents);
-	FlushRenderingCommands();
-
 	if (!bReadOk)
 	{
 		return false;
 	}
 
+	TMap<FColor, uint8> ColorToClassId;
+	BuildSegmentationColorToClassIdMap(ColorToClassId);
+
+	TArray<FColor> ClassIdBitmap;
+	ClassIdBitmap.SetNumUninitialized(Bitmap.Num());
+	int32 UnknownColorPixelCount = 0;
+	TMap<uint8, int32> PixelHistogram;
+	for (int32 Index = 0; Index < Bitmap.Num(); ++Index)
+	{
+		bool bExactMatch = false;
+		const uint8 ClassId = ResolveClassIdFromSegmentationColor(Bitmap[Index], ColorToClassId, bExactMatch);
+		if (!bExactMatch)
+		{
+			++UnknownColorPixelCount;
+		}
+		ClassIdBitmap[Index] = FColor(ClassId, ClassId, ClassId, 255);
+		PixelHistogram.FindOrAdd(ClassId) += 1;
+	}
+
 	TArray64<uint8> PngBytes;
-	FImageUtils::PNGCompressImageArray(Width, Height, TArrayView64<const FColor>(Bitmap.GetData(), Bitmap.Num()), PngBytes);
+	FImageUtils::PNGCompressImageArray(Width, Height, TArrayView64<const FColor>(ClassIdBitmap.GetData(), ClassIdBitmap.Num()), PngBytes);
 	if (PngBytes.Num() <= 0)
 	{
 		OutError = TEXT("semantic PNG compression failed.");
@@ -684,6 +875,14 @@ bool AAeroFixedWorldCaptureCamera::CaptureSemanticPngToDisk(
 
 	OutStats.CapturedWidth = Width;
 	OutStats.CapturedHeight = Height;
-	OutStats.OutputFormat = TEXT("png_semantic_rgb");
+	OutStats.OutputFormat = TEXT("png_uint8_class_id");
+	OutStats.SegmentationKind = TEXT("ue_custom_stencil_class_id_u8");
+	OutStats.SemanticRulesPath = Audit.RulesPath;
+	OutStats.SemanticAuditPath = SemanticAuditPath;
+	OutStats.SemanticClassById = Audit.ClassIdToName;
+	OutStats.SemanticClassHistogram = PixelHistogram;
+	OutStats.IgnorePixelCount = PixelHistogram.FindRef(0);
+	OutStats.SemanticUnknownColorPixelCount = UnknownColorPixelCount;
+	OutStats.SemanticAssignedComponentCount = Audit.AssignedComponentCount;
 	return true;
 }

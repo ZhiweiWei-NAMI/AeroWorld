@@ -48,6 +48,7 @@ class EntityState:
     position_enu_m: tuple[float, float, float]
     rotation_deg: dict[str, float] = field(default_factory=dict)
     velocity_enu_mps: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    activity_type: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +117,7 @@ class EventScriptInterpreter:
         self.emitted_events: set[str] = set()
         self.weather_state: dict[str, Any] = {}
         self.entity_states: dict[str, EntityState] = {}
+        self.entity_activity_states: dict[str, str] = {}
         self.actions_executed_this_tick: list[dict[str, Any]] = []
         self.event_log: list[dict[str, Any]] = []
 
@@ -162,7 +164,21 @@ class EventScriptInterpreter:
             position_enu_m=(px, py, pz),
             rotation_deg=dict(rotation_deg or {}),
             velocity_enu_mps=(vx, vy, vz),
+            activity_type=self.entity_activity_states.get(entity_id, ""),
         )
+
+    def update_entity_activity(self, entity_id: str, activity_type: str) -> None:
+        activity = str(activity_type or "").strip().lower()
+        self.entity_activity_states[str(entity_id)] = activity
+        state = self.entity_states.get(str(entity_id))
+        if state is not None:
+            state.activity_type = activity
+
+    def get_entity_activity(self, entity_id: str) -> str:
+        state = self.entity_states.get(str(entity_id))
+        if state is not None and state.activity_type:
+            return state.activity_type
+        return self.entity_activity_states.get(str(entity_id), "")
 
     def tick(self, tick: int) -> list[dict[str, Any]]:
         """Evaluate all triggers, fire eligible events, execute actions.

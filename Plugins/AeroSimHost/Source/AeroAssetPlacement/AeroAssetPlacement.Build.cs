@@ -22,6 +22,7 @@ public class AeroAssetPlacement : ModuleRules
 				"Json",
 				"JsonUtilities",
 				"Projects",
+				"AirSim",
 				"AeroSemanticRuntime",
 				"PedestrianRuntime"
 			}

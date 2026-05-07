@@ -1,0 +1,79 @@
+{
+  "schema": "aeroworld_semantic_stencil_rules_v1",
+  "classes": {
+    "ignore": 0,
+    "city_base_background": 1,
+    "building": 2,
+    "vegetation": 3,
+    "water": 4,
+    "vehicle": 5,
+    "pedestrian": 6,
+    "drone": 7,
+    "obstacle": 8,
+    "traffic_control": 9,
+    "facility": 10,
+    "hazard_trigger": 11
+  },
+  "rules": [
+    {
+      "priority": 1000,
+      "pattern": "FixedWorldCapture",
+      "class": "ignore"
+    },
+    {
+      "priority": 900,
+      "patterns": ["NoFly", "Hazard", "Trigger", "Geofence"],
+      "class": "hazard_trigger"
+    },
+    {
+      "priority": 800,
+      "patterns": ["TrafficControl", "Traffic_Control", "TrafficSignal", "SignalLight", "PoliceSign", "PoliceTape"],
+      "class": "traffic_control"
+    },
+    {
+      "priority": 760,
+      "patterns": ["LandingPad", "Charger", "BaseTower", "Facility", "RadioTower"],
+      "class": "facility"
+    },
+    {
+      "priority": 740,
+      "patterns": ["Roadwork", "ConstructionFence", "TrafficCone", "Barrier", "Obstacle"],
+      "class": "obstacle"
+    },
+    {
+      "priority": 700,
+      "patterns": ["Pedestrian", "Walker", "Crowd", "ped_"],
+      "class": "pedestrian"
+    },
+    {
+      "priority": 680,
+      "patterns": ["CaptureUAV", "Quadrotor", "RuntimeMultirotor", "FlyingPawn", "Drone", "UAV"],
+      "class": "drone"
+    },
+    {
+      "priority": 650,
+      "patterns": ["Vehicle", "BoxCar", "SUV", "Ambulance", "Police"],
+      "class": "vehicle"
+    },
+    {
+      "priority": 600,
+      "patterns": ["BP_Archi", "Building", "Architecture"],
+      "class": "building"
+    },
+    {
+      "priority": 500,
+      "patterns": ["Tree", "Vegetation", "Foliage", "Grass", "Green"],
+      "class": "vegetation"
+    },
+    {
+      "priority": 480,
+      "patterns": ["Water", "River", "Lake"],
+      "class": "water"
+    },
+    {
+      "priority": 100,
+      "patterns": ["BP_CityBaseGenerator", "CityBaseMeshComponent", "ProceduralMeshComponent"],
+      "class": "city_base_background"
+    }
+  ]
+}

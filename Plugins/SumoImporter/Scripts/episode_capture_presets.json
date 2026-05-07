@@ -18,10 +18,14 @@
       "extension": "npy"
     },
     "seg": {
-      "image_type": "Segmentation",
+      "image_type": "UECustomStencil",
+      "capture_backend": "ue_custom_stencil",
       "pixels_as_float": false,
       "compress": true,
-      "extension": "png"
+      "extension": "png",
+      "output_format": "png_uint8_class_id",
+      "max_channel_distance": 24,
+      "max_raw_unique_colors": 512
     }
   },
   "weather_profiles": {
@@ -141,11 +145,13 @@
       {
         "camera_id_suffix": "nadir_down",
         "camera_name": "bottom_center",
-        "rgb_capture_backend": "editor_hook_follow_camera",
+        "capture_backend": "airsim_native",
         "width": 1280,
         "height": 720,
         "fov_degrees": 85.0,
-        "camera_offset_body_m": [0.0, 0.0, 0.0],
+        "set_runtime_camera_pose": true,
+        "camera_pose_frame": "ned",
+        "camera_offset_body_ned_m": [0.0, 0.0, 0.0],
         "fixed_rotation_offset_deg": {
           "pitch_deg": -90.0,
           "yaw_deg": 0.0,

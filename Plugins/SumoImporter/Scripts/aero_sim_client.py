@@ -49,6 +49,15 @@ def _rotation_payload(
     }
 
 
+def _rotation_radians(rotation_deg: Sequence[float] | dict[str, Any] | None = None) -> tuple[float, float, float]:
+    rotation = _rotation_payload(rotation_deg)
+    return (
+        float(rotation["pitch_deg"]) * 3.141592653589793 / 180.0,
+        float(rotation["roll_deg"]) * 3.141592653589793 / 180.0,
+        float(rotation["yaw_deg"]) * 3.141592653589793 / 180.0,
+    )
+
+
 class AeroSimClient:
     def __init__(
         self,
@@ -74,7 +83,7 @@ class AeroSimClient:
                 ) from exc
 
             self._airsim_module = airsim
-            self._client = airsim.VehicleClient(ip=host, port=port, timeout_value=timeout_value)
+            self._client = airsim.MultirotorClient(ip=host, port=port, timeout_value=timeout_value)
 
         if auto_connect and hasattr(self._client, "confirmConnection"):
             self._client.confirmConnection()
@@ -82,6 +91,16 @@ class AeroSimClient:
     @property
     def client(self) -> Any:
         return self._client
+
+    def _airsim(self) -> Any:
+        if self._airsim_module is not None:
+            return self._airsim_module
+        try:
+            import cosysairsim as airsim  # type: ignore
+        except Exception as exc:  # pragma: no cover - depends on local env
+            raise RuntimeError("cosysairsim import failed. Install it in the active Python environment.") from exc
+        self._airsim_module = airsim
+        return airsim
 
     @staticmethod
     def enu_m_to_world_cm(position_enu_m: Sequence[float], world_origin_cm: Sequence[float]) -> list[float]:
@@ -94,6 +113,258 @@ class AeroSimClient:
         world = _vector_payload(position_world_cm)
         origin = _vector_payload(world_origin_cm)
         return [(world[0] - origin[0]) / 100.0, (world[1] - origin[1]) / 100.0, (world[2] - origin[2]) / 100.0]
+
+    def _rotation_quaternion(self, rotation_deg: Sequence[float] | dict[str, Any] | None = None) -> Any:
+        airsim = self._airsim()
+        pitch_rad, roll_rad, yaw_rad = _rotation_radians(rotation_deg)
+        if hasattr(airsim, "to_quaternion"):
+            return airsim.to_quaternion(pitch_rad, roll_rad, yaw_rad)
+        if hasattr(airsim, "utils") and hasattr(airsim.utils, "euler_to_quaternion"):
+            return airsim.utils.euler_to_quaternion(roll_rad, pitch_rad, yaw_rad)
+        raise RuntimeError("cosysairsim does not expose a quaternion helper.")
+
+    def build_airsim_pose(self, position_enu_m: Sequence[float], rotation_deg: Sequence[float] | dict[str, Any] | None = None) -> Any:
+        airsim = self._airsim()
+        position = _vector_payload(position_enu_m)
+        return airsim.Pose(
+            airsim.Vector3r(float(position[0]), float(position[1]), float(-position[2])),
+            self._rotation_quaternion(rotation_deg),
+        )
+
+    def build_airsim_pose_ned(self, position_ned_m: Sequence[float], rotation_deg: Sequence[float] | dict[str, Any] | None = None) -> Any:
+        airsim = self._airsim()
+        position = _vector_payload(position_ned_m)
+        return airsim.Pose(
+            airsim.Vector3r(float(position[0]), float(position[1]), float(position[2])),
+            self._rotation_quaternion(rotation_deg),
+        )
+
+    @staticmethod
+    def airsim_pose_to_enu_payload(pose: Any) -> dict[str, Any]:
+        position = getattr(pose, "position", None)
+        orientation = getattr(pose, "orientation", None)
+        position_enu_m = [
+            float(getattr(position, "x_val", 0.0)),
+            float(getattr(position, "y_val", 0.0)),
+            float(-getattr(position, "z_val", 0.0)),
+        ]
+        orientation_payload = {
+            "x_val": float(getattr(orientation, "x_val", 0.0)),
+            "y_val": float(getattr(orientation, "y_val", 0.0)),
+            "z_val": float(getattr(orientation, "z_val", 0.0)),
+            "w_val": float(getattr(orientation, "w_val", 1.0)),
+        }
+        return {"position_enu_m": position_enu_m, "orientation": orientation_payload}
+
+    def list_vehicles(self) -> list[str]:
+        return [str(value) for value in self._client.listVehicles()]
+
+    def add_vehicle(
+        self,
+        vehicle_name: str,
+        *,
+        vehicle_type: str = "SimpleFlight",
+        position_enu_m: Sequence[float] = (0.0, 0.0, 20.0),
+        rotation_deg: Sequence[float] | dict[str, Any] | None = None,
+        pawn_path: str = "",
+    ) -> bool:
+        pose = self.build_airsim_pose(position_enu_m, rotation_deg)
+        return bool(self._client.simAddVehicle(str(vehicle_name), str(vehicle_type), pose, str(pawn_path or "")))
+
+    def enable_api_control(self, enabled: bool, vehicle_name: str) -> None:
+        self._client.enableApiControl(bool(enabled), str(vehicle_name))
+
+    def arm_disarm(self, arm: bool, vehicle_name: str) -> bool:
+        return bool(self._client.armDisarm(bool(arm), str(vehicle_name)))
+
+    def set_vehicle_pose_enu(
+        self,
+        vehicle_name: str,
+        *,
+        position_enu_m: Sequence[float],
+        rotation_deg: Sequence[float] | dict[str, Any] | None = None,
+        ignore_collision: bool = True,
+    ) -> None:
+        airsim = self._airsim()
+        pose = self.build_airsim_pose(position_enu_m, rotation_deg)
+        if hasattr(airsim, "KinematicsState") and hasattr(self._client, "simSetKinematics"):
+            state = airsim.KinematicsState()
+            state.position = pose.position
+            state.orientation = pose.orientation
+            state.linear_velocity = airsim.Vector3r(0.0, 0.0, 0.0)
+            state.angular_velocity = airsim.Vector3r(0.0, 0.0, 0.0)
+            state.linear_acceleration = airsim.Vector3r(0.0, 0.0, 0.0)
+            state.angular_acceleration = airsim.Vector3r(0.0, 0.0, 0.0)
+            self._client.simSetKinematics(state, bool(ignore_collision), str(vehicle_name))
+            return
+        self._client.simSetVehiclePose(pose, bool(ignore_collision), str(vehicle_name))
+
+    def set_vehicle_pose_ned(
+        self,
+        vehicle_name: str,
+        *,
+        position_ned_m: Sequence[float],
+        rotation_deg: Sequence[float] | dict[str, Any] | None = None,
+        ignore_collision: bool = True,
+    ) -> None:
+        airsim = self._airsim()
+        pose = self.build_airsim_pose_ned(position_ned_m, rotation_deg)
+        if hasattr(airsim, "KinematicsState") and hasattr(self._client, "simSetKinematics"):
+            state = airsim.KinematicsState()
+            state.position = pose.position
+            state.orientation = pose.orientation
+            state.linear_velocity = airsim.Vector3r(0.0, 0.0, 0.0)
+            state.angular_velocity = airsim.Vector3r(0.0, 0.0, 0.0)
+            state.linear_acceleration = airsim.Vector3r(0.0, 0.0, 0.0)
+            state.angular_acceleration = airsim.Vector3r(0.0, 0.0, 0.0)
+            self._client.simSetKinematics(state, bool(ignore_collision), str(vehicle_name))
+            return
+        self._client.simSetVehiclePose(pose, bool(ignore_collision), str(vehicle_name))
+
+    def get_vehicle_pose_ned(self, vehicle_name: str) -> dict[str, Any]:
+        if hasattr(self._client, "simGetGroundTruthKinematics"):
+            state = self._client.simGetGroundTruthKinematics(str(vehicle_name))
+            position = state.position
+            orientation = state.orientation
+        else:
+            pose = self._client.simGetVehiclePose(str(vehicle_name))
+            position = pose.position
+            orientation = pose.orientation
+        return {
+            "position_ned_m": [
+                float(getattr(position, "x_val", 0.0)),
+                float(getattr(position, "y_val", 0.0)),
+                float(getattr(position, "z_val", 0.0)),
+            ],
+            "orientation": {
+                "x_val": float(getattr(orientation, "x_val", 0.0)),
+                "y_val": float(getattr(orientation, "y_val", 0.0)),
+                "z_val": float(getattr(orientation, "z_val", 0.0)),
+                "w_val": float(getattr(orientation, "w_val", 1.0)),
+            },
+        }
+
+    def get_vehicle_pose_enu(self, vehicle_name: str) -> dict[str, Any]:
+        if hasattr(self._client, "simGetGroundTruthKinematics"):
+            state = self._client.simGetGroundTruthKinematics(str(vehicle_name))
+            return self.airsim_pose_to_enu_payload(type("_Pose", (), {"position": state.position, "orientation": state.orientation})())
+        return self.airsim_pose_to_enu_payload(self._client.simGetVehiclePose(str(vehicle_name)))
+
+    def set_camera_fov(self, vehicle_name: str, camera_name: str, fov_degrees: float) -> None:
+        self._client.simSetCameraFov(str(camera_name), float(fov_degrees), str(vehicle_name))
+
+    def set_camera_pose(
+        self,
+        vehicle_name: str,
+        camera_name: str,
+        *,
+        position_enu_m: Sequence[float] = (0.0, 0.0, 0.0),
+        rotation_deg: Sequence[float] | dict[str, Any] | None = None,
+    ) -> None:
+        pose = self.build_airsim_pose(position_enu_m, rotation_deg)
+        self._client.simSetCameraPose(str(camera_name), pose, str(vehicle_name))
+
+    def set_camera_pose_ned(
+        self,
+        vehicle_name: str,
+        camera_name: str,
+        *,
+        position_ned_m: Sequence[float] = (0.0, 0.0, 0.0),
+        rotation_deg: Sequence[float] | dict[str, Any] | None = None,
+    ) -> None:
+        pose = self.build_airsim_pose_ned(position_ned_m, rotation_deg)
+        self._client.simSetCameraPose(str(camera_name), pose, str(vehicle_name))
+
+    def get_camera_info(self, vehicle_name: str, camera_name: str) -> dict[str, Any]:
+        info = self._client.simGetCameraInfo(str(camera_name), str(vehicle_name))
+        pose = getattr(info, "pose", None)
+        position = getattr(pose, "position", None)
+        orientation = getattr(pose, "orientation", None)
+        return {
+            "camera_name": str(camera_name),
+            "vehicle_name": str(vehicle_name),
+            "fov_degrees": float(getattr(info, "fov", 0.0)),
+            "position_ned_m": [
+                float(getattr(position, "x_val", 0.0)),
+                float(getattr(position, "y_val", 0.0)),
+                float(getattr(position, "z_val", 0.0)),
+            ],
+            "orientation": {
+                "x_val": float(getattr(orientation, "x_val", 0.0)),
+                "y_val": float(getattr(orientation, "y_val", 0.0)),
+                "z_val": float(getattr(orientation, "z_val", 0.0)),
+                "w_val": float(getattr(orientation, "w_val", 1.0)),
+            },
+        }
+
+    def _image_type_value(self, image_type: str | int) -> Any:
+        airsim = self._airsim()
+        if isinstance(image_type, int):
+            return int(image_type)
+        normalized = str(image_type or "Scene").strip()
+        if not normalized:
+            normalized = "Scene"
+        return getattr(airsim.ImageType, normalized)
+
+    def capture_vehicle_image(
+        self,
+        vehicle_name: str,
+        *,
+        camera_name: str,
+        image_type: str | int,
+        pixels_as_float: bool,
+        compress: bool,
+        annotation_name: str = "",
+    ) -> Any:
+        airsim = self._airsim()
+        request = airsim.ImageRequest(
+            str(camera_name),
+            self._image_type_value(image_type),
+            bool(pixels_as_float),
+            bool(compress),
+            str(annotation_name or ""),
+        )
+        responses = self._client.simGetImages([request], str(vehicle_name))
+        if not responses:
+            raise RuntimeError(f"simGetImages returned no responses for {vehicle_name}/{camera_name}/{image_type}")
+        return responses[0]
+
+    def set_segmentation_object_id(self, mesh_name: str, object_id: int, *, is_name_regex: bool = True) -> bool:
+        return bool(self._client.simSetSegmentationObjectID(str(mesh_name), int(object_id), bool(is_name_regex)))
+
+    def list_instance_segmentation_objects(self) -> list[str]:
+        return [str(value) for value in self._client.simListInstanceSegmentationObjects()]
+
+    def get_segmentation_color_map(self) -> list[list[int]]:
+        values = self._airsim().MultirotorClient.simGetSegmentationColorMap()
+        if hasattr(values, "tolist"):
+            values = values.tolist()
+        return [[int(channel) for channel in row[:3]] for row in values]
+
+    def get_instance_segmentation_color_map(self) -> list[list[float]]:
+        if hasattr(self._client, "simGetInstanceSegmentationColorMap"):
+            values = self._client.simGetInstanceSegmentationColorMap()
+        elif hasattr(self._client, "client"):
+            values = self._client.client.call("simGetInstanceSegmentationColorMap")
+        else:
+            values = []
+        return [
+            [
+                float(getattr(value, "x_val", 0.0)),
+                float(getattr(value, "y_val", 0.0)),
+                float(getattr(value, "z_val", 0.0)),
+            ]
+            for value in values
+        ]
+
+    def get_settings_string(self) -> str:
+        if hasattr(self._client, "getSettingsString"):
+            return str(self._client.getSettingsString())
+        direct_client = self._get_direct_rpc_client()
+        response = direct_client.call("getSettingsString")
+        if isinstance(response, bytes):
+            return response.decode("utf-8")
+        return str(response)
 
     def _make_request_json(self, payload: Optional[dict[str, Any]] = None, map_id: str = "") -> str:
         root: dict[str, Any] = {

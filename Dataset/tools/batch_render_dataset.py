@@ -33,6 +33,9 @@ def validate_single_capture_selection(
     camera_roles: list[str],
     camera_ids: list[str],
     modalities: list[str],
+    segmentation_backend: str,
+    semantic_rules_path: Path,
+    semantic_stencil_audit_only: bool,
 ) -> None:
     roles = [str(value).strip().lower() for value in camera_roles if str(value).strip()]
     ids = [str(value).strip() for value in camera_ids if str(value).strip()]
@@ -174,6 +177,11 @@ def render_episode(
         command.extend(["--camera-id", str(camera_id)])
     for modality in modalities:
         command.extend(["--modality", str(modality)])
+    command.extend(["--segmentation-backend", str(segmentation_backend)])
+    if semantic_rules_path:
+        command.extend(["--semantic-rules-path", str(semantic_rules_path)])
+    if semantic_stencil_audit_only:
+        command.append("--semantic-stencil-audit-only")
     subprocess.run(command, cwd=PROJECT_ROOT, check=True)
 
 
@@ -199,6 +207,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-role", action="append", default=[], choices=["all", "ground", "uav"])
     parser.add_argument("--camera-id", action="append", default=[])
     parser.add_argument("--modality", action="append", default=[])
+    parser.add_argument("--segmentation-backend", choices=["ue_custom_stencil", "airsim_native"], default="ue_custom_stencil")
+    parser.add_argument("--semantic-rules-path", type=Path, default=Path("Config/LowAltitude/semantic_stencil_rules.json"))
+    parser.add_argument("--semantic-stencil-audit-only", action="store_true")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=41451)
     parser.add_argument("--overwrite", action="store_true")
@@ -275,6 +286,9 @@ def main() -> None:
                 camera_roles=list(args.camera_role or []),
                 camera_ids=list(args.camera_id or []),
                 modalities=list(args.modality or []),
+                segmentation_backend=str(args.segmentation_backend),
+                semantic_rules_path=args.semantic_rules_path,
+                semantic_stencil_audit_only=bool(args.semantic_stencil_audit_only),
             )
 
     if not args.render:
