@@ -70,6 +70,13 @@ ENTITY_PROFILES: dict[str, dict[str, str]] = {
         "logical_asset_id": "",
         "mode": "metadata_only",
     },
+    "uav_corridor": {
+        "entity_category": "airspace_corridor",
+        "entity_kind": "airspace_corridor.uav_corridor",
+        "proxy_template_id": "semantic.uav_corridor.segment.v1",
+        "logical_asset_id": "semantic.uav_corridor.segment.v1",
+        "mode": "metadata_only",
+    },
 }
 
 

@@ -87,36 +87,6 @@ void SetRotatorObjectField(const TSharedPtr<FJsonObject>& Object, const FString&
 	Object->SetObjectField(FieldName, RotatorObject);
 }
 
-TSharedPtr<FJsonObject> MakeSemanticPalettePayload()
-{
-	TSharedPtr<FJsonObject> Palette = MakeShared<FJsonObject>();
-	struct FPaletteEntry
-	{
-		const TCHAR* ClassName;
-		FColor Color;
-	};
-	const FPaletteEntry Entries[] = {
-		{TEXT("background"), FColor(0, 0, 0)},
-		{TEXT("static_map"), FColor(90, 90, 90)},
-		{TEXT("uav"), FColor(255, 0, 0)},
-		{TEXT("vehicle"), FColor(0, 128, 255)},
-		{TEXT("pedestrian"), FColor(255, 255, 0)},
-		{TEXT("roadwork_prop"), FColor(255, 128, 0)},
-		{TEXT("traffic_control"), FColor(0, 255, 255)},
-		{TEXT("facility"), FColor(128, 0, 255)},
-		{TEXT("hazard_trigger"), FColor(255, 0, 255)},
-	};
-	for (const FPaletteEntry& Entry : Entries)
-	{
-		TArray<TSharedPtr<FJsonValue>> ColorValues;
-		ColorValues.Add(MakeShared<FJsonValueNumber>(Entry.Color.R));
-		ColorValues.Add(MakeShared<FJsonValueNumber>(Entry.Color.G));
-		ColorValues.Add(MakeShared<FJsonValueNumber>(Entry.Color.B));
-		Palette->SetArrayField(Entry.ClassName, ColorValues);
-	}
-	return Palette;
-}
-
 TSharedPtr<FJsonObject> MakeClassIdToNamePayload(const TMap<uint8, FString>& Values)
 {
 	TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
@@ -2043,6 +2013,7 @@ FString UAeroBridgeWorldSubsystem::HandleCaptureWorldCamera(const FString& Reque
 		ResponsePayload->SetObjectField(TEXT("semantic_class_by_id"), MakeClassIdToNamePayload(CaptureStats.SemanticClassById));
 		ResponsePayload->SetObjectField(TEXT("class_histogram"), MakeClassIdHistogramPayload(CaptureStats.SemanticClassHistogram));
 		ResponsePayload->SetNumberField(TEXT("ignore_pixel_count"), CaptureStats.IgnorePixelCount);
+		ResponsePayload->SetNumberField(TEXT("invalid_semantic_class_id_pixel_count"), CaptureStats.SemanticInvalidClassIdPixelCount);
 		ResponsePayload->SetNumberField(TEXT("unknown_semantic_color_pixel_count"), CaptureStats.SemanticUnknownColorPixelCount);
 		ResponsePayload->SetNumberField(TEXT("semantic_assigned_component_count"), CaptureStats.SemanticAssignedComponentCount);
 	}

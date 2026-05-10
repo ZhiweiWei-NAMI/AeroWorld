@@ -12,13 +12,33 @@
     "obstacle": 8,
     "traffic_control": 9,
     "facility": 10,
-    "hazard_trigger": 11
+    "hazard_trigger": 11,
+    "uav_corridor": 12
+  },
+  "capture": {
+    "encoding": "custom_stencil_grayscale_u8",
+    "post_process_material": "Material'/Game/AeroSemantic/M_CustomStencilClassId_U8.M_CustomStencilClassId_U8'"
   },
   "rules": [
     {
       "priority": 1000,
       "pattern": "FixedWorldCapture",
       "class": "ignore"
+    },
+    {
+      "priority": 995,
+      "actor_patterns": ["APIPCamera", "BP_PIPCamera", "PIPCamera"],
+      "class": "ignore"
+    },
+    {
+      "priority": 990,
+      "actor_patterns": ["WeatherActor"],
+      "class": "ignore"
+    },
+    {
+      "priority": 920,
+      "patterns": ["UAVCorridor", "HighAltitudeCorridor", "uav_corridor"],
+      "class": "uav_corridor"
     },
     {
       "priority": 900,
@@ -41,14 +61,14 @@
       "class": "obstacle"
     },
     {
+      "priority": 720,
+      "patterns": ["CaptureUAV", "Quadrotor", "RuntimeMultirotor", "FlyingPawn", "Drone", "UAV"],
+      "class": "drone"
+    },
+    {
       "priority": 700,
       "patterns": ["Pedestrian", "Walker", "Crowd", "ped_"],
       "class": "pedestrian"
-    },
-    {
-      "priority": 680,
-      "patterns": ["CaptureUAV", "Quadrotor", "RuntimeMultirotor", "FlyingPawn", "Drone", "UAV"],
-      "class": "drone"
     },
     {
       "priority": 650,
@@ -59,6 +79,18 @@
       "priority": 600,
       "patterns": ["BP_Archi", "Building", "Architecture"],
       "class": "building"
+    },
+    {
+      "priority": 590,
+      "actor_patterns": ["BP_CityBaseGenerator"],
+      "component_patterns": ["Water"],
+      "class": "water"
+    },
+    {
+      "priority": 580,
+      "actor_patterns": ["BP_CityBaseGenerator"],
+      "component_patterns": ["Ground", "Road", "Terrain", "InstanceSegmentation"],
+      "class": "city_base_background"
     },
     {
       "priority": 500,

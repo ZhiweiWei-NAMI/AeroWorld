@@ -195,6 +195,14 @@ bool UAeroSceneSyncSubsystem::ApplySpawnDelta(const TSharedPtr<FJsonObject>& Del
 	ReadTagsField(DeltaObject, TEXT("tags"), QueryTags);
 	FAeroVisualState VisualState;
 	const bool bHasVisualState = ReadVisualStateField(DeltaObject, TEXT("visual_state"), VisualState);
+	FString PlacementMode;
+	const bool bHasPlacementMode = DeltaObject->TryGetStringField(TEXT("placement_mode"), PlacementMode);
+	TSharedPtr<FJsonObject> Placement;
+	const bool bHasPlacement = DeltaObject->HasTypedField<EJson::Object>(TEXT("placement"));
+	if (bHasPlacement)
+	{
+		Placement = DeltaObject->GetObjectField(TEXT("placement"));
+	}
 
 	UAeroAssetPlacementSubsystem* AssetSubsystem = GetWorld()->GetSubsystem<UAeroAssetPlacementSubsystem>();
 	if (AssetSubsystem == nullptr)
@@ -212,7 +220,11 @@ bool UAeroSceneSyncSubsystem::ApplySpawnDelta(const TSharedPtr<FJsonObject>& Del
 			QueryTags,
 			EntityId,
 			bHasVisualState ? &VisualState : nullptr,
-			OutError))
+			nullptr,
+			false,
+			OutError,
+			bHasPlacementMode ? &PlacementMode : nullptr,
+			bHasPlacement ? &Placement : nullptr))
 	{
 		return false;
 	}
@@ -266,6 +278,13 @@ bool UAeroSceneSyncSubsystem::ApplyUpdateDelta(const TSharedPtr<FJsonObject>& De
 	ReadPoseField(DeltaObject, TEXT("pose_enu_m"), PositionEnuM, RotationDeg);
 	FAeroVisualState VisualState;
 	const bool bHasVisualState = ReadVisualStateField(DeltaObject, TEXT("visual_state"), VisualState);
+	FString PlacementMode = ExistingInstance->PlacementMode;
+	DeltaObject->TryGetStringField(TEXT("placement_mode"), PlacementMode);
+	TSharedPtr<FJsonObject> Placement = ExistingInstance->Placement;
+	if (DeltaObject->HasTypedField<EJson::Object>(TEXT("placement")))
+	{
+		Placement = DeltaObject->GetObjectField(TEXT("placement"));
+	}
 
 	TArray<FString> QueryTags = ExistingInstance->QueryTags;
 	ReadTagsField(DeltaObject, TEXT("tags"), QueryTags);
@@ -277,7 +296,11 @@ bool UAeroSceneSyncSubsystem::ApplyUpdateDelta(const TSharedPtr<FJsonObject>& De
 			QueryTags,
 			EntityId,
 			bHasVisualState ? &VisualState : nullptr,
-			OutError))
+			ExistingInstance->bHasInstanceScale ? &ExistingInstance->InstanceScale : nullptr,
+			ExistingInstance->bCustomStencilOnly,
+			OutError,
+			&PlacementMode,
+			&Placement))
 	{
 		return false;
 	}

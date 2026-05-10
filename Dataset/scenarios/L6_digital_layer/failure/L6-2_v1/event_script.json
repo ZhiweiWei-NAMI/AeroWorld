@@ -4,7 +4,30 @@
   "description": "Intermittent C2 degradation with slowdown and backup link",
   "parameters": {
     "anomaly_tick": 240,
-    "recovery_tick": 520
+    "recovery_tick": 520,
+    "target_uav_count": 1,
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 8,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "uav_digital_l6_2_v1": 30.0
+    },
+    "uav_lateral_bypass_used": {
+      "uav_digital_l6_2_v1": true
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "uav_digital_l6_2_v1",
+        "point_count": 9,
+        "assigned_altitude_m": 30.0,
+        "used_lateral_bypass": true
+      }
+    ]
   },
   "triggers": [
     {
@@ -55,22 +78,49 @@
           "entity_id": "uav_digital_l6_2_v1",
           "waypoints_enu_m": [
             [
-              7006.75,
+              6996.75,
               6374.769,
-              3.0
+              30.0
             ],
             [
-              7006.75,
-              6374.769,
-              24.0
+              6974.642,
+              6417.375,
+              30.0
+            ],
+            [
+              7027.892,
+              6445.006,
+              30.0
             ],
             [
               7050.0,
               6402.4,
-              32
+              30.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7006.75,
+                6374.769,
+                3.0
+              ],
+              [
+                7006.75,
+                6374.769,
+                24.0
+              ],
+              [
+                7050.0,
+                6402.4,
+                32
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -126,15 +176,32 @@
             [
               7050.0,
               6402.4,
-              32
+              30.0
             ],
             [
               7062.0,
               6408.4,
-              31
+              30.0
             ]
           ],
-          "velocity_mps": 3.0
+          "velocity_mps": 3.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7050.0,
+                6402.4,
+                32
+              ],
+              [
+                7062.0,
+                6408.4,
+                31
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         },
         {
           "type": "set_visual_state",
@@ -178,15 +245,32 @@
             [
               7062.0,
               6408.4,
-              31
+              30.0
             ],
             [
               7052.0,
               6420.4,
-              32
+              30.0
             ]
           ],
-          "velocity_mps": 5.5
+          "velocity_mps": 5.5,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7062.0,
+                6408.4,
+                31
+              ],
+              [
+                7052.0,
+                6420.4,
+                32
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -241,20 +325,47 @@
             [
               7052.0,
               6420.4,
-              32.0
+              30.0
             ],
             [
-              7006.75,
-              6374.769,
-              22.0
+              7021.434,
+              6457.41,
+              30.0
             ],
             [
-              7006.75,
+              6966.184,
+              6411.779,
+              30.0
+            ],
+            [
+              6996.75,
               6374.769,
-              3.0
+              30.0
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 4.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7052.0,
+                6420.4,
+                32.0
+              ],
+              [
+                7006.75,
+                6374.769,
+                22.0
+              ],
+              [
+                7006.75,
+                6374.769,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {

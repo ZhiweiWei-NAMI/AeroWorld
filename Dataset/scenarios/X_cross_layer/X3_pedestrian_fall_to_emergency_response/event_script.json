@@ -3,7 +3,38 @@
   "scenario_id": "X3_pedestrian_fall_to_emergency_response",
   "description": "Pedestrian fall to emergency response chain",
   "parameters": {
-    "cross_layer": true
+    "cross_layer": true,
+    "target_uav_count": 1,
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 3,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "uav_x3_detect": 30.0
+    },
+    "uav_lateral_bypass_used": {
+      "uav_x3_detect": true
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "uav_x3_detect",
+        "point_count": 4,
+        "assigned_altitude_m": 30.0,
+        "used_lateral_bypass": true
+      }
+    ],
+    "background_vehicle_policy": {
+      "policy": "road_context_non_event_actor_v1",
+      "requested_count": 1,
+      "added_entity_ids": [
+        "bg_vehicle_x3_pedestrian_fall_to_emergency_response_01"
+      ],
+      "reason": "emergency response road context"
+    }
   },
   "triggers": [
     {
@@ -23,10 +54,10 @@
       "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_uav_detection_delay_84",
+      "trigger_id": "trig_after_uav_detection_delay_76",
       "type": "event_fired_after",
       "event_id": "uav_detection",
-      "delay_ticks": 84
+      "delay_ticks": 76
     },
     {
       "trigger_id": "trig_after_ambulance_dispatch_delay_39",
@@ -62,20 +93,37 @@
             [
               6164.572,
               6955.014,
-              3.0
-            ],
-            [
-              6164.572,
-              6955.014,
-              24.0
+              30.0
             ],
             [
               6152.381,
               6950.239,
-              32
+              30.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                6164.572,
+                6955.014,
+                3.0
+              ],
+              [
+                6164.572,
+                6955.014,
+                24.0
+              ],
+              [
+                6152.381,
+                6950.239,
+                32
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -128,15 +176,32 @@
             [
               6152.381,
               6950.239,
-              32
+              30.0
             ],
             [
               6180.381,
               6970.239,
-              16
+              30.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                6152.381,
+                6950.239,
+                32
+              ],
+              [
+                6180.381,
+                6970.239,
+                16
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         },
         {
           "type": "capture_screenshot",
@@ -158,7 +223,7 @@
     },
     {
       "event_id": "ambulance_dispatch",
-      "trigger_ref": "trig_after_uav_detection_delay_84",
+      "trigger_ref": "trig_after_uav_detection_delay_76",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -265,20 +330,37 @@
             [
               6180.381,
               6970.239,
-              16.0
+              30.0
             ],
             [
               6164.572,
               6955.014,
-              16.0
-            ],
-            [
-              6164.572,
-              6955.014,
-              3.0
+              30.0
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 4.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                6180.381,
+                6970.239,
+                16.0
+              ],
+              [
+                6164.572,
+                6955.014,
+                16.0
+              ],
+              [
+                6164.572,
+                6955.014,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {

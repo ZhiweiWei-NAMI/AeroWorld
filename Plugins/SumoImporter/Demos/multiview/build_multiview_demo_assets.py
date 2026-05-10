@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+SUMO_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "Scripts"
+if str(SUMO_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SUMO_SCRIPTS_DIR))
 
 from donghu_core.discovery import (
     DEFAULT_EPISODE_ID,

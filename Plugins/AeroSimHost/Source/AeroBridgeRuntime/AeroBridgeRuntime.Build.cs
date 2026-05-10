@@ -24,6 +24,7 @@ public class AeroBridgeRuntime : ModuleRules
 			{
 				"Projects",
 				"AirSim",
+				"ImageWrapper",
 				"RenderCore",
 				"RHI",
 				"AeroSemanticRuntime",

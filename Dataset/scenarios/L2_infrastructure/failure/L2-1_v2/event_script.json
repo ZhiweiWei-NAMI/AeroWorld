@@ -4,7 +4,30 @@
   "description": "Communication station failure with backup link recovery",
   "parameters": {
     "failure_tick": 260,
-    "resolution_tick": 520
+    "resolution_tick": 520,
+    "target_uav_count": 1,
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 5,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "uav_l2_1_v2": 30.0
+    },
+    "uav_lateral_bypass_used": {
+      "uav_l2_1_v2": true
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "uav_l2_1_v2",
+        "point_count": 6,
+        "assigned_altitude_m": 30.0,
+        "used_lateral_bypass": true
+      }
+    ]
   },
   "triggers": [
     {
@@ -24,10 +47,10 @@
       "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_uav_link_response_delay_59",
+      "trigger_id": "trig_after_uav_link_response_delay_30",
       "type": "event_fired_after",
       "event_id": "uav_link_response",
-      "delay_ticks": 59
+      "delay_ticks": 30
     },
     {
       "trigger_id": "trig_after_backup_link_restore_delay_80",
@@ -49,22 +72,39 @@
           "entity_id": "uav_l2_1_v2",
           "waypoints_enu_m": [
             [
-              7050.814,
-              6186.037,
-              3.0
+              7059.998,
+              6208.21,
+              30.0
             ],
             [
-              7050.814,
-              6186.037,
-              24.0
-            ],
-            [
-              7055.0,
-              6187.5,
-              31
+              7064.184,
+              6209.673,
+              30.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7050.814,
+                6186.037,
+                3.0
+              ],
+              [
+                7050.814,
+                6186.037,
+                24.0
+              ],
+              [
+                7055.0,
+                6187.5,
+                31
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -117,22 +157,44 @@
           "entity_id": "uav_l2_1_v2",
           "waypoints_enu_m": [
             [
-              7055.0,
-              6187.5,
-              31
+              7064.184,
+              6209.673,
+              30.0
             ],
             [
               7065.0,
-              6197.5,
-              30
+              6207.5,
+              30.0
             ],
             [
-              7068.0,
-              6202.5,
-              34
+              7065.704,
+              6208.043,
+              30.0
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 4.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7055.0,
+                6187.5,
+                31
+              ],
+              [
+                7065.0,
+                6197.5,
+                30
+              ],
+              [
+                7068.0,
+                6202.5,
+                34
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -149,7 +211,7 @@
     },
     {
       "event_id": "backup_link_restore",
-      "trigger_ref": "trig_after_uav_link_response_delay_59",
+      "trigger_ref": "trig_after_uav_link_response_delay_30",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
@@ -167,17 +229,34 @@
           "entity_id": "uav_l2_1_v2",
           "waypoints_enu_m": [
             [
-              7068.0,
-              6202.5,
-              34
+              7065.704,
+              6208.043,
+              30.0
             ],
             [
-              7044.0,
-              6189.5,
-              31
+              7060.971,
+              6206.471,
+              30.0
             ]
           ],
-          "velocity_mps": 7.0
+          "velocity_mps": 7.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7068.0,
+                6202.5,
+                34
+              ],
+              [
+                7044.0,
+                6189.5,
+                31
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -204,22 +283,39 @@
           "entity_id": "uav_l2_1_v2",
           "waypoints_enu_m": [
             [
-              7044.0,
-              6189.5,
-              31.0
+              7060.971,
+              6206.471,
+              30.0
             ],
             [
-              7050.814,
-              6186.037,
-              22.0
-            ],
-            [
-              7050.814,
-              6186.037,
-              3.0
+              7059.998,
+              6208.21,
+              30.0
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 4.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7044.0,
+                6189.5,
+                31.0
+              ],
+              [
+                7050.814,
+                6186.037,
+                22.0
+              ],
+              [
+                7050.814,
+                6186.037,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {

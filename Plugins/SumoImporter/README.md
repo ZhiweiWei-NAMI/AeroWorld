@@ -14,7 +14,7 @@ If the work starts from Python, scenario generation, map-source materials, captu
    Main runtime executor that consumes `ScenarioPackage` outputs and drives UE/AirSim.
 4. `Scenarios/donghu_dense_uav_rain_fall/scripts/build.py`
    Current working example of a canonical scenario generator.
-5. `Scripts/build_multiview_demo_assets.py`
+5. `Demos/multiview/build_multiview_demo_assets.py`
    Current postprocess entrypoint for GIF/timeline generation.
 6. `Scripts/donghu_core/`
    Shared Python service layer. Reusable logic should go here, not be duplicated in CLIs.
@@ -61,7 +61,7 @@ Scenario generation should produce data packages, not directly mutate the world.
    update runtime UAVs
    trigger all cameras once for that tick
    write sidecars and images
-6. Run `Scripts/build_multiview_demo_assets.py` for GIF/timeline outputs.
+6. Run `Demos/multiview/build_multiview_demo_assets.py` for GIF/timeline outputs.
 
 ## APIs That Matter
 

@@ -27,6 +27,14 @@ def _normalized_path(path_value: Any) -> str:
         return str(path_value).replace("\\", "/").lower()
 
 
+def _rotation_deg_payload(rotation_deg: dict[str, float]) -> dict[str, float]:
+    return {
+        "roll_deg": float(rotation_deg.get("roll_deg", rotation_deg.get("roll", 0.0))),
+        "pitch_deg": float(rotation_deg.get("pitch_deg", rotation_deg.get("pitch", 0.0))),
+        "yaw_deg": float(rotation_deg.get("yaw_deg", rotation_deg.get("yaw", 0.0))),
+    }
+
+
 def _project_name(project_root: Path) -> str:
     for uproject_path in sorted(project_root.glob("*.uproject")):
         return uproject_path.stem
@@ -293,7 +301,7 @@ print("EDITOR_HOOK_SENT", {command_name!r}, payload.get("request_id"))
                 "logical_asset_id": logical_asset_id,
                 "pose_enu_m": {
                     "position_enu_m": [float(value) for value in position_enu_m],
-                    "rotation_deg": dict(rotation_deg),
+                    "rotation_deg": _rotation_deg_payload(rotation_deg),
                 },
             },
         )

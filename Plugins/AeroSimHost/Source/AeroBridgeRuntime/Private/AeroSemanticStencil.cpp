@@ -303,37 +303,10 @@ const FAeroSemanticStencilRule* MatchRule(
 	return nullptr;
 }
 
-void AddDefaultClasses(TMap<FString, uint8>& ClassNameToId, TMap<uint8, FString>& ClassIdToName)
-{
-	struct FDefaultClass
-	{
-		const TCHAR* Name;
-		uint8 Id;
-	};
-	const FDefaultClass Defaults[] = {
-		{TEXT("ignore"), 0},
-		{TEXT("city_base_background"), 1},
-		{TEXT("building"), 2},
-		{TEXT("vegetation"), 3},
-		{TEXT("water"), 4},
-		{TEXT("vehicle"), 5},
-		{TEXT("pedestrian"), 6},
-		{TEXT("drone"), 7},
-		{TEXT("obstacle"), 8},
-		{TEXT("traffic_control"), 9},
-		{TEXT("facility"), 10},
-		{TEXT("hazard_trigger"), 11},
-	};
-	for (const FDefaultClass& Entry : Defaults)
-	{
-		ClassNameToId.FindOrAdd(Entry.Name, Entry.Id);
-		ClassIdToName.FindOrAdd(Entry.Id, Entry.Name);
-	}
-}
-
 bool ResolveRuleClass(
 	const TSharedPtr<FJsonObject>& RuleObject,
 	const TMap<FString, uint8>& ClassNameToId,
+	const TMap<uint8, FString>& ClassIdToName,
 	uint8& OutClassId,
 	FString& OutClassName,
 	FString& OutError)
@@ -341,17 +314,20 @@ bool ResolveRuleClass(
 	double ClassIdNumber = -1.0;
 	if (RuleObject->TryGetNumberField(TEXT("class_id"), ClassIdNumber))
 	{
-		const int32 ClassIdInt = FMath::Clamp(FMath::RoundToInt(ClassIdNumber), 0, 255);
-		OutClassId = static_cast<uint8>(ClassIdInt);
-		OutClassName = FString::Printf(TEXT("class_%d"), ClassIdInt);
-		for (const TPair<FString, uint8>& Pair : ClassNameToId)
+		const int32 ClassIdInt = FMath::RoundToInt(ClassIdNumber);
+		if (!FMath::IsNearlyEqual(static_cast<float>(ClassIdNumber), static_cast<float>(ClassIdInt)) || ClassIdInt < 0 || ClassIdInt > 255)
 		{
-			if (Pair.Value == OutClassId)
-			{
-				OutClassName = Pair.Key;
-				break;
-			}
+			OutError = FString::Printf(TEXT("semantic rule class_id must be an integer in 0..255, got %.3f."), ClassIdNumber);
+			return false;
 		}
+		OutClassId = static_cast<uint8>(ClassIdInt);
+		const FString* ConfiguredClassName = ClassIdToName.Find(OutClassId);
+		if (ConfiguredClassName == nullptr)
+		{
+			OutError = FString::Printf(TEXT("semantic rule references class_id %d, but that id is not declared in classes."), ClassIdInt);
+			return false;
+		}
+		OutClassName = *ConfiguredClassName;
 		return true;
 	}
 
@@ -361,6 +337,11 @@ bool ResolveRuleClass(
 		RuleObject->TryGetStringField(TEXT("class_name"), ClassName);
 	}
 	ClassName = ClassName.TrimStartAndEnd();
+	if (ClassName.IsEmpty())
+	{
+		OutError = TEXT("semantic rule is missing class/class_name/class_id.");
+		return false;
+	}
 	const uint8* ClassId = ClassNameToId.Find(ClassName);
 	if (ClassId == nullptr)
 	{
@@ -383,12 +364,21 @@ bool AeroSemanticStencil::LoadRules(
 	TArray<FAeroSemanticStencilRule>& OutRules,
 	TMap<FString, uint8>& OutClassNameToId,
 	TMap<uint8, FString>& OutClassIdToName,
-	FString& OutError)
+	FString& OutError,
+	FString* OutCaptureMaterialPath,
+	FString* OutCaptureEncoding)
 {
 	OutRules.Reset();
 	OutClassNameToId.Reset();
 	OutClassIdToName.Reset();
-	AddDefaultClasses(OutClassNameToId, OutClassIdToName);
+	if (OutCaptureMaterialPath != nullptr)
+	{
+		OutCaptureMaterialPath->Reset();
+	}
+	if (OutCaptureEncoding != nullptr)
+	{
+		OutCaptureEncoding->Reset();
+	}
 
 	const FString ResolvedPath = RulesPath.TrimStartAndEnd().IsEmpty() ? DefaultRulesPath() : RulesPath;
 	FString Content;
@@ -406,15 +396,64 @@ bool AeroSemanticStencil::LoadRules(
 		return false;
 	}
 
-	if (Root->HasTypedField<EJson::Object>(TEXT("classes")))
+	if (!Root->HasTypedField<EJson::Object>(TEXT("classes")))
 	{
-		const TSharedPtr<FJsonObject> Classes = Root->GetObjectField(TEXT("classes"));
-		for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Classes->Values)
+		OutError = FString::Printf(TEXT("semantic stencil rules file has no classes object: %s"), *ResolvedPath);
+		return false;
+	}
+
+	if (Root->HasTypedField<EJson::Object>(TEXT("capture")))
+	{
+		const TSharedPtr<FJsonObject> Capture = Root->GetObjectField(TEXT("capture"));
+		FString MaterialPath;
+		if (Capture->TryGetStringField(TEXT("post_process_material"), MaterialPath) && OutCaptureMaterialPath != nullptr)
 		{
-			const int32 ClassId = FMath::Clamp(FMath::RoundToInt(Pair.Value->AsNumber()), 0, 255);
-			OutClassNameToId.Add(Pair.Key, static_cast<uint8>(ClassId));
-			OutClassIdToName.Add(static_cast<uint8>(ClassId), Pair.Key);
+			*OutCaptureMaterialPath = MaterialPath.TrimStartAndEnd();
 		}
+		FString Encoding;
+		if (Capture->TryGetStringField(TEXT("encoding"), Encoding) && OutCaptureEncoding != nullptr)
+		{
+			*OutCaptureEncoding = Encoding.TrimStartAndEnd();
+		}
+	}
+
+	const TSharedPtr<FJsonObject> Classes = Root->GetObjectField(TEXT("classes"));
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : Classes->Values)
+	{
+		const FString ClassName = Pair.Key.TrimStartAndEnd();
+		if (ClassName.IsEmpty())
+		{
+			OutError = FString::Printf(TEXT("semantic class name is empty in %s."), *ResolvedPath);
+			return false;
+		}
+		if (!Pair.Value.IsValid() || Pair.Value->Type != EJson::Number)
+		{
+			OutError = FString::Printf(TEXT("semantic class '%s' must have a numeric id."), *ClassName);
+			return false;
+		}
+		const double ClassIdNumber = Pair.Value->AsNumber();
+		const int32 ClassId = FMath::RoundToInt(ClassIdNumber);
+		if (!FMath::IsNearlyEqual(static_cast<float>(ClassIdNumber), static_cast<float>(ClassId)) || ClassId < 0 || ClassId > 255)
+		{
+			OutError = FString::Printf(TEXT("semantic class '%s' id must be an integer in 0..255, got %.3f."), *ClassName, ClassIdNumber);
+			return false;
+		}
+		if (OutClassIdToName.Contains(static_cast<uint8>(ClassId)))
+		{
+			OutError = FString::Printf(
+				TEXT("semantic class id %d is assigned to both '%s' and '%s'."),
+				ClassId,
+				*OutClassIdToName.FindRef(static_cast<uint8>(ClassId)),
+				*ClassName);
+			return false;
+		}
+		OutClassNameToId.Add(ClassName, static_cast<uint8>(ClassId));
+		OutClassIdToName.Add(static_cast<uint8>(ClassId), ClassName);
+	}
+	if (!OutClassNameToId.Contains(TEXT("ignore")) || OutClassNameToId.FindRef(TEXT("ignore")) != 0)
+	{
+		OutError = TEXT("semantic classes must declare ignore=0.");
+		return false;
 	}
 
 	if (!Root->HasTypedField<EJson::Array>(TEXT("rules")))
@@ -434,7 +473,7 @@ bool AeroSemanticStencil::LoadRules(
 
 		FAeroSemanticStencilRule Rule;
 		Rule.Order = Order++;
-		if (!ResolveRuleClass(RuleObject, OutClassNameToId, Rule.ClassId, Rule.ClassName, OutError))
+		if (!ResolveRuleClass(RuleObject, OutClassNameToId, OutClassIdToName, Rule.ClassId, Rule.ClassName, OutError))
 		{
 			return false;
 		}
@@ -487,7 +526,14 @@ bool AeroSemanticStencil::AuditAndAssign(
 	OutAudit.bAssigned = bAssign;
 
 	TArray<FAeroSemanticStencilRule> Rules;
-	if (!LoadRules(OutAudit.RulesPath, Rules, OutAudit.ClassNameToId, OutAudit.ClassIdToName, OutError))
+	if (!LoadRules(
+			OutAudit.RulesPath,
+			Rules,
+			OutAudit.ClassNameToId,
+			OutAudit.ClassIdToName,
+			OutError,
+			&OutAudit.CaptureMaterialPath,
+			&OutAudit.CaptureEncoding))
 	{
 		return false;
 	}
@@ -530,6 +576,14 @@ bool AeroSemanticStencil::AuditAndAssign(
 			Row.Materials = ComponentMaterials(Component);
 			Row.bVisible = Component->IsVisible();
 			Row.bRegistered = Component->IsRegistered();
+			if (Row.bVisible)
+			{
+				++OutAudit.VisiblePrimitiveComponentCount;
+			}
+			if (Row.bRegistered)
+			{
+				++OutAudit.RegisteredPrimitiveComponentCount;
+			}
 			Row.bRenderCustomDepthBefore = Component->bRenderCustomDepth;
 			Row.StencilBefore = Component->CustomDepthStencilValue;
 			Row.StencilAfter = Row.StencilBefore;
@@ -551,6 +605,7 @@ bool AeroSemanticStencil::AuditAndAssign(
 					Row.MatchedClassName = TEXT("ignore");
 				}
 			}
+			OutAudit.MatchedComponentHistogram.FindOrAdd(Row.MatchedClassId) += 1;
 
 			if (bAssign && Row.bVisible && Row.bRegistered)
 			{
@@ -574,12 +629,17 @@ TSharedPtr<FJsonObject> AeroSemanticStencil::AuditToJson(const FAeroSemanticSten
 	TSharedPtr<FJsonObject> Root = MakeShared<FJsonObject>();
 	Root->SetStringField(TEXT("schema"), TEXT("aeroworld_semantic_stencil_audit_v1"));
 	Root->SetStringField(TEXT("rules_path"), Audit.RulesPath);
+	Root->SetStringField(TEXT("capture_material_path"), Audit.CaptureMaterialPath);
+	Root->SetStringField(TEXT("capture_encoding"), Audit.CaptureEncoding);
 	Root->SetBoolField(TEXT("assigned"), Audit.bAssigned);
 	Root->SetNumberField(TEXT("actor_count"), Audit.ActorCount);
 	Root->SetNumberField(TEXT("primitive_component_count"), Audit.PrimitiveComponentCount);
+	Root->SetNumberField(TEXT("visible_primitive_component_count"), Audit.VisiblePrimitiveComponentCount);
+	Root->SetNumberField(TEXT("registered_primitive_component_count"), Audit.RegisteredPrimitiveComponentCount);
 	Root->SetNumberField(TEXT("assigned_component_count"), Audit.AssignedComponentCount);
 	Root->SetObjectField(TEXT("class_name_to_id"), ClassNameToIdJson(Audit.ClassNameToId));
 	Root->SetObjectField(TEXT("semantic_class_by_id"), ClassIdToNameJson(Audit.ClassIdToName));
+	Root->SetObjectField(TEXT("matched_component_histogram"), HistogramJson(Audit.MatchedComponentHistogram));
 	Root->SetObjectField(TEXT("assigned_component_histogram"), HistogramJson(Audit.AssignedComponentHistogram));
 
 	if (bIncludeComponents)

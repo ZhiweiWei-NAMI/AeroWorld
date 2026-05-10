@@ -27,6 +27,7 @@ struct FAeroFixedWorldCaptureStats
 	TMap<uint8, FString> SemanticClassById;
 	TMap<uint8, int32> SemanticClassHistogram;
 	int32 IgnorePixelCount = 0;
+	int32 SemanticInvalidClassIdPixelCount = 0;
 	int32 SemanticUnknownColorPixelCount = 0;
 	int32 SemanticAssignedComponentCount = 0;
 };
@@ -97,9 +98,6 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInterface> SemanticStencilMaterial;
 
 	int32 RenderTargetWidth = 0;
 	int32 RenderTargetHeight = 0;

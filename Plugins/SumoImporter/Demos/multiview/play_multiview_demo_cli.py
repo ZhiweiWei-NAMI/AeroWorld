@@ -12,6 +12,10 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+SUMO_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "Scripts"
+if str(SUMO_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SUMO_SCRIPTS_DIR))
+
 from donghu_core.discovery import default_timeline_path, project_root_from
 
 DEFAULT_TIMELINE_PATH = default_timeline_path(project_root_from(Path(__file__)))

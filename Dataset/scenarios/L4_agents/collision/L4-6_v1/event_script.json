@@ -4,9 +4,45 @@
   "description": "Pedestrian jaywalk vehicle conflict",
   "parameters": {
     "incident_tick": 260,
-    "resolution_tick": 520
+    "resolution_tick": 520,
+    "target_uav_count": 1,
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 2,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "uav_observer_l4_6_v1_1": 30.0
+    },
+    "uav_lateral_bypass_used": {
+      "uav_observer_l4_6_v1_1": true
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "uav_observer_l4_6_v1_1",
+        "point_count": 3,
+        "assigned_altitude_m": 30.0,
+        "used_lateral_bypass": true
+      }
+    ],
+    "background_vehicle_policy": {
+      "policy": "road_context_non_event_actor_v1",
+      "requested_count": 1,
+      "added_entity_ids": [
+        "bg_vehicle_l4_6_v1_01"
+      ],
+      "reason": "jaywalk conflict background traffic"
+    }
   },
   "triggers": [
+    {
+      "trigger_id": "trig_lifecycle_takeoff_uav_observer_l4_6_v1_1",
+      "type": "tick",
+      "tick": 30
+    },
     {
       "trigger_id": "trig_ped_enters_roadway",
       "type": "tick",
@@ -29,9 +65,74 @@
       "type": "event_fired_after",
       "event_id": "vehicle_ped_proximity",
       "delay_ticks": 30
+    },
+    {
+      "trigger_id": "trig_after_ped_retreats_delay_80",
+      "type": "event_fired_after",
+      "event_id": "ped_retreats",
+      "delay_ticks": 80
     }
   ],
   "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_observer_l4_6_v1_1",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_observer_l4_6_v1_1",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_observer_l4_6_v1_1_takeoff_entry",
+          "entity_id": "uav_observer_l4_6_v1_1",
+          "waypoints_enu_m": [
+            [
+              7062.091,
+              6321.814,
+              30.0
+            ],
+            [
+              7064.477,
+              6313.76,
+              30.0
+            ]
+          ],
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7062.091,
+                6321.814,
+                3.0
+              ],
+              [
+                7062.091,
+                6321.814,
+                24.0
+              ],
+              [
+                7064.477,
+                6313.76,
+                42.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-6_v1_lifecycle_takeoff_uav_observer_l4_6_v1_1",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_observer_l4_6_v1_1",
+          "pad_home_uav_observer_l4_6_v1_1"
+        ]
+      }
+    },
     {
       "event_id": "ped_enters_roadway",
       "trigger_ref": "trig_ped_enters_roadway",
@@ -166,6 +267,65 @@
         "overlay": "pedestrian",
         "target_ids": [
           "ped_jaywalk_l4_6_v1"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_observer_l4_6_v1_1",
+      "trigger_ref": "trig_after_ped_retreats_delay_80",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_observer_l4_6_v1_1_landing_return",
+          "entity_id": "uav_observer_l4_6_v1_1",
+          "waypoints_enu_m": [
+            [
+              7064.477,
+              6313.76,
+              30.0
+            ],
+            [
+              7062.091,
+              6321.814,
+              30.0
+            ]
+          ],
+          "velocity_mps": 4.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7064.477,
+                6313.76,
+                42.0
+              ],
+              [
+                7062.091,
+                6321.814,
+                22.0
+              ],
+              [
+                7062.091,
+                6321.814,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
+        }
+      ],
+      "log_event": {
+        "topic": "evt_L4-6_v1_lifecycle_landing_uav_observer_l4_6_v1_1",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_observer_l4_6_v1_1",
+          "pad_home_uav_observer_l4_6_v1_1"
         ]
       }
     }

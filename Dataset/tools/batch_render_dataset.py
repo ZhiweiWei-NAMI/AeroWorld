@@ -55,6 +55,8 @@ def validate_single_capture_selection(
             "Rendering must select at most one concrete camera role per process; "
             f"got {roles or '<none>'}."
         )
+    if str(segmentation_backend) != "ue_custom_stencil":
+        raise RuntimeError("Formal rendering only supports --segmentation-backend ue_custom_stencil.")
 
 
 def repo_relative(path: Path) -> str:
@@ -158,6 +160,10 @@ def render_episode(
     camera_roles: list[str],
     camera_ids: list[str],
     modalities: list[str],
+    segmentation_backend: str,
+    semantic_rules_path: Path,
+    semantic_stencil_audit_only: bool,
+    runtime_uav_control_backend: str,
 ) -> None:
     command = [
         sys.executable,
@@ -178,6 +184,7 @@ def render_episode(
     for modality in modalities:
         command.extend(["--modality", str(modality)])
     command.extend(["--segmentation-backend", str(segmentation_backend)])
+    command.extend(["--runtime-uav-control-backend", str(runtime_uav_control_backend)])
     if semantic_rules_path:
         command.extend(["--semantic-rules-path", str(semantic_rules_path)])
     if semantic_stencil_audit_only:
@@ -193,7 +200,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--episodes-root", type=Path, default=Path("Dataset/episodes"))
     parser.add_argument("--render-ready-root", type=Path, default=Path("Dataset/render_ready_episodes"))
-    parser.add_argument("--output-root", type=Path, default=Path("Saved/AirSim/episode_render_host"))
+    parser.add_argument("--output-root", type=Path, default=Path("F:/aw_render"))
     parser.add_argument("--base-config", type=Path, default=DEFAULT_BASE_CONFIG)
     parser.add_argument("--episode", action="append", default=[], help="Episode directory name under --episodes-root. Repeatable.")
     parser.add_argument("--start", type=int, default=0, help="Start index after sorting episodes")
@@ -207,7 +214,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-role", action="append", default=[], choices=["all", "ground", "uav"])
     parser.add_argument("--camera-id", action="append", default=[])
     parser.add_argument("--modality", action="append", default=[])
-    parser.add_argument("--segmentation-backend", choices=["ue_custom_stencil", "airsim_native"], default="ue_custom_stencil")
+    parser.add_argument("--segmentation-backend", choices=["ue_custom_stencil"], default="ue_custom_stencil")
+    parser.add_argument("--runtime-uav-control-backend", choices=["airsim_move", "pose_sync"], default="airsim_move")
     parser.add_argument("--semantic-rules-path", type=Path, default=Path("Config/LowAltitude/semantic_stencil_rules.json"))
     parser.add_argument("--semantic-stencil-audit-only", action="store_true")
     parser.add_argument("--host", default="127.0.0.1")
@@ -226,6 +234,9 @@ def main() -> None:
             camera_roles=list(args.camera_role or []),
             camera_ids=list(args.camera_id or []),
             modalities=list(args.modality or []),
+            segmentation_backend=str(args.segmentation_backend),
+            semantic_rules_path=args.semantic_rules_path,
+            semantic_stencil_audit_only=bool(args.semantic_stencil_audit_only),
         )
     source_episodes = discover_source_episodes(
         args.episodes_root,
@@ -289,6 +300,7 @@ def main() -> None:
                 segmentation_backend=str(args.segmentation_backend),
                 semantic_rules_path=args.semantic_rules_path,
                 semantic_stencil_audit_only=bool(args.semantic_stencil_audit_only),
+                runtime_uav_control_backend=str(args.runtime_uav_control_backend),
             )
 
     if not args.render:

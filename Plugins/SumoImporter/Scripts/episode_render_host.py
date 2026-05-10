@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import bisect
 import csv
+import hashlib
 import json
 import math
 import re
@@ -60,131 +62,6 @@ REQUIRED_CAPABILITIES = {
     "simAeroRemoveRuntimeVehicle",
     "simAeroGetRuntimeVehiclePose",
 }
-
-SEMANTIC_SEGMENTATION_CLASSES: tuple[dict[str, Any], ...] = (
-    {
-        "class_id": 1,
-        "class_name": "city_base_background",
-        "actor_regex": r".*(BP_CityBaseGenerator0|BP_CityBaseGenerator_C.*|BP_CityBaseGenerator.*).*",
-        "component_regex": r".*(BP_CityBaseGenerator0|BP_CityBaseGenerator_C.*|BP_CityBaseGenerator.*).*",
-        "canonical_actor_label": "BP_CityBaseGenerator0",
-        "required_for_static_audit": True,
-        "category": "static_city_base",
-    },
-    {
-        "class_id": 2,
-        "class_name": "building_style1",
-        "actor_regex": r".*BP_Archi_Style1_C.*",
-        "component_regex": r".*BP_Archi_Style1_C.*",
-        "required_for_static_audit": False,
-        "category": "building",
-    },
-    {
-        "class_id": 3,
-        "class_name": "building_style3",
-        "actor_regex": r".*BP_Archi_Style3_C.*",
-        "component_regex": r".*BP_Archi_Style3_C.*",
-        "required_for_static_audit": False,
-        "category": "building",
-    },
-    {
-        "class_id": 4,
-        "class_name": "building_style4",
-        "actor_regex": r".*BP_Archi_Style4_C.*",
-        "component_regex": r".*BP_Archi_Style4_C.*",
-        "required_for_static_audit": False,
-        "category": "building",
-    },
-    {
-        "class_id": 5,
-        "class_name": "building_style05",
-        "actor_regex": r".*BP_Archi_Style05_C.*",
-        "component_regex": r".*BP_Archi_Style05_C.*",
-        "required_for_static_audit": False,
-        "category": "building",
-    },
-    {
-        "class_id": 6,
-        "class_name": "building_roof",
-        "actor_regex": r".*BP_Archi_Roof_C.*",
-        "component_regex": r".*BP_Archi_Roof_C.*",
-        "required_for_static_audit": False,
-        "category": "building",
-    },
-    {
-        "class_id": 7,
-        "class_name": "building_pitched_roof",
-        "actor_regex": r".*BP_Archi_PitchedRoof_C.*",
-        "component_regex": r".*BP_Archi_PitchedRoof_C.*",
-        "required_for_static_audit": False,
-        "category": "building",
-    },
-    {
-        "class_id": 20,
-        "class_name": "uav",
-        "actor_regex": r".*(CaptureUAV_0|Quadrotor|RuntimeMultirotor|uav).*",
-        "component_regex": r".*(CaptureUAV_0|Quadrotor|RuntimeMultirotor|uav).*",
-        "required_for_static_audit": False,
-        "category": "dynamic_actor",
-    },
-    {
-        "class_id": 21,
-        "class_name": "vehicle",
-        "actor_regex": r".*(Vehicle|BoxCar|SUV|Ambulance|Police).*",
-        "component_regex": r".*(Vehicle|BoxCar|SUV|Ambulance|Police).*",
-        "required_for_static_audit": False,
-        "category": "dynamic_actor",
-    },
-    {
-        "class_id": 22,
-        "class_name": "pedestrian",
-        "actor_regex": r".*(Pedestrian|ped_).*",
-        "component_regex": r".*(Pedestrian|ped_).*",
-        "required_for_static_audit": False,
-        "category": "dynamic_actor",
-    },
-    {
-        "class_id": 23,
-        "class_name": "roadwork_prop",
-        "actor_regex": r".*(Roadwork|ConstructionFence|TrafficCone|Barrier).*",
-        "component_regex": r".*(Roadwork|ConstructionFence|TrafficCone|Barrier).*",
-        "required_for_static_audit": False,
-        "category": "dynamic_actor",
-    },
-    {
-        "class_id": 24,
-        "class_name": "traffic_control",
-        "actor_regex": r".*(TrafficControl|Signal|PoliceSign|PoliceTape).*",
-        "component_regex": r".*(TrafficControl|Signal|PoliceSign|PoliceTape).*",
-        "required_for_static_audit": False,
-        "category": "dynamic_actor",
-    },
-    {
-        "class_id": 25,
-        "class_name": "facility",
-        "actor_regex": r".*(LandingPad|Charger|BaseTower|Facility).*",
-        "component_regex": r".*(LandingPad|Charger|BaseTower|Facility).*",
-        "required_for_static_audit": False,
-        "category": "dynamic_actor",
-    },
-    {
-        "class_id": 26,
-        "class_name": "hazard_trigger",
-        "actor_regex": r".*(NoFly|Hazard|Trigger).*",
-        "component_regex": r".*(NoFly|Hazard|Trigger).*",
-        "required_for_static_audit": False,
-        "category": "optional_rendered_trigger",
-    },
-    {
-        "class_id": 27,
-        "class_name": "service_misc_prop",
-        "actor_regex": r".*(DeliveryBag|Backpack|Phone|Umbrella|Service).*",
-        "component_regex": r".*(DeliveryBag|Backpack|Phone|Umbrella|Service).*",
-        "required_for_static_audit": False,
-        "category": "dynamic_actor",
-    },
-)
-
 
 @dataclass(frozen=True)
 class BatchPlan:
@@ -762,6 +639,18 @@ def safe_name(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in ("-", "_", ".") else "_" for ch in value)
 
 
+def short_stable_name(value: str, prefix: str) -> str:
+    digest = hashlib.sha1(str(value).encode("utf-8")).hexdigest()[:8]
+    return f"{prefix}{digest}"
+
+
+def simple_capture_view_dir_name(view_id: str) -> str:
+    match = re.search(r"uav_view_(\d+)", str(view_id))
+    if match:
+        return f"v{int(match.group(1)):03d}"
+    return short_stable_name(str(view_id), "v")
+
+
 def safe_frame_id(frame_id: str) -> str:
     return safe_name(frame_id)
 
@@ -1012,6 +901,19 @@ class EpisodeRenderHost:
             ],
             "preserve_actor_names": [
                 "CaptureUAV_0",
+                "SkyAtmosphere",
+                "SkyLight",
+            ],
+            "sanitize_engine_sky_dome": True,
+            "disable_sky_atmosphere_editor_notifications": True,
+            "sky_dome_actor_keywords": [
+                "sm_skysphere",
+                "bp_sky_sphere",
+            ],
+            "sky_dome_component_path_keywords": [
+                "enginesky/sm_skysphere",
+                "enginesky/m_simpleskydome",
+                "enginesky/skyatmosphere_materialskydome",
             ],
         }
         configured_pie_cleanup = dict(self.config.get("pie_scene_cleanup") or {})
@@ -1074,8 +976,30 @@ class EpisodeRenderHost:
         self.ground_camera_asset_ids: dict[tuple[str, str], str] = {}
         self.prepared_capture_output_dirs: set[Path] = set()
         self.crowd_group_ids: set[str] = set()
+        self.asset_catalog_reload_attempted = False
         self.runtime_uav_direct_rpc_enabled = True
         self.runtime_uav_direct_rpc_disable_reason = ""
+        runtime_uav_cfg = dict(self.config.get("runtime_uav") or {})
+        runtime_uav_backend_arg = str(getattr(self.args, "runtime_uav_control_backend", "") or "").strip().lower()
+        self.runtime_uav_control_backend = runtime_uav_backend_arg or str(
+            runtime_uav_cfg.get("control_backend") or "airsim_move"
+        ).strip().lower()
+        if self.runtime_uav_control_backend not in {"airsim_move", "pose_sync"}:
+            raise RuntimeError(
+                "Unsupported runtime UAV control backend "
+                f"'{self.runtime_uav_control_backend}'. Expected airsim_move or pose_sync."
+            )
+        self.runtime_uav_editor_hook_fallback_enabled = bool(
+            runtime_uav_cfg.get("editor_hook_fallback_enabled", self.runtime_uav_control_backend != "pose_sync")
+        )
+        if self.runtime_uav_control_backend == "pose_sync" and self.runtime_uav_editor_hook_fallback_enabled:
+            raise RuntimeError(
+                "Formal pose_sync runtime UAV control forbids editor-hook fallback. "
+                "Set runtime_uav.editor_hook_fallback_enabled=false or use the legacy airsim_move backend outside formal capture."
+            )
+        self.runtime_uav_non_capture_failure_nonfatal = bool(
+            runtime_uav_cfg.get("non_capture_rpc_failure_nonfatal", self.runtime_uav_control_backend == "pose_sync")
+        )
         self.runtime_uav_debug_cfg = dict(self.config.get("runtime_uav_debug") or {})
         self.runtime_uav_debug_entity_ids = {
             str(value).strip()
@@ -1111,6 +1035,17 @@ class EpisodeRenderHost:
             else PROJECT_ROOT / "Config" / "LowAltitude" / "semantic_stencil_rules.json"
         )
         self.semantic_class_by_id = self._load_semantic_class_by_id(self.semantic_rules_path)
+        if self.segmentation_backend == "ue_custom_stencil" and not self.semantic_class_by_id:
+            raise RuntimeError(
+                "UE CustomStencil segmentation requires a semantic rules JSON with a non-empty classes object: "
+                f"{self.semantic_rules_path}"
+            )
+        if self.segmentation_backend != "ue_custom_stencil":
+            raise RuntimeError(
+                "Formal UAV segmentation only supports UE CustomStencil. "
+                "Use Plugins/SumoImporter/Scripts/dev_checks/airsim_segmentation_registry_audit.py "
+                "for the read-only legacy AirSim registry diagnostic."
+            )
         self.airsim_capture_vehicle = str(getattr(self.args, "airsim_capture_vehicle", "CaptureUAV_0") or "CaptureUAV_0").strip()
         self.requested_airsim_capture_entity = str(getattr(self.args, "airsim_capture_entity", "") or "").strip()
         self.requested_capture_view_id = str(getattr(self.args, "capture_view_id", "") or "").strip()
@@ -1118,8 +1053,6 @@ class EpisodeRenderHost:
         self.active_capture_view_id = ""
         self.airsim_capture_vehicle_ready = False
         self.airsim_capture_ned_origin_world_cm: list[float] | None = None
-        self.airsim_segmentation_ready = False
-        self.airsim_segmentation_registry_payload: dict[str, Any] | None = None
         self.event_weather_overlay: dict[str, Any] = {}
         self.event_scene_setup: dict[str, Any] = {}
         self.event_entity_assets: dict[str, str] = {}
@@ -1134,23 +1067,27 @@ class EpisodeRenderHost:
             scene_setup_path = script_path.with_name("scene_setup.json")
             if scene_setup_path.exists():
                 self.event_scene_setup = json.loads(scene_setup_path.read_text(encoding="utf-8"))
-                for entity in self.event_scene_setup.get("entities") or []:
-                    entity_id = str(entity.get("entity_id") or entity.get("instance_id") or "")
-                    if not entity_id:
-                        continue
-                    self.event_entity_assets[entity_id] = str(entity.get("logical_asset_id") or "")
-                    placement = dict(entity.get("placement") or {})
-                    position = (
-                        placement.get("resolved_position_enu_m")
-                        or placement.get("position_enu_m")
-                        or placement.get("center_enu_m")
-                    )
-                    if isinstance(position, list) and len(position) >= 2:
-                        self.event_entity_initial_positions[entity_id] = [
-                            float(position[0]),
-                            float(position[1]),
-                            float(position[2] if len(position) > 2 else 0.0),
-                        ]
+            else:
+                spec_scene_setup = self._load_scene_setup_from_spec(script_path.with_name("spec.py"))
+                if spec_scene_setup:
+                    self.event_scene_setup = spec_scene_setup
+            for entity in self.event_scene_setup.get("entities") or []:
+                entity_id = str(entity.get("entity_id") or entity.get("instance_id") or "")
+                if not entity_id:
+                    continue
+                self.event_entity_assets[entity_id] = str(entity.get("logical_asset_id") or "")
+                placement = dict(entity.get("placement") or {})
+                position = (
+                    placement.get("resolved_position_enu_m")
+                    or placement.get("position_enu_m")
+                    or placement.get("center_enu_m")
+                )
+                if isinstance(position, list) and len(position) >= 2:
+                    self.event_entity_initial_positions[entity_id] = [
+                        float(position[0]),
+                        float(position[1]),
+                        float(position[2] if len(position) > 2 else 0.0),
+                    ]
             script_params = dict(self.config.get("event_script_parameters") or {})
             self.event_interpreter = EventScriptInterpreter(
                 script_path, parameters=script_params, episode_id=self.episode_id
@@ -1158,12 +1095,541 @@ class EpisodeRenderHost:
             self._register_event_action_handlers()
         else:
             self.event_interpreter = None
+        self.event_semantic_asset_ids = set()
+        for entity in self._event_semantic_entities():
+            logical_asset_id = str(entity.get("logical_asset_id") or "")
+            entity_id = str(entity.get("entity_id") or entity.get("instance_id") or "")
+            if logical_asset_id.startswith("trigger.") and entity_id:
+                self.event_semantic_asset_ids.add(safe_name(f"event_semantic.NoFly.Trigger.{entity_id}"))
+            else:
+                self.event_semantic_asset_ids.add(self._event_semantic_asset_id(entity))
+        self.event_semantic_coordinate_audit: list[dict[str, Any]] = []
+        self.event_semantic_proxy_capture_targets: list[dict[str, Any]] = []
+        self.event_semantic_proxy_sanitizer_result: dict[str, Any] = {}
+        self.last_airsim_proxy_capture_exclusion_result: dict[str, Any] = {}
+        self.static_map_coordinate_audit = self._load_static_map_coordinate_audit()
 
     def _resolve_path(self, value: Any) -> Path:
         path = Path(str(value))
         if path.is_absolute():
             return path
         return (self.project_root / path).resolve()
+
+    @staticmethod
+    def _load_scene_setup_from_spec(spec_path: Path) -> dict[str, Any]:
+        if not spec_path.exists():
+            return {}
+        try:
+            module = ast.parse(spec_path.read_text(encoding="utf-8"), filename=str(spec_path))
+            for node in module.body:
+                if isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name) and target.id == "SCENE_SETUP":
+                            value = ast.literal_eval(node.value)
+                            return dict(value) if isinstance(value, dict) else {}
+        except Exception as exc:
+            print(f"[EpisodeHost] scene setup spec parse warning for {spec_path}: {exc}")
+        return {}
+
+    @staticmethod
+    def _coerce_audit_vector3(value: Any) -> list[float] | None:
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) < 2:
+            return None
+        try:
+            return [
+                float(value[0]),
+                float(value[1]),
+                float(value[2] if len(value) > 2 else 0.0),
+            ]
+        except (TypeError, ValueError):
+            return None
+
+    def _coordinate_audit_entry(
+        self,
+        *,
+        entity_id: str,
+        logical_asset_id: str,
+        source_coordinate_space: str,
+        raw_position_enu_m: Sequence[float],
+        coordinate_transform_applied: bool,
+        object_role: str,
+    ) -> dict[str, Any]:
+        raw = [
+            float(raw_position_enu_m[0] if len(raw_position_enu_m) > 0 else 0.0),
+            float(raw_position_enu_m[1] if len(raw_position_enu_m) > 1 else 0.0),
+            float(raw_position_enu_m[2] if len(raw_position_enu_m) > 2 else 0.0),
+        ]
+        resolved = self._transform_position_enu(raw) if coordinate_transform_applied else list(raw)
+        expected_world_cm = [
+            float(self.world_origin_cm[0]) + float(resolved[0]) * 100.0,
+            float(self.world_origin_cm[1]) + float(resolved[1]) * 100.0,
+            float(self.world_origin_cm[2]) + float(resolved[2]) * 100.0,
+        ]
+        return {
+            "entity_id": entity_id,
+            "logical_asset_id": logical_asset_id,
+            "object_role": object_role,
+            "source_coordinate_space": source_coordinate_space,
+            "raw_position_enu_m": raw,
+            "resolved_map_enu_m": resolved,
+            "expected_ue_world_cm": expected_world_cm,
+            "observed_ue_world_cm": None,
+            "coordinate_transform_applied": bool(coordinate_transform_applied),
+        }
+
+    def _coordinate_space_contract(self) -> dict[str, Any]:
+        return {
+            "truth_frame_coordinate_space": str(self.config.get("truth_frame_coordinate_space") or "local_enu"),
+            "map_enu_m": "episode truth frames, event script, and global roster coordinates; UE cm = map_enu_m * 100 + world_origin_cm",
+            "traffic_bundle_lane_samples_m": "lane_center_samples.csv and road-geometry lane offsets are resolved in map ENU meters",
+            "scene_sync_pose_enu_m": "scene_sync spawns/updates receive resolved map ENU meters without inverse coordinate transforms",
+            "local_enu_m": "only transformed when explicitly configured as local coordinates",
+            "map_static_local_enu_m": "map scenario_objects fixtures; values like [14,16,8]m intentionally resolve to [1400,1600,800]cm",
+            "ue_world_cm": "observed Unreal actor/component location only, never the default input format",
+        }
+
+    def _event_semantic_entities(self) -> list[dict[str, Any]]:
+        entities: list[dict[str, Any]] = []
+        for entity in self.event_scene_setup.get("entities") or []:
+            if not isinstance(entity, dict):
+                continue
+            logical_asset_id = str(entity.get("logical_asset_id") or "")
+            if (
+                logical_asset_id.startswith("trigger.")
+                or logical_asset_id == "facility.landing_pad.visible.v1"
+                or logical_asset_id.startswith("semantic.uav_corridor.")
+            ):
+                entities.append(dict(entity))
+        return entities
+
+    @staticmethod
+    def _event_semantic_asset_id(entity: dict[str, Any]) -> str:
+        entity_id = str(entity.get("entity_id") or entity.get("instance_id") or "event_semantic")
+        return safe_name(f"event_semantic.{entity_id}")
+
+    def _event_semantic_position_enu_m(self, entity: dict[str, Any]) -> list[float] | None:
+        placement = dict(entity.get("placement") or {})
+        for key in ("resolved_position_enu_m", "position_enu_m", "center_enu_m"):
+            value = self._coerce_audit_vector3(placement.get(key))
+            if value is not None:
+                return value
+        return self._coerce_audit_vector3(entity.get("position_enu_m"))
+
+    def _trigger_box_proxy_logical_asset_id(self, placement: dict[str, Any]) -> str:
+        extent = self._coerce_audit_vector3(placement.get("extent_m") or placement.get("size_m"))
+        if extent is None:
+            return "semantic.trigger_box.extent_14_10_14.v1"
+        key = "_".join(str(int(round(float(value)))) for value in extent)
+        return f"semantic.trigger_box.extent_{key}.v1"
+
+    def _trigger_semantic_proxy_logical_asset_id(self, entity: dict[str, Any]) -> str:
+        placement = dict(entity.get("placement") or {})
+        if self._is_polygon_prism_trigger(entity):
+            return "semantic.trigger_box.extent_14_10_14.v1"
+        return self._trigger_box_proxy_logical_asset_id(placement)
+
+    @staticmethod
+    def _is_polygon_prism_trigger(entity: dict[str, Any]) -> bool:
+        placement = dict(entity.get("placement") or {})
+        placement_mode = str(entity.get("placement_mode") or placement.get("placement_mode") or "")
+        if placement_mode.lower() != "polygon_prism":
+            return False
+        polygon = placement.get("polygon_enu_m")
+        return isinstance(polygon, Sequence) and not isinstance(polygon, (str, bytes)) and len(polygon) >= 3
+
+    def _load_static_map_coordinate_audit(self) -> list[dict[str, Any]]:
+        scenario_objects_path = (
+            PROJECT_ROOT / "Config" / "LowAltitude" / "Maps" / self.map_id / "scenario_objects.json"
+        )
+        if not scenario_objects_path.exists():
+            return []
+        try:
+            payload = json.loads(scenario_objects_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"[EpisodeHost] static map coordinate audit warning for {scenario_objects_path}: {exc}")
+            return []
+        audit: list[dict[str, Any]] = []
+        for item in payload.get("objects") or []:
+            if not isinstance(item, dict):
+                continue
+            entity_id = str(
+                item.get("object_id") or item.get("entity_id") or item.get("instance_id") or item.get("asset_id") or ""
+            )
+            logical_asset_id = str(item.get("logical_asset_id") or item.get("asset_id") or "")
+            position = None
+            placement = dict(item.get("placement") or {})
+            for key in ("center_enu_m", "position_enu_m", "resolved_position_enu_m"):
+                position = self._coerce_audit_vector3(placement.get(key) or item.get(key))
+                if position is not None:
+                    break
+            if not entity_id or position is None:
+                continue
+            audit.append(
+                self._coordinate_audit_entry(
+                    entity_id=entity_id,
+                    logical_asset_id=logical_asset_id,
+                    source_coordinate_space="map_static_local_enu_m",
+                    raw_position_enu_m=position,
+                    coordinate_transform_applied=False,
+                    object_role="map_static_fixture",
+                )
+            )
+        return audit
+
+    def _spawn_event_semantic_objects(self) -> None:
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        if not self.asset_catalog_reload_attempted:
+            self.asset_catalog_reload_attempted = True
+            try:
+                self.client.reload_config("asset_catalog", map_id=self.map_id)
+                print("[EpisodeHost] Reloaded asset_catalog for event semantic proxy templates.")
+            except Exception as exc:
+                print(f"[EpisodeHost] asset_catalog reload warning before semantic proxy spawn: {exc}")
+        self.event_semantic_coordinate_audit = []
+        self.event_semantic_proxy_capture_targets = []
+        self.event_semantic_proxy_sanitizer_result = {}
+        self.last_airsim_proxy_capture_exclusion_result = {}
+        for entity in self._event_semantic_entities():
+            entity_id = str(entity.get("entity_id") or entity.get("instance_id") or "")
+            logical_asset_id = str(entity.get("logical_asset_id") or "")
+            position = self._event_semantic_position_enu_m(entity)
+            if not entity_id or not logical_asset_id or position is None:
+                continue
+            target_semantic_class = ""
+            target_stencil_id: int | None = None
+            asset_id = self._event_semantic_asset_id(entity)
+            placement = dict(entity.get("placement") or {})
+            placement_mode = str(entity.get("placement_mode") or placement.get("placement_mode") or "")
+            rotation = dict(entity.get("rotation_deg") or placement.get("rotation_deg") or {})
+            coordinate_audit = self._coordinate_audit_entry(
+                entity_id=entity_id,
+                logical_asset_id=logical_asset_id,
+                source_coordinate_space="map_enu_m",
+                raw_position_enu_m=position,
+                coordinate_transform_applied=False,
+                object_role="event_semantic_proxy",
+            )
+            try:
+                is_polygon_prism_trigger = logical_asset_id.startswith("trigger.") and self._is_polygon_prism_trigger(entity)
+                spawn_logical_asset_id = (
+                    self._trigger_semantic_proxy_logical_asset_id(entity)
+                    if logical_asset_id.startswith("trigger.")
+                    else logical_asset_id
+                )
+                spawn_asset_id = (
+                    safe_name(f"event_semantic.NoFly.Trigger.{entity_id}")
+                    if logical_asset_id.startswith("trigger.")
+                    else asset_id
+                )
+                proxy_position = list(position)
+                proxy_ground_projection: dict[str, Any] = {}
+                try:
+                    proxy_ground_projection = self._project_ground_details(
+                        position,
+                        cache_namespace=f"event_semantic_proxy:{entity_id}",
+                        use_cache=True,
+                    ) or {}
+                    projected = proxy_ground_projection.get("projected_enu_m")
+                    if isinstance(projected, list) and len(projected) >= 3:
+                        proxy_position = [float(position[0]), float(position[1]), float(projected[2]) + 0.2]
+                except Exception as exc:
+                    coordinate_audit["render_proxy_ground_projection_error"] = str(exc)
+
+                payload: dict[str, Any] = {
+                        "asset_id": spawn_asset_id,
+                        "entity_id": entity_id,
+                        "logical_asset_id": spawn_logical_asset_id,
+                        "proxy_template_id": spawn_logical_asset_id,
+                        "pose_enu_m": {"position_enu_m": proxy_position, "rotation_deg": rotation},
+                        "position_enu_m": proxy_position,
+                        "rotation_deg": rotation,
+                        "placement_mode": placement_mode,
+                        "placement": placement,
+                        "tags": ["event_semantic", "semantic_capture", logical_asset_id, entity_id],
+                        "visual_state": {
+                            "mode": "visible",
+                            "semantic_source": "episode_scene_setup",
+                        },
+                        "source_coordinate_space": "map_enu_m",
+                        "coordinate_audit": coordinate_audit,
+                    }
+                scale_xyz = placement.get("scale_xyz") or placement.get("size_m")
+                if logical_asset_id.startswith("semantic.uav_corridor."):
+                    target_semantic_class = "uav_corridor"
+                    target_stencil_id = self._semantic_class_id(target_semantic_class, 12)
+                    proxy_scale = list(scale_xyz or [1.0, 1.0, 1.0])
+                    while len(proxy_scale) < 3:
+                        proxy_scale.append(1.0)
+                    proxy_scale[2] = min(max(float(proxy_scale[2] or 0.05), 0.05), 0.08)
+                    payload["scale_xyz"] = proxy_scale
+                    payload["custom_stencil_only"] = True
+                    payload["tags"].extend(["UAVCorridor", "HighAltitudeCorridor", "uav_corridor"])
+                    payload["visual_state"]["semantic_class"] = "uav_corridor"
+                if logical_asset_id.startswith("trigger."):
+                    target_semantic_class = "hazard_trigger"
+                    target_stencil_id = self._semantic_class_id(target_semantic_class, 11)
+                    payload["custom_stencil_only"] = True
+                    payload["original_logical_asset_id"] = logical_asset_id
+                    payload["trigger_semantic_proxy_kind"] = "polygon_prism_aabb_overlay" if is_polygon_prism_trigger else "box_overlay"
+                    payload["trigger_extent_m"] = list(placement.get("extent_m") or placement.get("size_m") or [])
+                    trigger_extent = self._coerce_audit_vector3(placement.get("extent_m") or placement.get("size_m"))
+                    if trigger_extent is not None:
+                        payload["scale_xyz"] = [max(0.05, float(trigger_extent[0]) * 2.0), max(0.05, float(trigger_extent[1]) * 2.0), 0.08]
+                    elif is_polygon_prism_trigger:
+                        polygon = placement.get("polygon_enu_m")
+                        if isinstance(polygon, Sequence) and not isinstance(polygon, (str, bytes)):
+                            xs: list[float] = []
+                            ys: list[float] = []
+                            for vertex in polygon:
+                                if isinstance(vertex, Sequence) and not isinstance(vertex, (str, bytes)) and len(vertex) >= 2:
+                                    xs.append(float(vertex[0]))
+                                    ys.append(float(vertex[1]))
+                            if xs and ys:
+                                payload["scale_xyz"] = [
+                                    max(0.05, max(xs) - min(xs)),
+                                    max(0.05, max(ys) - min(ys)),
+                                    0.08,
+                                ]
+                                coordinate_audit["polygon_prism_semantic_proxy_bounds_enu_m"] = {
+                                    "min": [min(xs), min(ys)],
+                                    "max": [max(xs), max(ys)],
+                                }
+                        coordinate_audit["polygon_prism_runtime_trigger_logical_asset_id"] = logical_asset_id
+                        coordinate_audit["polygon_prism_runtime_placement_mode"] = placement_mode
+                        coordinate_audit["polygon_prism_semantic_proxy_note"] = (
+                            "semantic proxy is a thin CustomStencil overlay; runtime trigger_zone keeps polygon_enu_m in placement"
+                        )
+                    payload["visual_state"]["semantic_class"] = "hazard_trigger"
+                coordinate_audit["render_proxy_position_enu_m"] = proxy_position
+                if proxy_ground_projection:
+                    coordinate_audit["render_proxy_ground_projection"] = proxy_ground_projection
+                if payload.get("scale_xyz") is not None:
+                    coordinate_audit["render_proxy_scale_xyz"] = list(payload.get("scale_xyz") or [])
+                response = self.client.spawn_asset(payload, map_id=self.map_id)
+                coordinate_audit["spawn_response"] = response.get("payload", response) if isinstance(response, dict) else response
+                coordinate_audit["spawn_logical_asset_id"] = spawn_logical_asset_id
+                coordinate_audit["spawn_asset_id"] = spawn_asset_id
+                spawn_response = coordinate_audit["spawn_response"]
+                actor_name = str(spawn_response.get("actor_name") or "") if isinstance(spawn_response, dict) else ""
+                if actor_name and target_semantic_class and target_stencil_id is not None:
+                    target = {
+                        "actor_name": actor_name,
+                        "entity_id": entity_id,
+                        "logical_asset_id": logical_asset_id,
+                        "spawn_logical_asset_id": spawn_logical_asset_id,
+                        "spawn_asset_id": spawn_asset_id,
+                        "semantic_class": target_semantic_class,
+                        "stencil_id": int(target_stencil_id),
+                    }
+                    self.event_semantic_proxy_capture_targets.append(target)
+                    coordinate_audit["capture_proxy_sanitizer_target"] = target
+            except Exception as exc:
+                coordinate_audit["spawn_error"] = str(exc)
+                print(f"[EpisodeHost] event semantic proxy warning for {entity_id}: {exc}")
+            self.event_semantic_coordinate_audit.append(coordinate_audit)
+            self.event_semantic_asset_ids.add(str(coordinate_audit.get("spawn_asset_id") or asset_id))
+        if self.event_semantic_coordinate_audit:
+            print(
+                "[EpisodeHost] Spawned event semantic proxies: "
+                + ", ".join(entry["entity_id"] for entry in self.event_semantic_coordinate_audit)
+            )
+        self._sanitize_event_semantic_proxy_components()
+
+    def _sanitize_event_semantic_proxy_components(self) -> dict[str, Any]:
+        targets = [dict(target) for target in self.event_semantic_proxy_capture_targets if target.get("actor_name")]
+        if not targets:
+            self.event_semantic_proxy_sanitizer_result = {
+                "status": "skipped",
+                "reason": "no_custom_stencil_only_event_semantic_proxies",
+                "target_count": 0,
+            }
+            return self.event_semantic_proxy_sanitizer_result
+
+        compact_targets: list[dict[str, Any]] = []
+        for target in targets:
+            actor_name = str(target.get("actor_name") or "")
+            if not actor_name:
+                continue
+            try:
+                stencil_id = int(target.get("stencil_id") or 0)
+            except Exception:
+                stencil_id = 0
+            compact_targets.append(
+                {
+                    "a": actor_name,
+                    "c": str(target.get("semantic_class") or ""),
+                    "l": str(target.get("spawn_logical_asset_id") or ""),
+                    "s": stencil_id,
+                }
+            )
+
+        request = {"t": compact_targets}
+        request_text = json.dumps(request, separators=(",", ":"), ensure_ascii=True)
+        python_command = f"""
+import json,unreal
+c=json.loads({request_text!r})
+ws=unreal.EditorLevelLibrary.get_pie_worlds(False)
+if not ws: raise RuntimeError("No PIE world available for event semantic proxy sanitizer.")
+w=ws[0]
+targets={{str(t.get("a") or ""):t for t in c.get("t",[]) if str(t.get("a") or "")}}
+def addtags(o,prop,vals):
+    try: arr=list(o.get_editor_property(prop) or [])
+    except Exception:
+        try: arr=list(getattr(o,prop) or [])
+        except Exception: return False
+    have={{str(x) for x in arr}}; changed=False
+    for v in vals:
+        sv=str(v)
+        if not sv or sv in have: continue
+        try: arr.append(unreal.Name(sv))
+        except Exception: arr.append(sv)
+        have.add(sv); changed=True
+    if changed:
+        try: o.set_editor_property(prop,arr)
+        except Exception:
+            try: setattr(o,prop,arr)
+            except Exception: return False
+    return True
+def setp(o,k,v):
+    try: o.set_editor_property(k,v); return True
+    except Exception: return False
+rows=[]; missing=[]
+for a in unreal.GameplayStatics.get_all_actors_of_class(w,unreal.Actor):
+    n=a.get_name()
+    t=targets.get(n)
+    if not t: continue
+    cls=str(t.get("c") or "")
+    sid=int(t.get("s") or 0)
+    tags=["event_semantic","semantic_capture",cls]
+    if cls=="uav_corridor": tags+=["UAVCorridor","HighAltitudeCorridor","uav_corridor"]
+    if cls=="hazard_trigger": tags+=["NoFly","Hazard","Trigger","Geofence","hazard_trigger"]
+    runtime_trigger=str(t.get("l") or "").lower().startswith("trigger.")
+    addtags(a,"tags",tags)
+    if not runtime_trigger:
+        try: a.set_actor_enable_collision(False)
+        except Exception: pass
+        try: a.set_actor_tick_enabled(False)
+        except Exception: pass
+    try: comps=list(a.get_components_by_class(unreal.PrimitiveComponent))
+    except Exception: comps=[]
+    for x in comps:
+        addtags(x,"component_tags",tags)
+        setp(x,"render_in_main_pass",False)
+        setp(x,"render_in_depth_pass",False)
+        setp(x,"visible_in_scene_capture_only",False)
+        setp(x,"hidden_in_scene_capture",False)
+        try: x.set_render_custom_depth(True)
+        except Exception: setp(x,"render_custom_depth",True)
+        try: x.set_custom_depth_stencil_value(sid)
+        except Exception: setp(x,"custom_depth_stencil_value",sid)
+        if not runtime_trigger:
+            try: x.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+            except Exception: pass
+        for shadow_prop in ("cast_shadow","cast_dynamic_shadow","cast_static_shadow","cast_contact_shadow","cast_hidden_shadow","affect_dynamic_indirect_lighting","affect_distance_field_lighting"):
+            setp(x,shadow_prop,False)
+        try: x.set_cast_shadow(False)
+        except Exception: pass
+        try: x.mark_render_state_dirty()
+        except Exception: pass
+    rows.append(n)
+for n in sorted(set(targets.keys())-set(rows)): missing.append(n)
+print("EVENT_SEMANTIC_PROXY_SANITIZE_COUNT",len(rows))
+print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
+"""
+        result = self._fixed_world_capture_hook().remote.run_python(
+            python_command,
+            unattended=False,
+            raise_on_failure=True,
+        )
+        output_lines: list[str] = []
+        for item in result.get("output") or []:
+            text = str(item.get("output") or "").rstrip()
+            if text:
+                output_lines.append(text)
+                print(f"[EpisodeHost] {text}")
+        def _parse_count_line(prefix: str) -> int | None:
+            for line in output_lines:
+                if line.startswith(prefix):
+                    try:
+                        return int(line[len(prefix) :].strip())
+                    except Exception:
+                        return None
+            return None
+
+        sanitized_count = _parse_count_line("EVENT_SEMANTIC_PROXY_SANITIZE_COUNT")
+        missing_count = _parse_count_line("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT")
+        if sanitized_count is None:
+            sanitized_count = sum(1 for line in output_lines if line.startswith("EVENT_SEMANTIC_PROXY_SANITIZE "))
+        if missing_count is None:
+            missing_count = sum(1 for line in output_lines if line.startswith("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING "))
+        self.event_semantic_proxy_sanitizer_result = {
+            "status": "ok" if missing_count == 0 else "partial",
+            "target_count": len(targets),
+            "sanitized_actor_count": sanitized_count,
+            "missing_actor_count": missing_count,
+            "targets": targets,
+            "remote_output": output_lines,
+        }
+        if missing_count > 0 or sanitized_count != len(targets):
+            raise RuntimeError(
+                "Failed to sanitize all custom-stencil-only event semantic proxies. "
+                f"details={self.event_semantic_proxy_sanitizer_result}"
+            )
+        return self.event_semantic_proxy_sanitizer_result
+
+    @staticmethod
+    def _airsim_capture_component_names_for_image_type(image_type: str) -> list[str]:
+        normalized = str(image_type or "Scene").strip().lower()
+        mapping = {
+            "scene": ["SceneCaptureComponent"],
+            "depthperspective": ["DepthPerspectiveCaptureComponent"],
+            "depthplanar": ["DepthPlanarCaptureComponent"],
+            "depthvis": ["DepthVisCaptureComponent"],
+            "lighting": ["LightingCaptureComponent"],
+        }
+        return list(mapping.get(normalized) or ["SceneCaptureComponent"])
+
+    def _apply_airsim_semantic_proxy_capture_exclusion(
+        self,
+        *,
+        camera_name: str,
+        modality_id: str,
+        image_type: str,
+    ) -> dict[str, Any]:
+        targets = [dict(target) for target in self.event_semantic_proxy_capture_targets if target.get("actor_name")]
+        if not targets:
+            result = {
+                "status": "skipped",
+                "reason": "no_custom_stencil_only_event_semantic_proxies",
+                "target_count": 0,
+            }
+            self.last_airsim_proxy_capture_exclusion_result = result
+            return result
+        if str(modality_id or "").strip().lower() == "seg":
+            result = {
+                "status": "skipped",
+                "reason": "ue_custom_stencil_segmentation_must_keep_proxies_visible_to_custom_depth",
+                "target_count": len(targets),
+            }
+            self.last_airsim_proxy_capture_exclusion_result = result
+            return result
+
+        component_names = self._airsim_capture_component_names_for_image_type(image_type)
+        self.last_airsim_proxy_capture_exclusion_result = {
+            "status": "ok",
+            "method": "proxy_primitive_render_flags",
+            "contract": "render_in_main_pass=false, render_in_depth_pass=false, and shadow casting disabled hide proxies from AirSim Scene/Depth/RGB shadows; render_custom_depth=true and stencil ids keep thin ground-overlay proxies available to UE CustomStencil segmentation",
+            "target_count": len(targets),
+            "proxy_actor_names": [str(target.get("actor_name") or "") for target in targets],
+            "camera_name": str(camera_name or ""),
+            "modality": str(modality_id or ""),
+            "image_type": str(image_type or ""),
+            "airsim_capture_component_names_not_mutated": component_names,
+            "pipcamera_hidden_lists_mutated": False,
+            "sanitizer_status": dict(self.event_semantic_proxy_sanitizer_result or {}),
+        }
+        return self.last_airsim_proxy_capture_exclusion_result
 
     def _discover_entity_modes(self) -> tuple[set[str], set[str], set[str]]:
         scene_ids: set[str] = set()
@@ -1683,37 +2149,12 @@ class EpisodeRenderHost:
         return list(self.airsim_capture_ned_origin_world_cm)
 
     def _capture_anchor_world_cm(self, position_enu_m: Sequence[float], rotation_deg: dict[str, Any], *, context: str) -> list[float]:
-        if self.client is None:
-            raise RuntimeError("Host is not connected.")
         target = [float(position_enu_m[0]), float(position_enu_m[1]), float(position_enu_m[2] if len(position_enu_m) > 2 else 0.0)]
-        rotation = {
-            "pitch_deg": float(rotation_deg.get("pitch_deg", rotation_deg.get("pitch", 0.0))),
-            "yaw_deg": float(rotation_deg.get("yaw_deg", rotation_deg.get("yaw", 0.0))),
-            "roll_deg": float(rotation_deg.get("roll_deg", rotation_deg.get("roll", 0.0))),
-        }
-        asset_id = safe_name(f"coord_anchor.{self.airsim_capture_vehicle}")
-        payload = {
-            "asset_id": asset_id,
-            "entity_id": asset_id,
-            "logical_asset_id": "semantic.asset_anchor",
-            "proxy_template_id": "semantic.asset_anchor",
-            "pose_enu_m": {"position_enu_m": target, "rotation_deg": rotation},
-            "position_enu_m": target,
-            "rotation_deg": rotation,
-            "tags": ["coord_anchor", "airsim_capture", safe_name(context)],
-        }
-        response = self._retry("spawn_capture_coord_anchor", self.client.spawn_asset, payload, map_id=self.map_id)
-        response_payload = dict(response.get("payload") or {})
-        raw_world = response_payload.get("position_world_cm")
-        if isinstance(raw_world, dict):
-            world_cm = [raw_world.get("x"), raw_world.get("y"), raw_world.get("z")]
-        else:
-            world_cm = raw_world
-        if not isinstance(world_cm, Sequence) or isinstance(world_cm, (str, bytes)) or len(world_cm) < 3:
-            raise RuntimeError(
-                f"Capture anchor did not return position_world_cm during {context}: {response}"
-            )
-        return [float(world_cm[0]), float(world_cm[1]), float(world_cm[2])]
+        return [
+            float(self.world_origin_cm[0]) + target[0] * 100.0,
+            float(self.world_origin_cm[1]) + target[1] * 100.0,
+            float(self.world_origin_cm[2]) + target[2] * 100.0,
+        ]
 
     def _world_cm_to_airsim_ned_m(self, world_cm: Sequence[float]) -> list[float]:
         origin = self.airsim_capture_ned_origin_world_cm
@@ -1814,8 +2255,7 @@ class EpisodeRenderHost:
             f"uav_ground_relative={bool(self.ground_reference_cfg.get('uav_ground_relative', False))} "
             f"ground_camera_ground_relative={bool(self.ground_reference_cfg.get('ground_camera_ground_relative', False))}"
         )
-        if not bool(getattr(self.args, "segmentation_registry_audit_only", False)):
-            self._ensure_airsim_capture_vehicle()
+        self._ensure_airsim_capture_vehicle()
 
     def _transform_position_enu(self, position_enu_m: Sequence[float]) -> list[float]:
         return self.coordinate_transform.apply_position(position_enu_m)
@@ -1864,8 +2304,7 @@ class EpisodeRenderHost:
         return self._transform_vector_enu(value_enu)
 
     def _apply_frame_position_enu(self, position_enu_m: Sequence[float]) -> list[float]:
-        if self._truth_frame_uses_map_enu():
-            return self._inverse_transform_position_enu(position_enu_m)
+        # Scene-sync records are already resolved to map ENU; C++ converts them to UE cm.
         return [
             float(position_enu_m[0] if len(position_enu_m) > 0 else 0.0),
             float(position_enu_m[1] if len(position_enu_m) > 1 else 0.0),
@@ -1873,8 +2312,7 @@ class EpisodeRenderHost:
         ]
 
     def _apply_frame_rotation_deg(self, rotation_deg: dict[str, Any]) -> dict[str, float]:
-        if self._truth_frame_uses_map_enu():
-            return self._inverse_transform_rotation_deg(rotation_deg)
+        # Rotation follows the same scene-sync contract as position.
         return dict(rotation_deg)
 
     def _transformed_entity_pose(self, entity: dict[str, Any]) -> tuple[list[float], dict[str, float]]:
@@ -2249,7 +2687,7 @@ class EpisodeRenderHost:
     ) -> dict[str, Any]:
         if position_enu_m is None or rotation_deg is None:
             position_enu_m, rotation_deg, _ = self._resolve_entity_pose(entity)
-        return {
+        item = {
             "entity_id": str(entity["entity_id"]),
             "proxy_template_id": str(resolution["logical_asset_id"]),
             "pose_enu_m": {
@@ -2259,6 +2697,13 @@ class EpisodeRenderHost:
             "tags": list(entity.get("tags") or self.roster_by_id.get(str(entity["entity_id"]), {}).get("tags") or []),
             "visual_state": self._scene_visual_state(entity, resolution),
         }
+        placement = entity.get("placement")
+        placement_mode = str(entity.get("placement_mode") or "")
+        if placement_mode:
+            item["placement_mode"] = placement_mode
+        if isinstance(placement, dict):
+            item["placement"] = dict(placement)
+        return item
 
     def _entity_record(self, entity: dict[str, Any], resolution: dict[str, Any]) -> dict[str, Any]:
         annotations = dict(entity.get("annotations") or {})
@@ -2472,19 +2917,22 @@ class EpisodeRenderHost:
             for value in (dict(self.config.get("scene_reset") or {}).get("force_remove_entity_ids") or [])
             if str(value).strip()
         ]
-        if extra_remove_ids:
+        semantic_remove_ids = sorted(set(extra_remove_ids) | set(self.event_semantic_asset_ids))
+        if semantic_remove_ids:
             payload = {
                 "tick": 0,
                 "frame_id": 0,
                 "sample_seq": 0,
                 "sim_time_s": 0.0,
                 "episode_id": self.episode_id or "forced_cleanup",
-                "removes": [{"entity_id": entity_id} for entity_id in sorted(set(extra_remove_ids))],
+                "removes": [{"entity_id": entity_id} for entity_id in semantic_remove_ids],
             }
             try:
                 self._retry("forced_reset_apply_frame", self.client.apply_frame, payload, map_id=self.map_id)
             except Exception as exc:
                 print(f"[EpisodeHost] forced_reset_apply_frame warning: {exc}")
+            for asset_id in semantic_remove_ids:
+                self._best_effort("remove_semantic_asset", self.client.remove_asset, asset_id, map_id=self.map_id)
         for ped_id in sorted(self.all_ped_ids):
             self._best_effort("ped_release", self.client.ped_release, ped_id, map_id=self.map_id)
         for group_id in sorted(self.crowd_group_ids):
@@ -2502,12 +2950,13 @@ class EpisodeRenderHost:
                 self.client.remove_runtime_vehicle(vehicle_name, map_id=self.map_id)
             except Exception as exc:
                 print(f"[EpisodeHost] remove_runtime_vehicle reset warning for {vehicle_name}: {exc}")
-                self._best_effort(
-                    "remove_runtime_vehicle_editor_hook",
-                    self._runtime_uav_editor_hook().remove_runtime_vehicle,
-                    map_id=self.map_id,
-                    vehicle_name=vehicle_name,
-                )
+                if self.runtime_uav_editor_hook_fallback_enabled:
+                    self._best_effort(
+                        "remove_runtime_vehicle_editor_hook",
+                        self._runtime_uav_editor_hook().remove_runtime_vehicle,
+                        map_id=self.map_id,
+                        vehicle_name=vehicle_name,
+                    )
         destroy_payload = self._force_destroy_runtime_vehicle_actors(self.all_uav_vehicle_names)
         if destroy_payload:
             destroyed_rows = list(destroy_payload.get("destroyed") or [])
@@ -2945,7 +3394,6 @@ class EpisodeRenderHost:
             entity_id = str(entity["entity_id"])
             vehicle_name = str(resolution.get("vehicle_name") or entity_id)
             if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
-                self._ensure_airsim_capture_vehicle()
                 target_enu_m = self._entity_position_enu(entity)
                 target_enu_m = self._ground_relative_position(
                     target_enu_m,
@@ -2954,12 +3402,27 @@ class EpisodeRenderHost:
                     use_cache=True,
                 )
                 rotation_deg = self._entity_rotation_deg(entity)
-                wait_status = self._pin_airsim_capture_vehicle(
-                    target_enu_m,
-                    rotation_deg,
-                    context=f"truth-frame sync {entity_id}",
-                )
-                wait_status["path_used"] = "airsim_native_capture_vehicle"
+                if self._runtime_uav_pose_sync_mode():
+                    wait_status = {
+                        "vehicle_name": self.airsim_capture_vehicle,
+                        "requested_position_enu_m": [float(value) for value in target_enu_m],
+                        "requested_rotation_deg": dict(rotation_deg),
+                        "pose": {
+                            "position_enu_m": [float(value) for value in target_enu_m],
+                            "rotation_deg": dict(rotation_deg),
+                        },
+                        "pose_error_m": 0.0,
+                        "capture_pose_mode": "deferred_capture_tick_pin",
+                        "path_used": "pose_sync_capture_entity",
+                    }
+                else:
+                    self._ensure_airsim_capture_vehicle()
+                    wait_status = self._pin_airsim_capture_vehicle(
+                        target_enu_m,
+                        rotation_deg,
+                        context=f"truth-frame sync {entity_id}",
+                    )
+                    wait_status["path_used"] = "airsim_native_capture_vehicle"
                 wait_status["source_entity_id"] = entity_id
                 wait_status["replaces_runtime_multirotor"] = True
                 wait_status["status"] = {
@@ -2975,12 +3438,25 @@ class EpisodeRenderHost:
                 current_entities.add(entity_id)
                 results[entity_id] = wait_status
                 continue
-            if entity_id in self.event_controlled_entity_ids and entity_id in self.uav_active_by_entity:
+            if (
+                entity_id in self.event_controlled_entity_ids
+                and entity_id in self.uav_active_by_entity
+            ):
                 vehicle_name = self.uav_active_by_entity.get(entity_id, vehicle_name)
                 current_entities.add(entity_id)
                 wait_status = self._uav_status_snapshot(vehicle_name)
                 wait_status["path_used"] = "direct_rpc"
                 wait_status["sync_skipped"] = "event_script_controlled"
+                if self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal:
+                    wait_payload = dict(wait_status.get("status") or {})
+                    wait_state = str(wait_payload.get("state") or wait_payload.get("status") or "").strip().lower()
+                    if wait_state in {"failed", "cancelled", "timeout", "missing"}:
+                        wait_payload["original_state"] = wait_state
+                        wait_payload["state"] = "warning"
+                        wait_payload["reason"] = "event_controlled_non_capture_sync_skipped_nonfatal"
+                        wait_status["status"] = wait_payload
+                        wait_status["non_capture_uav_sync_nonfatal"] = True
+                        wait_status["timed_out_accepted_running"] = True
                 results[entity_id] = wait_status
                 continue
 
@@ -3023,15 +3499,30 @@ class EpisodeRenderHost:
                             }
                         }
                     except Exception as exc:
-                        self._disable_runtime_uav_direct_rpc(str(exc))
-                        print(f"[EpisodeHost] runtime UAV RPC failed for {vehicle_name}; falling back to editor hook: {exc}")
-                        create_response, move_response = self._recreate_editor_hook_runtime_uav(
-                            vehicle_name=vehicle_name,
-                            target_enu_m=target_enu_m,
-                            rotation_deg=rotation_deg,
-                            velocity_mps=max(0.5, velocity_hint),
-                        )
-                        used_editor_hook = True
+                        if self.runtime_uav_editor_hook_fallback_enabled and not self.runtime_uav_non_capture_failure_nonfatal:
+                            self._disable_runtime_uav_direct_rpc(str(exc))
+                            print(f"[EpisodeHost] runtime UAV RPC failed for {vehicle_name}; falling back to editor hook: {exc}")
+                            create_response, move_response = self._recreate_editor_hook_runtime_uav(
+                                vehicle_name=vehicle_name,
+                                target_enu_m=target_enu_m,
+                                rotation_deg=rotation_deg,
+                                velocity_mps=max(0.5, velocity_hint),
+                            )
+                            used_editor_hook = True
+                        else:
+                            print(
+                                f"[EpisodeHost] runtime UAV RPC warning for non-capture {vehicle_name}; "
+                                f"continuing without editor-hook fallback: {exc}"
+                            )
+                            results[entity_id] = self._runtime_uav_nonfatal_rpc_status(
+                                entity_id=entity_id,
+                                vehicle_name=vehicle_name,
+                                operation="create",
+                                exc=exc,
+                                target_enu_m=target_enu_m,
+                                rotation_deg=rotation_deg,
+                            )
+                            continue
                 else:
                     create_response, move_response = self._recreate_editor_hook_runtime_uav(
                         vehicle_name=vehicle_name,
@@ -3109,15 +3600,30 @@ class EpisodeRenderHost:
                             map_id=self.map_id,
                         )
                     except Exception as exc:
-                        self._disable_runtime_uav_direct_rpc(str(exc))
-                        print(f"[EpisodeHost] runtime UAV move RPC failed for {vehicle_name}; falling back to editor hook: {exc}")
-                        create_response, move_response = self._recreate_editor_hook_runtime_uav(
-                            vehicle_name=vehicle_name,
-                            target_enu_m=target_enu_m,
-                            rotation_deg=rotation_deg,
-                            velocity_mps=max(0.5, velocity_hint),
-                        )
-                        used_editor_hook = True
+                        if self.runtime_uav_editor_hook_fallback_enabled and not self.runtime_uav_non_capture_failure_nonfatal:
+                            self._disable_runtime_uav_direct_rpc(str(exc))
+                            print(f"[EpisodeHost] runtime UAV move RPC failed for {vehicle_name}; falling back to editor hook: {exc}")
+                            create_response, move_response = self._recreate_editor_hook_runtime_uav(
+                                vehicle_name=vehicle_name,
+                                target_enu_m=target_enu_m,
+                                rotation_deg=rotation_deg,
+                                velocity_mps=max(0.5, velocity_hint),
+                            )
+                            used_editor_hook = True
+                        else:
+                            print(
+                                f"[EpisodeHost] runtime UAV move RPC warning for non-capture {vehicle_name}; "
+                                f"continuing without editor-hook fallback: {exc}"
+                            )
+                            results[entity_id] = self._runtime_uav_nonfatal_rpc_status(
+                                entity_id=entity_id,
+                                vehicle_name=vehicle_name,
+                                operation="move",
+                                exc=exc,
+                                target_enu_m=target_enu_m,
+                                rotation_deg=rotation_deg,
+                            )
+                            continue
                 else:
                     create_response, move_response = self._recreate_editor_hook_runtime_uav(
                         vehicle_name=vehicle_name,
@@ -3147,8 +3653,22 @@ class EpisodeRenderHost:
                         wait_status = self._wait_for_uav_status(vehicle_name, target_enu_m)
                         self._ensure_uav_status_ok(wait_status, vehicle_name=vehicle_name, context="truth-frame sync")
                     except Exception as exc:
-                        print(f"[EpisodeHost] UAV status warning for {vehicle_name} after move: {exc}")
-                        raise
+                        if self.runtime_uav_non_capture_failure_nonfatal:
+                            print(
+                                f"[EpisodeHost] UAV status warning for non-capture {vehicle_name} after move; "
+                                f"continuing: {exc}"
+                            )
+                            wait_status = self._runtime_uav_nonfatal_rpc_status(
+                                entity_id=entity_id,
+                                vehicle_name=vehicle_name,
+                                operation="status_after_move",
+                                exc=exc,
+                                target_enu_m=target_enu_m,
+                                rotation_deg=rotation_deg,
+                            )
+                        else:
+                            print(f"[EpisodeHost] UAV status warning for {vehicle_name} after move: {exc}")
+                            raise
                     wait_status["move"] = move_response.get("payload", {})
                     wait_status["path_used"] = "direct_rpc"
                     results[entity_id] = wait_status
@@ -3159,11 +3679,19 @@ class EpisodeRenderHost:
         for entity_id in sorted(set(self.uav_active_by_entity) - current_entities):
             vehicle_name = self.uav_active_by_entity.pop(entity_id)
             self.uav_last_command_target_by_entity.pop(entity_id, None)
+            if vehicle_name == self.airsim_capture_vehicle:
+                continue
             if not self._runtime_uav_use_editor_hook():
                 try:
                     self._retry("remove_runtime_vehicle", self.client.remove_runtime_vehicle, vehicle_name, map_id=self.map_id)
                     continue
                 except Exception as exc:
+                    if not self.runtime_uav_editor_hook_fallback_enabled:
+                        print(
+                            f"[EpisodeHost] remove_runtime_vehicle warning for {vehicle_name}; "
+                            f"editor-hook fallback disabled: {exc}"
+                        )
+                        continue
                     self._disable_runtime_uav_direct_rpc(str(exc))
                     print(f"[EpisodeHost] remove_runtime_vehicle RPC failed for {vehicle_name}; falling back to editor hook: {exc}")
             try:
@@ -3403,18 +3931,19 @@ class EpisodeRenderHost:
         if not self._airsim_capture_enabled():
             return
         explicit = self.requested_airsim_capture_entity
+        if not explicit:
+            raise RuntimeError(
+                "AirSim native UAV capture requires exactly one explicit --airsim-capture-entity. "
+                "High-overview/fixed-world captures should run without camera-role uav."
+            )
         candidate_ticks = sorted(capture_ticks) if capture_ticks else [batch.tick_start]
         for tick in candidate_ticks:
             frame = self.frames_by_tick.get(int(tick))
             if not frame:
                 continue
             active_ids = self._frame_active_runtime_uavs(frame, site_id=batch.site_id)
-            if explicit:
-                if explicit in active_ids:
-                    self.active_airsim_capture_entity_id = explicit
-                    break
-            elif active_ids:
-                self.active_airsim_capture_entity_id = active_ids[0]
+            if explicit in active_ids:
+                self.active_airsim_capture_entity_id = explicit
                 break
         if explicit and not self.active_airsim_capture_entity_id:
             raise RuntimeError(
@@ -3461,6 +3990,13 @@ class EpisodeRenderHost:
 
     def _disable_runtime_uav_direct_rpc(self, reason: str) -> None:
         normalized_reason = " ".join(str(reason).split())
+        if not self.runtime_uav_editor_hook_fallback_enabled:
+            print(
+                "[EpisodeHost] Direct runtime UAV RPC problem recorded without editor-hook fallback. "
+                f"reason={normalized_reason}"
+            )
+            self.runtime_uav_direct_rpc_disable_reason = normalized_reason
+            return
         if self.runtime_uav_direct_rpc_enabled:
             print(
                 "[EpisodeHost] Disabling direct runtime UAV RPC for this session; "
@@ -3470,7 +4006,52 @@ class EpisodeRenderHost:
         self.runtime_uav_direct_rpc_disable_reason = normalized_reason
 
     def _runtime_uav_use_editor_hook(self) -> bool:
-        return not self.runtime_uav_direct_rpc_enabled
+        return self.runtime_uav_editor_hook_fallback_enabled and not self.runtime_uav_direct_rpc_enabled
+
+    def _runtime_uav_pose_sync_mode(self) -> bool:
+        return self.runtime_uav_control_backend == "pose_sync"
+
+    def _runtime_uav_nonfatal_rpc_status(
+        self,
+        *,
+        entity_id: str,
+        vehicle_name: str,
+        operation: str,
+        exc: BaseException,
+        target_enu_m: Sequence[float] | None = None,
+        rotation_deg: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        target = [float(value) for value in target_enu_m] if target_enu_m is not None else []
+        error = str(exc)
+        return {
+            "vehicle_name": vehicle_name,
+            "status": {
+                "state": "warning",
+                "reason": f"{operation}_direct_runtime_rpc_failed_nonfatal",
+                "position_enu_m": target,
+                "target_enu_m": target,
+                "distance_m": None,
+                "tolerance_m": self._runtime_uav_position_tolerance_m(),
+                "error": error,
+            },
+            "create": {
+                "ok": False,
+                "via": "direct_rpc_failed_nonfatal",
+                "operation": operation,
+                "error": error,
+            },
+            "move": {
+                "ok": False,
+                "via": "direct_rpc_failed_nonfatal",
+                "operation": operation,
+                "target_enu_m": target,
+                "rotation_deg": rotation_deg or {},
+                "error": error,
+            },
+            "path_used": "direct_rpc_failed_nonfatal",
+            "non_capture_uav_sync_nonfatal": True,
+            "editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
+        }
 
     def _runtime_uav_timeout_cfg(self) -> dict[str, Any]:
         return dict(self.config.get("timeouts") or {})
@@ -3819,10 +4400,31 @@ class EpisodeRenderHost:
         }
         if self.airsim_capture_vehicle:
             preserve_names.add(str(self.airsim_capture_vehicle).strip().lower())
+        preserve_names.update({"captureuav_0", "skyatmosphere", "skyatmosphere_0", "skylight", "skylight_0"})
         class_prefixes = [str(value).strip() for value in (cfg.get("hide_actor_class_prefixes") or []) if str(value).strip()]
         name_keywords = [str(value).strip().lower() for value in (cfg.get("hide_actor_name_keywords") or []) if str(value).strip()]
         skip_prefixes = [str(value).strip() for value in (cfg.get("skip_actor_class_prefixes") or []) if str(value).strip()]
-        if not destroy_class_names and not destroy_class_prefixes and not destroy_name_prefixes and not class_prefixes and not name_keywords:
+        sanitize_engine_sky_dome = bool(cfg.get("sanitize_engine_sky_dome", False))
+        disable_sky_atmosphere_editor_notifications = bool(cfg.get("disable_sky_atmosphere_editor_notifications", False))
+        sky_dome_actor_keywords = [
+            str(value).strip().lower()
+            for value in (cfg.get("sky_dome_actor_keywords") or [])
+            if str(value).strip()
+        ]
+        sky_dome_component_path_keywords = [
+            str(value).strip().lower()
+            for value in (cfg.get("sky_dome_component_path_keywords") or [])
+            if str(value).strip()
+        ]
+        if (
+            not destroy_class_names
+            and not destroy_class_prefixes
+            and not destroy_name_prefixes
+            and not class_prefixes
+            and not name_keywords
+            and not sanitize_engine_sky_dome
+            and not disable_sky_atmosphere_editor_notifications
+        ):
             return
 
         request = {
@@ -3833,70 +4435,110 @@ class EpisodeRenderHost:
             "class_prefixes": class_prefixes,
             "name_keywords": name_keywords,
             "skip_prefixes": skip_prefixes,
+            "sanitize_engine_sky_dome": sanitize_engine_sky_dome,
+            "disable_sky_atmosphere_editor_notifications": disable_sky_atmosphere_editor_notifications,
+            "sky_dome_actor_keywords": sky_dome_actor_keywords,
+            "sky_dome_component_path_keywords": sky_dome_component_path_keywords,
         }
         request_text = json.dumps(request, separators=(",", ":"), ensure_ascii=True)
         python_command = f"""
-import json
-import unreal
-
-cfg = json.loads({request_text!r})
-worlds = unreal.EditorLevelLibrary.get_pie_worlds(False)
-if not worlds:
-    raise RuntimeError("No PIE world available for scene cleanup.")
-world = worlds[0]
-actors = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.Actor)
-destroyed = []
-hidden = []
-for actor in actors:
-    cls = actor.get_class().get_name()
-    if any(cls.startswith(prefix) for prefix in cfg.get("skip_prefixes", [])):
-        continue
-    name = actor.get_name()
-    label = ""
+import json,unreal
+c=json.loads({request_text!r})
+ws=unreal.EditorLevelLibrary.get_pie_worlds(False)
+if not ws: raise RuntimeError("No PIE world available for scene cleanup.")
+w=ws[0]
+if c.get("disable_sky_atmosphere_editor_notifications",False):
     try:
-        label = actor.get_actor_label()
-    except Exception:
-        label = ""
-    identity = set([name.lower(), label.lower()])
-    if identity & set(cfg.get("preserve_names", [])):
-        continue
-    hay = (name + " " + label + " " + cls).lower()
-    destroy_match = cls in set(cfg.get("destroy_class_names", []))
-    if not destroy_match:
-        destroy_match = any(cls.startswith(prefix) for prefix in cfg.get("destroy_class_prefixes", []))
-    if not destroy_match:
-        destroy_match = any(name.lower().startswith(prefix) or label.lower().startswith(prefix) for prefix in cfg.get("destroy_name_prefixes", []))
-    if destroy_match:
+        unreal.SystemLibrary.execute_console_command(w,"r.SkyAtmosphere.EditorNotifications 0")
+        print("PIE_SKY_ATMOSPHERE_EDITOR_NOTIFICATIONS_DISABLED")
+    except Exception as e: print("PIE_SKY_ATMOSPHERE_EDITOR_NOTIFICATIONS_DISABLE_FAILED",str(e))
+D=[];H=[];S=[];P=set(c.get("preserve_names",[]));AK=list(c.get("sky_dome_actor_keywords",[]));PK=list(c.get("sky_dome_component_path_keywords",[]))
+def ident(a,cl):
+    n=a.get_name();l=""
+    try: l=a.get_actor_label()
+    except Exception: pass
+    return n,l,set([n.lower(),l.lower()]),(n+" "+l+" "+cl).lower()
+def op(o):
+    if o is None: return ""
+    for q in ("get_path_name","get_name"):
         try:
-            actor.destroy_actor()
-            destroyed.append({{"name": name, "label": label, "class": cls}})
-        except Exception:
-            pass
+            f=getattr(o,q,None);v=f() if callable(f) else ""
+            if v: return str(v)
+        except Exception: pass
+    return str(o)
+def paths(x):
+    r=[]
+    try:
+        m=x.get_static_mesh()
+        if m: r.append(op(m))
+    except Exception: pass
+    try: n=int(x.get_num_materials() or 0)
+    except Exception: n=0
+    for i in range(n):
+        try:
+            m=x.get_material(i)
+            if m: r.append(op(m))
+        except Exception: pass
+    try: mats=x.get_editor_property("override_materials")
+    except Exception: mats=[]
+    for m in mats or []:
+        if m: r.append(op(m))
+    return " ".join(r).replace("\\\\","/").lower()
+def setp(x,k,v):
+    try: x.set_editor_property(k,v); return True
+    except Exception: return False
+def sc(x):
+    ok=False
+    try: x.set_visibility(False,True); ok=True
+    except Exception: ok=setp(x,"visible",False) or ok
+    try: x.set_hidden_in_game(True,True); ok=True
+    except Exception: ok=setp(x,"hidden_in_game",True) or ok
+    for k,v in (("render_in_main_pass",False),("render_custom_depth",False),("render_custom_depth_pass",False),("hidden_in_scene_capture",True)): ok=setp(x,k,v) or ok
+    try: x.set_render_custom_depth(False); ok=True
+    except Exception: pass
+    try: x.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION); ok=True
+    except Exception: pass
+    return ok
+for a in unreal.GameplayStatics.get_all_actors_of_class(w,unreal.Actor):
+    cl=a.get_class().get_name()
+    if any(cl.startswith(p) for p in c.get("skip_prefixes",[])): continue
+    n,l,ids,hay=ident(a,cl)
+    if ids & P: continue
+    dm=cl in set(c.get("destroy_class_names",[])) or any(cl.startswith(p) for p in c.get("destroy_class_prefixes",[])) or any(n.lower().startswith(p) or l.lower().startswith(p) for p in c.get("destroy_name_prefixes",[]))
+    if dm:
+        try: a.destroy_actor(); D.append(n+"|"+l+"|"+cl)
+        except Exception: pass
         continue
-    matched = any(cls.startswith(prefix) for prefix in cfg.get("class_prefixes", []))
-    if not matched:
-        matched = any(keyword in hay for keyword in cfg.get("name_keywords", []))
-    if not matched:
-        continue
-    try:
-        actor.set_actor_hidden_in_game(True)
-    except Exception:
-        pass
-    try:
-        actor.set_actor_enable_collision(False)
-    except Exception:
-        pass
-    try:
-        actor.set_actor_tick_enabled(False)
-    except Exception:
-        pass
-    hidden.append({{"name": name, "label": label, "class": cls}})
-for item in destroyed[:100]:
-    print("PIE_SCENE_DESTROY", item)
-print("PIE_SCENE_DESTROY_COUNT", len(destroyed))
-for item in hidden[:100]:
-    print("PIE_SCENE_CLEANUP", item)
-print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
+    if c.get("sanitize_engine_sky_dome",False):
+        try: comps=list(a.get_components_by_class(unreal.PrimitiveComponent))
+        except Exception: comps=[]
+        tl=[n.lower(),l.lower(),cl.lower()]
+        tb=[x[:-2] if x.endswith("_c") else x for x in tl]
+        am=any(k in tl or k in tb for k in AK); ms=[x for x in comps if any(k in paths(x) for k in PK)]
+        if am or ms:
+            if am:
+                for fn,args in ((a.set_actor_hidden_in_game,(True,)),(a.set_actor_enable_collision,(False,)),(a.set_actor_tick_enabled,(False,))):
+                    try: fn(*args)
+                    except Exception: pass
+            cn=[]
+            for x in (comps if am else ms):
+                if sc(x):
+                    try: cn.append(x.get_name())
+                    except Exception: cn.append(str(x))
+            S.append(n+"|"+l+"|"+cl+"|"+("actor_keyword" if am else "component_path")+"|"+",".join(cn))
+            continue
+    mt=any(cl.startswith(p) for p in c.get("class_prefixes",[])) or any(k in hay for k in c.get("name_keywords",[]))
+    if not mt: continue
+    for fn,args in ((a.set_actor_hidden_in_game,(True,)),(a.set_actor_enable_collision,(False,)),(a.set_actor_tick_enabled,(False,))):
+        try: fn(*args)
+        except Exception: pass
+    H.append(n+"|"+l+"|"+cl)
+for x in D[:100]: print("PIE_SCENE_DESTROY",x)
+print("PIE_SCENE_DESTROY_COUNT",len(D))
+for x in H[:100]: print("PIE_SCENE_CLEANUP",x)
+print("PIE_SCENE_CLEANUP_COUNT",len(H))
+for x in S[:100]: print("PIE_SKY_DOME_SANITIZE",x)
+print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
 """
         result = self._fixed_world_capture_hook().remote.run_python(
             python_command,
@@ -3935,6 +4577,13 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         except ValueError:
             return str(path)
 
+    def _uav_capture_view_output_dir(self, view_id: str) -> Path:
+        safe_view_id = safe_name(view_id)
+        simple_view_id = simple_capture_view_dir_name(view_id)
+        if safe_name(self.output_dir.name) in {safe_view_id, simple_view_id}:
+            return self.output_dir
+        return self.output_dir / safe_view_id
+
     def _capture_storage_payload(
         self,
         *,
@@ -3946,14 +4595,19 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         camera_role: str,
     ) -> dict[str, Any]:
         normalized_modality = safe_name(str(modality or "rgb").strip().lower())
+        capture_view_output_dir = modality_output_dir.parent
+        view_dir_names = {safe_name(view_id), simple_capture_view_dir_name(view_id)}
+        batch_output_dir = capture_view_output_dir.parent if capture_view_output_dir.name in view_dir_names else self.output_dir
+        if camera_role != "uav":
+            batch_output_dir = self.output_dir / batch.batch_id
         return {
             "storage_layout_version": "capture_storage_v1",
-            "storage_rule": "<episode_output_root>/<batch_id>/<capture_view_id>/<modality>/<frame_stem>.<ext>",
+            "storage_rule": "Primary image paths use short stable names; episode/view/tick details live in this sidecar.",
             "episode_output_root": str(self.output_dir),
             "batch_id": batch.batch_id,
-            "batch_output_dir": str(self.output_dir / batch.batch_id),
+            "batch_output_dir": str(batch_output_dir),
             "capture_view_id": view_id,
-            "capture_view_output_dir": str(self.output_dir / batch.batch_id / safe_name(view_id)),
+            "capture_view_output_dir": str(capture_view_output_dir),
             "camera_role": camera_role,
             "channel_id": normalized_modality,
             "modality": normalized_modality,
@@ -3966,410 +4620,32 @@ print("PIE_SCENE_CLEANUP_COUNT", len(hidden))
         }
 
     @staticmethod
-    def semantic_segmentation_classes() -> list[dict[str, Any]]:
-        return [dict(item) for item in SEMANTIC_SEGMENTATION_CLASSES]
-
-    @staticmethod
     def _load_semantic_class_by_id(rules_path: Path) -> dict[str, str]:
-        fallback = {
-            "0": "ignore",
-            "1": "city_base_background",
-            "2": "building",
-            "3": "vegetation",
-            "4": "water",
-            "5": "vehicle",
-            "6": "pedestrian",
-            "7": "drone",
-            "8": "obstacle",
-            "9": "traffic_control",
-            "10": "facility",
-            "11": "hazard_trigger",
-        }
         try:
             root = json.loads(Path(rules_path).read_text(encoding="utf-8-sig"))
         except Exception:
-            return fallback
+            return {}
         classes = dict(root.get("classes") or {})
         if not classes:
-            return fallback
+            return {}
         result: dict[str, str] = {}
         for class_name, class_id in classes.items():
             try:
                 result[str(int(class_id))] = str(class_name)
             except Exception:
                 continue
-        return result or fallback
-
-    @staticmethod
-    def _semantic_class_by_name() -> dict[str, dict[str, Any]]:
-        return {str(item["class_name"]): dict(item) for item in SEMANTIC_SEGMENTATION_CLASSES}
-
-    @staticmethod
-    def _semantic_color_from_map(color_map: Any, class_id: int) -> list[int] | None:
-        if not isinstance(color_map, Sequence) or isinstance(color_map, (str, bytes)):
-            return None
-        if class_id < 0 or class_id >= len(color_map):
-            return None
-        value = color_map[class_id]
-        if isinstance(value, dict):
-            raw = [value.get("r", value.get("R", 0)), value.get("g", value.get("G", 0)), value.get("b", value.get("B", 0))]
-        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            raw = list(value)[:3]
-        else:
-            return None
-        if len(raw) < 3:
-            return None
-        result: list[int] = []
-        for channel in raw[:3]:
-            number = float(channel)
-            if 0.0 <= number <= 1.0:
-                number *= 255.0
-            result.append(max(0, min(255, int(round(number)))))
         return result
 
-    @staticmethod
-    def _semantic_assign_class_for_actor_name(name: str) -> str:
-        haystack = str(name or "")
-        for item in SEMANTIC_SEGMENTATION_CLASSES:
-            if re.fullmatch(str(item["actor_regex"]), haystack, flags=re.IGNORECASE):
-                return str(item["class_name"])
-        return ""
-
-    def _register_pie_semantic_segmentation_actors(self, *, allow_mutation: bool = False) -> dict[str, Any]:
-        classes_for_remote = [
-            {
-                "class_name": str(item["class_name"]),
-                "actor_regex": str(item["actor_regex"]),
-                "canonical_actor_label": str(item.get("canonical_actor_label") or ""),
-            }
-            for item in SEMANTIC_SEGMENTATION_CLASSES
-        ]
-        mutation_enabled = bool(allow_mutation)
-        mutation_enabled_literal = "True" if mutation_enabled else "False"
-        script = f"""
-import json
-import re
-import unreal
-
-classes = json.loads({json.dumps(json.dumps(classes_for_remote, ensure_ascii=True))})
-mutation_enabled = {mutation_enabled_literal}
-payload = {{
-    "world": "",
-    "actor_count": 0,
-    "sim_mode_found": False,
-    "sim_mode_name": "",
-    "mutation_enabled": mutation_enabled,
-    "mutation_policy": "disabled_by_default_after_oom_crash" if not mutation_enabled else "explicitly_enabled_unsafe_actor_registration",
-    "registered_actor_count": 0,
-    "classes": {{}},
-    "errors": [],
-}}
-for item in classes:
-    payload["classes"][item["class_name"]] = {{
-        "actor_match_count": 0,
-        "registered_actor_count": 0,
-    }}
-
-try:
-    world = unreal.EditorLevelLibrary.get_game_world()
-    payload["world"] = "game_world"
-except Exception as exc:
-    world = None
-    payload["errors"].append("get_game_world: " + str(exc))
-
-actors = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.Actor) if world else []
-payload["actor_count"] = len(actors)
-sim_mode = None
-for actor in actors:
-    cls = actor.get_class().get_name()
-    name = actor.get_name()
-    label = actor.get_actor_label()
-    if "SimMode" in cls or "SimMode" in name or "SimMode" in label:
-        sim_mode = actor
-        payload["sim_mode_found"] = True
-        payload["sim_mode_name"] = name + "|" + label + "|" + cls
-        break
-
-if sim_mode is None:
-    payload["errors"].append("SimModeWorldMultiRotor actor not found")
-else:
-    compiled = [(item["class_name"], item["actor_regex"], re.compile(item["actor_regex"], re.IGNORECASE)) for item in classes]
-    for actor in actors:
-        name = actor.get_name()
-        label = actor.get_actor_label()
-        cls = actor.get_class().get_name()
-        values = [name, label, cls, name + "|" + label + "|" + cls]
-        for class_name, actor_regex, pattern in compiled:
-            if any(pattern.fullmatch(value) for value in values):
-                row = payload["classes"][class_name]
-                row["actor_match_count"] += 1
-                if mutation_enabled:
-                    try:
-                        if sim_mode.add_new_actor_to_instance_segmentation(actor, False):
-                            row["registered_actor_count"] += 1
-                            payload["registered_actor_count"] += 1
-                    except Exception as exc:
-                        payload["errors"].append("register " + name + ": " + str(exc))
+    def _semantic_class_id(self, class_name: str, default: int) -> int:
+        normalized = str(class_name or "").strip().lower()
+        for raw_class_id, configured_name in self.semantic_class_by_id.items():
+            if str(configured_name or "").strip().lower() != normalized:
+                continue
+            try:
+                return int(raw_class_id)
+            except (TypeError, ValueError):
                 break
-    if mutation_enabled:
-        try:
-            sim_mode.force_update_instance_segmentation()
-            payload["force_update_instance_segmentation"] = True
-        except Exception as exc:
-            payload["force_update_instance_segmentation"] = False
-            payload["errors"].append("force_update_instance_segmentation: " + str(exc))
-    else:
-        payload["force_update_instance_segmentation"] = False
-        payload["errors"].append("PIE actor mutation skipped: unsafe AirSim annotation registration can exhaust UE memory")
-
-print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "AEROWORLD_SEMANTIC_REGISTRY_JSON_END")
-"""
-        result = self._fixed_world_capture_hook().remote.run_python(
-            script,
-            unattended=False,
-            raise_on_failure=True,
-        )
-        output_text = "".join(str(item.get("output", "")) for item in result.get("output") or [] if isinstance(item, dict))
-        match = re.search(
-            r"AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN(.*?)AEROWORLD_SEMANTIC_REGISTRY_JSON_END",
-            output_text,
-            flags=re.S,
-        )
-        if not match:
-            raise RuntimeError(f"Unable to parse semantic registry remote output: {output_text[:2000]}")
-        return json.loads(match.group(1))
-
-    def _semantic_component_matches(self, component_names: list[str]) -> dict[str, dict[str, Any]]:
-        rows: dict[str, dict[str, Any]] = {}
-        for item in SEMANTIC_SEGMENTATION_CLASSES:
-            class_name = str(item["class_name"])
-            component_regex = str(item["component_regex"])
-            compiled = re.compile(component_regex, flags=re.IGNORECASE)
-            matches = [name for name in component_names if compiled.fullmatch(str(name))]
-            rows[class_name] = {
-                "class_id": int(item["class_id"]),
-                "class_name": class_name,
-                "category": str(item.get("category") or ""),
-                "actor_regex": str(item["actor_regex"]),
-                "component_regex": component_regex,
-                "required_for_static_audit": bool(item.get("required_for_static_audit", False)),
-                "matched_component_count": int(len(matches)),
-                "matched_component_sample": matches[:20],
-            }
-        return rows
-
-    def _configure_semantic_segmentation_registry(self, entity_records: list[dict[str, Any]]) -> dict[str, Any]:
-        if self.client is None:
-            raise RuntimeError("Host is not connected.")
-        audit_only = bool(getattr(self.args, "segmentation_registry_audit_only", False))
-        if (
-            not audit_only
-            and self.airsim_segmentation_ready
-            and self.airsim_segmentation_registry_payload is not None
-        ):
-            payload = dict(self.airsim_segmentation_registry_payload)
-            payload["registry_reused"] = True
-            payload["entity_records_considered"] = int(len(entity_records))
-            return payload
-        allow_actor_registration = bool(
-            getattr(self.args, "enable_unsafe_pie_segmentation_actor_registration", False)
-        )
-        actor_payload = self._register_pie_semantic_segmentation_actors(
-            allow_mutation=allow_actor_registration
-        )
-        if audit_only:
-            component_rows = self._semantic_component_matches([])
-            configured_rows: list[dict[str, Any]] = []
-            for item in SEMANTIC_SEGMENTATION_CLASSES:
-                class_name = str(item["class_name"])
-                row = dict(component_rows[class_name])
-                row["actor_match_count"] = int(
-                    ((actor_payload.get("classes") or {}).get(class_name) or {}).get("actor_match_count") or 0
-                )
-                row["registered_actor_count"] = int(
-                    ((actor_payload.get("classes") or {}).get(class_name) or {}).get("registered_actor_count") or 0
-                )
-                row["canonical_actor_label"] = str(item.get("canonical_actor_label") or "")
-                row["actor_sample"] = []
-                row["color_rgb"] = None
-                row["set_segmentation_object_id_result"] = False
-                row["set_segmentation_object_id_skipped"] = "audit_only_no_airsim_component_query_or_mutation"
-                configured_rows.append(row)
-            return {
-                "segmentation_kind": "airsim_semantic_class_id_color",
-                "semantic_segmentation_claim": True,
-                "registry_version": "semantic_class_registry_v1",
-                "registry_authority": "ue_actor_counts_only_audit_no_airsim_mutation",
-                "registry_reused": False,
-                "audit_only": True,
-                "component_query_skipped": True,
-                "component_query_skip_reason": (
-                    "simListInstanceSegmentationObjects can add AirSim annotation objects; "
-                    "audit-only must not mutate PIE state"
-                ),
-                "unsafe_pie_actor_registration_enabled": allow_actor_registration,
-                "unsafe_pie_actor_registration_risk": (
-                    "disabled by default because prior logs show AirSim annotation actor registration "
-                    "on DynamicMeshComponent/CityBaseMeshComponent can exhaust UE memory"
-                ),
-                "hazard_trigger_pixel_policy": "only_rendered_trigger_or_hazard_proxies_can_appear_in_pixels",
-                "city_base_policy": "BP_CityBaseGenerator is a merged road_terrain_ground_water background class; no material split is claimed",
-                "ignored_actor_classes": ["SumoRoadNetworkActor"],
-                "entity_records_considered": int(len(entity_records)),
-                "pie_actor_registration": actor_payload,
-                "registered_instance_segmentation_object_count": 0,
-                "registered_instance_segmentation_object_sample": [],
-                "semantic_classes": configured_rows,
-                "semantic_class_by_id": {str(row["class_id"]): row["class_name"] for row in configured_rows},
-                "airsim_segmentation_color_map": [],
-            }
-        component_names = self._retry(
-            "simListInstanceSegmentationObjects",
-            self.client.list_instance_segmentation_objects,
-        )
-        component_names = [str(value) for value in component_names]
-        component_rows = self._semantic_component_matches(component_names)
-        color_map: list[Any] = []
-        try:
-            color_map = self._retry("simGetSegmentationColorMap", self.client.get_segmentation_color_map)
-        except Exception as exc:
-            print(f"[EpisodeHost] AirSim segmentation color map warning: {exc}")
-        configured_rows: list[dict[str, Any]] = []
-        for item in SEMANTIC_SEGMENTATION_CLASSES:
-            class_name = str(item["class_name"])
-            class_id = int(item["class_id"])
-            row = dict(component_rows[class_name])
-            row["actor_match_count"] = int(
-                ((actor_payload.get("classes") or {}).get(class_name) or {}).get("actor_match_count") or 0
-            )
-            row["registered_actor_count"] = int(
-                ((actor_payload.get("classes") or {}).get(class_name) or {}).get("registered_actor_count") or 0
-            )
-            row["canonical_actor_label"] = str(item.get("canonical_actor_label") or "")
-            row["actor_sample"] = list(((actor_payload.get("classes") or {}).get(class_name) or {}).get("actor_sample") or [])
-            row["color_rgb"] = self._semantic_color_from_map(color_map, class_id)
-            row["set_segmentation_object_id_result"] = False
-            row["set_segmentation_object_id_skipped"] = ""
-            configured_rows.append(row)
-
-        required_failures = [
-            row
-            for row in configured_rows
-            if row.get("required_for_static_audit")
-            and row.get("actor_match_count", 0) > 0
-            and row.get("matched_component_count", 0) <= 0
-        ]
-        building_rows = [row for row in configured_rows if str(row.get("category")) == "building"]
-        building_actor_matches = sum(int(row.get("actor_match_count") or 0) for row in building_rows)
-        building_component_matches = sum(int(row.get("matched_component_count") or 0) for row in building_rows)
-        if required_failures:
-            raise RuntimeError(
-                "Semantic segmentation required static classes had actors but no AirSim components: "
-                + json.dumps(required_failures, ensure_ascii=False)
-            )
-        if building_actor_matches > 0 and building_component_matches <= 0:
-            raise RuntimeError(
-                "Semantic segmentation found building actors but no AirSim building components after PIE registration."
-            )
-        for item in SEMANTIC_SEGMENTATION_CLASSES:
-            class_name = str(item["class_name"])
-            class_id = int(item["class_id"])
-            row = next(value for value in configured_rows if str(value.get("class_name")) == class_name)
-            if row["matched_component_count"] <= 0:
-                row["set_segmentation_object_id_skipped"] = "no_matching_airsim_components"
-                continue
-            if audit_only:
-                row["set_segmentation_object_id_skipped"] = "audit_only_no_mutation"
-                continue
-            row["set_segmentation_object_id_result"] = bool(
-                self._retry(
-                    "simSetSegmentationObjectID",
-                    self.client.set_segmentation_object_id,
-                    str(item["component_regex"]),
-                    class_id,
-                    is_name_regex=True,
-                )
-            )
-        static_set_failures = [
-            row
-            for row in configured_rows
-            if row.get("matched_component_count", 0) > 0
-            and (
-                row.get("required_for_static_audit")
-                or str(row.get("category")) == "building"
-            )
-            and not bool(row.get("set_segmentation_object_id_result"))
-        ]
-        if static_set_failures:
-            raise RuntimeError(
-                "Semantic segmentation failed to assign AirSim IDs for required static/building classes: "
-                + json.dumps(static_set_failures, ensure_ascii=False)
-            )
-        payload = {
-            "segmentation_kind": "airsim_semantic_class_id_color",
-            "semantic_segmentation_claim": True,
-            "registry_version": "semantic_class_registry_v1",
-            "registry_authority": (
-                "ue_pie_actor_registration_then_airsim_component_regex_ids"
-                if allow_actor_registration
-                else "airsim_existing_component_regex_ids_only"
-            ),
-            "unsafe_pie_actor_registration_enabled": allow_actor_registration,
-            "unsafe_pie_actor_registration_risk": (
-                "disabled by default because prior logs show AirSim annotation actor registration "
-                "on DynamicMeshComponent/CityBaseMeshComponent can exhaust UE memory"
-            ),
-            "hazard_trigger_pixel_policy": "only_rendered_trigger_or_hazard_proxies_can_appear_in_pixels",
-            "city_base_policy": "BP_CityBaseGenerator is a merged road_terrain_ground_water background class; no material split is claimed",
-            "ignored_actor_classes": ["SumoRoadNetworkActor"],
-            "entity_records_considered": int(len(entity_records)),
-            "pie_actor_registration": actor_payload,
-            "registered_instance_segmentation_object_count": int(len(component_names)),
-            "registered_instance_segmentation_object_sample": component_names[:80],
-            "semantic_classes": configured_rows,
-            "semantic_class_by_id": {str(row["class_id"]): row["class_name"] for row in configured_rows},
-            "airsim_segmentation_color_map": color_map,
-        }
-        if not audit_only:
-            self.airsim_segmentation_ready = True
-            self.airsim_segmentation_registry_payload = dict(payload)
-        return payload
-
-    @staticmethod
-    def _semantic_pixel_counts(raw_rgb: Any, registry_payload: dict[str, Any]) -> dict[str, Any]:
-        import numpy as np  # type: ignore
-
-        flat_rgb = raw_rgb.reshape((-1, 3))
-        colors, counts = np.unique(flat_rgb, axis=0, return_counts=True)
-        raw_counts = [
-            {
-                "color_rgb": [int(channel) for channel in colors[index].tolist()],
-                "pixel_count": int(counts[index]),
-            }
-            for index in np.argsort(counts)[::-1]
-        ]
-        class_pixel_counts: dict[str, int] = {}
-        color_to_class: dict[tuple[int, int, int], str] = {}
-        for row in registry_payload.get("semantic_classes") or []:
-            color = row.get("color_rgb")
-            if isinstance(color, Sequence) and not isinstance(color, (str, bytes)) and len(color) >= 3:
-                color_to_class[tuple(int(channel) for channel in list(color)[:3])] = str(row.get("class_name") or "")
-                class_pixel_counts[str(row.get("class_name") or "")] = 0
-        unknown_pixel_count = 0
-        for color_row in raw_counts:
-            color_tuple = tuple(int(channel) for channel in color_row["color_rgb"])
-            class_name = color_to_class.get(color_tuple)
-            if class_name:
-                class_pixel_counts[class_name] = class_pixel_counts.get(class_name, 0) + int(color_row["pixel_count"])
-            else:
-                unknown_pixel_count += int(color_row["pixel_count"])
-        return {
-            "semantic_raw_unique_color_count": int(len(raw_counts)),
-            "semantic_raw_top_colors": raw_counts[:40],
-            "class_pixel_counts": class_pixel_counts,
-            "unknown_semantic_color_pixel_count": int(unknown_pixel_count),
-            "known_semantic_color_pixel_count": int(flat_rgb.shape[0] - unknown_pixel_count),
-        }
+        return int(default)
 
     def _write_capture_storage_manifest(self) -> Path:
         path = self.output_dir / "capture_storage_manifest.json"
@@ -4379,7 +4655,14 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             "episode_id": self.episode_id,
             "output_root": str(self.output_dir),
             "storage_layout_version": "capture_storage_v1",
-            "storage_rule": "<episode_output_root>/<batch_id>/<capture_view_id>/<modality>/<frame_stem>.<ext>",
+            "storage_rule": "Primary image paths stay short; complex episode/view identifiers live in sidecars and this manifest.",
+            "simple_path_contract": {
+                "formal_default_output_root": "F:/aw_cap",
+                "uav_route": "F:/aw_cap/uav/eNN/vNN/<modality>/tick_NNNNNN.<ext>",
+                "high_overview_route": "F:/aw_cap/hi/eNN/tick_NNNNNN.<ext>",
+                "meta_route": "F:/aw_cap/_meta",
+                "complex_identifiers_live_in_sidecars": True,
+            },
             "determinism_contract": {
                 "timestamp_or_version_directories": False,
                 "rerun_overwrites_same_modality_directory": True,
@@ -4393,7 +4676,9 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                 "uav_capture_vehicle": self.airsim_capture_vehicle,
                 "uav_modalities": ["rgb", "depth", "seg"],
                 "single_camera_single_modality_per_run": True,
-                "uav_editor_hook_fallback_enabled": False,
+                "uav_editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
+                "runtime_uav_control_backend": self.runtime_uav_control_backend,
+                "non_capture_runtime_uav_rpc_failure_nonfatal": bool(self.runtime_uav_non_capture_failure_nonfatal),
                 "python_segmentation_id_assignment_enabled": False,
                 "segmentation_backend": self.segmentation_backend,
                 "segmentation_kind": "ue_custom_stencil_class_id_u8",
@@ -4427,6 +4712,18 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                     "audit_format": "json_semantic_stencil_audit",
                     "route": "UE CustomDepth/CustomStencil fixed-world capture for UAV segmentation; AirSim native segmentation is not used by default",
                 },
+            },
+            "coordinate_space_contract": self._coordinate_space_contract(),
+            "event_semantic_objects": {
+                "source": "episode_scene_setup",
+                "spawned_as_semantic_proxies": True,
+                "trigger_proxies_custom_stencil_only": True,
+                "rgb_visibility_contract": "trigger semantic proxies are excluded from the RGB main pass and kept for UE CustomStencil segmentation",
+                "coordinate_audit": self.event_semantic_coordinate_audit,
+            },
+            "static_map_objects": {
+                "source_coordinate_space": "map_static_local_enu_m",
+                "coordinate_audit": self.static_map_coordinate_audit,
             },
         }
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -4474,8 +4771,7 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             "depth_max_m": depth_max_m,
         }
 
-    @staticmethod
-    def _semantic_stencil_pixel_counts(image_path: Path) -> dict[str, Any]:
+    def _semantic_stencil_pixel_counts(self, image_path: Path) -> dict[str, Any]:
         try:
             import numpy as np  # type: ignore
             from PIL import Image  # type: ignore
@@ -4483,18 +4779,65 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             return {"class_histogram_error": f"Pillow/numpy import failed: {exc}"}
 
         try:
-            image = Image.open(image_path).convert("L")
-            values = np.asarray(image, dtype=np.uint8)
+            image = Image.open(image_path)
+            image_mode = str(image.mode)
+            values = np.asarray(image.convert("L"), dtype=np.uint8)
         except Exception as exc:
             return {"class_histogram_error": f"semantic stencil PNG load failed: {exc}"}
 
         unique, counts = np.unique(values, return_counts=True)
         histogram = {str(int(class_id)): int(count) for class_id, count in zip(unique, counts)}
+        allowed_class_ids: set[int] = set()
+        for raw_class_id in self.semantic_class_by_id.keys():
+            try:
+                allowed_class_ids.add(int(raw_class_id))
+            except (TypeError, ValueError):
+                continue
+        unknown_class_ids = [int(value) for value in unique.tolist() if int(value) not in allowed_class_ids]
+        invalid_pixel_count = int(sum(histogram.get(str(class_id), 0) for class_id in unknown_class_ids))
         return {
+            "semantic_png_mode": image_mode,
             "class_histogram": histogram,
             "ignore_pixel_count": int(histogram.get("0", 0)),
             "non_ignore_pixel_count": int(values.size - int(histogram.get("0", 0))),
             "semantic_unique_class_ids": [int(value) for value in unique.tolist()],
+            "unknown_semantic_class_ids": unknown_class_ids,
+            "invalid_semantic_class_id_pixel_count": invalid_pixel_count,
+            "unknown_semantic_color_pixel_count": invalid_pixel_count,
+        }
+
+    @staticmethod
+    def _write_semantic_palette_preview(image_path: Path) -> dict[str, Any]:
+        palette_path = image_path.with_name(f"{image_path.stem}__palette.png")
+        try:
+            import numpy as np  # type: ignore
+            from PIL import Image  # type: ignore
+        except Exception as exc:
+            return {"semantic_palette_preview_error": f"Pillow/numpy import failed: {exc}"}
+
+        try:
+            values = np.asarray(Image.open(image_path).convert("L"), dtype=np.uint8)
+            palette = np.zeros((256, 3), dtype=np.uint8)
+            palette[0] = [0, 0, 0]
+            palette[1] = [140, 140, 140]
+            palette[2] = [40, 120, 255]
+            palette[3] = [30, 180, 80]
+            palette[4] = [0, 200, 220]
+            palette[5] = [230, 60, 50]
+            palette[6] = [220, 60, 220]
+            palette[7] = [255, 220, 40]
+            palette[8] = [255, 140, 30]
+            palette[9] = [150, 80, 255]
+            palette[10] = [245, 245, 245]
+            palette[11] = [255, 120, 170]
+            palette[12] = [80, 255, 210]
+            Image.fromarray(palette[values], mode="RGB").save(palette_path)
+        except Exception as exc:
+            return {"semantic_palette_preview_error": f"semantic palette preview write failed: {exc}"}
+
+        return {
+            "semantic_palette_preview_path": str(palette_path),
+            "palette_preview_kind": "rgb_visualization_only_not_training_label",
         }
 
     def _write_fixed_world_capture_output(
@@ -4604,6 +4947,7 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             )
         )
         sidecar.update(self._semantic_stencil_pixel_counts(image_path))
+        sidecar.update(self._write_semantic_palette_preview(image_path))
         self.capture_orchestrator.write_sidecar(sidecar_path, sidecar)
 
     @staticmethod
@@ -4653,19 +4997,21 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
         width: int,
         height: int,
         fov_degrees: float,
-        segmentation_payload: dict[str, Any] | None = None,
     ) -> None:
         modalities = dict(self.capture_presets.get("modalities") or {})
         modality = dict(modalities.get(modality_id) or {})
         normalized_modality = str(modality_id or "rgb").strip().lower()
-        output_dir = self.output_dir / batch.batch_id / safe_name(view_id) / safe_name(normalized_modality)
+        if normalized_modality == "seg":
+            raise RuntimeError(
+                "AirSim native segmentation output is forbidden by the semantic capture contract. "
+                "UAV seg must use UE CustomStencil."
+            )
+        output_dir = self._uav_capture_view_output_dir(view_id) / safe_name(normalized_modality)
         self._prepare_capture_output_dir(output_dir)
         frame_stem = self.capture_orchestrator.frame_stem(frame)
         extension = str(modality.get("extension") or ("npy" if normalized_modality == "depth" else "png"))
         image_path = output_dir / f"{frame_stem}.{extension}"
         depth_preview_path: Path | None = None
-        seg_raw_path: Path | None = None
-        semantic_pixel_payload: dict[str, Any] | None = None
         if normalized_modality == "depth":
             try:
                 import numpy as np  # type: ignore
@@ -4707,31 +5053,7 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             response_width = int(getattr(response, "width", 0) or width)
             response_height = int(getattr(response, "height", 0) or height)
             response_compress = bool(getattr(response, "compress", modality.get("compress", normalized_modality != "depth")))
-            if normalized_modality == "seg":
-                try:
-                    import numpy as np  # type: ignore
-                    from PIL import Image  # type: ignore
-                except Exception as exc:
-                    raise RuntimeError("Pillow and numpy are required to write AirSim semantic segmentation output") from exc
-                if response_compress:
-                    from io import BytesIO
-
-                    raw_image = Image.open(BytesIO(data)).convert("RGB")
-                    response_width, response_height = raw_image.size
-                else:
-                    expected_rgb_size = response_width * response_height * 3
-                    if response_width <= 0 or response_height <= 0 or len(data) != expected_rgb_size:
-                        raise RuntimeError(
-                            f"AirSim raw {normalized_modality} response size mismatch: bytes={len(data)} "
-                            f"width={response_width} height={response_height} expected={expected_rgb_size}"
-                        )
-                    raw_image = Image.frombytes("RGB", (response_width, response_height), data)
-                seg_raw_path = output_dir / f"{frame_stem}__airsim_raw.png"
-                raw_image.save(seg_raw_path)
-                raw_rgb = np.asarray(raw_image.convert("RGB"), dtype=np.uint8)
-                semantic_pixel_payload = self._semantic_pixel_counts(raw_rgb, dict(segmentation_payload or {}))
-                raw_image.save(image_path)
-            elif response_compress:
+            if response_compress:
                 image_path.write_bytes(data)
             else:
                 expected_rgb_size = response_width * response_height * 3
@@ -4755,7 +5077,7 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                 "camera_role": "uav",
                 "camera_name": camera_name,
                 "modality": normalized_modality,
-                "image_type": "Segmentation" if normalized_modality == "seg" else modality.get("image_type", "Scene"),
+                "image_type": modality.get("image_type", "Scene"),
                 "pixels_as_float": bool(modality.get("pixels_as_float", normalized_modality == "depth")),
                 "compress": bool(modality.get("compress", normalized_modality != "depth")),
                 "image_path": str(image_path),
@@ -4796,12 +5118,6 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             if depth_preview_path is not None:
                 sidecar["depth_preview_path"] = str(depth_preview_path)
                 sidecar["depth_preview_for_debug_only"] = True
-        elif normalized_modality == "seg":
-            sidecar.update(dict(segmentation_payload or {}))
-            sidecar.update(dict(semantic_pixel_payload or {}))
-            sidecar["output_format"] = "png_airsim_semantic_class_id_color"
-            sidecar["raw_airsim_seg_path"] = str(seg_raw_path) if seg_raw_path is not None else ""
-            sidecar["semantic_seg_path"] = str(image_path)
         else:
             sidecar["output_format"] = "png"
         self.capture_orchestrator.write_sidecar(sidecar_path, sidecar)
@@ -4869,7 +5185,6 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             raise RuntimeError(
                 f"AirSim native capture can only capture active source '{self.active_airsim_capture_entity_id}', got '{entity_id}'."
             )
-        self._ensure_airsim_capture_vehicle()
         uav_position_enu_m, uav_rotation_deg = self._uav_pose_for_capture(entity, vehicle_status)
         source_uav_position_enu_m = list(uav_position_enu_m)
         uav_position_enu_m = self._ground_relative_position(
@@ -4878,14 +5193,6 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             cache_namespace=f"capture_pre:{entity_id}",
             use_cache=True,
         )
-        capture_pose = self._pin_airsim_capture_vehicle(
-            uav_position_enu_m,
-            uav_rotation_deg,
-            context=f"pre-capture {entity_id} tick {int(frame['tick'])}",
-        )
-        settle_s = float((self.config.get("timeouts") or {}).get("camera_settle_s", 0.25))
-        if settle_s > 0.0:
-            time.sleep(settle_s)
         fov_degrees = float(preset.get("fov_degrees") or 85.0)
         camera_offset_body_m = [
             float(value)
@@ -4896,8 +5203,33 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
         camera_rotation_body_deg = dict(preset.get("fixed_rotation_offset_deg") or {})
         if not camera_rotation_body_deg:
             camera_rotation_body_deg = {"pitch_deg": 0.0, "yaw_deg": 0.0, "roll_deg": 0.0}
+        normalized_modality = str(modality_id or "rgb").strip().lower()
+        modalities = dict(self.capture_presets.get("modalities") or {})
+        modality = dict(modalities.get(normalized_modality) or {})
+        if normalized_modality not in {"rgb", "depth", "seg"}:
+            raise RuntimeError(f"AirSim native UAV capture does not support modality '{modality_id}'.")
+        uses_ue_custom_stencil = normalized_modality == "seg"
+        if uses_ue_custom_stencil:
+            capture_pose = {
+                "requested_position_enu_m": [float(value) for value in uav_position_enu_m],
+                "requested_rotation_deg": dict(uav_rotation_deg),
+                "pose": {},
+                "pose_error_m": 0.0,
+                "capture_pose_mode": "ue_custom_stencil_truth_pose_no_airsim_pin",
+            }
+            camera_info_before_capture = {}
+        else:
+            self._ensure_airsim_capture_vehicle()
+            capture_pose = self._pin_airsim_capture_vehicle(
+                uav_position_enu_m,
+                uav_rotation_deg,
+                context=f"pre-capture {entity_id} tick {int(frame['tick'])}",
+            )
+            settle_s = float((self.config.get("timeouts") or {}).get("camera_settle_s", 0.25))
+            if settle_s > 0.0:
+                time.sleep(settle_s)
         set_runtime_camera_pose = bool(preset.get("set_runtime_camera_pose", False))
-        if set_runtime_camera_pose:
+        if set_runtime_camera_pose and not uses_ue_custom_stencil:
             camera_pose_frame = str(preset.get("camera_pose_frame") or preset.get("camera_pose_coordinate_frame") or "ned").strip().lower()
             if camera_pose_frame not in {"ned", "enu"}:
                 raise RuntimeError(f"Unsupported AirSim camera pose frame '{camera_pose_frame}' for preset {preset}")
@@ -4915,35 +5247,50 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                 rotation_deg=camera_rotation_body_deg,
                 **set_camera_pose_kwargs,
             )
-        self._retry("simSetCameraFov", self.client.set_camera_fov, self.airsim_capture_vehicle, camera_name, fov_degrees)
-        camera_info_before_capture = self._retry(
-            "simGetCameraInfo",
-            self.client.get_camera_info,
-            self.airsim_capture_vehicle,
-            camera_name,
-        )
-
-        normalized_modality = str(modality_id or "rgb").strip().lower()
-        modalities = dict(self.capture_presets.get("modalities") or {})
-        modality = dict(modalities.get(normalized_modality) or {})
-        if normalized_modality not in {"rgb", "depth", "seg"}:
-            raise RuntimeError(f"AirSim native UAV capture does not support modality '{modality_id}'.")
+        if not uses_ue_custom_stencil:
+            self._retry("simSetCameraFov", self.client.set_camera_fov, self.airsim_capture_vehicle, camera_name, fov_degrees)
+            camera_info_before_capture = self._retry(
+                "simGetCameraInfo",
+                self.client.get_camera_info,
+                self.airsim_capture_vehicle,
+                camera_name,
+            )
+            image_type = str(modality.get("image_type") or "Scene")
+            airsim_proxy_capture_exclusion = self._apply_airsim_semantic_proxy_capture_exclusion(
+                camera_name=camera_name,
+                modality_id=normalized_modality,
+                image_type=image_type,
+            )
+            if (
+                int(airsim_proxy_capture_exclusion.get("target_count") or 0) > 0
+                and str(airsim_proxy_capture_exclusion.get("status") or "").lower() != "ok"
+            ):
+                raise RuntimeError(
+                    "Unable to exclude custom-stencil-only semantic proxies from AirSim capture. "
+                    f"details={airsim_proxy_capture_exclusion}"
+                )
+        else:
+            airsim_proxy_capture_exclusion = {
+                "status": "skipped",
+                "reason": "ue_custom_stencil_segmentation_must_keep_proxies_visible_to_custom_depth",
+                "target_count": len(self.event_semantic_proxy_capture_targets),
+            }
         camera_suffix = safe_name(str(preset.get("camera_id_suffix", camera_name)))
         view_id = self.requested_capture_view_id or f"{safe_name(self.active_capture_view_id)}__{camera_suffix}"
-        if normalized_modality == "seg" and self.segmentation_backend == "ue_custom_stencil":
+        if uses_ue_custom_stencil:
             hook = self._fixed_world_capture_hook()
-            output_dir = self.output_dir / batch.batch_id / safe_name(view_id) / "seg"
+            output_dir = self._uav_capture_view_output_dir(view_id) / "seg"
             self._prepare_capture_output_dir(output_dir)
             frame_stem = self.capture_orchestrator.frame_stem(frame)
             image_path = output_dir / f"{frame_stem}.png"
-            semantic_audit_path = output_dir / f"{frame_stem}__semantic_stencil_audit.json"
+            semantic_audit_path = output_dir / f"{frame_stem}__seg_audit.json"
             camera_world_rotation_deg = self._add_rotation_offsets(uav_rotation_deg, camera_rotation_body_deg)
             semantic_camera_asset_id = safe_name(f"fixed_world_camera.semantic.{view_id}")
             self.ground_camera_asset_ids[("uav_semantic_stencil", view_id)] = semantic_camera_asset_id
             hook.ensure_fixed_world_camera(
                 map_id=self.map_id,
                 asset_id=semantic_camera_asset_id,
-                logical_asset_id="camera.fixed_world_capture.semantic_stencil.v1",
+                logical_asset_id="camera.fixed_world_capture.rgb.v1",
                 position_enu_m=uav_position_enu_m,
                 rotation_deg=camera_world_rotation_deg,
             )
@@ -4960,6 +5307,8 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             )
             sidecar = {
                 "episode_id": self.episode_id,
+                "logical_event_id": self.episode_id,
+                "logical_sample_id": f"{self.episode_id}:tick{int(frame['tick']):06d}:{view_id}",
                 "frame_id": str(frame.get("frame_id", "")),
                 "frame_seq": int(frame.get("frame_seq") or frame.get("tick") or 0),
                 "tick": int(frame["tick"]),
@@ -4985,6 +5334,14 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                 "source_uav_pose_enu_m": source_uav_position_enu_m,
                 "expected_uav_pose_enu_m": uav_position_enu_m,
                 "expected_uav_rotation_deg": uav_rotation_deg,
+                "capture_source_coordinate_audit": self._coordinate_audit_entry(
+                    entity_id=entity_id,
+                    logical_asset_id=str(self._entity_resolution(entity).get("logical_asset_id") or ""),
+                    source_coordinate_space="map_enu_m" if self._truth_frame_uses_map_enu() else "local_enu_m",
+                    raw_position_enu_m=position_enu_from_truth(entity),
+                    coordinate_transform_applied=not self._truth_frame_uses_map_enu(),
+                    object_role="capture_source_uav",
+                ),
                 "requested_capture_pose_enu_m": capture_pose.get("requested_position_enu_m"),
                 "requested_capture_rotation_deg": capture_pose.get("requested_rotation_deg"),
                 "airsim_pose_before_capture": capture_pose.get("pose"),
@@ -4996,6 +5353,13 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                 "capture_alignment_key": f"{self.episode_id}:{batch.batch_id}:{int(frame['tick'])}:{view_id}",
                 "capture_alignment_source": "deterministic_episode_frame",
                 "capture_backend": "ue_custom_stencil_fixed_world_camera",
+                "runtime_uav_control_backend": self.runtime_uav_control_backend,
+                "runtime_uav_editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
+                "coordinate_space_contract": self._coordinate_space_contract(),
+                "event_semantic_objects": self.event_semantic_coordinate_audit,
+                "event_semantic_proxy_sanitizer": self.event_semantic_proxy_sanitizer_result,
+                "airsim_proxy_capture_exclusion": airsim_proxy_capture_exclusion,
+                "static_map_objects": self.static_map_coordinate_audit,
                 "capture_view_id": view_id,
                 "entity_records": entity_records,
                 "roster_summary": frame.get("roster_summary", {}),
@@ -5014,21 +5378,22 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                 semantic_audit_path=semantic_audit_path,
             )
             return
-        segmentation_payload = None
         if normalized_modality == "seg":
-            segmentation_payload = self._configure_semantic_segmentation_registry(entity_records)
+            raise RuntimeError("UAV seg must use UE CustomStencil and cannot reach AirSim native capture.")
         response = self._retry(
             "simGetImages",
             self.client.capture_vehicle_image,
             self.airsim_capture_vehicle,
             camera_name=camera_name,
-            image_type=("Segmentation" if normalized_modality == "seg" else str(modality.get("image_type") or "Scene")),
+            image_type=str(modality.get("image_type") or "Scene"),
             pixels_as_float=bool(modality.get("pixels_as_float", normalized_modality == "depth")),
             compress=bool(modality.get("compress", normalized_modality != "depth")),
             annotation_name=str(modality.get("annotation_name") or ""),
         )
         sidecar = {
             "episode_id": self.episode_id,
+            "logical_event_id": self.episode_id,
+            "logical_sample_id": f"{self.episode_id}:tick{int(frame['tick']):06d}:{view_id}",
             "frame_id": str(frame.get("frame_id", "")),
             "frame_seq": int(frame.get("frame_seq") or frame.get("tick") or 0),
             "tick": int(frame["tick"]),
@@ -5054,6 +5419,14 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             "source_uav_pose_enu_m": source_uav_position_enu_m,
             "expected_uav_pose_enu_m": uav_position_enu_m,
             "expected_uav_rotation_deg": uav_rotation_deg,
+            "capture_source_coordinate_audit": self._coordinate_audit_entry(
+                entity_id=entity_id,
+                logical_asset_id=str(self._entity_resolution(entity).get("logical_asset_id") or ""),
+                source_coordinate_space="map_enu_m" if self._truth_frame_uses_map_enu() else "local_enu_m",
+                raw_position_enu_m=position_enu_from_truth(entity),
+                coordinate_transform_applied=not self._truth_frame_uses_map_enu(),
+                object_role="capture_source_uav",
+            ),
             "requested_capture_pose_enu_m": capture_pose.get("requested_position_enu_m"),
             "requested_capture_rotation_deg": capture_pose.get("requested_rotation_deg"),
             "airsim_pose_before_capture": capture_pose.get("pose"),
@@ -5062,6 +5435,13 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             "capture_alignment_key": f"{self.episode_id}:{batch.batch_id}:{int(frame['tick'])}:{view_id}",
             "capture_alignment_source": "deterministic_episode_frame",
             "capture_backend": "airsim_native_uav_camera",
+            "runtime_uav_control_backend": self.runtime_uav_control_backend,
+            "runtime_uav_editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
+            "coordinate_space_contract": self._coordinate_space_contract(),
+            "event_semantic_objects": self.event_semantic_coordinate_audit,
+            "event_semantic_proxy_sanitizer": self.event_semantic_proxy_sanitizer_result,
+            "airsim_proxy_capture_exclusion": airsim_proxy_capture_exclusion,
+            "static_map_objects": self.static_map_coordinate_audit,
             "capture_view_id": view_id,
             "entity_records": entity_records,
             "roster_summary": frame.get("roster_summary", {}),
@@ -5078,7 +5458,6 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             width=int(preset.get("width") or 1280),
             height=int(preset.get("height") or 720),
             fov_degrees=fov_degrees,
-            segmentation_payload=segmentation_payload,
         )
 
     def _capture_ground_views(
@@ -5257,27 +5636,28 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                     "AirSim native UAV capture found no camera/modality job. "
                     "Check --camera-id and --modality filters."
                 )
-            if len(jobs) != 1:
+            matched_cameras = {(job[0], job[1]) for job in jobs}
+            if len(matched_cameras) != 1:
                 raise RuntimeError(
-                    "AirSim native UAV capture requires exactly one camera and one modality per run. "
+                    "AirSim native UAV capture requires exactly one camera per run. "
                     f"Matched jobs: {[{'camera_id': job[0], 'camera_name': job[1], 'modality': job[2]} for job in jobs]}"
                 )
-            camera_id, camera_name, modality_id, preset = jobs[0]
-            self._capture_uav_airsim_native_modality(
-                batch,
-                frame,
-                modality_id=modality_id,
-                entity_id=entity_id,
-                entity=entity,
-                vehicle_status=vehicle_status,
-                camera_id=camera_id,
-                camera_name=camera_name,
-                preset=preset,
-                weather_payload=weather_payload,
-                entity_records=entity_records,
-                feedback_payload=feedback_payload,
-                uav_debug=uav_debug,
-            )
+            for camera_id, camera_name, modality_id, preset in jobs:
+                self._capture_uav_airsim_native_modality(
+                    batch,
+                    frame,
+                    modality_id=modality_id,
+                    entity_id=entity_id,
+                    entity=entity,
+                    vehicle_status=vehicle_status,
+                    camera_id=camera_id,
+                    camera_name=camera_name,
+                    preset=preset,
+                    weather_payload=weather_payload,
+                    entity_records=entity_records,
+                    feedback_payload=feedback_payload,
+                    uav_debug=uav_debug,
+                )
             return
 
         raise RuntimeError(
@@ -5464,12 +5844,41 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             return {"status": "ok", "entity_id": entity_id, "ped_id": entity_id, "response": response}
         if asset_kind == "uav":
             command_position = self._runtime_uav_command_position_enu(entity_id, position)
-            response = self.client.create_runtime_multirotor(
-                asset_instance_id,
-                position_enu_m=command_position,
-                rotation_deg=rotation,
-                map_id=self.map_id,
-            )
+            try:
+                response = self.client.create_runtime_multirotor(
+                    asset_instance_id,
+                    position_enu_m=command_position,
+                    rotation_deg=rotation,
+                    map_id=self.map_id,
+                )
+            except Exception as exc:
+                if not (self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal):
+                    raise
+                print(
+                    f"[EpisodeHost] event spawn runtime UAV RPC warning for {asset_instance_id}; "
+                    f"continuing without editor-hook fallback: {exc}"
+                )
+                return {
+                    "status": "ok",
+                    "entity_id": entity_id,
+                    "vehicle_name": asset_instance_id,
+                    "command_position_enu_m": command_position,
+                    "response": {
+                        "payload": {
+                            "state": "warning",
+                            "reason": "event_spawn_direct_runtime_rpc_failed_nonfatal",
+                            "error": str(exc),
+                        }
+                    },
+                    "wait_status": self._runtime_uav_nonfatal_rpc_status(
+                        entity_id=entity_id,
+                        vehicle_name=asset_instance_id,
+                        operation="event_spawn",
+                        exc=exc,
+                        target_enu_m=command_position,
+                        rotation_deg=rotation,
+                    ),
+                }
             self.uav_active_by_entity[entity_id] = asset_instance_id
             self.uav_last_command_target_by_entity[entity_id] = list(command_position)
             return {
@@ -5569,13 +5978,30 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             command_position = self._runtime_uav_command_position_enu(entity_id, position)
             velocity_mps = float(action.get("velocity_mps", 5.0))
             if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
-                self._ensure_airsim_capture_vehicle()
                 command_rotation = rotation or self._entity_rotation_deg({"entity_id": entity_id})
-                wait_status = self._pin_airsim_capture_vehicle(
-                    command_position,
-                    command_rotation,
-                    context=f"event action {action.get('action_id') or '<unnamed>'}",
-                )
+                if self._runtime_uav_pose_sync_mode():
+                    wait_status = {
+                        "vehicle_name": self.airsim_capture_vehicle,
+                        "status": {
+                            "state": "ok",
+                            "reason": "capture_entity_event_move_deferred_to_capture_tick_pin",
+                        },
+                        "pose": {
+                            "position_enu_m": [float(value) for value in command_position],
+                            "rotation_deg": dict(command_rotation or {}),
+                        },
+                        "timed_out": False,
+                        "position_error_m": 0.0,
+                        "path_used": "pose_sync_capture_entity",
+                        "truth_frame_pose_sync": True,
+                    }
+                else:
+                    self._ensure_airsim_capture_vehicle()
+                    wait_status = self._pin_airsim_capture_vehicle(
+                        command_position,
+                        command_rotation,
+                        context=f"event action {action.get('action_id') or '<unnamed>'}",
+                    )
                 response = {
                     "payload": {
                         "vehicle_name": self.airsim_capture_vehicle,
@@ -5597,6 +6023,79 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                     "status": "ok",
                     "entity_id": entity_id,
                     "vehicle_name": self.airsim_capture_vehicle,
+                    "command_position_enu_m": command_position,
+                    "response": response,
+                    "wait_status": wait_status,
+                }
+            if self._runtime_uav_pose_sync_mode():
+                try:
+                    if entity_id not in self.uav_active_by_entity:
+                        self.client.create_runtime_multirotor(
+                            vehicle_name,
+                            position_enu_m=command_position,
+                            rotation_deg=rotation or self._entity_rotation_deg({"entity_id": entity_id}),
+                            map_id=self.map_id,
+                        )
+                        self.uav_active_by_entity[entity_id] = vehicle_name
+                    response = self.client.move_runtime_multirotor(
+                        vehicle_name,
+                        target_enu_m=command_position,
+                        velocity_mps=velocity_mps,
+                        map_id=self.map_id,
+                    )
+                    try:
+                        wait_status = self._wait_for_uav_status(vehicle_name, command_position)
+                        wait_payload = dict(wait_status.get("status") or {})
+                        wait_state = str(wait_payload.get("state") or wait_payload.get("status") or "").strip().lower()
+                        if self.runtime_uav_non_capture_failure_nonfatal and wait_state in {"failed", "cancelled", "timeout", "missing"}:
+                            wait_payload["original_state"] = wait_state
+                            wait_payload["state"] = "warning"
+                            wait_payload["reason"] = "non_capture_event_move_runtime_status_nonfatal"
+                            wait_status["status"] = wait_payload
+                            wait_status["non_capture_uav_event_move_nonfatal"] = True
+                            wait_status["timed_out_accepted_running"] = True
+                    except Exception as wait_exc:
+                        if not self.runtime_uav_non_capture_failure_nonfatal:
+                            raise
+                        wait_status = self._runtime_uav_nonfatal_rpc_status(
+                            entity_id=entity_id,
+                            vehicle_name=vehicle_name,
+                            operation="event_move_status",
+                            exc=wait_exc,
+                            target_enu_m=command_position,
+                            rotation_deg=rotation or {},
+                        )
+                    wait_status["path_used"] = "direct_rpc"
+                except Exception as exc:
+                    if not self.runtime_uav_non_capture_failure_nonfatal:
+                        raise
+                    print(
+                        f"[EpisodeHost] event move runtime UAV RPC warning for non-capture {vehicle_name}; "
+                        f"continuing without editor-hook fallback: {exc}"
+                    )
+                    response = {
+                        "payload": {
+                            "vehicle_name": vehicle_name,
+                            "state": "warning",
+                            "reason": "event_move_direct_runtime_rpc_failed_nonfatal",
+                            "target_enu_m": [float(value) for value in command_position],
+                            "velocity_mps": velocity_mps,
+                            "synthetic": True,
+                            "error": str(exc),
+                        }
+                    }
+                    wait_status = self._runtime_uav_nonfatal_rpc_status(
+                        entity_id=entity_id,
+                        vehicle_name=vehicle_name,
+                        operation="event_move",
+                        exc=exc,
+                        target_enu_m=command_position,
+                        rotation_deg=rotation or {},
+                    )
+                return {
+                    "status": "ok",
+                    "entity_id": entity_id,
+                    "vehicle_name": vehicle_name,
                     "command_position_enu_m": command_position,
                     "response": response,
                     "wait_status": wait_status,
@@ -5648,7 +6147,22 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             return {"status": "ok", "entity_id": entity_id, "response": response}
         if asset_kind == "uav":
             vehicle_name = self.uav_active_by_entity.pop(entity_id, entity_id)
-            response = self.client.remove_runtime_vehicle(vehicle_name, map_id=self.map_id)
+            try:
+                response = self.client.remove_runtime_vehicle(vehicle_name, map_id=self.map_id)
+            except Exception as exc:
+                if not (self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal):
+                    raise
+                print(
+                    f"[EpisodeHost] event remove runtime UAV RPC warning for {vehicle_name}; "
+                    f"continuing without editor-hook fallback: {exc}"
+                )
+                response = {
+                    "payload": {
+                        "state": "warning",
+                        "reason": "event_remove_direct_runtime_rpc_failed_nonfatal",
+                        "error": str(exc),
+                    }
+                }
             self.event_controlled_entity_ids.discard(entity_id)
             self.uav_last_command_target_by_entity.pop(entity_id, None)
             return {"status": "ok", "entity_id": entity_id, "vehicle_name": vehicle_name, "response": response}
@@ -5720,6 +6234,15 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
         if self._script_asset_kind(logical_asset_id) == "uav":
             vehicle_name = self.uav_active_by_entity.get(entity_id)
             if not vehicle_name:
+                if self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal:
+                    return {
+                        "status": "ok",
+                        "entity_id": entity_id,
+                        "visual_state": visual_state,
+                        "runtime_uav_state_only": True,
+                        "non_capture_uav_visual_state_nonfatal": True,
+                        "warning": "runtime UAV is not active; visual state not applied",
+                    }
                 raise RuntimeError(f"set_visual_state for UAV '{entity_id}' requires an active runtime multirotor")
             mode = str(visual_state.get("mode") or "").strip().lower()
             if mode == "hover":
@@ -5738,6 +6261,15 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
                 else:
                     command_position = self._runtime_uav_command_position_enu(entity_id, raw_position)
                 wait_status = self._uav_status_snapshot(vehicle_name, command_position)
+                wait_payload = dict(wait_status.get("status") or {})
+                wait_state = str(wait_payload.get("state") or wait_payload.get("status") or "").strip().lower()
+                if self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal and wait_state in {"failed", "cancelled", "timeout", "missing"}:
+                    wait_payload["original_state"] = wait_state
+                    wait_payload["state"] = "warning"
+                    wait_payload["reason"] = "non_capture_visual_state_runtime_status_nonfatal"
+                    wait_status["status"] = wait_payload
+                    wait_status["non_capture_uav_visual_state_nonfatal"] = True
+                    wait_status["timed_out_accepted_running"] = True
                 self.event_controlled_entity_ids.add(entity_id)
                 self.uav_last_command_target_by_entity[entity_id] = list(command_position)
                 return {
@@ -5921,7 +6453,7 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
         manifest_path = self._write_capture_storage_manifest()
         print(f"[EpisodeHost] Capture storage manifest written: {manifest_path}")
         if bool(getattr(self.args, "semantic_stencil_audit_only", False)):
-            audit_path = self.output_dir / "semantic_stencil_audit.json"
+            audit_path = self.output_dir / "semantic_seg_audit.json"
             self._fixed_world_capture_hook().semantic_stencil_audit(
                 map_id=self.map_id,
                 semantic_rules_path=self.semantic_rules_path,
@@ -5930,19 +6462,17 @@ print("AEROWORLD_SEMANTIC_REGISTRY_JSON_BEGIN" + json.dumps(payload, ensure_asci
             )
             print(f"[EpisodeHost] Semantic stencil audit written: {audit_path}")
             return
-        if bool(getattr(self.args, "segmentation_registry_audit_only", False)):
-            payload = self._configure_semantic_segmentation_registry([])
-            audit_path = self.output_dir / "semantic_segmentation_registry_audit.json"
-            audit_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            print(f"[EpisodeHost] Semantic segmentation registry audit written: {audit_path}")
-            return
         self._cleanup_pie_world_actors()
         self.hard_reset_world_state()
+        self._spawn_event_semantic_objects()
+        manifest_path = self._write_capture_storage_manifest()
+        print(f"[EpisodeHost] Capture storage manifest updated after semantic proxy spawn: {manifest_path}")
         try:
             for index, batch in enumerate(self.batch_plans):
                 self.run_batch(batch)
                 if index + 1 < len(self.batch_plans):
                     self.hard_reset_world_state()
+                    self._spawn_event_semantic_objects()
 
             # Export event trace from script interpreter
             if self.event_interpreter is not None:
@@ -6016,10 +6546,19 @@ def parse_args() -> argparse.Namespace:
         help="Backend for UAV camera captures. Ground cameras still use editor hook RGB.",
     )
     parser.add_argument(
+        "--runtime-uav-control-backend",
+        choices=["airsim_move", "pose_sync"],
+        default="",
+        help=(
+            "Runtime UAV scene-control backend. airsim_move keeps legacy takeoff/hover/moveToPosition; "
+            "pose_sync uses deterministic truth-frame pose sync for formal dataset capture."
+        ),
+    )
+    parser.add_argument(
         "--segmentation-backend",
-        choices=["ue_custom_stencil", "airsim_native"],
+        choices=["ue_custom_stencil"],
         default="ue_custom_stencil",
-        help="Backend for UAV seg captures. Default uses UE CustomDepth/CustomStencil instead of AirSim ImageType.Segmentation.",
+        help="Backend for UAV seg captures. Formal captures only support UE CustomDepth/CustomStencil.",
     )
     parser.add_argument(
         "--semantic-rules-path",
@@ -6034,7 +6573,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--airsim-capture-entity",
         default="",
-        help="Runtime UAV entity id to replace with the AirSim capture platform. Default selects the first active UAV.",
+        help=(
+            "Runtime UAV entity id to replace with the AirSim capture platform. "
+            "Required when camera-role includes uav; high-overview/fixed-world captures do not use it."
+        ),
     )
     parser.add_argument(
         "--capture-view-id",
@@ -6047,22 +6589,9 @@ def parse_args() -> argparse.Namespace:
         help="Write an extra 8-bit PNG preview next to depth .npy for smoke/debug only. Formal dataset generation should leave this off.",
     )
     parser.add_argument(
-        "--segmentation-registry-audit-only",
-        action="store_true",
-        help="Deprecated AirSim segmentation registry audit path. Prefer --semantic-stencil-audit-only.",
-    )
-    parser.add_argument(
         "--semantic-stencil-audit-only",
         action="store_true",
         help="Write a read-only UE CustomStencil semantic component audit JSON and exit without capturing images.",
-    )
-    parser.add_argument(
-        "--enable-unsafe-pie-segmentation-actor-registration",
-        action="store_true",
-        help=(
-            "Unsafe diagnostic switch: call AirSim SimMode add_new_actor_to_instance_segmentation for matched PIE actors. "
-            "Disabled by default because prior UE logs show this path can exhaust editor memory."
-        ),
     )
     parser.add_argument("--dry_run_coords", action="store_true", help="Print raw/transformed ENU coordinates and exit")
     parser.add_argument("--preview_ground", action="store_true", help="Connect to PIE, print transformed + ground-projected ENU coordinates, and exit")

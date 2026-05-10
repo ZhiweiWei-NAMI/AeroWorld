@@ -4,7 +4,30 @@
   "description": "UAV building facade near strike",
   "parameters": {
     "incident_tick": 260,
-    "resolution_tick": 520
+    "resolution_tick": 520,
+    "target_uav_count": 1,
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 6,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "uav_facade_l4_2_v1": 30.0
+    },
+    "uav_lateral_bypass_used": {
+      "uav_facade_l4_2_v1": true
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "uav_facade_l4_2_v1",
+        "point_count": 7,
+        "assigned_altitude_m": 30.0,
+        "used_lateral_bypass": true
+      }
+    ]
   },
   "triggers": [
     {
@@ -53,22 +76,39 @@
           "entity_id": "uav_facade_l4_2_v1",
           "waypoints_enu_m": [
             [
-              7029.662,
-              6270.572,
-              3.0
-            ],
-            [
-              7029.662,
-              6270.572,
-              24.0
+              7031.958,
+              6276.115,
+              30.0
             ],
             [
               7028.0,
               6279.0,
-              31
+              30.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7029.662,
+                6270.572,
+                3.0
+              ],
+              [
+                7029.662,
+                6270.572,
+                24.0
+              ],
+              [
+                7028.0,
+                6279.0,
+                31
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -97,20 +137,42 @@
             [
               7028.0,
               6279.0,
-              31
+              30.0
             ],
             [
               7041.0,
               6286.0,
-              26
+              30.0
             ],
             [
               7055.0,
               6294.0,
-              18
+              30.0
             ]
           ],
-          "velocity_mps": 7.0
+          "velocity_mps": 7.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7028.0,
+                6279.0,
+                31
+              ],
+              [
+                7041.0,
+                6286.0,
+                26
+              ],
+              [
+                7055.0,
+                6294.0,
+                18
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -139,15 +201,32 @@
             [
               7055.0,
               6294.0,
-              18
+              30.0
             ],
             [
               7049.0,
               6302.0,
-              34
+              30.0
             ]
           ],
-          "velocity_mps": 10.0
+          "velocity_mps": 10.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7055.0,
+                6294.0,
+                18
+              ],
+              [
+                7049.0,
+                6302.0,
+                34
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         },
         {
           "type": "capture_screenshot",
@@ -181,15 +260,32 @@
             [
               7049.0,
               6302.0,
-              34
+              30.0
             ],
             [
               7031.0,
               6306.0,
-              32
+              30.0
             ]
           ],
-          "velocity_mps": 7.0
+          "velocity_mps": 7.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7049.0,
+                6302.0,
+                34
+              ],
+              [
+                7031.0,
+                6306.0,
+                32
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -217,20 +313,37 @@
             [
               7031.0,
               6306.0,
-              32.0
+              30.0
             ],
             [
-              7029.662,
-              6270.572,
-              22.0
-            ],
-            [
-              7029.662,
-              6270.572,
-              3.0
+              7031.958,
+              6276.115,
+              30.0
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 4.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7031.0,
+                6306.0,
+                32.0
+              ],
+              [
+                7029.662,
+                6270.572,
+                22.0
+              ],
+              [
+                7029.662,
+                6270.572,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {

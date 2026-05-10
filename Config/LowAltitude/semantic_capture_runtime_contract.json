@@ -1,0 +1,73 @@
+{
+  "contract_version": "semantic_capture_runtime_contract.v1",
+  "purpose": "Stable long-run semantic dataset capture contract for deterministic UAV RGB/depth/UE-CustomStencil-seg samples under the same event episode and truth-frame tick.",
+  "defaults": {
+    "host": "127.0.0.1",
+    "port": 41451,
+    "map_id": "donghu_road_topo",
+    "requested_tick": 100,
+    "tick_mode": "sequential_from_zero_to_capture_tick",
+    "output_root": "F:/aw_cap",
+    "summary": "F:/aw_cap_summary.csv",
+    "segmentation_backend": "ue_custom_stencil",
+    "segmentation_kind": "ue_custom_stencil_class_id_u8",
+    "uav_modalities": ["rgb", "depth", "seg"],
+    "uav_policy": "one_uav_per_episode",
+    "uav_control_backend": "pose_sync",
+    "runtime_uav_editor_hook_fallback_enabled": false,
+    "non_capture_runtime_uav_rpc_failure_nonfatal": true,
+    "airsim_capture_vehicle": "CaptureUAV_0",
+    "host_run_timeout_s": 300.0,
+    "max_private_memory_gb": 20.0,
+    "max_working_set_gb": 20.0
+  },
+  "must_follow": {
+    "reuse_existing_pie": true,
+    "close_ue_on_success": false,
+    "keep_ue_open_on_failure": true,
+    "deterministic_output_root": true,
+    "output_root_must_be_f_drive_root": true,
+    "simple_primary_image_paths": true,
+    "complex_identifiers_live_in_sidecars": true,
+    "forbid_timestamp_output_dirs": true,
+    "forbid_direct_tick_jump": true,
+    "high_overview_requires_capture_entity": false,
+    "uav_host_run_requires_exactly_one_capture_entity": true,
+    "single_modality_per_uav_host_run": true,
+    "max_replaced_scene_uavs_per_host_run": 1,
+    "capture_vehicle_is_single_airsim_platform": true,
+    "forbid_formal_runtime_uav_editor_hook_fallback": true,
+    "non_capture_runtime_uav_rpc_failure_nonfatal": true,
+    "formal_segmentation_backend": "ue_custom_stencil",
+    "forbid_airsim_native_segmentation_as_formal_output": true,
+    "require_palette_preview": true,
+    "require_uav_rgb_depth_seg_alignment_key_match": true,
+    "require_uav_logical_sample_id_match": true,
+    "require_same_event_tick_view_entity_across_modalities": true,
+    "memory_guard_stops_runner_without_closing_ue": true,
+    "coordinate_audit_required": true,
+    "event_semantic_objects_from_scene_setup": true
+  },
+  "coordinate_spaces": {
+    "map_enu_m": "Episode truth frames, event script, and global roster coordinates; values may be 7000m scale and should resolve to 700000cm scale in PIE.",
+    "local_enu_m": "Only apply coordinate_transform when explicitly marked local.",
+    "map_static_local_enu_m": "Config/LowAltitude/Maps/.../scenario_objects.json static fixtures; [14,16,8]m resolving to [1400,1600,800]cm is expected.",
+    "ue_world_cm": "Observed Unreal actor/component location used for audit only."
+  },
+  "allowed_uav_policies": [
+    "one_uav_per_episode",
+    "all_uavs_by_separate_runs"
+  ],
+  "allowed_uav_control_backends": [
+    "pose_sync",
+    "airsim_move"
+  ],
+  "failure_statuses": [
+    "ok",
+    "failed",
+    "fatal_runtime_unavailable",
+    "skipped_no_runtime_uav",
+    "skipped_by_one_uav_policy",
+    "skipped_by_explicit_capture_entity"
+  ]
+}

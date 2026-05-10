@@ -23,7 +23,10 @@ This project now has a stricter ownership split.
 ## External Python
 
 - Long-lived CLI tools belong in `Plugins/SumoImporter/Scripts/`.
-  Examples: `episode_render_host.py`, `build_multiview_demo_assets.py`, `play_multiview_demo_cli.py`.
+  Example: `episode_render_host.py`.
+
+- Demo and presentation-only scripts belong in `Plugins/SumoImporter/Demos/`.
+  Example: `Demos/multiview/`.
 
 - Shared Python services belong in `Plugins/SumoImporter/Scripts/donghu_core/`.
   Keep reusable logic here instead of re-copying it across scripts.

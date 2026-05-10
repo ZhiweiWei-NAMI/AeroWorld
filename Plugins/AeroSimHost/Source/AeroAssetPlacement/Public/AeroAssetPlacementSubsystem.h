@@ -31,6 +31,7 @@ struct FAeroAssetTemplateDefinition
 	bool bAnnotationVisible = true;
 	bool bReservable = false;
 	bool bBlocking = false;
+	bool bCustomStencilOnly = false;
 	EAeroMovementMode MovementMode = EAeroMovementMode::Teleport;
 	FAeroVisualState DefaultVisualState;
 	bool bHasDefaultVisualState = false;
@@ -60,6 +61,9 @@ struct FAeroAssetInstanceState
 	FAeroVisualState VisualState;
 	bool bHasVisualState = false;
 	bool bVisualStateExplicit = false;
+	FVector InstanceScale = FVector::OneVector;
+	bool bHasInstanceScale = false;
+	bool bCustomStencilOnly = false;
 	FVector LastResolvedWorldLocationCm = FVector::ZeroVector;
 	FString LastGroundSource;
 };
@@ -87,7 +91,7 @@ public:
 	TSharedPtr<FJsonObject> ReleaseOccupancy(const TSharedPtr<FJsonObject>& Payload, FString& OutError);
 	TSharedPtr<FJsonObject> QueryNearest(const TSharedPtr<FJsonObject>& Payload, FString& OutError) const;
 
-	bool SpawnOrUpdateProxy(const FString& InstanceId, const FString& LogicalAssetId, const FVector& PositionEnuM, const FRotator& RotationDeg, const TArray<FString>& QueryTags, const FString& EntityId, const FAeroVisualState* VisualState, FString& OutError);
+	bool SpawnOrUpdateProxy(const FString& InstanceId, const FString& LogicalAssetId, const FVector& PositionEnuM, const FRotator& RotationDeg, const TArray<FString>& QueryTags, const FString& EntityId, const FAeroVisualState* VisualState, const FVector* InstanceScale, bool bCustomStencilOnly, FString& OutError, const FString* PlacementMode = nullptr, const TSharedPtr<FJsonObject>* Placement = nullptr);
 	bool RemoveProxy(const FString& InstanceId, FString& OutError);
 
 private:

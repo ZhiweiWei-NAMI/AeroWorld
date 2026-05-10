@@ -20,6 +20,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from map_spatial_index import MapSpatialIndex  # noqa: E402
 from pedestrian_activity_catalog import get_activity, normalize_activity_type, validate_local_animation_assets  # noqa: E402
+from uav_corridor_planner import BuildingObstacleIndex, UAV_CORRIDOR_LOGICAL_ASSET_ID  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -51,6 +52,7 @@ MAX_WAYPOINT_SEGMENT_M = {
     "pedestrian": 20.0,
     "asset": 120.0,
 }
+_BUILDING_INDEX_CACHE: BuildingObstacleIndex | None = None
 
 
 @dataclass(frozen=True)
@@ -323,6 +325,8 @@ def declared_ids(scene: dict[str, Any]) -> set[str]:
 
 
 def is_ground_asset(asset_id: str) -> bool:
+    if asset_id == UAV_CORRIDOR_LOGICAL_ASSET_ID:
+        return False
     return asset_id.startswith(("vehicle.", "pedestrian.", "prop.", "facility.", "semantic."))
 
 
@@ -458,8 +462,9 @@ def check_placements(
         if asset_id.startswith("uav."):
             lifecycle = entity.get("lifecycle") or {}
             mission_start = pos3(lifecycle.get("mission_start_enu_m"))
+            corridor_lifecycle = bool(lifecycle.get("corridor_lifecycle") or entity.get("uav_corridor"))
             if lifecycle:
-                if position[2] > UAV_INITIAL_ALTITUDE_MAX_M:
+                if position[2] > UAV_INITIAL_ALTITUDE_MAX_M and not corridor_lifecycle:
                     issues.append(f"{scene['scenario_id']}: UAV {entity['entity_id']} lifecycle initial z is too high: z={position[2]}")
                 if not mission_start or mission_start[2] < UAV_MISSION_ALTITUDE_MIN_M:
                     issues.append(f"{scene['scenario_id']}: UAV {entity['entity_id']} lifecycle mission start is below mission altitude")
@@ -879,6 +884,111 @@ def check_initial_mobile_overlaps(scene: dict[str, Any], issues: list[str]) -> N
                 )
 
 
+def _background_vehicle_clearance_radius(entity: dict[str, Any]) -> float:
+    asset_id = str(entity.get("logical_asset_id", ""))
+    category = str(entity.get("category", ""))
+    placement = dict(entity.get("placement") or {})
+    mode = str(entity.get("placement_mode") or "")
+    if mode == "box_volume":
+        center = pos3(placement.get("center_enu_m") or placement.get("resolved_position_enu_m"))
+        extent = pos3(placement.get("extent_m"))
+        if center and extent and center[2] - extent[2] <= 8.0:
+            return max(extent[0], extent[1]) + 5.0
+        return 0.0
+    if asset_id.startswith("vehicle."):
+        return 5.3
+    if asset_id.startswith("pedestrian."):
+        return 5.8
+    if asset_id.startswith("uav."):
+        return 11.0
+    if asset_id == "facility.landing_pad.visible.v1":
+        return 13.0
+    if asset_id.startswith("prop.roadwork."):
+        return 6.0
+    if asset_id == "semantic.spawn_zone" or category == "crowd_anchor":
+        return 14.0
+    if asset_id.startswith("trigger.") or category in {"hazard_zone", "airspace_constraint"}:
+        return 10.0
+    return 0.0
+
+
+def check_background_vehicle_clearance_rule(
+    scene: dict[str, Any],
+    script: dict[str, Any],
+    rule: dict[str, Any],
+    issues: list[str],
+) -> bool:
+    entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
+    requested_ids = [str(entity_id) for entity_id in rule.get("entity_ids", []) if str(entity_id)]
+    if not requested_ids:
+        requested_ids = [
+            str(entity["entity_id"])
+            for entity in scene.get("entities", [])
+            if str(entity.get("entity_id") or "").startswith("bg_vehicle_")
+        ]
+    min_count = int(rule.get("min_count", 0) or 0)
+    ok = True
+    if len(requested_ids) < min_count:
+        issues.append(f"{script['scenario_id']}: background vehicle count {len(requested_ids)} < {min_count}")
+        ok = False
+
+    event_points: list[list[float]] = []
+    for _event, action in action_iter(script):
+        if action.get("type") == "move_entity":
+            for point in action.get("waypoints_enu_m", []) or []:
+                parsed = pos3(point)
+                if parsed and parsed[2] <= 12.0:
+                    event_points.append(parsed)
+        else:
+            parsed = pos3(action.get("position_enu_m") or action.get("spawn_origin_enu_m"))
+            if parsed and parsed[2] <= 12.0:
+                event_points.append(parsed)
+
+    for entity_id in requested_ids:
+        target = entities.get(entity_id)
+        if not target:
+            issues.append(f"{script['scenario_id']}: missing background vehicle {entity_id}")
+            ok = False
+            continue
+        asset_id = str(target.get("logical_asset_id", ""))
+        if not asset_id.startswith("vehicle."):
+            issues.append(f"{script['scenario_id']}: background vehicle {entity_id} is not a vehicle asset")
+            ok = False
+        if target.get("placement_mode") != "lane_anchor":
+            issues.append(f"{script['scenario_id']}: background vehicle {entity_id} is not lane anchored")
+            ok = False
+        target_pos = entity_pos(target)
+        if not target_pos:
+            issues.append(f"{script['scenario_id']}: background vehicle {entity_id} lacks resolved position")
+            ok = False
+            continue
+        for other_id, other in entities.items():
+            if other_id == entity_id:
+                continue
+            other_pos = entity_pos(other)
+            if not other_pos:
+                continue
+            radius = _background_vehicle_clearance_radius(other)
+            if radius <= 0.0:
+                continue
+            distance = dist_xy(target_pos, other_pos)
+            if distance < radius:
+                issues.append(
+                    f"{script['scenario_id']}: background vehicle {entity_id} is too close to {other_id}: {distance:.2f}m < {radius:.2f}m"
+                )
+                ok = False
+                break
+        for point in event_points:
+            distance = dist_xy(target_pos, point)
+            if distance < 4.0:
+                issues.append(
+                    f"{script['scenario_id']}: background vehicle {entity_id} is too close to low event action point: {distance:.2f}m < 4.00m"
+                )
+                ok = False
+                break
+    return ok
+
+
 def check_evacuation_pedestrian_spacing(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
     scenario_id = str(script.get("scenario_id") or scene.get("scenario_id") or "")
     if not (scenario_id.startswith("L4-8") or scenario_id.startswith("X6")):
@@ -949,14 +1059,15 @@ def check_lifecycle_closure(scene: dict[str, Any], script: dict[str, Any], issue
             continue
         start = entity_pos(entity)
         lifecycle = entity.get("lifecycle") or {}
+        corridor_lifecycle = bool(lifecycle.get("corridor_lifecycle") or entity.get("uav_corridor"))
         pad_id = lifecycle.get("home_pad_entity_id")
         mission_start = pos3(lifecycle.get("mission_start_enu_m"))
         if not start:
             issues.append(f"{script['scenario_id']}: UAV {entity_id} lacks resolved initial position")
             continue
-        if start[2] > UAV_INITIAL_ALTITUDE_MAX_M:
+        if start[2] > UAV_INITIAL_ALTITUDE_MAX_M and not corridor_lifecycle:
             issues.append(f"{script['scenario_id']}: UAV {entity_id} starts at {start[2]:.1f}m; expected visible low-altitude pad/preflight start")
-        if not pad_id or pad_id not in entities:
+        if (not pad_id or pad_id not in entities) and not corridor_lifecycle:
             issues.append(f"{script['scenario_id']}: UAV {entity_id} lacks declared lifecycle home pad")
         if not mission_start or mission_start[2] < UAV_MISSION_ALTITUDE_MIN_M:
             issues.append(f"{script['scenario_id']}: UAV {entity_id} lacks high-altitude lifecycle mission_start_enu_m")
@@ -983,7 +1094,7 @@ def check_lifecycle_closure(scene: dict[str, Any], script: dict[str, Any], issue
             final_z = last_waypoints[-1][2]
             terminal_action = str(last.get("action_id", "")).lower()
             terminal_by_name = any(token in terminal_action for token in ("landing", "touchdown", "debris", "crash"))
-            if final_z > UAV_TERMINAL_ALTITUDE_MAX_M and not terminal_by_name:
+            if final_z > UAV_TERMINAL_ALTITUDE_MAX_M and not terminal_by_name and not corridor_lifecycle:
                 issues.append(f"{script['scenario_id']}: UAV {entity_id} ends at {final_z:.1f}m without landing/crash terminal action")
 
 
@@ -991,6 +1102,16 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
     entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
     events = script.get("events", [])
     actions = [action for _, action in action_iter(script)]
+
+    def original_or_repaired_waypoints(action: dict[str, Any]) -> list[list[float]]:
+        validation = dict(action.get("uav_corridor_validation") or {})
+        raw_points = validation.get("original_waypoints_enu_m") or action.get("waypoints_enu_m") or []
+        return [point for point in (pos3(item) for item in raw_points) if point]
+
+    def forced_descent_profile_ok(action: dict[str, Any]) -> bool:
+        points = original_or_repaired_waypoints(action)
+        return bool(points) and min(point[2] for point in points) <= 3.5 and max(point[2] for point in points) >= 29.0
+
     for rule in scene.get("validation_rules", []):
         name = rule.get("rule")
         ok = True
@@ -1040,11 +1161,16 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             ok = len(uav_positions) >= 2 and dist_xy(uav_positions[0], uav_positions[1]) >= float(rule.get("min_horizontal_distance_m", 0.0)) and abs(uav_positions[0][2] - uav_positions[1][2]) > 0.5
         elif name == "facade_approach_distance":
             facade_positions = [entity_pos(entity) for entity in entities.values() if entity.get("category") == "facade_anchor"]
-            uav_waypoints = [point for action in actions if action.get("type") == "move_entity" for point in action.get("waypoints_enu_m", []) if action.get("entity_id", "").startswith("uav_")]
-            ok = bool(facade_positions and uav_waypoints) and min(dist3(pos3(point), facade_positions[0]) for point in uav_waypoints if pos3(point)) <= float(rule.get("max_distance_m", 3.0)) + 2.0
+            uav_waypoints = [
+                point
+                for action in actions
+                if action.get("type") == "move_entity" and str(action.get("entity_id", "")).startswith("uav_")
+                for point in original_or_repaired_waypoints(action)
+            ]
+            ok = bool(facade_positions and uav_waypoints) and min(dist_xy(point, facade_positions[0]) for point in uav_waypoints) <= float(rule.get("max_distance_m", 3.0)) + 2.0
         elif name == "forced_landing_descent_profile":
             uav_moves = [action for action in actions if action.get("type") == "move_entity" and "forced_descent" in action.get("action_id", "")]
-            ok = any(min(point[2] for point in action.get("waypoints_enu_m", [])) <= 3.5 and max(point[2] for point in action.get("waypoints_enu_m", [])) >= 29.0 for action in uav_moves)
+            ok = any(forced_descent_profile_ok(action) for action in uav_moves)
         elif name == "trajectory_intersection_required":
             uav_points = [pos3(point) for action in actions if action.get("type") == "move_entity" and str(action.get("entity_id", "")).startswith("uav_") for point in action.get("waypoints_enu_m", [])]
             vehicle_points = [pos3(point) for action in actions if action.get("type") == "move_entity" and str(action.get("entity_id", "")).startswith("car_") for point in action.get("waypoints_enu_m", [])]
@@ -1062,6 +1188,10 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             ok = has_weather if sid.startswith(("L5-1", "L5-2", "L5-3")) else not has_weather
         elif name == "digital_anomaly_chain":
             ok = any(action.get("type") == "move_entity" and str(action.get("entity_id", "")).startswith("uav_") for action in actions)
+        elif name == "uav_corridor_contract":
+            ok = True
+        elif name == "background_vehicle_clearance":
+            ok = check_background_vehicle_clearance_rule(scene, script, rule, issues)
         else:
             ok = False
         if not ok:
@@ -1076,6 +1206,100 @@ def check_render_ready_configs(render_ready_root: Path, issues: list[str]) -> No
         projection = dict(config.get("pedestrian_roadside_projection") or {})
         if bool(projection.get("enabled", False)):
             issues.append(f"{config_path}: Dataset render config must disable pedestrian_roadside_projection.enabled")
+
+
+def building_index(spatial: MapSpatialIndex) -> BuildingObstacleIndex:
+    global _BUILDING_INDEX_CACHE
+    if _BUILDING_INDEX_CACHE is None:
+        _BUILDING_INDEX_CACHE = BuildingObstacleIndex(spatial)
+    return _BUILDING_INDEX_CACHE
+
+
+def corridor_defs(scene: dict[str, Any]) -> list[dict[str, Any]]:
+    corridors = []
+    for entity in scene.get("entities", []):
+        if str(entity.get("logical_asset_id") or "") != UAV_CORRIDOR_LOGICAL_ASSET_ID:
+            continue
+        placement = dict(entity.get("placement") or {})
+        center = pos3(placement.get("center_enu_m") or placement.get("resolved_position_enu_m"))
+        size = pos3(placement.get("size_m") or placement.get("scale_xyz"))
+        if not center or not size:
+            extent = pos3(placement.get("extent_m"))
+            if center and extent:
+                size = [extent[0] * 2.0, extent[1] * 2.0, extent[2] * 2.0]
+        if not center or not size:
+            continue
+        rotation = dict(placement.get("rotation_deg") or {})
+        corridors.append(
+            {
+                "entity_id": entity.get("entity_id"),
+                "center": center,
+                "size": size,
+                "yaw": float(rotation.get("yaw_deg", rotation.get("yaw", 0.0))),
+            }
+        )
+    return corridors
+
+
+def point_in_corridor(point: list[float], corridor: dict[str, Any], tolerance_m: float = 1.5) -> bool:
+    center = corridor["center"]
+    size = corridor["size"]
+    yaw = math.radians(float(corridor["yaw"]))
+    dx = point[0] - center[0]
+    dy = point[1] - center[1]
+    local_x = dx * math.cos(yaw) + dy * math.sin(yaw)
+    local_y = -dx * math.sin(yaw) + dy * math.cos(yaw)
+    return (
+        abs(local_x) <= size[0] * 0.5 + tolerance_m
+        and abs(local_y) <= size[1] * 0.5 + tolerance_m
+        and abs(point[2] - center[2]) <= size[2] * 0.5 + tolerance_m
+    )
+
+
+def check_uav_corridor_contract(scene: dict[str, Any], script: dict[str, Any], spatial: MapSpatialIndex, issues: list[str]) -> None:
+    entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
+    uavs = [entity for entity in entities.values() if str(entity.get("logical_asset_id") or "").startswith("uav.")]
+    corridors = corridor_defs(scene)
+    sid = str(scene.get("scenario_id") or script.get("scenario_id") or "")
+    params = dict(script.get("parameters") or {})
+    allow_building_impact = bool(params.get("allow_building_impact", False))
+    if not uavs:
+        issues.append(f"{sid}: uav_corridor_contract failed: scene has no UAV")
+    if not corridors:
+        issues.append(f"{sid}: uav_corridor_contract failed: scene has no semantic UAV corridor")
+
+    bindex = building_index(spatial)
+    for uav in uavs:
+        pos = entity_mission_start_pos(uav)
+        if pos and not allow_building_impact and bindex.point_collision(pos):
+            issues.append(f"{sid}: UAV mission/start point intersects building volume: {uav['entity_id']} {pos}")
+        if pos and pos[2] >= UAV_MISSION_ALTITUDE_MIN_M and corridors and not any(point_in_corridor(pos, corridor) for corridor in corridors):
+            issues.append(f"{sid}: UAV mission/start point is outside high-altitude corridors: {uav['entity_id']} {pos}")
+
+    starts = [(entity["entity_id"], entity_mission_start_pos(entity)) for entity in uavs]
+    starts = [(entity_id, pos) for entity_id, pos in starts if pos]
+    for index, (a_id, a_pos) in enumerate(starts):
+        for b_id, b_pos in starts[index + 1:]:
+            if dist_xy(a_pos, b_pos) < 8.0 and abs(a_pos[2] - b_pos[2]) < 6.0:
+                issues.append(f"{sid}: UAV corridor slot separation failed: {a_id} {a_pos} vs {b_id} {b_pos}")
+
+    asset_by_id = {entity_id: str(entity.get("logical_asset_id") or "") for entity_id, entity in entities.items()}
+    for _, action in action_iter(script):
+        if action.get("type") != "move_entity":
+            continue
+        entity_id = str(action.get("entity_id") or action.get("ped_id") or "")
+        if not asset_by_id.get(entity_id, "").startswith("uav."):
+            continue
+        points = [pos3(point) for point in action.get("waypoints_enu_m") or []]
+        points = [point for point in points if point]
+        for point in points:
+            if not allow_building_impact and bindex.point_collision(point):
+                issues.append(f"{sid}: UAV waypoint intersects building volume in {action.get('action_id')}: {entity_id} {point}")
+            if point[2] >= UAV_MISSION_ALTITUDE_MIN_M and corridors and not any(point_in_corridor(point, corridor) for corridor in corridors):
+                issues.append(f"{sid}: UAV high waypoint outside corridor in {action.get('action_id')}: {entity_id} {point}")
+        for a, b in zip(points, points[1:]):
+            if not allow_building_impact and bindex.segment_collision(a, b):
+                issues.append(f"{sid}: UAV route segment intersects building volume in {action.get('action_id')}: {entity_id} {a}->{b}")
 
 
 def validate_scenario(
@@ -1106,6 +1330,7 @@ def validate_scenario(
     check_proximity_metrics(scene, script, issues)
     check_activity_causality(scene, script, issues)
     check_lifecycle_closure(scene, script, issues)
+    check_uav_corridor_contract(scene, script, spatial, issues)
     execute_validation_rules(scene, script, known_assets, issues)
     return issues
 

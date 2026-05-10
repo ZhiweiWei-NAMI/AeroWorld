@@ -59,6 +59,95 @@ TArray<FString> ReadStringArray(const TSharedPtr<FJsonObject>& Object, const FSt
 	return Result;
 }
 
+bool StringArrayContainsIgnoreCase(const TArray<FString>& Values, const FString& Needle)
+{
+	for (const FString& Value : Values)
+	{
+		if (Value.Equals(Needle, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void AddUniqueStringIgnoreCase(TArray<FString>& Values, const FString& Value)
+{
+	if (!Value.TrimStartAndEnd().IsEmpty() && !StringArrayContainsIgnoreCase(Values, Value))
+	{
+		Values.Add(Value);
+	}
+}
+
+void AddUniqueNameTag(TArray<FName>& Tags, const FString& Value)
+{
+	if (Value.TrimStartAndEnd().IsEmpty())
+	{
+		return;
+	}
+	const FName TagName(*Value);
+	if (!Tags.Contains(TagName))
+	{
+		Tags.Add(TagName);
+	}
+}
+
+void ApplyCustomStencilOnlyRenderState(AActor* Actor, const FAeroSemanticBindingData& BindingData)
+{
+	if (!IsValid(Actor))
+	{
+		return;
+	}
+
+	AAeroTriggerZoneBase* TriggerActor = Cast<AAeroTriggerZoneBase>(Actor);
+	const bool bTriggerActor = TriggerActor != nullptr;
+	UPrimitiveComponent* ActiveTriggerComponent = bTriggerActor ? TriggerActor->GetActiveTriggerComponent() : nullptr;
+	Actor->SetActorHiddenInGame(false);
+	for (const FString& Tag : BindingData.Tags)
+	{
+		AddUniqueNameTag(Actor->Tags, Tag);
+	}
+	AddUniqueNameTag(Actor->Tags, BindingData.LabelClass);
+	AddUniqueNameTag(Actor->Tags, BindingData.LogicalAssetId);
+	AddUniqueNameTag(Actor->Tags, BindingData.EntityId);
+	AddUniqueNameTag(Actor->Tags, BindingData.InstanceId);
+
+	TArray<UPrimitiveComponent*> PrimitiveComponents;
+	Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+	for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+	{
+		if (PrimitiveComponent == nullptr)
+		{
+			continue;
+		}
+		if (bTriggerActor && PrimitiveComponent != ActiveTriggerComponent)
+		{
+			PrimitiveComponent->SetRenderCustomDepth(false);
+			PrimitiveComponent->SetVisibility(false, true);
+			PrimitiveComponent->SetHiddenInGame(true);
+			PrimitiveComponent->MarkRenderStateDirty();
+			continue;
+		}
+		for (const FString& Tag : BindingData.Tags)
+		{
+			AddUniqueNameTag(PrimitiveComponent->ComponentTags, Tag);
+		}
+		AddUniqueNameTag(PrimitiveComponent->ComponentTags, BindingData.LabelClass);
+		AddUniqueNameTag(PrimitiveComponent->ComponentTags, BindingData.LogicalAssetId);
+		AddUniqueNameTag(PrimitiveComponent->ComponentTags, BindingData.EntityId);
+		AddUniqueNameTag(PrimitiveComponent->ComponentTags, BindingData.InstanceId);
+		PrimitiveComponent->SetVisibility(true, true);
+		PrimitiveComponent->SetHiddenInGame(false);
+		PrimitiveComponent->SetRenderInMainPass(false);
+		if (!bTriggerActor)
+		{
+			PrimitiveComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+		PrimitiveComponent->SetRenderCustomDepth(true);
+		PrimitiveComponent->MarkRenderStateDirty();
+	}
+}
+
 int32 AirSimSegmentationObjectIdForLogicalAsset(const FString& LogicalAssetId)
 {
 	if (LogicalAssetId.StartsWith(TEXT("uav.")))
@@ -335,6 +424,18 @@ TSharedPtr<FJsonObject> UAeroAssetPlacementSubsystem::SpawnAsset(const TSharedPt
 	const TArray<FString> QueryTags = ReadStringArray(Payload, TEXT("tags"));
 	FAeroVisualState VisualState;
 	const bool bHasVisualState = TryReadVisualStateField(Payload, TEXT("visual_state"), VisualState);
+	FVector InstanceScale = FVector::OneVector;
+	const bool bHasInstanceScale = TryReadVectorField(Payload, TEXT("scale_xyz"), InstanceScale);
+	bool bCustomStencilOnly = false;
+	Payload->TryGetBoolField(TEXT("custom_stencil_only"), bCustomStencilOnly);
+	FString PlacementMode;
+	const bool bHasPlacementMode = Payload->TryGetStringField(TEXT("placement_mode"), PlacementMode);
+	TSharedPtr<FJsonObject> Placement;
+	const bool bHasPlacement = Payload->HasTypedField<EJson::Object>(TEXT("placement"));
+	if (bHasPlacement)
+	{
+		Placement = Payload->GetObjectField(TEXT("placement"));
+	}
 	FString EntityId;
 	Payload->TryGetStringField(TEXT("entity_id"), EntityId);
 	FString InstanceId;
@@ -350,7 +451,19 @@ TSharedPtr<FJsonObject> UAeroAssetPlacementSubsystem::SpawnAsset(const TSharedPt
 		 ExistingBeforeSpawn->SpawnPolicy.Equals(TEXT("event_script_only"), ESearchCase::IgnoreCase) ||
 		 ExistingBeforeSpawn->ActivationTick > 0);
 
-	if (!SpawnOrUpdateProxy(InstanceId, TemplateId, PositionEnuM, RotationDeg, QueryTags, EntityId, bHasVisualState ? &VisualState : nullptr, OutError))
+	if (!SpawnOrUpdateProxy(
+			InstanceId,
+			TemplateId,
+			PositionEnuM,
+			RotationDeg,
+			QueryTags,
+			EntityId,
+			bHasVisualState ? &VisualState : nullptr,
+			bHasInstanceScale ? &InstanceScale : nullptr,
+			bCustomStencilOnly,
+			OutError,
+			bHasPlacementMode ? &PlacementMode : nullptr,
+			bHasPlacement ? &Placement : nullptr))
 	{
 		return nullptr;
 	}
@@ -419,7 +532,11 @@ TSharedPtr<FJsonObject> UAeroAssetPlacementSubsystem::MoveAsset(const TSharedPtr
 			Instance->QueryTags,
 			Instance->EntityId,
 			bHasVisualState ? &VisualState : nullptr,
-			OutError))
+			Instance->bHasInstanceScale ? &Instance->InstanceScale : nullptr,
+			Instance->bCustomStencilOnly,
+			OutError,
+			&Instance->PlacementMode,
+			&Instance->Placement))
 	{
 		return nullptr;
 	}
@@ -619,7 +736,11 @@ bool UAeroAssetPlacementSubsystem::SpawnOrUpdateProxy(
 	const TArray<FString>& QueryTags,
 	const FString& EntityId,
 	const FAeroVisualState* VisualState,
-	FString& OutError)
+	const FVector* InstanceScale,
+	bool bCustomStencilOnly,
+	FString& OutError,
+	const FString* PlacementMode,
+	const TSharedPtr<FJsonObject>* Placement)
 {
 	const FAeroAssetTemplateDefinition* TemplateDef = TemplatesById.Find(LogicalAssetId);
 	if (TemplateDef == nullptr)
@@ -642,11 +763,25 @@ bool UAeroAssetPlacementSubsystem::SpawnOrUpdateProxy(
 		NewInstance.bDynamic = true;
 		NewInstance.bEnabled = true;
 		NewInstance.MovementMode = TemplateDef->MovementMode;
+		if (InstanceScale != nullptr)
+		{
+			NewInstance.InstanceScale = *InstanceScale;
+			NewInstance.bHasInstanceScale = true;
+		}
+		NewInstance.bCustomStencilOnly = bCustomStencilOnly || TemplateDef->bCustomStencilOnly;
 		if (VisualState != nullptr)
 		{
 			NewInstance.VisualState = *VisualState;
 			NewInstance.bHasVisualState = !VisualState->IsEmpty();
 			NewInstance.bVisualStateExplicit = true;
+		}
+		if (PlacementMode != nullptr)
+		{
+			NewInstance.PlacementMode = *PlacementMode;
+		}
+		if (Placement != nullptr)
+		{
+			NewInstance.Placement = *Placement;
 		}
 		InstancesById.Add(InstanceId, NewInstance);
 		Existing = InstancesById.Find(InstanceId);
@@ -664,6 +799,12 @@ bool UAeroAssetPlacementSubsystem::SpawnOrUpdateProxy(
 		Existing->EntityId = EntityId;
 		Existing->MovementMode = TemplateDef->MovementMode;
 		Existing->bEnabled = true;
+		if (InstanceScale != nullptr)
+		{
+			Existing->InstanceScale = *InstanceScale;
+			Existing->bHasInstanceScale = true;
+		}
+		Existing->bCustomStencilOnly = bCustomStencilOnly || TemplateDef->bCustomStencilOnly;
 		if (bWasEventOnly)
 		{
 			Existing->bDynamic = true;
@@ -673,6 +814,14 @@ bool UAeroAssetPlacementSubsystem::SpawnOrUpdateProxy(
 			Existing->VisualState = *VisualState;
 			Existing->bHasVisualState = !VisualState->IsEmpty();
 			Existing->bVisualStateExplicit = true;
+		}
+		if (PlacementMode != nullptr)
+		{
+			Existing->PlacementMode = *PlacementMode;
+		}
+		if (Placement != nullptr)
+		{
+			Existing->Placement = *Placement;
 		}
 	}
 
@@ -755,6 +904,7 @@ bool UAeroAssetPlacementSubsystem::ParseTemplateDefinition(const TSharedPtr<FJso
 	Object->TryGetBoolField(TEXT("annotation_visible"), OutTemplate.bAnnotationVisible);
 	Object->TryGetBoolField(TEXT("reservable"), OutTemplate.bReservable);
 	Object->TryGetBoolField(TEXT("blocking"), OutTemplate.bBlocking);
+	Object->TryGetBoolField(TEXT("custom_stencil_only"), OutTemplate.bCustomStencilOnly);
 	FString MovementModeString;
 	if (Object->TryGetStringField(TEXT("movement_mode"), MovementModeString))
 	{
@@ -812,10 +962,17 @@ bool UAeroAssetPlacementSubsystem::ParseScenarioObject(const TSharedPtr<FJsonObj
 	Object->TryGetStringField(TEXT("world_layer_type"), OutInstance.WorldLayerType);
 	Object->TryGetStringField(TEXT("zone_kind"), OutInstance.ZoneKind);
 	OutInstance.Placement = Object->GetObjectField(TEXT("placement"));
+	if (TryReadVectorField(Object, TEXT("scale_xyz"), OutInstance.InstanceScale) ||
+		TryReadVectorField(OutInstance.Placement, TEXT("scale_xyz"), OutInstance.InstanceScale))
+	{
+		OutInstance.bHasInstanceScale = true;
+	}
+	Object->TryGetBoolField(TEXT("custom_stencil_only"), OutInstance.bCustomStencilOnly);
 	OutInstance.bDynamic = false;
 	if (Object->HasTypedField<EJson::Object>(TEXT("initial_state")))
 	{
 		OutInstance.InitialState = Object->GetObjectField(TEXT("initial_state"));
+		OutInstance.InitialState->TryGetBoolField(TEXT("custom_stencil_only"), OutInstance.bCustomStencilOnly);
 		if (!TryReadVisualStateField(OutInstance.InitialState, TEXT("visual_state"), OutInstance.VisualState))
 		{
 			OutInstance.bHasVisualState = AeroVisualStateFromJson(OutInstance.InitialState, OutInstance.VisualState);
@@ -1051,7 +1208,22 @@ bool UAeroAssetPlacementSubsystem::SpawnActorForInstance(FAeroAssetInstanceState
 	{
 		MoveActorForTemplate(Instance.Actor.Get(), *TemplateDef, WorldLocationCm, FinalRotation);
 		AlignActorToGroundByBounds(Instance.Actor.Get(), *TemplateDef);
-		Instance.Actor->SetActorScale3D(TemplateDef->DefaultScale);
+		const FVector ActorScale = Instance.bHasInstanceScale ? Instance.InstanceScale : TemplateDef->DefaultScale;
+		Instance.Actor->SetActorScale3D(ActorScale);
+		if (Instance.bCustomStencilOnly || TemplateDef->bCustomStencilOnly)
+		{
+			TArray<UPrimitiveComponent*> PrimitiveComponents;
+			Instance.Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+			for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+			{
+				if (PrimitiveComponent != nullptr)
+				{
+					PrimitiveComponent->SetRenderInMainPass(false);
+					PrimitiveComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+					PrimitiveComponent->SetRenderCustomDepth(true);
+				}
+			}
+		}
 		Instance.PositionEnuM = ConvertWorldCmToEnuMeters(Instance.Actor->GetActorLocation());
 		Instance.LastResolvedWorldLocationCm = Instance.Actor->GetActorLocation();
 		Instance.RotationDeg = RotationDeg;
@@ -1076,6 +1248,10 @@ bool UAeroAssetPlacementSubsystem::SpawnActorForInstance(FAeroAssetInstanceState
 				return false;
 			}
 			FAeroSemanticRuntimeHelpers::ConfigureTriggerActor(TriggerActor, BindingData, ShapeConfig);
+		}
+		if (Instance.bCustomStencilOnly || TemplateDef->bCustomStencilOnly)
+		{
+			ApplyCustomStencilOnlyRenderState(Instance.Actor.Get(), BindingData);
 		}
 		return true;
 	}
@@ -1158,13 +1334,28 @@ bool UAeroAssetPlacementSubsystem::SpawnActorForInstance(FAeroAssetInstanceState
 		return false;
 	}
 
-	SpawnedActor->SetActorScale3D(TemplateDef->DefaultScale);
+	const FVector ActorScale = Instance.bHasInstanceScale ? Instance.InstanceScale : TemplateDef->DefaultScale;
+	SpawnedActor->SetActorScale3D(ActorScale);
 	if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(SpawnedActor->GetRootComponent()))
 	{
 		Primitive->SetSimulatePhysics(TemplateDef->bPhysicsEnabled);
 		if (!TemplateDef->CollisionProfile.IsEmpty())
 		{
 			Primitive->SetCollisionProfileName(*TemplateDef->CollisionProfile);
+		}
+	}
+	if (Instance.bCustomStencilOnly || TemplateDef->bCustomStencilOnly)
+	{
+		TArray<UPrimitiveComponent*> PrimitiveComponents;
+		SpawnedActor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+		for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+		{
+			if (PrimitiveComponent != nullptr)
+			{
+				PrimitiveComponent->SetRenderInMainPass(false);
+				PrimitiveComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				PrimitiveComponent->SetRenderCustomDepth(true);
+			}
 		}
 	}
 
@@ -1197,6 +1388,10 @@ bool UAeroAssetPlacementSubsystem::SpawnActorForInstance(FAeroAssetInstanceState
 	}
 
 	ApplyInstanceVisualState(SpawnedActor, *TemplateDef, Instance);
+	if (Instance.bCustomStencilOnly || TemplateDef->bCustomStencilOnly)
+	{
+		ApplyCustomStencilOnlyRenderState(SpawnedActor, BindingData);
+	}
 	Instance.Actor = SpawnedActor;
 	Instance.PositionEnuM = ConvertWorldCmToEnuMeters(SpawnedActor->GetActorLocation());
 	Instance.LastResolvedWorldLocationCm = SpawnedActor->GetActorLocation();
@@ -1237,6 +1432,23 @@ FAeroSemanticBindingData UAeroAssetPlacementSubsystem::BuildBindingData(const FA
 	BindingData.bRenderRequired = TemplateDef.bRenderRequired;
 	BindingData.bAnnotationVisible = TemplateDef.bAnnotationVisible;
 	BindingData.FeedbackMode = AeroParseFeedbackMode(TemplateDef.FeedbackMode);
+	const bool bEventSemanticProxy =
+		StringArrayContainsIgnoreCase(BindingData.Tags, TEXT("event_semantic")) ||
+		Instance.InstanceId.StartsWith(TEXT("event_semantic."), ESearchCase::IgnoreCase);
+	if (bEventSemanticProxy && Instance.bCustomStencilOnly)
+	{
+		BindingData.bRenderRequired = true;
+		BindingData.bAnnotationVisible = true;
+		if (Instance.LogicalAssetId.StartsWith(TEXT("trigger."), ESearchCase::IgnoreCase))
+		{
+			BindingData.LabelClass = TEXT("hazard_trigger");
+			AddUniqueStringIgnoreCase(BindingData.Tags, TEXT("NoFly"));
+			AddUniqueStringIgnoreCase(BindingData.Tags, TEXT("Hazard"));
+			AddUniqueStringIgnoreCase(BindingData.Tags, TEXT("Trigger"));
+			AddUniqueStringIgnoreCase(BindingData.Tags, TEXT("Geofence"));
+			AddUniqueStringIgnoreCase(BindingData.Tags, TEXT("hazard_trigger"));
+		}
+	}
 	return BindingData;
 }
 

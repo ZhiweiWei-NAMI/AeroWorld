@@ -1,181 +1,31 @@
 #include "AeroFixedWorldCaptureCamera.h"
 
-#include "AeroSemanticBindingComponent.h"
 #include "AeroSemanticStencil.h"
-#include "Annotation/AnnotationComponent.h"
 #include "Annotation/ObjectAnnotator.h"
 #include "Camera/CameraComponent.h"
-#include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
 #include "ImageUtils.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/Char.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Modules/ModuleManager.h"
 #include "RenderingThread.h"
-#include "UObject/ConstructorHelpers.h"
 
-#include <initializer_list>
 #include <limits>
 
 namespace
 {
 const FSoftClassPath FixedWorldCaptureWeatherActorClassPath(TEXT("AActor'/AirSim/Weather/WeatherFX/WeatherActor.WeatherActor_C'"));
-
-struct FAeroSemanticPaletteEntry
-{
-	const TCHAR* ClassName;
-	FColor Color;
-};
-
-const TArray<FAeroSemanticPaletteEntry>& AeroSemanticPalette()
-{
-	static const TArray<FAeroSemanticPaletteEntry> Palette = {
-		{TEXT("background"), FColor(0, 0, 0)},
-		{TEXT("static_map"), FColor(90, 90, 90)},
-		{TEXT("uav"), FColor(255, 0, 0)},
-		{TEXT("vehicle"), FColor(0, 128, 255)},
-		{TEXT("pedestrian"), FColor(255, 255, 0)},
-		{TEXT("roadwork_prop"), FColor(255, 128, 0)},
-		{TEXT("traffic_control"), FColor(0, 255, 255)},
-		{TEXT("facility"), FColor(128, 0, 255)},
-		{TEXT("hazard_trigger"), FColor(255, 0, 255)},
-	};
-	return Palette;
-}
-
-FColor SemanticColorForClass(const FString& ClassName)
-{
-	for (const FAeroSemanticPaletteEntry& Entry : AeroSemanticPalette())
-	{
-		if (ClassName.Equals(Entry.ClassName, ESearchCase::IgnoreCase))
-		{
-			return Entry.Color;
-		}
-	}
-	return FColor(90, 90, 90);
-}
-
-bool ContainsAnyToken(const FString& Haystack, std::initializer_list<const TCHAR*> Tokens)
-{
-	for (const TCHAR* Token : Tokens)
-	{
-		if (Haystack.Contains(Token))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-FString SemanticTextForActor(const AActor* Actor)
-{
-	FString Text = Actor != nullptr ? Actor->GetName() : FString();
-#if WITH_EDITOR
-	if (Actor != nullptr)
-	{
-		Text += TEXT(" ");
-		Text += Actor->GetActorLabel();
-	}
-#endif
-	if (Actor != nullptr)
-	{
-		for (const FName& Tag : Actor->Tags)
-		{
-			Text += TEXT(" ");
-			Text += Tag.ToString();
-		}
-
-		if (const UAeroSemanticBindingComponent* Binding = Actor->FindComponentByClass<UAeroSemanticBindingComponent>())
-		{
-			Text += TEXT(" ");
-			Text += Binding->EntityId;
-			Text += TEXT(" ");
-			Text += Binding->InstanceId;
-			Text += TEXT(" ");
-			Text += Binding->LogicalAssetId;
-			Text += TEXT(" ");
-			Text += Binding->LabelClass;
-			Text += TEXT(" ");
-			Text += Binding->WorldLayerType;
-			Text += TEXT(" ");
-			Text += Binding->ZoneKind;
-			for (const FString& Tag : Binding->Tags)
-			{
-				Text += TEXT(" ");
-				Text += Tag;
-			}
-		}
-	}
-	return Text.ToLower();
-}
-
-FString SemanticClassForActor(const AActor* Actor)
-{
-	const FString Text = SemanticTextForActor(Actor);
-	if (ContainsAnyToken(Text, {TEXT("trigger."), TEXT("trigger_"), TEXT("hazard"), TEXT("no_fly"), TEXT("nfz"), TEXT("geofence")}))
-	{
-		return TEXT("hazard_trigger");
-	}
-	if (ContainsAnyToken(Text, {TEXT("pedestrian"), TEXT("walker"), TEXT("crowd"), TEXT("ped_")}))
-	{
-		return TEXT("pedestrian");
-	}
-	if (ContainsAnyToken(Text, {TEXT("uav"), TEXT("drone"), TEXT("multirotor"), TEXT("flyingpawn"), TEXT("cv_pawn")}))
-	{
-		return TEXT("uav");
-	}
-	if (ContainsAnyToken(Text, {TEXT("vehicle."), TEXT("vehicle_"), TEXT("ambulance"), TEXT("police_suv"), TEXT("suv"), TEXT("boxcar"), TEXT("car_")}))
-	{
-		return TEXT("vehicle");
-	}
-	if (ContainsAnyToken(Text, {TEXT("roadwork"), TEXT("barrier"), TEXT("cone"), TEXT("construction_fence")}))
-	{
-		return TEXT("roadwork_prop");
-	}
-	if (ContainsAnyToken(Text, {TEXT("traffic_control"), TEXT("signal_light"), TEXT("police_sign"), TEXT("police_tape"), TEXT("traffic_signal")}))
-	{
-		return TEXT("traffic_control");
-	}
-	if (ContainsAnyToken(Text, {TEXT("facility."), TEXT("landing_pad"), TEXT("base_tower"), TEXT("charger"), TEXT("fixed_world_capture")}))
-	{
-		return TEXT("facility");
-	}
-	return TEXT("static_map");
-}
-
-void ConfigureSemanticCaptureShowFlags(FEngineShowFlags& ShowFlags)
-{
-	FObjectAnnotator::SetViewForAnnotationRender(ShowFlags);
-	ShowFlags.SetMaterials(false);
-	ShowFlags.SetLighting(false);
-	ShowFlags.SetBSPTriangles(true);
-	ShowFlags.SetPostProcessing(false);
-	ShowFlags.SetHMDDistortion(false);
-	ShowFlags.SetTonemapper(false);
-	ShowFlags.SetEyeAdaptation(false);
-	ShowFlags.SetFog(false);
-	ShowFlags.SetPaper2DSprites(false);
-	ShowFlags.SetBloom(false);
-	ShowFlags.SetMotionBlur(false);
-	ShowFlags.SetSkyLighting(false);
-	ShowFlags.SetVisualizeSkyAtmosphere(false);
-	ShowFlags.SetAmbientOcclusion(false);
-	ShowFlags.SetAtmosphere(false);
-	ShowFlags.SetInstancedFoliage(false);
-	ShowFlags.SetInstancedGrass(false);
-	ShowFlags.SetTextRender(false);
-	ShowFlags.SetTemporalAA(false);
-	ShowFlags.SetDecals(false);
-}
 
 void ConfigureStencilCaptureShowFlags(FEngineShowFlags& ShowFlags)
 {
@@ -200,111 +50,67 @@ void ConfigureStencilCaptureShowFlags(FEngineShowFlags& ShowFlags)
 	ShowFlags.SetDecals(false);
 }
 
-void EnsureCustomDepthStencilEnabled()
+bool ValidateCustomDepthStencilEnabled(FString& OutError)
 {
 	if (IConsoleVariable* CustomDepthVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth")))
 	{
 		if (CustomDepthVar->GetInt() < 3)
 		{
-			CustomDepthVar->Set(3, ECVF_SetByCode);
+			OutError = FString::Printf(
+				TEXT("r.CustomDepth must be 3 for CustomStencil capture; current value is %d. Configure it in renderer settings/DefaultEngine.ini before capture."),
+				CustomDepthVar->GetInt());
+			return false;
 		}
+		return true;
 	}
+	OutError = TEXT("r.CustomDepth console variable is unavailable; CustomStencil capture cannot be validated.");
+	return false;
 }
 
-void BuildSegmentationColorToClassIdMap(TMap<FColor, uint8>& OutColorToClassId)
+uint8 DecodeSrgbByteToLinearByte(uint8 Channel)
 {
-	OutColorToClassId.Reset();
-
-	int32 ChannelValues[256] = {0};
-	float Step = 256.0f;
-	uint32 Iter = 0;
-	ChannelValues[0] = 0;
-	while (Step >= 1.0f && Iter < 255)
-	{
-		for (uint32 Value = static_cast<uint32>(Step - 1.0f); Value <= 256 && Iter < 255; Value += static_cast<uint32>(Step * 2.0f))
-		{
-			++Iter;
-			ChannelValues[Iter] = static_cast<int32>(Value);
-		}
-		Step /= 2.0f;
-	}
-
-	TArray<int32> OkValues;
-	const int32 UnevenStart = 79;
-	const int32 FullStart = 149;
-	for (int32 Value = UnevenStart; Value <= FullStart; Value += 2)
-	{
-		OkValues.Add(Value);
-	}
-	for (int32 Value = FullStart + 1; Value < 256; ++Value)
-	{
-		OkValues.Add(Value);
-	}
-
-	TArray<FColor> ColorMap;
-	auto AddColors = [&ChannelValues, &OkValues, &ColorMap](int32 MaxValue, bool bEnableR, bool bEnableG, bool bEnableB)
-	{
-		for (int32 I = 0; I <= (bEnableR ? 0 : MaxValue - 1); ++I)
-		{
-			for (int32 J = 0; J <= (bEnableG ? 0 : MaxValue - 1); ++J)
-			{
-				for (int32 K = 0; K <= (bEnableB ? 0 : MaxValue - 1); ++K)
-				{
-					const uint8 R = static_cast<uint8>(ChannelValues[bEnableR ? MaxValue : I]);
-					const uint8 G = static_cast<uint8>(ChannelValues[bEnableG ? MaxValue : J]);
-					const uint8 B = static_cast<uint8>(ChannelValues[bEnableB ? MaxValue : K]);
-					if (OkValues.Contains(R) && OkValues.Contains(G) && OkValues.Contains(B) && R != 149 && G != 149 && B != 149)
-					{
-						ColorMap.Add(FColor(R, G, B, 255));
-					}
-				}
-			}
-		}
-	};
-
-	for (int32 MaxChannelIndex = 0; MaxChannelIndex < 256 && ColorMap.Num() <= 255; ++MaxChannelIndex)
-	{
-		AddColors(MaxChannelIndex, false, false, true);
-		AddColors(MaxChannelIndex, false, true, false);
-		AddColors(MaxChannelIndex, false, true, true);
-		AddColors(MaxChannelIndex, true, false, false);
-		AddColors(MaxChannelIndex, true, false, true);
-		AddColors(MaxChannelIndex, true, true, false);
-		AddColors(MaxChannelIndex, true, true, true);
-	}
-
-	for (int32 ClassId = 0; ClassId <= 255 && ClassId < ColorMap.Num(); ++ClassId)
-	{
-		OutColorToClassId.Add(ColorMap[ClassId], static_cast<uint8>(ClassId));
-	}
+	const float Srgb = static_cast<float>(Channel) / 255.0f;
+	const float Linear = Srgb <= 0.04045f
+		? Srgb / 12.92f
+		: FMath::Pow((Srgb + 0.055f) / 1.055f, 2.4f);
+	return static_cast<uint8>(FMath::Clamp(FMath::RoundToInt(Linear * 255.0f), 0, 255));
 }
 
-uint8 ResolveClassIdFromSegmentationColor(const FColor& Pixel, const TMap<FColor, uint8>& ColorToClassId, bool& bExactMatch)
+bool DecodeConfiguredStencilChannel(uint8 Channel, const TSet<uint8>& AllowedClassIds, uint8& OutClassId)
 {
-	FColor Key(Pixel.R, Pixel.G, Pixel.B, 255);
-	if (const uint8* Exact = ColorToClassId.Find(Key))
+	if (AllowedClassIds.Contains(Channel))
 	{
-		bExactMatch = true;
-		return *Exact;
+		OutClassId = Channel;
+		return true;
 	}
 
-	bExactMatch = false;
-	int32 BestDistance = MAX_int32;
-	uint8 BestClassId = 0;
-	for (const TPair<FColor, uint8>& Pair : ColorToClassId)
+	const uint8 LinearClassId = DecodeSrgbByteToLinearByte(Channel);
+	if (AllowedClassIds.Contains(LinearClassId))
 	{
-		const int32 Dr = static_cast<int32>(Key.R) - static_cast<int32>(Pair.Key.R);
-		const int32 Dg = static_cast<int32>(Key.G) - static_cast<int32>(Pair.Key.G);
-		const int32 Db = static_cast<int32>(Key.B) - static_cast<int32>(Pair.Key.B);
-		const int32 Dist = Dr * Dr + Dg * Dg + Db * Db;
-		if (Dist < BestDistance)
-		{
-			BestDistance = Dist;
-			BestClassId = Pair.Value;
-		}
+		OutClassId = LinearClassId;
+		return true;
 	}
 
-	return BestDistance <= 48 ? BestClassId : 0;
+	return false;
+}
+
+bool DecodeConfiguredStencilPixel(const FColor& Pixel, const TSet<uint8>& AllowedClassIds, uint8& OutClassId)
+{
+	if (DecodeConfiguredStencilChannel(Pixel.R, AllowedClassIds, OutClassId))
+	{
+		return true;
+	}
+	if (Pixel.G != 0 && DecodeConfiguredStencilChannel(Pixel.G, AllowedClassIds, OutClassId))
+	{
+		return true;
+	}
+	if (Pixel.B != 0 && DecodeConfiguredStencilChannel(Pixel.B, AllowedClassIds, OutClassId))
+	{
+		return true;
+	}
+
+	OutClassId = 0;
+	return false;
 }
 
 struct FSceneCaptureStateGuard
@@ -388,66 +194,49 @@ bool ReadRenderTargetColorPixels(UTextureRenderTarget2D* RenderTarget, int32 Wid
 	return true;
 }
 
-void DestroySemanticAnnotations(TArray<TWeakObjectPtr<UAnnotationComponent>>& AnnotationComponents)
+bool SaveGrayscalePng(
+	const FString& AbsoluteOutputPath,
+	const TArray<uint8>& Pixels,
+	int32 Width,
+	int32 Height,
+	FString& OutError)
 {
-	for (TWeakObjectPtr<UAnnotationComponent>& ComponentPtr : AnnotationComponents)
+	if (Pixels.Num() != Width * Height)
 	{
-		if (UAnnotationComponent* Component = ComponentPtr.Get())
-		{
-			Component->DestroyComponent();
-		}
+		OutError = FString::Printf(TEXT("unexpected grayscale pixel count: expected %d got %d."), Width * Height, Pixels.Num());
+		return false;
 	}
-	AnnotationComponents.Reset();
+
+	IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
+	const TSharedPtr<IImageWrapper> PngWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
+	if (!PngWrapper.IsValid())
+	{
+		OutError = TEXT("failed to create PNG image wrapper.");
+		return false;
+	}
+
+	if (!PngWrapper->SetRaw(Pixels.GetData(), Pixels.Num(), Width, Height, ERGBFormat::Gray, 8))
+	{
+		OutError = TEXT("failed to encode semantic grayscale PNG input.");
+		return false;
+	}
+
+	const TArray64<uint8>& PngBytes = PngWrapper->GetCompressed(0);
+	if (PngBytes.Num() <= 0)
+	{
+		OutError = TEXT("semantic PNG compression failed.");
+		return false;
+	}
+
+	if (!FFileHelper::SaveArrayToFile(PngBytes, *AbsoluteOutputPath))
+	{
+		OutError = FString::Printf(TEXT("failed to save semantic PNG: %s"), *AbsoluteOutputPath);
+		return false;
+	}
+
+	return true;
 }
 
-void CreateSemanticAnnotations(UWorld* World, const AActor* CaptureActor, const AActor* WeatherFollowerActor, TArray<TWeakObjectPtr<UAnnotationComponent>>& OutAnnotationComponents)
-{
-	if (World == nullptr)
-	{
-		return;
-	}
-
-	int32 AnnotationIndex = 0;
-	for (TActorIterator<AActor> ActorIt(World); ActorIt; ++ActorIt)
-	{
-		AActor* Actor = *ActorIt;
-		if (!IsValid(Actor) || Actor == CaptureActor || Actor == WeatherFollowerActor || Actor->IsA<AAeroFixedWorldCaptureCamera>() || Actor->IsHidden())
-		{
-			continue;
-		}
-
-		const FColor SemanticColor = SemanticColorForClass(SemanticClassForActor(Actor));
-		TArray<UMeshComponent*> MeshComponents;
-		Actor->GetComponents<UMeshComponent>(MeshComponents);
-		for (UMeshComponent* MeshComponent : MeshComponents)
-		{
-			if (!IsValid(MeshComponent) || !MeshComponent->IsRegistered() || !MeshComponent->IsVisible())
-			{
-				continue;
-			}
-
-			const FName AnnotationName(*FString::Printf(TEXT("AeroSemanticCapture_%d"), AnnotationIndex++));
-			UAnnotationComponent* AnnotationComponent = NewObject<UAnnotationComponent>(MeshComponent, AnnotationName);
-			if (!IsValid(AnnotationComponent))
-			{
-				continue;
-			}
-
-			AnnotationComponent->SetupAttachment(MeshComponent);
-			AnnotationComponent->RegisterComponent();
-			AnnotationComponent->SetAnnotationColor(SemanticColor);
-			AnnotationComponent->SetVisibleInSceneCaptureOnly(true);
-			AnnotationComponent->SetVisibleInRayTracing(false);
-			AnnotationComponent->bVisibleInReflectionCaptures = false;
-			AnnotationComponent->bAffectDynamicIndirectLighting = false;
-			AnnotationComponent->bAffectDistanceFieldLighting = false;
-			AnnotationComponent->bVisibleInRealTimeSkyCaptures = false;
-			AnnotationComponent->bRenderInMainPass = false;
-			AnnotationComponent->MarkRenderStateDirty();
-			OutAnnotationComponents.Add(AnnotationComponent);
-		}
-	}
-}
 }
 
 AAeroFixedWorldCaptureCamera::AAeroFixedWorldCaptureCamera()
@@ -471,13 +260,6 @@ AAeroFixedWorldCaptureCamera::AAeroFixedWorldCaptureCamera()
 	SceneCapture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_RenderScenePrimitives;
 	SceneCapture->ShowFlags.SetDepthOfField(false);
 	SceneCapture->ShowFlags.SetMotionBlur(false);
-
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SegmentationMaterialFinder(
-		TEXT("Material'/AirSim/HUDAssets/SegmentationMaterial.SegmentationMaterial'"));
-	if (SegmentationMaterialFinder.Succeeded())
-	{
-		SemanticStencilMaterial = SegmentationMaterialFinder.Object;
-	}
 }
 
 void AAeroFixedWorldCaptureCamera::BeginPlay()
@@ -797,13 +579,10 @@ bool AAeroFixedWorldCaptureCamera::CaptureSemanticPngToDisk(
 	const FString& SemanticRulesPath,
 	const FString& SemanticAuditPath)
 {
-	if (!IsValid(SemanticStencilMaterial))
+	if (!ValidateCustomDepthStencilEnabled(OutError))
 	{
-		OutError = TEXT("semantic stencil capture material is unavailable.");
 		return false;
 	}
-
-	EnsureCustomDepthStencilEnabled();
 
 	TSet<const AActor*> IgnoredActors;
 	IgnoredActors.Add(this);
@@ -817,6 +596,27 @@ bool AAeroFixedWorldCaptureCamera::CaptureSemanticPngToDisk(
 	{
 		return false;
 	}
+
+	const FString CaptureEncoding = Audit.CaptureEncoding.TrimStartAndEnd().IsEmpty()
+		? TEXT("custom_stencil_grayscale_u8")
+		: Audit.CaptureEncoding.TrimStartAndEnd();
+	if (!CaptureEncoding.Equals(TEXT("custom_stencil_grayscale_u8"), ESearchCase::IgnoreCase))
+	{
+		OutError = FString::Printf(TEXT("unsupported semantic stencil capture encoding '%s'."), *CaptureEncoding);
+		return false;
+	}
+	if (Audit.CaptureMaterialPath.TrimStartAndEnd().IsEmpty())
+	{
+		OutError = TEXT("semantic stencil rules capture.post_process_material is required for seg capture.");
+		return false;
+	}
+	UMaterialInterface* SemanticStencilMaterial = LoadObject<UMaterialInterface>(nullptr, *Audit.CaptureMaterialPath);
+	if (!IsValid(SemanticStencilMaterial))
+	{
+		OutError = FString::Printf(TEXT("failed to load semantic stencil capture material: %s"), *Audit.CaptureMaterialPath);
+		return false;
+	}
+
 	if (!SemanticAuditPath.TrimStartAndEnd().IsEmpty() && !AeroSemanticStencil::SaveAuditJson(Audit, SemanticAuditPath, OutError))
 	{
 		return false;
@@ -840,36 +640,29 @@ bool AAeroFixedWorldCaptureCamera::CaptureSemanticPngToDisk(
 		return false;
 	}
 
-	TMap<FColor, uint8> ColorToClassId;
-	BuildSegmentationColorToClassIdMap(ColorToClassId);
+	TSet<uint8> AllowedClassIds;
+	for (const TPair<uint8, FString>& Pair : Audit.ClassIdToName)
+	{
+		AllowedClassIds.Add(Pair.Key);
+	}
 
-	TArray<FColor> ClassIdBitmap;
-	ClassIdBitmap.SetNumUninitialized(Bitmap.Num());
-	int32 UnknownColorPixelCount = 0;
+	TArray<uint8> ClassIdPixels;
+	ClassIdPixels.SetNumUninitialized(Bitmap.Num());
+	int32 InvalidClassIdPixelCount = 0;
 	TMap<uint8, int32> PixelHistogram;
 	for (int32 Index = 0; Index < Bitmap.Num(); ++Index)
 	{
-		bool bExactMatch = false;
-		const uint8 ClassId = ResolveClassIdFromSegmentationColor(Bitmap[Index], ColorToClassId, bExactMatch);
-		if (!bExactMatch)
+		uint8 ClassId = 0;
+		if (!DecodeConfiguredStencilPixel(Bitmap[Index], AllowedClassIds, ClassId))
 		{
-			++UnknownColorPixelCount;
+			++InvalidClassIdPixelCount;
 		}
-		ClassIdBitmap[Index] = FColor(ClassId, ClassId, ClassId, 255);
+		ClassIdPixels[Index] = ClassId;
 		PixelHistogram.FindOrAdd(ClassId) += 1;
 	}
 
-	TArray64<uint8> PngBytes;
-	FImageUtils::PNGCompressImageArray(Width, Height, TArrayView64<const FColor>(ClassIdBitmap.GetData(), ClassIdBitmap.Num()), PngBytes);
-	if (PngBytes.Num() <= 0)
+	if (!SaveGrayscalePng(AbsoluteOutputPath, ClassIdPixels, Width, Height, OutError))
 	{
-		OutError = TEXT("semantic PNG compression failed.");
-		return false;
-	}
-
-	if (!FFileHelper::SaveArrayToFile(PngBytes, *AbsoluteOutputPath))
-	{
-		OutError = FString::Printf(TEXT("failed to save semantic PNG: %s"), *AbsoluteOutputPath);
 		return false;
 	}
 
@@ -882,7 +675,8 @@ bool AAeroFixedWorldCaptureCamera::CaptureSemanticPngToDisk(
 	OutStats.SemanticClassById = Audit.ClassIdToName;
 	OutStats.SemanticClassHistogram = PixelHistogram;
 	OutStats.IgnorePixelCount = PixelHistogram.FindRef(0);
-	OutStats.SemanticUnknownColorPixelCount = UnknownColorPixelCount;
+	OutStats.SemanticInvalidClassIdPixelCount = InvalidClassIdPixelCount;
+	OutStats.SemanticUnknownColorPixelCount = InvalidClassIdPixelCount;
 	OutStats.SemanticAssignedComponentCount = Audit.AssignedComponentCount;
 	return true;
 }

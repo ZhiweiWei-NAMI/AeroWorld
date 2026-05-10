@@ -4,7 +4,39 @@
   "description": "Crowd evacuation with UAV monitoring",
   "parameters": {
     "incident_tick": 260,
-    "resolution_tick": 520
+    "resolution_tick": 520,
+    "target_uav_count": 1,
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 8,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "uav_crowd_monitor_l4_8_v2": 50.0
+    },
+    "uav_lateral_bypass_used": {
+      "uav_crowd_monitor_l4_8_v2": true
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "uav_crowd_monitor_l4_8_v2",
+        "point_count": 9,
+        "assigned_altitude_m": 50.0,
+        "used_lateral_bypass": true
+      }
+    ],
+    "background_vehicle_policy": {
+      "policy": "road_context_non_event_actor_v1",
+      "requested_count": 2,
+      "added_entity_ids": [
+        "bg_vehicle_l4_8_v2_01",
+        "bg_vehicle_l4_8_v2_02"
+      ],
+      "reason": "crowd evacuation perimeter traffic"
+    }
   },
   "triggers": [
     {
@@ -29,10 +61,10 @@
       "delay_ticks": 224
     },
     {
-      "trigger_id": "trig_after_uav_evacuation_monitor_delay_311",
+      "trigger_id": "trig_after_uav_evacuation_monitor_delay_592",
       "type": "event_fired_after",
       "event_id": "uav_evacuation_monitor",
-      "delay_ticks": 311
+      "delay_ticks": 592
     },
     {
       "trigger_id": "trig_after_crowd_safe_hold_delay_80",
@@ -56,20 +88,37 @@
             [
               7118.02,
               6322.945,
-              3.0
-            ],
-            [
-              7118.02,
-              6322.945,
-              24.0
+              50.0
             ],
             [
               7117.5,
               6323.0,
-              34
+              50.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 50.0,
+            "original_waypoints_enu_m": [
+              [
+                7118.02,
+                6322.945,
+                3.0
+              ],
+              [
+                7118.02,
+                6322.945,
+                24.0
+              ],
+              [
+                7117.5,
+                6323.0,
+                34
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {
@@ -338,20 +387,62 @@
             [
               7117.5,
               6323.0,
-              34
+              50.0
+            ],
+            [
+              7094.873,
+              6300.373,
+              50.0
+            ],
+            [
+              7123.873,
+              6271.373,
+              50.0
             ],
             [
               7146.5,
               6294.0,
-              30
+              50.0
+            ],
+            [
+              7178.486,
+              6294.96,
+              50.0
+            ],
+            [
+              7175.486,
+              6394.96,
+              50.0
             ],
             [
               7143.5,
               6394.0,
-              30
+              50.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 50.0,
+            "original_waypoints_enu_m": [
+              [
+                7117.5,
+                6323.0,
+                34
+              ],
+              [
+                7146.5,
+                6294.0,
+                30
+              ],
+              [
+                7143.5,
+                6394.0,
+                30
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         },
         {
           "type": "capture_screenshot",
@@ -372,7 +463,7 @@
     },
     {
       "event_id": "crowd_safe_hold",
-      "trigger_ref": "trig_after_uav_evacuation_monitor_delay_311",
+      "trigger_ref": "trig_after_uav_evacuation_monitor_delay_592",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -407,20 +498,37 @@
             [
               7143.5,
               6394.0,
-              30.0
+              50.0
             ],
             [
               7118.02,
               6322.945,
-              22.0
-            ],
-            [
-              7118.02,
-              6322.945,
-              3.0
+              50.0
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 4.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 50.0,
+            "original_waypoints_enu_m": [
+              [
+                7143.5,
+                6394.0,
+                30.0
+              ],
+              [
+                7118.02,
+                6322.945,
+                22.0
+              ],
+              [
+                7118.02,
+                6322.945,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
       ],
       "log_event": {

@@ -14,8 +14,7 @@ def safe_frame_id(value: str) -> str:
 class CaptureOrchestrator:
     @staticmethod
     def frame_stem(frame: dict[str, Any]) -> str:
-        frame_id = str(frame.get("frame_id") or frame.get("frame_seq") or frame.get("tick") or "")
-        return f"tick_{int(frame['tick']):06d}__frame_{safe_frame_id(frame_id)}"
+        return f"tick_{int(frame['tick']):06d}"
 
     @staticmethod
     def modality_output_dir(output_dir: Path, batch_id: str, camera_id: str, modality_id: str) -> Path:

@@ -13,11 +13,11 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      6995.034,
-      6241.081,
+      6985.323,
+      6232.038,
       0.0
     ],
-    "radius_m": 333.305,
+    "radius_m": 320.249,
     "source": "scene_entities_and_routes"
   },
   "entities": [
@@ -30,12 +30,12 @@
         "position_enu_m": [
           7091.333,
           6312.651,
-          3.0
+          50.0
         ],
         "resolved_position_enu_m": [
           7091.333,
           6312.651,
-          3.0
+          50.0
         ],
         "rotation_deg": {
           "yaw_deg": 45
@@ -45,11 +45,33 @@
         [
           7093.5,
           6307.0,
-          30
+          50.0
+        ],
+        [
+          7099.5,
+          6313.0,
+          50.0
+        ],
+        [
+          6857.804,
+          6138.514,
+          50.0
+        ],
+        [
+          6849.804,
+          6146.514,
+          50.0
+        ],
+        [
+          7091.333,
+          6312.651,
+          50.0
         ]
       ],
       "initial_state": {
-        "mode": "preflight_on_pad"
+        "mode": "preflight_on_pad",
+        "assigned_altitude_m": 50.0,
+        "uav_corridor_role": "mission_uav"
       },
       "activation_tick": 0,
       "lifecycle": {
@@ -58,16 +80,30 @@
         "home_hover_enu_m": [
           7091.333,
           6312.651,
-          3.0
+          50.0
         ],
         "mission_start_enu_m": [
-          7093.5,
-          6307.0,
-          30
+          7091.333,
+          6312.651,
+          50.0
         ],
         "requires_takeoff": true,
-        "requires_landing_or_terminal_resolution": true
-      }
+        "requires_landing_or_terminal_resolution": true,
+        "assigned_altitude_m": 50.0,
+        "waypoint_repair_applied": true
+      },
+      "uav_corridor": {
+        "assigned_altitude_m": 50.0,
+        "altitude_layers_m": [
+          30.0,
+          50.0,
+          80.0
+        ],
+        "used_lateral_bypass": true
+      },
+      "validation_tags": [
+        "uav_corridor_contract"
+      ]
     },
     {
       "entity_id": "ped_nearmiss_l4_5_v3",
@@ -129,6 +165,388 @@
         "mode": "available"
       },
       "activation_tick": 0
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_00",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          7092.416,
+          6309.825,
+          50.0
+        ],
+        "resolved_position_enu_m": [
+          7092.416,
+          6309.825,
+          50.0
+        ],
+        "extent_m": [
+          3.026,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          6.052,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": -69.02,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          6.052,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_ped_nearmiss_l4_5_v3",
+        "segment_start_enu_m": [
+          7091.333,
+          6312.651,
+          50.0
+        ],
+        "segment_end_enu_m": [
+          7093.5,
+          6307.0,
+          50.0
+        ],
+        "altitude_layer_m": 50.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": true
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_01",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          7096.5,
+          6310.0,
+          50.0
+        ],
+        "resolved_position_enu_m": [
+          7096.5,
+          6310.0,
+          50.0
+        ],
+        "extent_m": [
+          4.243,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          8.485,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": 45.0,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          8.485,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_ped_nearmiss_l4_5_v3",
+        "segment_start_enu_m": [
+          7093.5,
+          6307.0,
+          50.0
+        ],
+        "segment_end_enu_m": [
+          7099.5,
+          6313.0,
+          50.0
+        ],
+        "altitude_layer_m": 50.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": true
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_02",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          6978.652,
+          6225.757,
+          50.0
+        ],
+        "resolved_position_enu_m": [
+          6978.652,
+          6225.757,
+          50.0
+        ],
+        "extent_m": [
+          149.049,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          298.098,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": -144.174,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          298.098,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_ped_nearmiss_l4_5_v3",
+        "segment_start_enu_m": [
+          7099.5,
+          6313.0,
+          50.0
+        ],
+        "segment_end_enu_m": [
+          6857.804,
+          6138.514,
+          50.0
+        ],
+        "altitude_layer_m": 50.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": true
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_03",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          6853.804,
+          6142.514,
+          50.0
+        ],
+        "resolved_position_enu_m": [
+          6853.804,
+          6142.514,
+          50.0
+        ],
+        "extent_m": [
+          5.657,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          11.314,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": 135.0,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          11.314,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_ped_nearmiss_l4_5_v3",
+        "segment_start_enu_m": [
+          6857.804,
+          6138.514,
+          50.0
+        ],
+        "segment_end_enu_m": [
+          6849.804,
+          6146.514,
+          50.0
+        ],
+        "altitude_layer_m": 50.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": true
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_04",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          6970.568,
+          6229.583,
+          50.0
+        ],
+        "resolved_position_enu_m": [
+          6970.568,
+          6229.583,
+          50.0
+        ],
+        "extent_m": [
+          146.576,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          293.151,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": 34.522,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          293.151,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_ped_nearmiss_l4_5_v3",
+        "segment_start_enu_m": [
+          6849.804,
+          6146.514,
+          50.0
+        ],
+        "segment_end_enu_m": [
+          7091.333,
+          6312.651,
+          50.0
+        ],
+        "altitude_layer_m": 50.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": true
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "bg_vehicle_l4_5_v3_01",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_550",
+        "lane_index": 0,
+        "longitudinal_s": 58.0,
+        "lateral_offset_m": 0.0,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 0.0,
+        "placement_semantics": "lane_center",
+        "resolved_position_enu_m": [
+          6988.746,
+          6213.89,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -167.557
+        },
+        "source_edge_id_hint": "cg_edge_550",
+        "source_longitudinal_s_hint": 58.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "background_parked",
+        "background_role": "road_context"
+      },
+      "activation_tick": 0,
+      "background_vehicle": {
+        "policy": "road_context_non_event_actor_v1",
+        "reason": "pedestrian near-miss road context",
+        "min_clearance_rule": "background_vehicle_clearance"
+      }
+    },
+    {
+      "entity_id": "bg_vehicle_l4_5_v3_02",
+      "logical_asset_id": "vehicle.emergency.suv.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_550",
+        "lane_index": 0,
+        "longitudinal_s": 40.0,
+        "lateral_offset_m": 0.0,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 0.0,
+        "placement_semantics": "lane_center",
+        "resolved_position_enu_m": [
+          7006.367,
+          6217.656,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -168.166
+        },
+        "source_edge_id_hint": "cg_edge_550",
+        "source_longitudinal_s_hint": 40.0
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "background_parked",
+        "background_role": "road_context"
+      },
+      "activation_tick": 0,
+      "background_vehicle": {
+        "policy": "road_context_non_event_actor_v1",
+        "reason": "pedestrian near-miss road context",
+        "min_clearance_rule": "background_vehicle_clearance"
+      }
     }
   ],
   "spawn_sequencing": [
@@ -143,6 +561,34 @@
     {
       "entity_id": "pad_home_uav_ped_nearmiss_l4_5_v3",
       "tick": 0
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_00",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_01",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_02",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_03",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l4_5_v3_uav_ped_nearmiss_l4_5_v3_04",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_vehicle_l4_5_v3_01",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_vehicle_l4_5_v3_02",
+      "tick": 0
     }
   ],
   "weather_profile": {
@@ -155,8 +601,8 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          6995.034,
-          6241.081,
+          6985.323,
+          6232.038,
           180.0
         ],
         "rotation_deg": {
@@ -189,6 +635,22 @@
       "entity_id": "ped_nearmiss_l4_5_v3",
       "logical_asset_id": "pedestrian.cityops.basic.v1",
       "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
+    },
+    {
+      "rule": "uav_corridor_contract",
+      "target_uav_count": 1,
+      "corridor_segment_count": 5,
+      "allow_building_impact": false,
+      "description": "UAV waypoints are repaired for building clearance and visualized as high-altitude corridors"
+    },
+    {
+      "rule": "background_vehicle_clearance",
+      "min_count": 2,
+      "entity_ids": [
+        "bg_vehicle_l4_5_v3_01",
+        "bg_vehicle_l4_5_v3_02"
+      ],
+      "description": "Background road vehicles must stay clear of overlays, logical regions, pads, pedestrians, and event motion points"
     }
   ]
 }

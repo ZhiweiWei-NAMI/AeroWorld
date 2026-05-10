@@ -47,12 +47,17 @@ struct FAeroSemanticStencilComponentAudit
 struct FAeroSemanticStencilAudit
 {
 	FString RulesPath;
+	FString CaptureMaterialPath;
+	FString CaptureEncoding;
 	bool bAssigned = false;
 	int32 ActorCount = 0;
 	int32 PrimitiveComponentCount = 0;
+	int32 VisiblePrimitiveComponentCount = 0;
+	int32 RegisteredPrimitiveComponentCount = 0;
 	int32 AssignedComponentCount = 0;
 	TMap<FString, uint8> ClassNameToId;
 	TMap<uint8, FString> ClassIdToName;
+	TMap<uint8, int32> MatchedComponentHistogram;
 	TMap<uint8, int32> AssignedComponentHistogram;
 	TArray<FAeroSemanticStencilComponentAudit> Components;
 };
@@ -66,7 +71,9 @@ bool LoadRules(
 	TArray<FAeroSemanticStencilRule>& OutRules,
 	TMap<FString, uint8>& OutClassNameToId,
 	TMap<uint8, FString>& OutClassIdToName,
-	FString& OutError);
+	FString& OutError,
+	FString* OutCaptureMaterialPath = nullptr,
+	FString* OutCaptureEncoding = nullptr);
 
 bool AuditAndAssign(
 	UWorld* World,

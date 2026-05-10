@@ -9,6 +9,7 @@ event_script.json as the event/motion source.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import shutil
@@ -69,12 +70,323 @@ def distance3(a: Sequence[float], b: Sequence[float]) -> float:
     return math.sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3)))
 
 
+def stable_unit_interval(seed_text: str) -> float:
+    digest = hashlib.sha256(str(seed_text).encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") / float(1 << 64)
+
+
+def _stable_signed_unit(seed_text: str) -> float:
+    return stable_unit_interval(seed_text) * 2.0 - 1.0
+
+
+def _to_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def _explicit_variation_fields(action: dict[str, Any], params: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+    keys = ("trajectory_variation", "stagger", "density_profile")
+    resolved: dict[str, Any] = {}
+    explicit = False
+    action_params = dict(action.get("params") or {}) if isinstance(action.get("params"), dict) else {}
+    for key in keys:
+        if key in action:
+            resolved[key] = resolve_param(action.get(key), params)
+            explicit = True
+            continue
+        if key in action_params:
+            resolved[key] = resolve_param(action_params.get(key), params)
+            explicit = True
+            continue
+        if key in params:
+            resolved[key] = resolve_param(params.get(key), params)
+            explicit = True
+    return explicit, resolved
+
+
+def _variation_settings(label_class: str, action: dict[str, Any], params: dict[str, Any]) -> dict[str, float] | None:
+    explicit, fields = _explicit_variation_fields(action, params)
+    if not explicit:
+        return None
+
+    max_tick_offset_ticks = 0
+    tick_bias_ticks = 0
+    velocity_jitter_ratio = 0.0
+    velocity_bias = 0.0
+    lateral_offset_m = 0.0
+    longitudinal_offset_m = 0.0
+    pedestrian_lateral_offset_m: float | None = None
+    vehicle_lateral_offset_m: float | None = None
+    pedestrian_longitudinal_offset_m: float | None = None
+    vehicle_longitudinal_offset_m: float | None = None
+    min_segment_m = 0.25
+
+    trajectory_variation = fields.get("trajectory_variation")
+    if isinstance(trajectory_variation, dict):
+        max_tick_offset_ticks = max(
+            0,
+            _to_int(
+                trajectory_variation.get(
+                    "max_tick_offset_ticks",
+                    trajectory_variation.get("tick_offset_ticks", max_tick_offset_ticks),
+                ),
+                max_tick_offset_ticks,
+            ),
+        )
+        velocity_jitter_ratio = max(
+            0.0,
+            _to_float(
+                trajectory_variation.get(
+                    "velocity_jitter_ratio",
+                    trajectory_variation.get("velocity_scale_jitter", velocity_jitter_ratio),
+                ),
+                velocity_jitter_ratio,
+            ),
+        )
+        velocity_bias += _to_float(trajectory_variation.get("velocity_bias", 0.0), 0.0)
+        lateral_offset_m = abs(_to_float(trajectory_variation.get("lateral_offset_m", lateral_offset_m), lateral_offset_m))
+        longitudinal_offset_m = abs(
+            _to_float(
+                trajectory_variation.get(
+                    "longitudinal_offset_m",
+                    trajectory_variation.get("path_offset_m", longitudinal_offset_m),
+                ),
+                longitudinal_offset_m,
+            )
+        )
+        if "pedestrian_lateral_offset_m" in trajectory_variation:
+            pedestrian_lateral_offset_m = abs(_to_float(trajectory_variation.get("pedestrian_lateral_offset_m"), 0.0))
+        if "vehicle_lateral_offset_m" in trajectory_variation:
+            vehicle_lateral_offset_m = abs(_to_float(trajectory_variation.get("vehicle_lateral_offset_m"), 0.0))
+        if "pedestrian_longitudinal_offset_m" in trajectory_variation:
+            pedestrian_longitudinal_offset_m = abs(_to_float(trajectory_variation.get("pedestrian_longitudinal_offset_m"), 0.0))
+        if "vehicle_longitudinal_offset_m" in trajectory_variation:
+            vehicle_longitudinal_offset_m = abs(_to_float(trajectory_variation.get("vehicle_longitudinal_offset_m"), 0.0))
+        min_segment_m = max(0.0, _to_float(trajectory_variation.get("min_segment_m", min_segment_m), min_segment_m))
+    elif trajectory_variation is True:
+        max_tick_offset_ticks = max(max_tick_offset_ticks, 6)
+        velocity_jitter_ratio = max(velocity_jitter_ratio, 0.10)
+    elif isinstance(trajectory_variation, (int, float)):
+        max_tick_offset_ticks = max(max_tick_offset_ticks, abs(_to_int(trajectory_variation, 0)))
+
+    stagger = fields.get("stagger")
+    if isinstance(stagger, dict):
+        max_tick_offset_ticks = max(
+            max_tick_offset_ticks,
+            abs(_to_int(stagger.get("max_tick_offset_ticks", stagger.get("tick_offset_ticks", 0)), 0)),
+        )
+        tick_bias_ticks += _to_int(stagger.get("tick_bias_ticks", stagger.get("tick_bias", 0)), 0)
+    elif isinstance(stagger, (int, float)):
+        max_tick_offset_ticks = max(max_tick_offset_ticks, abs(_to_int(stagger, 0)))
+    elif stagger is True:
+        max_tick_offset_ticks = max(max_tick_offset_ticks, 6)
+
+    density_profile = fields.get("density_profile")
+    if isinstance(density_profile, dict):
+        tick_bias_ticks += _to_int(density_profile.get("tick_bias_ticks", density_profile.get("tick_bias", 0)), 0)
+        velocity_bias += _to_float(density_profile.get("velocity_bias", density_profile.get("speed_bias", 0.0)), 0.0)
+        max_tick_offset_ticks = max(
+            max_tick_offset_ticks,
+            abs(_to_int(density_profile.get("max_tick_offset_ticks", density_profile.get("tick_offset_ticks", 0)), 0)),
+        )
+        velocity_jitter_ratio = max(
+            velocity_jitter_ratio,
+            max(
+                0.0,
+                _to_float(
+                    density_profile.get("velocity_jitter_ratio", density_profile.get("speed_jitter_ratio", 0.0)),
+                    0.0,
+                ),
+            ),
+        )
+        lateral_offset_m = max(lateral_offset_m, abs(_to_float(density_profile.get("lateral_offset_m", 0.0), 0.0)))
+        longitudinal_offset_m = max(
+            longitudinal_offset_m,
+            abs(
+                _to_float(
+                    density_profile.get("longitudinal_offset_m", density_profile.get("path_offset_m", 0.0)),
+                    0.0,
+                )
+            ),
+        )
+    else:
+        density_text = str(density_profile or "").strip().lower()
+        if density_text in {"dense", "high", "crowded"}:
+            tick_bias_ticks += 2
+            velocity_bias -= 0.08
+            max_tick_offset_ticks = max(max_tick_offset_ticks, 8)
+            velocity_jitter_ratio = max(velocity_jitter_ratio, 0.04)
+            lateral_offset_m = max(lateral_offset_m, 0.12)
+            longitudinal_offset_m = max(longitudinal_offset_m, 0.25)
+        elif density_text in {"sparse", "low", "light"}:
+            tick_bias_ticks -= 2
+            velocity_bias += 0.08
+            max_tick_offset_ticks = max(max_tick_offset_ticks, 12)
+            velocity_jitter_ratio = max(velocity_jitter_ratio, 0.06)
+            lateral_offset_m = max(lateral_offset_m, 0.18)
+            longitudinal_offset_m = max(longitudinal_offset_m, 0.45)
+        elif density_text in {"medium", "normal", "balanced"}:
+            max_tick_offset_ticks = max(max_tick_offset_ticks, 6)
+            velocity_jitter_ratio = max(velocity_jitter_ratio, 0.03)
+            lateral_offset_m = max(lateral_offset_m, 0.10)
+            longitudinal_offset_m = max(longitudinal_offset_m, 0.20)
+
+    if label_class == "pedestrian":
+        max_lateral_offset_m = abs(pedestrian_lateral_offset_m if pedestrian_lateral_offset_m is not None else lateral_offset_m)
+        max_longitudinal_offset_m = abs(
+            pedestrian_longitudinal_offset_m if pedestrian_longitudinal_offset_m is not None else longitudinal_offset_m
+        )
+    elif label_class == "vehicle":
+        if vehicle_lateral_offset_m is not None:
+            max_lateral_offset_m = abs(vehicle_lateral_offset_m)
+        else:
+            max_lateral_offset_m = abs(lateral_offset_m) * 0.35
+        max_longitudinal_offset_m = abs(
+            vehicle_longitudinal_offset_m if vehicle_longitudinal_offset_m is not None else longitudinal_offset_m
+        )
+    else:
+        max_lateral_offset_m = 0.0
+        max_longitudinal_offset_m = 0.0
+
+    return {
+        "max_tick_offset_ticks": float(max_tick_offset_ticks),
+        "tick_bias_ticks": float(tick_bias_ticks),
+        "velocity_jitter_ratio": float(velocity_jitter_ratio),
+        "velocity_bias": float(velocity_bias),
+        "max_lateral_offset_m": float(max_lateral_offset_m),
+        "max_longitudinal_offset_m": float(max_longitudinal_offset_m),
+        "min_segment_m": float(min_segment_m),
+    }
+
+
+def _path_has_segment(start_pos: Sequence[float], waypoints: list[Any], min_segment_m: float) -> bool:
+    current = vector3(start_pos)
+    for waypoint in waypoints:
+        target = vector3(waypoint, current)
+        if distance3(current, target) >= min_segment_m:
+            return True
+        current = target
+    return False
+
+
+def _path_planar_basis(
+    start_pos: Sequence[float],
+    waypoints: list[Any],
+    min_segment_m: float,
+) -> tuple[list[float], list[float], float] | None:
+    current = vector3(start_pos)
+    for waypoint in waypoints:
+        target = vector3(waypoint, current)
+        dx = target[0] - current[0]
+        dy = target[1] - current[1]
+        planar = math.hypot(dx, dy)
+        if planar >= min_segment_m:
+            tangent = [dx / planar, dy / planar, 0.0]
+            normal = [-dy / planar, dx / planar, 0.0]
+            return tangent, normal, planar
+        current = target
+    return None
+
+
+def _apply_waypoint_offsets(
+    start_pos: Sequence[float],
+    waypoints: list[Any],
+    max_lateral_offset_m: float,
+    max_longitudinal_offset_m: float,
+    seed_text: str,
+    min_segment_m: float,
+) -> list[list[float]]:
+    normalized = [vector3(waypoint) for waypoint in waypoints]
+    if max_lateral_offset_m <= 0.0 and max_longitudinal_offset_m <= 0.0:
+        return normalized
+    basis = _path_planar_basis(start_pos, normalized, min_segment_m)
+    if basis is None:
+        return normalized
+    tangent, normal, first_segment_m = basis
+    lateral_offset = max_lateral_offset_m * _stable_signed_unit(f"{seed_text}|lateral") if max_lateral_offset_m > 0.0 else 0.0
+    longitudinal_limit = min(max_longitudinal_offset_m, first_segment_m * 0.4)
+    longitudinal_offset = (
+        longitudinal_limit * _stable_signed_unit(f"{seed_text}|longitudinal") if longitudinal_limit > 0.0 else 0.0
+    )
+    varied = [
+        [
+            point[0] + normal[0] * lateral_offset + tangent[0] * longitudinal_offset,
+            point[1] + normal[1] * lateral_offset + tangent[1] * longitudinal_offset,
+            point[2],
+        ]
+        for point in normalized
+    ]
+    if varied:
+        varied[-1] = list(normalized[-1])
+    return varied
+
+
+def _apply_move_variation(
+    *,
+    scenario_id: str,
+    entity_id: str,
+    action_id: str,
+    label_class: str,
+    tick: int,
+    velocity_mps: float,
+    start_pos: Sequence[float],
+    waypoints: list[Any],
+    action: dict[str, Any],
+    params: dict[str, Any],
+) -> tuple[int, float, list[list[float]]]:
+    settings = _variation_settings(label_class, action, params)
+    normalized_waypoints = [vector3(waypoint) for waypoint in waypoints]
+    if settings is None:
+        return tick, velocity_mps, normalized_waypoints
+    if not normalized_waypoints:
+        return tick, velocity_mps, normalized_waypoints
+
+    min_segment_m = max(0.0, float(settings["min_segment_m"]))
+    if min_segment_m > 0.0 and not _path_has_segment(start_pos, normalized_waypoints, min_segment_m):
+        return tick, velocity_mps, normalized_waypoints
+
+    seed_root = f"{scenario_id}|{entity_id}|{action_id}"
+    tick_offset = int(settings["tick_bias_ticks"])
+    max_tick_offset = int(settings["max_tick_offset_ticks"])
+    if max_tick_offset > 0:
+        tick_offset += int(round(_stable_signed_unit(f"{seed_root}|tick") * max_tick_offset))
+    varied_tick = max(0, tick + tick_offset)
+
+    velocity_scale = 1.0 + float(settings["velocity_bias"])
+    velocity_jitter_ratio = float(settings["velocity_jitter_ratio"])
+    if velocity_jitter_ratio > 0.0:
+        velocity_scale += _stable_signed_unit(f"{seed_root}|velocity") * velocity_jitter_ratio
+    velocity_scale = max(0.1, velocity_scale)
+    varied_velocity = max(0.1, float(velocity_mps) * velocity_scale)
+
+    varied_waypoints = _apply_waypoint_offsets(
+        start_pos,
+        normalized_waypoints,
+        float(settings["max_lateral_offset_m"]),
+        float(settings["max_longitudinal_offset_m"]),
+        seed_root,
+        max(min_segment_m, 1e-6),
+    )
+    return varied_tick, varied_velocity, varied_waypoints
+
+
 def label_class_for(entity_id: str, logical_asset_id: str, category: str) -> str:
     category_text = str(category).lower()
     asset_text = str(logical_asset_id).lower()
     text = f"{entity_id} {asset_text} {category_text}".lower()
     if category_text == "uav" or asset_text.startswith("uav."):
         return "uav"
+    if asset_text.startswith("semantic.uav_corridor.") or "uav_corridor" in text or "highaltitudecorridor" in text:
+        return "uav_corridor"
     if category_text == "vehicle" or asset_text.startswith("vehicle."):
         return "vehicle"
     if category_text == "pedestrian" or asset_text.startswith("pedestrian."):
@@ -250,6 +562,7 @@ def sample_keyframes(frames: list[tuple[int, list[float], str]], tick: int) -> t
 
 def build_entities(scene_setup: dict[str, Any], script: dict[str, Any]) -> dict[str, dict[str, Any]]:
     entities: dict[str, dict[str, Any]] = {}
+    scenario_id = str(script.get("scenario_id") or "")
     for scene_entity in scene_setup.get("entities") or []:
         entity_id = str(scene_entity.get("entity_id") or scene_entity.get("instance_id") or "")
         if not entity_id:
@@ -279,9 +592,9 @@ def build_entities(scene_setup: dict[str, Any], script: dict[str, Any]) -> dict[
 
     ticks = event_ticks(script)
     params = dict(script.get("parameters") or {})
-    for event in script.get("events") or []:
+    for event_index, event in enumerate(script.get("events") or []):
         tick = int(ticks.get(str(event.get("event_id") or ""), 0))
-        for action in event.get("actions") or []:
+        for action_index, action in enumerate(event.get("actions") or []):
             atype = str(action.get("type") or "")
             entity_id = str(resolve_param(action.get("entity_id", action.get("ped_id", "")), params) or "")
             if not entity_id:
@@ -308,17 +621,40 @@ def build_entities(scene_setup: dict[str, Any], script: dict[str, Any]) -> dict[
                 if entity_id not in entities:
                     raise RuntimeError(f"move_entity references undeclared entity {entity_id}")
                 label_class = str(entities[entity_id].get("label_class") or "")
+                action_id = str(action.get("action_id") or f"{event.get('event_id', f'event_{event_index}')}_{action_index}")
                 activity_type = action.get("activity_type")
                 post_activity_type = action.get("post_activity_type")
                 if label_class == "pedestrian":
                     activity_type = normalize_activity_type(str(activity_type or "walking"), moving=True)
                     post_activity_type = normalize_activity_type(str(post_activity_type or "waiting"))
+                base_velocity = _to_float(action.get("velocity_mps", 1.0), 1.0)
+                start_pos = vector3(entities[entity_id]["pos"])
+                schedules = list(entities[entity_id].get("schedules") or [])
+                for prior_schedule in reversed(schedules):
+                    if str(prior_schedule.get("type") or "") != "move":
+                        continue
+                    prior_waypoints = list(prior_schedule.get("waypoints_enu_m") or [])
+                    if prior_waypoints:
+                        start_pos = vector3(prior_waypoints[-1], start_pos)
+                        break
+                varied_tick, varied_velocity, varied_waypoints = _apply_move_variation(
+                    scenario_id=scenario_id,
+                    entity_id=entity_id,
+                    action_id=action_id,
+                    label_class=label_class,
+                    tick=tick,
+                    velocity_mps=base_velocity,
+                    start_pos=start_pos,
+                    waypoints=waypoints if isinstance(waypoints, list) else [],
+                    action=action,
+                    params=params,
+                )
                 entities[entity_id]["schedules"].append(
                     {
                         "type": "move",
-                        "tick": tick,
-                        "waypoints_enu_m": waypoints if isinstance(waypoints, list) else [],
-                        "velocity_mps": action.get("velocity_mps", 1.0),
+                        "tick": varied_tick,
+                        "waypoints_enu_m": varied_waypoints,
+                        "velocity_mps": varied_velocity,
                         "activity_type": activity_type,
                         "post_activity_type": post_activity_type,
                     }
