@@ -408,7 +408,7 @@ class HighAltitudeCorridorPlanner:
             "initial_state": {
                 "mode": "semantic_corridor",
                 "semantic_class": UAV_CORRIDOR_CLASS_NAME,
-                "custom_stencil_only": True,
+                "custom_stencil_only": False,
             },
             "query_tags": ["UAVCorridor", "HighAltitudeCorridor", "event_semantic"],
             "activation_tick": 0,

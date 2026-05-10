@@ -1046,6 +1046,11 @@ class EpisodeRenderHost:
                 "Use Plugins/SumoImporter/Scripts/dev_checks/airsim_segmentation_registry_audit.py "
                 "for the read-only legacy AirSim registry diagnostic."
             )
+        event_semantic_overlay_cfg = dict(self.config.get("event_semantic_overlays") or {})
+        self.event_semantic_overlay_cfg = event_semantic_overlay_cfg
+        self.logical_region_primary_segmentation_enabled = bool(
+            event_semantic_overlay_cfg.get("logical_region_primary_segmentation_enabled", False)
+        )
         self.airsim_capture_vehicle = str(getattr(self.args, "airsim_capture_vehicle", "CaptureUAV_0") or "CaptureUAV_0").strip()
         self.requested_airsim_capture_entity = str(getattr(self.args, "airsim_capture_entity", "") or "").strip()
         self.requested_capture_view_id = str(getattr(self.args, "capture_view_id", "") or "").strip()
@@ -1237,6 +1242,76 @@ class EpisodeRenderHost:
         polygon = placement.get("polygon_enu_m")
         return isinstance(polygon, Sequence) and not isinstance(polygon, (str, bytes)) and len(polygon) >= 3
 
+    @staticmethod
+    def _is_logical_region_semantic(entity: dict[str, Any]) -> bool:
+        logical_asset_id = str(entity.get("logical_asset_id") or "")
+        return logical_asset_id.startswith("trigger.") or logical_asset_id.startswith("semantic.uav_corridor.")
+
+    def _event_semantic_logical_region_policy(self) -> dict[str, Any]:
+        return {
+            "logical_region_primary_segmentation_enabled": bool(self.logical_region_primary_segmentation_enabled),
+            "default_policy": (
+                "custom_stencil_primary_seg_overlay"
+                if self.logical_region_primary_segmentation_enabled
+                else "sidecar_meta_only"
+            ),
+            "reason": (
+                "No-fly, hazard, and UAV-corridor regions are logical scene semantics. "
+                "By default they remain in sidecar/meta JSON so the primary segmentation PNG "
+                "describes RGB-visible geometry only."
+            ),
+        }
+
+    @staticmethod
+    def _json_safe_copy(value: Any) -> Any:
+        return json.loads(json.dumps(value, ensure_ascii=False))
+
+    def _logical_region_source_geometry(
+        self,
+        entity: dict[str, Any],
+        *,
+        position_enu_m: Sequence[float],
+        rotation_deg: dict[str, Any],
+        placement: dict[str, Any],
+        placement_mode: str,
+    ) -> dict[str, Any]:
+        geometry: dict[str, Any] = {
+            "logical_asset_id": str(entity.get("logical_asset_id") or ""),
+            "placement_mode": str(placement_mode or entity.get("placement_mode") or ""),
+            "source_position_enu_m": [float(value) for value in position_enu_m],
+            "source_rotation_deg": self._json_safe_copy(rotation_deg),
+            "placement": self._json_safe_copy(placement),
+        }
+        for key in (
+            "center_enu_m",
+            "resolved_position_enu_m",
+            "position_enu_m",
+            "extent_m",
+            "size_m",
+            "scale_xyz",
+            "polygon_enu_m",
+            "segment_start_enu_m",
+            "segment_end_enu_m",
+            "altitude_layer_m",
+            "lateral_offset_m",
+        ):
+            if key in placement:
+                geometry[key] = self._json_safe_copy(placement.get(key))
+        extent = self._coerce_audit_vector3(placement.get("extent_m"))
+        size = self._coerce_audit_vector3(placement.get("size_m") or placement.get("scale_xyz"))
+        if extent is not None:
+            geometry["logical_extent_m"] = extent
+            geometry["logical_size_m"] = [float(extent[0]) * 2.0, float(extent[1]) * 2.0, float(extent[2]) * 2.0]
+        elif size is not None:
+            geometry["logical_size_m"] = size
+            geometry["logical_extent_m"] = [float(size[0]) * 0.5, float(size[1]) * 0.5, float(size[2]) * 0.5]
+        geometry["primary_segmentation_representation"] = (
+            "custom_stencil_primary_seg_overlay"
+            if self.logical_region_primary_segmentation_enabled
+            else "sidecar_meta_only_not_rasterized"
+        )
+        return geometry
+
     def _load_static_map_coordinate_audit(self) -> list[dict[str, Any]]:
         scenario_objects_path = (
             PROJECT_ROOT / "Config" / "LowAltitude" / "Maps" / self.map_id / "scenario_objects.json"
@@ -1293,6 +1368,7 @@ class EpisodeRenderHost:
         for entity in self._event_semantic_entities():
             entity_id = str(entity.get("entity_id") or entity.get("instance_id") or "")
             logical_asset_id = str(entity.get("logical_asset_id") or "")
+            is_logical_region = self._is_logical_region_semantic(entity)
             position = self._event_semantic_position_enu_m(entity)
             if not entity_id or not logical_asset_id or position is None:
                 continue
@@ -1310,6 +1386,14 @@ class EpisodeRenderHost:
                 coordinate_transform_applied=False,
                 object_role="event_semantic_proxy",
             )
+            if is_logical_region:
+                coordinate_audit["logical_region_source_geometry"] = self._logical_region_source_geometry(
+                    entity,
+                    position_enu_m=position,
+                    rotation_deg=rotation,
+                    placement=placement,
+                    placement_mode=placement_mode,
+                )
             try:
                 is_polygon_prism_trigger = logical_asset_id.startswith("trigger.") and self._is_polygon_prism_trigger(entity)
                 spawn_logical_asset_id = (
@@ -1363,13 +1447,13 @@ class EpisodeRenderHost:
                         proxy_scale.append(1.0)
                     proxy_scale[2] = min(max(float(proxy_scale[2] or 0.05), 0.05), 0.08)
                     payload["scale_xyz"] = proxy_scale
-                    payload["custom_stencil_only"] = True
+                    payload["custom_stencil_only"] = bool(self.logical_region_primary_segmentation_enabled)
                     payload["tags"].extend(["UAVCorridor", "HighAltitudeCorridor", "uav_corridor"])
                     payload["visual_state"]["semantic_class"] = "uav_corridor"
                 if logical_asset_id.startswith("trigger."):
                     target_semantic_class = "hazard_trigger"
                     target_stencil_id = self._semantic_class_id(target_semantic_class, 11)
-                    payload["custom_stencil_only"] = True
+                    payload["custom_stencil_only"] = bool(self.logical_region_primary_segmentation_enabled)
                     payload["original_logical_asset_id"] = logical_asset_id
                     payload["trigger_semantic_proxy_kind"] = "polygon_prism_aabb_overlay" if is_polygon_prism_trigger else "box_overlay"
                     payload["trigger_extent_m"] = list(placement.get("extent_m") or placement.get("size_m") or [])
@@ -1401,29 +1485,55 @@ class EpisodeRenderHost:
                             "semantic proxy is a thin CustomStencil overlay; runtime trigger_zone keeps polygon_enu_m in placement"
                         )
                     payload["visual_state"]["semantic_class"] = "hazard_trigger"
+                if is_logical_region:
+                    primary_segmentation_includes_logical_region = bool(payload.get("custom_stencil_only"))
+                    logical_region_policy = (
+                        "custom_stencil_primary_seg_overlay"
+                        if primary_segmentation_includes_logical_region
+                        else "sidecar_meta_only"
+                    )
+                    payload["logical_region_label_policy"] = logical_region_policy
+                    coordinate_audit["logical_region_label_policy"] = logical_region_policy
+                    coordinate_audit["primary_segmentation_includes_logical_region"] = (
+                        primary_segmentation_includes_logical_region
+                    )
                 coordinate_audit["render_proxy_position_enu_m"] = proxy_position
                 if proxy_ground_projection:
                     coordinate_audit["render_proxy_ground_projection"] = proxy_ground_projection
                 if payload.get("scale_xyz") is not None:
                     coordinate_audit["render_proxy_scale_xyz"] = list(payload.get("scale_xyz") or [])
-                response = self.client.spawn_asset(payload, map_id=self.map_id)
-                coordinate_audit["spawn_response"] = response.get("payload", response) if isinstance(response, dict) else response
                 coordinate_audit["spawn_logical_asset_id"] = spawn_logical_asset_id
                 coordinate_audit["spawn_asset_id"] = spawn_asset_id
-                spawn_response = coordinate_audit["spawn_response"]
-                actor_name = str(spawn_response.get("actor_name") or "") if isinstance(spawn_response, dict) else ""
-                if actor_name and target_semantic_class and target_stencil_id is not None:
-                    target = {
-                        "actor_name": actor_name,
-                        "entity_id": entity_id,
-                        "logical_asset_id": logical_asset_id,
-                        "spawn_logical_asset_id": spawn_logical_asset_id,
-                        "spawn_asset_id": spawn_asset_id,
-                        "semantic_class": target_semantic_class,
-                        "stencil_id": int(target_stencil_id),
+                skip_logical_region_spawn = is_logical_region and not bool(payload.get("custom_stencil_only"))
+                if skip_logical_region_spawn:
+                    coordinate_audit["spawn_response"] = {
+                        "status": "skipped",
+                        "reason": "logical_region_sidecar_meta_only",
+                        "actor_name": "",
                     }
-                    self.event_semantic_proxy_capture_targets.append(target)
-                    coordinate_audit["capture_proxy_sanitizer_target"] = target
+                    coordinate_audit["sidecar_region_position_enu_m"] = proxy_position
+                else:
+                    response = self.client.spawn_asset(payload, map_id=self.map_id)
+                    coordinate_audit["spawn_response"] = response.get("payload", response) if isinstance(response, dict) else response
+                    spawn_response = coordinate_audit["spawn_response"]
+                    actor_name = str(spawn_response.get("actor_name") or "") if isinstance(spawn_response, dict) else ""
+                    if (
+                        bool(payload.get("custom_stencil_only"))
+                        and actor_name
+                        and target_semantic_class
+                        and target_stencil_id is not None
+                    ):
+                        target = {
+                            "actor_name": actor_name,
+                            "entity_id": entity_id,
+                            "logical_asset_id": logical_asset_id,
+                            "spawn_logical_asset_id": spawn_logical_asset_id,
+                            "spawn_asset_id": spawn_asset_id,
+                            "semantic_class": target_semantic_class,
+                            "stencil_id": int(target_stencil_id),
+                        }
+                        self.event_semantic_proxy_capture_targets.append(target)
+                        coordinate_audit["capture_proxy_sanitizer_target"] = target
             except Exception as exc:
                 coordinate_audit["spawn_error"] = str(exc)
                 print(f"[EpisodeHost] event semantic proxy warning for {entity_id}: {exc}")
@@ -1431,7 +1541,7 @@ class EpisodeRenderHost:
             self.event_semantic_asset_ids.add(str(coordinate_audit.get("spawn_asset_id") or asset_id))
         if self.event_semantic_coordinate_audit:
             print(
-                "[EpisodeHost] Spawned event semantic proxies: "
+                "[EpisodeHost] Processed event semantic regions: "
                 + ", ".join(entry["entity_id"] for entry in self.event_semantic_coordinate_audit)
             )
         self._sanitize_event_semantic_proxy_components()
@@ -4710,15 +4820,21 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "seg": {
                     "primary_format": "png_uint8_class_id",
                     "audit_format": "json_semantic_stencil_audit",
-                    "route": "UE CustomDepth/CustomStencil fixed-world capture for UAV segmentation; AirSim native segmentation is not used by default",
+                    "route": "UE CustomDepth/CustomStencil fixed-world capture for RGB-visible UAV segmentation; AirSim native segmentation is not used by default",
                 },
             },
             "coordinate_space_contract": self._coordinate_space_contract(),
             "event_semantic_objects": {
                 "source": "episode_scene_setup",
-                "spawned_as_semantic_proxies": True,
-                "trigger_proxies_custom_stencil_only": True,
-                "rgb_visibility_contract": "trigger semantic proxies are excluded from the RGB main pass and kept for UE CustomStencil segmentation",
+                "logical_region_visual_proxies_spawned": bool(self.logical_region_primary_segmentation_enabled),
+                "visible_event_fixture_proxies_spawned": True,
+                "logical_region_label_policy": self._event_semantic_logical_region_policy(),
+                "trigger_proxies_custom_stencil_only": bool(self.logical_region_primary_segmentation_enabled),
+                "rgb_visibility_contract": (
+                    "Logical no-fly, hazard, and UAV-corridor regions default to sidecar/meta-only. "
+                    "They are not injected into the primary segmentation PNG unless "
+                    "event_semantic_overlays.logical_region_primary_segmentation_enabled=true."
+                ),
                 "coordinate_audit": self.event_semantic_coordinate_audit,
             },
             "static_map_objects": {
@@ -5272,7 +5388,11 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         else:
             airsim_proxy_capture_exclusion = {
                 "status": "skipped",
-                "reason": "ue_custom_stencil_segmentation_must_keep_proxies_visible_to_custom_depth",
+                "reason": (
+                    "logical_region_overlays_are_sidecar_meta_only"
+                    if not self.logical_region_primary_segmentation_enabled
+                    else "ue_custom_stencil_segmentation_must_keep_proxies_visible_to_custom_depth"
+                ),
                 "target_count": len(self.event_semantic_proxy_capture_targets),
             }
         camera_suffix = safe_name(str(preset.get("camera_id_suffix", camera_name)))
@@ -5356,6 +5476,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "runtime_uav_control_backend": self.runtime_uav_control_backend,
                 "runtime_uav_editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
                 "coordinate_space_contract": self._coordinate_space_contract(),
+                "event_semantic_logical_region_policy": self._event_semantic_logical_region_policy(),
                 "event_semantic_objects": self.event_semantic_coordinate_audit,
                 "event_semantic_proxy_sanitizer": self.event_semantic_proxy_sanitizer_result,
                 "airsim_proxy_capture_exclusion": airsim_proxy_capture_exclusion,
@@ -5438,6 +5559,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             "runtime_uav_control_backend": self.runtime_uav_control_backend,
             "runtime_uav_editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
             "coordinate_space_contract": self._coordinate_space_contract(),
+            "event_semantic_logical_region_policy": self._event_semantic_logical_region_policy(),
             "event_semantic_objects": self.event_semantic_coordinate_audit,
             "event_semantic_proxy_sanitizer": self.event_semantic_proxy_sanitizer_result,
             "airsim_proxy_capture_exclusion": airsim_proxy_capture_exclusion,

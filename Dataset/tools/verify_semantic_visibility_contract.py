@@ -19,8 +19,6 @@ DEFAULT_REQUIRED_TRUTH_CLASSES = ("drone", "hazard_trigger", "uav_corridor", "pe
 DEFAULT_REQUIRED_SEG_CLASSES = (
     "city_base_background",
     "drone",
-    "hazard_trigger",
-    "uav_corridor",
     "pedestrian",
     "vehicle",
 )
@@ -258,11 +256,22 @@ def semantic_histogram_from_png(path: Path) -> dict[str, int]:
     return {str(index): int(count) for index, count in enumerate(histogram) if count}
 
 
-def histogram_from_payload(payload: dict[str, Any], seg_path: Path) -> dict[str, int]:
-    histogram = payload.get("histogram")
+def normalize_histogram(histogram: Any) -> dict[str, int]:
+    return {str(key): int(value) for key, value in dict(histogram or {}).items() if int(value) > 0}
+
+
+def histogram_consistency_errors(
+    reference: dict[str, int],
+    *,
+    label: str,
+    histogram: Any,
+) -> list[str]:
     if not histogram:
-        histogram = semantic_histogram_from_png(seg_path)
-    return {str(key): int(value) for key, value in dict(histogram).items()}
+        return []
+    candidate = normalize_histogram(histogram)
+    if candidate == reference:
+        return []
+    return [f"{label} histogram does not match primary seg PNG histogram: {candidate} != {reference}"]
 
 
 def class_count(histogram: dict[str, int], class_name: str, class_name_to_id: dict[str, int]) -> int:
@@ -285,13 +294,87 @@ def custom_stencil_targets(sidecar: dict[str, Any]) -> list[dict[str, Any]]:
     return targets
 
 
+def logical_classes_from_sidecar(sidecar: dict[str, Any]) -> set[str]:
+    classes: set[str] = set()
+    for entry in custom_stencil_targets(sidecar):
+        logical = " ".join(
+            str(entry.get(key) or "")
+            for key in ("logical_asset_id", "spawn_logical_asset_id", "spawn_asset_id", "entity_id")
+        ).lower()
+        if "trigger.no_fly" in logical or "hazard" in logical or "semantic.trigger_box" in logical:
+            classes.add("hazard_trigger")
+        if "semantic.uav_corridor" in logical or "uav_corridor" in logical or "highaltitudecorridor" in logical:
+            classes.add("uav_corridor")
+    return classes
+
+
+def validate_event_semantic_sidecar_contract(sidecar: dict[str, Any], logical_classes: Iterable[str]) -> list[str]:
+    errors: list[str] = []
+    targets = custom_stencil_targets(sidecar)
+    if not targets:
+        errors.append("sidecar has no logical event semantic regions")
+        return errors
+    policy = dict(sidecar.get("event_semantic_logical_region_policy") or {})
+    if bool(policy.get("logical_region_primary_segmentation_enabled", False)):
+        errors.append("logical region overlays are enabled in primary segmentation")
+    present = logical_classes_from_sidecar(sidecar)
+    for class_name in logical_classes:
+        class_name = str(class_name).strip()
+        if class_name and class_name not in present:
+            errors.append(f"logical sidecar class {class_name!r} is missing")
+    return errors
+
+
+def validate_sidecar_only_primary_segmentation(
+    histogram: dict[str, int],
+    class_name_to_id: dict[str, int],
+    logical_classes: Iterable[str],
+    sidecar: dict[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    policy = dict(sidecar.get("event_semantic_logical_region_policy") or {})
+    if bool(policy.get("logical_region_primary_segmentation_enabled", False)):
+        return errors
+    for target in custom_stencil_targets(sidecar):
+        if bool(target.get("primary_segmentation_includes_logical_region", False)):
+            errors.append(
+                f"logical region {target.get('entity_id')!r} is marked as included in primary segmentation"
+            )
+        if isinstance(target.get("capture_proxy_sanitizer_target"), dict):
+            errors.append(f"logical region {target.get('entity_id')!r} registered a primary-segmentation proxy target")
+        spawn_response = target.get("spawn_response")
+        if isinstance(spawn_response, dict):
+            status = str(spawn_response.get("status") or "").strip().lower()
+            if status and status != "skipped":
+                errors.append(
+                    f"logical region {target.get('entity_id')!r} spawned actor in sidecar-only mode: "
+                    f"status={spawn_response.get('status')!r}"
+                )
+    for class_name in logical_classes:
+        class_name = str(class_name).strip()
+        if not class_name:
+            continue
+        count = class_count(histogram, class_name, class_name_to_id)
+        if count > 0:
+            errors.append(
+                f"sidecar-only logical class {class_name!r} appears in primary seg histogram with {count} pixels"
+            )
+    return errors
+
+
 def validate_rgb_invisibility_contract(rgb_sidecar: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if str(rgb_sidecar.get("capture_backend") or "") != "airsim_native_uav_camera":
         errors.append("rgb sidecar capture_backend is not airsim_native_uav_camera")
     targets = custom_stencil_targets(rgb_sidecar)
     if not targets:
-        errors.append("rgb sidecar has no custom-stencil-only logical proxy targets to validate")
+        errors.append("rgb sidecar has no logical proxy targets to validate")
+        return errors
+    policy = dict(rgb_sidecar.get("event_semantic_logical_region_policy") or {})
+    if not bool(policy.get("logical_region_primary_segmentation_enabled", False)):
+        sanitizer = rgb_sidecar.get("event_semantic_proxy_sanitizer")
+        if isinstance(sanitizer, dict) and int(sanitizer.get("target_count") or 0) > 0:
+            errors.append("sidecar-meta-only logical regions unexpectedly registered custom-stencil targets")
         return errors
     sanitizer = rgb_sidecar.get("event_semantic_proxy_sanitizer")
     if not isinstance(sanitizer, dict):
@@ -356,8 +439,17 @@ def validate_sample_row(
         return errors, details
     rgb_sidecar = read_json(rgb_sidecar_path)
     seg_sidecar = read_json(seg_sidecar_path)
-    histogram = histogram_from_payload(seg_payload, seg_path)
+    histogram = semantic_histogram_from_png(seg_path)
     details["seg_histogram"] = histogram
+    errors.extend(histogram_consistency_errors(histogram, label="summary seg payload", histogram=seg_payload.get("histogram")))
+    errors.extend(histogram_consistency_errors(histogram, label="seg sidecar", histogram=seg_sidecar.get("class_histogram")))
+    if row.get("histogram"):
+        try:
+            errors.extend(
+                histogram_consistency_errors(histogram, label="summary row", histogram=json.loads(row.get("histogram") or "{}"))
+            )
+        except json.JSONDecodeError as exc:
+            errors.append(f"summary row histogram is not valid JSON: {exc}")
     if str(seg_sidecar.get("capture_backend") or "") != "ue_custom_stencil_fixed_world_camera":
         errors.append("seg sidecar capture_backend is not ue_custom_stencil_fixed_world_camera")
     if str(seg_sidecar.get("segmentation_kind") or "") != "ue_custom_stencil_class_id_u8":
@@ -376,10 +468,8 @@ def validate_sample_row(
         count = class_count(histogram, class_name, class_name_to_id)
         if count < min_pixels_per_class:
             errors.append(f"seg class {class_name!r} has {count} pixels, expected >= {min_pixels_per_class}")
-    for class_name in logical_classes:
-        count = class_count(histogram, str(class_name), class_name_to_id)
-        if count < min_pixels_per_class:
-            errors.append(f"logical seg class {class_name!r} is not visible")
+    errors.extend(validate_event_semantic_sidecar_contract(seg_sidecar, logical_classes))
+    errors.extend(validate_sidecar_only_primary_segmentation(histogram, class_name_to_id, logical_classes, seg_sidecar))
     errors.extend(validate_rgb_invisibility_contract(rgb_sidecar))
     if bool((rgb_sidecar.get("airsim_proxy_capture_exclusion") or {}).get("pipcamera_hidden_lists_mutated", False)):
         errors.append("RGB sidecar says PIPCamera hidden lists were mutated")
@@ -460,7 +550,7 @@ def parse_csv_list(values: list[str] | None, defaults: tuple[str, ...]) -> tuple
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Verify that existing 70event UAV samples expose semantic-only logical regions in seg, not RGB."
+        description="Verify that UAV samples keep logical event regions in sidecar/meta while primary seg labels RGB-visible geometry."
     )
     parser.add_argument("--mode", choices=["search", "verify-summary"], default="verify-summary")
     parser.add_argument("--episodes-root", type=Path, default=DEFAULT_EPISODES_ROOT)

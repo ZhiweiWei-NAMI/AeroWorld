@@ -8,6 +8,7 @@ from typing import Any
 
 
 REQUIRED_MODALITIES = ("rgb", "depth", "seg")
+LOGICAL_PRIMARY_SEG_CLASS_IDS = {"11": "hazard_trigger", "12": "uav_corridor"}
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -25,10 +26,41 @@ def sidecar_for_output(path: Path) -> Path:
     return path.with_suffix(".json")
 
 
+def parse_int(value: Any, default: int = -1) -> int:
+    text = str(value if value is not None else "").strip()
+    if not text:
+        return default
+    try:
+        return int(text)
+    except ValueError:
+        return default
+
+
+def semantic_histogram_from_png(path: Path) -> dict[str, int]:
+    from PIL import Image
+
+    image = Image.open(path).convert("L")
+    histogram = image.histogram()
+    return {str(index): int(count) for index, count in enumerate(histogram) if count}
+
+
+def normalize_histogram(histogram: Any) -> dict[str, int]:
+    return {str(key): int(value) for key, value in dict(histogram or {}).items() if int(value) > 0}
+
+
+def histogram_consistency_errors(reference: dict[str, int], label: str, histogram: Any) -> list[str]:
+    if not histogram:
+        return []
+    candidate = normalize_histogram(histogram)
+    if candidate == reference:
+        return []
+    return [f"seg: {label} histogram does not match primary seg PNG histogram: {candidate} != {reference}"]
+
+
 def verify_ok_uav_row(row: dict[str, str]) -> list[str]:
     errors: list[str] = []
     episode = str(row.get("episode") or "")
-    tick = int(row.get("tick") or -1)
+    tick = parse_int(row.get("tick"), -1)
     capture_view_id = str(row.get("capture_view_id") or "")
     capture_entity_id = str(row.get("capture_entity_id") or "")
     logical_sample_id = str(row.get("logical_sample_id") or "")
@@ -36,11 +68,7 @@ def verify_ok_uav_row(row: dict[str, str]) -> list[str]:
     alignment_source = str(row.get("alignment_source") or "")
     batch_id = str(row.get("batch_id") or "")
     frame_id = str(row.get("frame_id") or "")
-    frame_seq_text = str(row.get("frame_seq") or "")
-    try:
-        frame_seq = int(frame_seq_text)
-    except ValueError:
-        frame_seq = -1
+    frame_seq = parse_int(row.get("frame_seq"), tick)
     if not episode:
         errors.append("missing episode")
     if tick < 0:
@@ -95,7 +123,7 @@ def verify_ok_uav_row(row: dict[str, str]) -> list[str]:
         for key, expected in checks.items():
             actual = sidecar.get(key)
             if key in {"tick", "frame_seq"}:
-                actual = int(actual or -1)
+                actual = parse_int(actual, -1)
             else:
                 actual = str(actual or "")
             if actual != expected:
@@ -111,7 +139,7 @@ def verify_ok_uav_row(row: dict[str, str]) -> list[str]:
         for key, expected in payload_checks.items():
             actual = payload.get(key)
             if key == "frame_seq":
-                actual = int(actual or -1)
+                actual = parse_int(actual, -1)
             else:
                 actual = str(actual or "")
             if actual != expected:
@@ -120,10 +148,29 @@ def verify_ok_uav_row(row: dict[str, str]) -> list[str]:
             palette = payload.get("palette") or row.get("seg_palette_path")
             if not palette or not Path(str(palette)).exists():
                 errors.append(f"seg: palette preview missing: {palette}")
-            histogram = payload.get("histogram") or json.loads(row.get("histogram") or "{}")
+            histogram = semantic_histogram_from_png(output_path)
+            errors.extend(histogram_consistency_errors(histogram, "summary payload", payload.get("histogram")))
+            if row.get("histogram"):
+                try:
+                    errors.extend(
+                        histogram_consistency_errors(histogram, "summary row", json.loads(row.get("histogram") or "{}"))
+                    )
+                except json.JSONDecodeError as exc:
+                    errors.append(f"seg: summary row histogram is not valid JSON: {exc}")
+            sidecar_histogram = sidecar.get("class_histogram")
+            errors.extend(histogram_consistency_errors(histogram, "sidecar", sidecar_histogram))
             nonzero = {str(k): int(v) for k, v in dict(histogram or {}).items() if int(k) != 0 and int(v) > 0}
             if not nonzero:
                 errors.append("seg: class histogram has no nonzero class pixels")
+            policy = dict(sidecar.get("event_semantic_logical_region_policy") or {})
+            if not bool(policy.get("logical_region_primary_segmentation_enabled", False)):
+                for class_id, class_name in LOGICAL_PRIMARY_SEG_CLASS_IDS.items():
+                    count = int(dict(histogram or {}).get(class_id) or 0)
+                    if count > 0:
+                        errors.append(
+                            f"seg: sidecar-only logical class {class_name!r} appears in primary seg histogram "
+                            f"with {count} pixels"
+                        )
     return errors
 
 

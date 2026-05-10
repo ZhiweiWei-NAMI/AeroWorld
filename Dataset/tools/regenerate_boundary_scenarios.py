@@ -1712,7 +1712,7 @@ def _corridor_entity_from_segment(
         "initial_state": {
             "mode": "semantic_corridor",
             "semantic_class": "uav_corridor",
-            "custom_stencil_only": True,
+            "custom_stencil_only": False,
         },
         "query_tags": ["UAVCorridor", "HighAltitudeCorridor", "event_semantic"],
         "activation_tick": 0,

@@ -238,7 +238,7 @@ class FormalCapturePathContractTest(unittest.TestCase):
 
 
 class SemanticVisibilityOutputContractTest(unittest.TestCase):
-    def test_validate_sample_row_accepts_semantic_only_proxy_contract(self) -> None:
+    def test_validate_sample_row_accepts_sidecar_only_logical_regions(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             rgb_path = root / "sample" / "rgb" / "tick_000100.png"
@@ -247,22 +247,30 @@ class SemanticVisibilityOutputContractTest(unittest.TestCase):
             seg_path.parent.mkdir(parents=True)
             Image.new("RGB", (3, 2), color=(12, 34, 56)).save(rgb_path)
             seg = Image.new("L", (3, 2))
-            seg.putdata([1, 5, 6, 7, 11, 12])
+            seg.putdata([1, 5, 6, 7, 2, 1])
             seg.save(seg_path)
             common_sidecar = {
                 "episode_id": "episode_complete",
                 "tick": 100,
                 "camera_name": "bottom_center",
                 "requested_camera_rotation_body_deg": {"pitch_deg": -90.0, "yaw_deg": 0.0, "roll_deg": 0.0},
+                "event_semantic_logical_region_policy": {
+                    "logical_region_primary_segmentation_enabled": False,
+                    "default_policy": "sidecar_meta_only",
+                },
                 "event_semantic_objects": [
                     {
                         "entity_id": "nfz",
                         "logical_asset_id": "trigger.no_fly.box.v1",
                         "spawn_logical_asset_id": "semantic.trigger_box.extent_14_10_14.v1",
+                        "logical_region_label_policy": "sidecar_meta_only",
+                        "primary_segmentation_includes_logical_region": False,
                     },
                     {
                         "entity_id": "corridor",
                         "logical_asset_id": "semantic.uav_corridor.segment.v1",
+                        "logical_region_label_policy": "sidecar_meta_only",
+                        "primary_segmentation_includes_logical_region": False,
                     },
                 ],
             }
@@ -272,9 +280,9 @@ class SemanticVisibilityOutputContractTest(unittest.TestCase):
                     **common_sidecar,
                     "capture_backend": "airsim_native_uav_camera",
                     "event_semantic_proxy_sanitizer": {
-                        "status": "ok",
-                        "target_count": 2,
-                        "sanitized_actor_count": 2,
+                        "status": "skipped",
+                        "target_count": 0,
+                        "sanitized_actor_count": 0,
                         "missing_actor_count": 0,
                     },
                     "airsim_proxy_capture_exclusion": {
@@ -290,7 +298,7 @@ class SemanticVisibilityOutputContractTest(unittest.TestCase):
                     **common_sidecar,
                     "capture_backend": "ue_custom_stencil_fixed_world_camera",
                     "segmentation_kind": "ue_custom_stencil_class_id_u8",
-                    "class_histogram": {"1": 1, "5": 1, "6": 1, "7": 1, "11": 1, "12": 1},
+                    "class_histogram": {"1": 2, "2": 1, "5": 1, "6": 1, "7": 1},
                 },
             )
             row = {
@@ -304,7 +312,7 @@ class SemanticVisibilityOutputContractTest(unittest.TestCase):
                         "seg": {
                             "png": str(seg_path),
                             "sidecar": str(seg_path.with_suffix(".json")),
-                            "histogram": {"1": 1, "5": 1, "6": 1, "7": 1, "11": 1, "12": 1},
+                            "histogram": {"1": 2, "2": 1, "5": 1, "6": 1, "7": 1},
                         },
                     }
                 ),
@@ -313,15 +321,49 @@ class SemanticVisibilityOutputContractTest(unittest.TestCase):
             errors, details = validate_sample_row(
                 row,
                 class_name_to_id=CLASS_NAME_TO_ID,
-                required_seg_classes=["city_base_background", "drone", "hazard_trigger", "uav_corridor", "pedestrian", "vehicle"],
+                required_seg_classes=["city_base_background", "drone", "pedestrian", "vehicle"],
                 logical_classes=["hazard_trigger", "uav_corridor"],
                 min_pixels_per_class=1,
                 project_root=root,
             )
 
             self.assertEqual(errors, [])
-            self.assertEqual(details["seg_histogram"]["11"], 1)
-            self.assertEqual(details["seg_histogram"]["12"], 1)
+            self.assertNotIn("11", details["seg_histogram"])
+            self.assertNotIn("12", details["seg_histogram"])
+
+            bad_seg_path = root / "sample" / "seg" / "tick_000101.png"
+            bad_seg = Image.new("L", (3, 2))
+            bad_seg.putdata([1, 5, 6, 7, 11, 12])
+            bad_seg.save(bad_seg_path)
+            write_json(
+                bad_seg_path.with_suffix(".json"),
+                {
+                    **common_sidecar,
+                    "capture_backend": "ue_custom_stencil_fixed_world_camera",
+                    "segmentation_kind": "ue_custom_stencil_class_id_u8",
+                    "class_histogram": {"1": 2, "2": 1, "5": 1, "6": 1, "7": 1},
+                },
+            )
+            bad_row = dict(row)
+            bad_outputs = json.loads(bad_row["modality_outputs"])
+            bad_outputs["seg"] = {
+                "png": str(bad_seg_path),
+                "sidecar": str(bad_seg_path.with_suffix(".json")),
+                "histogram": {"1": 2, "2": 1, "5": 1, "6": 1, "7": 1},
+            }
+            bad_row["modality_outputs"] = json.dumps(bad_outputs)
+
+            bad_errors, _ = validate_sample_row(
+                bad_row,
+                class_name_to_id=CLASS_NAME_TO_ID,
+                required_seg_classes=["city_base_background", "drone", "pedestrian", "vehicle"],
+                logical_classes=["hazard_trigger", "uav_corridor"],
+                min_pixels_per_class=1,
+                project_root=root,
+            )
+
+            self.assertTrue(any("hazard_trigger" in error and "primary seg histogram" in error for error in bad_errors))
+            self.assertTrue(any("uav_corridor" in error and "primary seg histogram" in error for error in bad_errors))
 
 
 if __name__ == "__main__":

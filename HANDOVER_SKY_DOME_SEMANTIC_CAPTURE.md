@@ -1,6 +1,6 @@
 # Handover: Semantic UAV Capture
 
-Date: 2026-05-09
+Date: 2026-05-10
 Workspace: `E:\DynamicCityCreatorSamples`
 
 ## Hard Rules
@@ -10,6 +10,7 @@ Workspace: `E:\DynamicCityCreatorSamples`
 - Do not use `rg`; this environment reports Access denied. Use PowerShell `Get-ChildItem`, `Select-String`, and `Get-Content`.
 - Never mutate AirSim `APIPCamera`, `BP_PIPCamera`, `PIPCamera`, `SceneCaptureComponent`, `HiddenActors`, or `HiddenComponents` from Python/editor remote execution.
 - Formal UAV segmentation must use UE fixed-world CustomStencil, not AirSim native segmentation.
+- Primary UAV segmentation is for RGB-visible geometry. Logical no-fly/hazard/corridor regions stay in sidecar/meta JSON by default.
 - Formal image output defaults must stay under `F:\`:
   - image root: `F:\aw_cap`
   - summary: `F:\aw_cap_summary.csv`
@@ -52,14 +53,21 @@ The failing C++ path touched `captures_[Scene]->HiddenComponents` while an `APIP
 - `Plugins\SumoImporter\Scripts\episode_render_host.py`
   - Recognizes simple per-view dirs like `v000`, so it does not append long capture view IDs.
   - Storage sidecars/manifests state that complex identifiers live in metadata.
+  - Logical no-fly/hazard/corridor regions are processed into sidecar coordinate audit by default, but their thin Cube overlay actors are not spawned unless `event_semantic_overlays.logical_region_primary_segmentation_enabled=true`.
+  - Sidecar audit keeps the original logical placement geometry in `logical_region_source_geometry`; `render_proxy_*` fields are only the optional thin overlay representation.
+- `Plugins\SumoImporter\Scripts\episode_render_host_config.json`
+  - `event_semantic_overlays.logical_region_primary_segmentation_enabled=false` is the default.
 - `Config\LowAltitude\semantic_capture_runtime_contract.json`
-  - Defaults and must-follow rules now lock the `F:` output and simple path contract.
+  - Defaults and must-follow rules now lock the `F:` output/simple path contract and the sidecar-only logical-region contract.
+- `Dataset\tools\verify_semantic_visibility_contract.py`
+  - Required primary seg classes are RGB-visible classes only: background, drone, pedestrian, and vehicle.
+  - The verifier reads the primary `seg.png`, cross-checks summary/sidecar histograms, and fails if sidecar-only logical classes `11`/`12` appear in the primary segmentation histogram.
 - `Plugins\SumoImporter\Scripts\donghu_core\capture_orchestrator.py`
   - Frame stem is short: `tick_000000`.
 
 ## Latest Verified Smoke
 
-Historical command before the new `F:\aw_cap` path lock:
+Historical command before the sidecar-only logical-region contract:
 
 ```powershell
 python Dataset\tools\run_semantic_70_dual_view_tick100.py --episodes-root Dataset\render_ready_episodes --output-root Saved\AirSim\x6_smoke_drone_rule_fix --summary Saved\AirSim\x6_smoke_drone_rule_fix_summary.csv --start-index 69 --limit 1 --skip-high-overview --requested-tick 0 --host 127.0.0.1 --port 41451 --airsim-capture-entity uav_observer_x6_crowd_evacuation_to_airspace_lockdown_3
@@ -77,15 +85,14 @@ Verifier:
 python Dataset\tools\verify_semantic_visibility_contract.py --mode verify-summary --summary Saved\AirSim\x6_smoke_drone_rule_fix_summary.csv
 ```
 
-Verifier status was `ok`. Required classes in seg are present: background, drone, hazard/no-fly trigger, UAV corridor, pedestrian, and vehicle.
+This smoke is now intentionally obsolete for primary segmentation: classes `11` and `12` belonged to invisible logical overlays, not RGB-visible objects.
 
 ## Visual Interpretation
 
 - RGB now shows vehicles.
-- No-fly / hazard trigger is class `11` and appears pink only in palette previews.
-- UAV corridor is class `12`; palette preview color is now cyan/green.
-- If class `11` looks irregular in the current CustomStencil image, that is because it is rendered as a thin 3D proxy and participates in depth/occlusion. The logical box itself is rectangular (`36m x 26m` in X6). A complete, regular logical mask would require a later 2D rasterized overlay or no-depth-test overlay pass.
-- RGB sidecar confirms semantic proxies are hidden from RGB/depth by primitive render flags, with `pipcamera_hidden_lists_mutated=false`.
+- The earlier pink irregular region was class `11` (`hazard_trigger`), produced by `nfz_x6_lockdown` as an invisible CustomDepth-only logical proxy, not by a building.
+- Class `12` is `uav_corridor`. Like class `11`, it is a logical scene region and should not appear in the primary training `seg.png` while sidecar-only mode is active.
+- The logical box/corridor details remain in sidecar/meta JSON: entity id, source logical asset, ENU position, proxy scale, policy, and coordinate audit.
 
 ## Data Layer Notes
 
@@ -102,7 +109,8 @@ The background-vehicle generation path must continue to satisfy overlay/collisio
 ```powershell
 python -m json.tool Config\LowAltitude\semantic_stencil_rules.json
 python -m json.tool Config\LowAltitude\semantic_capture_runtime_contract.json
-python -m py_compile Plugins\SumoImporter\Scripts\episode_render_host.py Dataset\tools\run_semantic_70_dual_view_tick100.py Dataset\tools\test_semantic_visibility_contract.py Dataset\tools\verify_semantic_visibility_contract.py
+python -m json.tool Plugins\SumoImporter\Scripts\episode_render_host_config.json
+python -m py_compile Plugins\SumoImporter\Scripts\episode_render_host.py Dataset\tools\run_semantic_70_dual_view_tick100.py Dataset\tools\test_semantic_visibility_contract.py Dataset\tools\verify_semantic_visibility_contract.py Dataset\tools\verify_semantic_uav_logical_samples.py
 python -m unittest Dataset.tools.test_semantic_visibility_contract
 ```
 
