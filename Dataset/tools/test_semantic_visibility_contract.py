@@ -24,6 +24,18 @@ from run_semantic_70_dual_view_tick100 import (  # noqa: E402
     output_dir,
     uav_output_dir,
 )
+from run_semantic_event_chain_every10 import (  # noqa: E402
+    DEFAULT_CAPTURE_PRESETS,
+    DEFAULT_OUTPUT_ROOT as EVENT_CHAIN_DEFAULT_OUTPUT_ROOT,
+    DEFAULT_SUMMARY_PATH as EVENT_CHAIN_DEFAULT_SUMMARY_PATH,
+    event_chain_capture_ticks,
+    event_chain_output_dir,
+    event_chain_uav_output_dir,
+    filter_event_chain_capture_presets,
+    runtime_uav_active_ticks_by_entity,
+    validate_contract,
+    write_guarded_config,
+)
 
 
 CLASS_NAME_TO_ID = {
@@ -235,6 +247,121 @@ class FormalCapturePathContractTest(unittest.TestCase):
 
         self.assertEqual(output_dir(root, 69, episode, "high_overview"), root / "hi" / "e69")
         self.assertEqual(uav_output_dir(root, 69, episode, view_id), root / "uav" / "e69" / "v000")
+
+
+class EventChainCaptureContractTest(unittest.TestCase):
+    def test_event_chain_outputs_are_short_and_stable(self) -> None:
+        root = Path("F:/aw_cap")
+        view_id = "uav_view_012__uav_observer_x6_crowd_evacuation_to_airspace_lockdown_3"
+
+        self.assertEqual(event_chain_output_dir(root, 69, "high_overview_rgb"), root / "hi" / "e69")
+        self.assertEqual(event_chain_uav_output_dir(root, 69, view_id), root / "uav" / "e69" / "v012")
+
+    def test_every10_tick_selection_and_uav_active_ticks_are_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            episode_dir = Path(tmp) / "episode_event_chain"
+            episode_dir.mkdir()
+            write_json(
+                episode_dir / "global_entity_roster.json",
+                {
+                    "entities": [
+                        {"entity_id": "uav_alpha", "entity_category": "uav", "mode": "runtime_multirotor"},
+                        {"entity_id": "uav_static", "entity_category": "uav", "mode": "metadata_only"},
+                    ]
+                },
+            )
+            frames = []
+            for tick in (0, 10, 20):
+                entities = []
+                if tick != 10:
+                    entities.append(
+                        {
+                            "entity_id": "uav_alpha",
+                            "entity_category": "uav",
+                            "render_presence": {"submission_state": "submit_to_ue", "visibility_state": "visible"},
+                        }
+                    )
+                frames.append(json.dumps({"tick": tick, "entities": entities}))
+            (episode_dir / "truth_frames.jsonl").write_text("\n".join(frames) + "\n", encoding="utf-8")
+
+            ticks = event_chain_capture_ticks(episode_dir, tick_start=0, tick_end=20, tick_step=10, strict=True)
+            active = runtime_uav_active_ticks_by_entity(episode_dir, ticks)
+
+            self.assertEqual(ticks, [0, 10, 20])
+            self.assertEqual(active["uav_alpha"], [0, 20])
+            self.assertNotIn("uav_static", active)
+            with self.assertRaises(RuntimeError):
+                event_chain_capture_ticks(episode_dir, tick_start=0, tick_end=30, tick_step=10, strict=True)
+
+    def test_event_chain_capture_presets_keep_only_high_rgb_overviews(self) -> None:
+        presets = filter_event_chain_capture_presets(DEFAULT_CAPTURE_PRESETS)
+        for cameras in presets["ground_cameras"].values():
+            self.assertGreaterEqual(len(cameras), 1)
+            for camera in cameras:
+                self.assertTrue(str(camera.get("camera_id", "")).endswith("overview_top"))
+                self.assertEqual(camera.get("modalities"), ["rgb"])
+
+    def test_formal_event_chain_paths_are_exact_contract_defaults(self) -> None:
+        class Args:
+            output_root = EVENT_CHAIN_DEFAULT_OUTPUT_ROOT
+            summary = EVENT_CHAIN_DEFAULT_SUMMARY_PATH
+            segmentation_backend = "ue_custom_stencil"
+            uav_modalities = ["rgb", "depth", "seg"]
+            tick_start = 0
+            tick_step = 10
+            allow_nonstandard_tick_step = False
+            max_private_memory_gb = 20.0
+            max_working_set_gb = 20.0
+            host_run_timeout_s = 300.0
+            capture_ticks_per_host_run = 16
+            allow_single_host_full_chain = False
+
+        contract = {
+            "defaults": {
+                "output_root": "F:/aw_cap",
+                "summary": "F:/aw_cap_summary.csv",
+                "max_private_memory_gb": 20.0,
+                "max_working_set_gb": 20.0,
+                "host_run_timeout_s": 300.0,
+            },
+            "must_follow": {"output_root_must_be_f_drive_root": True},
+        }
+
+        validate_contract(Args, contract)
+        Args.output_root = Path("F:/not_aw_cap")
+        with self.assertRaises(RuntimeError):
+            validate_contract(Args, contract)
+
+    def test_guarded_config_forces_single_batch_window(self) -> None:
+        class Args:
+            output_root: Path
+            editor_hook_capture_timeout_s = 90.0
+            uav_control_backend = "pose_sync"
+            tick_start = 0
+            tick_end = 900
+            tick_step = 10
+            capture_ticks_per_host_run = 16
+            uav_modalities = ["rgb", "depth", "seg"]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            episode_dir = root / "episode"
+            episode_dir.mkdir()
+            write_json(
+                episode_dir / "render_host_config.json",
+                {
+                    "batch_strategy": {"sites": ["site.intersection_a"], "tick_window_size": 12},
+                    "timeouts": {},
+                },
+            )
+            Args.output_root = root / "out"
+            presets_path = root / "presets.json"
+            write_json(presets_path, {"ground_cameras": {}})
+
+            guarded = write_guarded_config(Args, episode_dir, 0, presets_path)
+            payload = json.loads(guarded.read_text(encoding="utf-8"))
+
+            self.assertEqual(payload["batch_strategy"]["tick_window_size"], 0)
 
 
 class SemanticVisibilityOutputContractTest(unittest.TestCase):

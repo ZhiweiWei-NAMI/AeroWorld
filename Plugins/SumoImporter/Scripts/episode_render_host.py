@@ -4676,6 +4676,10 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         if resolved_output in self.prepared_capture_output_dirs:
             ensure_dir(resolved_output)
             return
+        if bool(getattr(self.args, "preserve_capture_output_dir", False)):
+            ensure_dir(resolved_output)
+            self.prepared_capture_output_dirs.add(resolved_output)
+            return
         if resolved_output.exists():
             shutil.rmtree(resolved_output)
         ensure_dir(resolved_output)
@@ -6635,6 +6639,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max_batches", type=int, default=0, help="Run only the first N matching batches")
     parser.add_argument("--tick_stride", type=int, default=1, help="Capture every Nth tick. Simulation still updates every tick by default")
     parser.add_argument("--simulation_tick_stride", type=int, default=1, help="Advance runtime state every Nth tick; keep 1 for smooth actor motion")
+    parser.add_argument(
+        "--preserve_capture_output_dir",
+        action="store_true",
+        help="Do not clear modality output directories before writing; callers must clean deterministic targets first.",
+    )
     parser.add_argument(
         "--capture_tick",
         action="append",
