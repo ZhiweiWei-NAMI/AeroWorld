@@ -38,6 +38,10 @@ class FatalRuntimeUnavailable(RuntimeError):
     pass
 
 
+class HostRunTimeout(RuntimeError):
+    pass
+
+
 @dataclass
 class GuardStats:
     ue_working_set_gb_peak: float = 0.0
@@ -350,7 +354,7 @@ def run_child_with_guards(
             if time.monotonic() >= deadline:
                 _kill_process(process)
                 log.write(f"\n[RunnerGuard] {label} timed out after {args.host_run_timeout_s:.1f}s.\n")
-                raise RuntimeError(f"{label} timed out after {args.host_run_timeout_s:.1f}s; log={log_path}")
+                raise HostRunTimeout(f"{label} timed out after {args.host_run_timeout_s:.1f}s; log={log_path}")
             time.sleep(max(0.5, float(args.host_guard_poll_s)))
 
 
@@ -625,13 +629,30 @@ def run_host_chunks(
     label: str,
 ) -> HostRunResult:
     result = HostRunResult()
-    for chunk_index, tick_chunk in enumerate(chunk_ticks(capture_ticks, int(args.capture_ticks_per_host_run))):
+
+    def run_tick_chunk(tick_chunk: list[int], log_suffix: str, chunk_label: str) -> None:
         command = list(base_command)
         command.extend(["--start_tick", str(args.tick_start), "--end_tick", str(max(tick_chunk))])
         for tick in tick_chunk:
             command.extend(["--capture_tick", str(int(tick))])
-        log_path = log_dir / f"{log_stem}_chunk{chunk_index:03d}.log"
-        return_code, stats = run_child_with_guards(command, args=args, log_path=log_path, label=f"{label} chunk {chunk_index}")
+        log_path = log_dir / f"{log_stem}_{log_suffix}.log"
+        try:
+            return_code, stats = run_child_with_guards(command, args=args, log_path=log_path, label=chunk_label)
+        except HostRunTimeout:
+            result.log_paths.append(log_path)
+            if len(tick_chunk) <= 1:
+                raise
+            split_at = max(1, len(tick_chunk) // 2)
+            left = tick_chunk[:split_at]
+            right = tick_chunk[split_at:]
+            print(
+                f"  {label}: timeout on {log_suffix}; retrying as "
+                f"{left[0]}..{left[-1]} and {right[0]}..{right[-1]}",
+                flush=True,
+            )
+            run_tick_chunk(left, f"{log_suffix}_retry_a", f"{chunk_label} retry a")
+            run_tick_chunk(right, f"{log_suffix}_retry_b", f"{chunk_label} retry b")
+            return
         result.log_paths.append(log_path)
         result.stats.absorb(stats)
         if return_code != 0:
@@ -640,6 +661,9 @@ def run_host_chunks(
                 raise FatalRuntimeUnavailable(f"episode_render_host lost runtime connectivity; log={log_path}")
             raise RuntimeError(f"episode_render_host failed rc={return_code}; log={log_path}")
         assert_runtime_available(args)
+
+    for chunk_index, tick_chunk in enumerate(chunk_ticks(capture_ticks, int(args.capture_ticks_per_host_run))):
+        run_tick_chunk(tick_chunk, f"chunk{chunk_index:03d}", f"{label} chunk {chunk_index}")
     return result
 
 
@@ -1261,6 +1285,7 @@ def print_plan(plans: list[EpisodePlan], args: argparse.Namespace) -> None:
     print(f"  episodes={len(plans)}", flush=True)
     print(f"  tick_start={args.tick_start} tick_end={args.tick_end} tick_step={args.tick_step}", flush=True)
     print(f"  capture_ticks_per_host_run={args.capture_ticks_per_host_run}", flush=True)
+    print(f"  host_run_timeout_s={args.host_run_timeout_s}", flush=True)
     print(f"  primary_high_rgb_files={total_high}", flush=True)
     print(f"  primary_uav_files={total_uav}", flush=True)
     print(f"  primary_data_files_total={total_high + total_uav}", flush=True)
@@ -1286,7 +1311,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--start-index", type=int, default=0)
     parser.add_argument("--editor-hook-capture-timeout-s", type=float, default=90.0)
-    parser.add_argument("--host-run-timeout-s", type=float, default=300.0)
+    parser.add_argument("--host-run-timeout-s", type=float, default=900.0)
     parser.add_argument("--host-guard-poll-s", type=float, default=2.0)
     parser.add_argument("--max-working-set-gb", type=float, default=20.0)
     parser.add_argument("--max-private-memory-gb", type=float, default=20.0)
