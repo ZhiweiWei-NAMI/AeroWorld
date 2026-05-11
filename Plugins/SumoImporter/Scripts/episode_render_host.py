@@ -4046,6 +4046,11 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                 "AirSim native UAV capture requires exactly one explicit --airsim-capture-entity. "
                 "High-overview/fixed-world captures should run without camera-role uav."
             )
+        if not self.requested_capture_view_id:
+            raise RuntimeError(
+                "AirSim native UAV capture requires explicit stable --capture-view-id. "
+                "No deterministic fallback capture view id is allowed."
+            )
         candidate_ticks = sorted(capture_ticks) if capture_ticks else [batch.tick_start]
         for tick in candidate_ticks:
             frame = self.frames_by_tick.get(int(tick))
@@ -4061,7 +4066,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             )
         if not self.active_airsim_capture_entity_id:
             raise RuntimeError(f"AirSim native UAV capture requested but no active runtime UAV exists in batch {batch.batch_id}.")
-        self.active_capture_view_id = self.requested_capture_view_id or f"uav_view_000__{safe_name(self.active_airsim_capture_entity_id)}"
+        self.active_capture_view_id = self.requested_capture_view_id
         print(
             "[EpisodeHost] AirSim native capture source "
             f"entity={self.active_airsim_capture_entity_id} vehicle={self.airsim_capture_vehicle} "
@@ -5400,7 +5405,12 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "target_count": len(self.event_semantic_proxy_capture_targets),
             }
         camera_suffix = safe_name(str(preset.get("camera_id_suffix", camera_name)))
-        view_id = self.requested_capture_view_id or f"{safe_name(self.active_capture_view_id)}__{camera_suffix}"
+        if not self.requested_capture_view_id:
+            raise RuntimeError(
+                "AirSim native UAV capture requires explicit stable --capture-view-id. "
+                "No deterministic fallback capture view id is allowed."
+            )
+        view_id = self.requested_capture_view_id
         if uses_ue_custom_stencil:
             hook = self._fixed_world_capture_hook()
             output_dir = self._uav_capture_view_output_dir(view_id) / "seg"

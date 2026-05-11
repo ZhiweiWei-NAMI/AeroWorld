@@ -9,6 +9,7 @@ event_script.json as the event/motion source.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import math
@@ -22,6 +23,40 @@ from pedestrian_activity_catalog import get_activity, normalize_activity_type
 
 TICK_HZ = 10
 DEFAULT_DURATION_TICKS = 900
+WEATHER_PROFILES: dict[str, dict[str, Any]] = {
+    "clear": {"condition": "clear", "rain": 0.0, "fog": 0.0, "fog_density": 0.0, "wind_speed": 2.0, "visibility_m": 20000.0, "visibility": 20000.0},
+    "rain": {"condition": "rain", "rain": 0.55, "fog": 0.0, "fog_density": 0.0, "wind_speed": 4.0, "visibility_m": 2200.0, "visibility": 2200.0, "wetness": 0.75},
+    "fog": {"condition": "fog", "rain": 0.0, "fog": 0.6, "fog_density": 0.6, "wind_speed": 2.0, "visibility_m": 650.0, "visibility": 650.0},
+    "wind": {"condition": "wind", "rain": 0.0, "fog": 0.0, "fog_density": 0.0, "wind_speed": 12.5, "visibility_m": 20000.0, "visibility": 20000.0},
+    "dusk": {"condition": "dusk", "rain": 0.0, "fog": 0.0, "fog_density": 0.0, "wind_speed": 2.0, "visibility_m": 12000.0, "visibility": 12000.0},
+    "heat": {"condition": "heat", "rain": 0.0, "fog": 0.0, "fog_density": 0.0, "wind_speed": 2.0, "visibility_m": 18000.0, "visibility": 18000.0},
+    "light smoke": {"condition": "light smoke", "rain": 0.0, "fog": 0.18, "fog_density": 0.18, "wind_speed": 2.0, "visibility_m": 3500.0, "visibility": 3500.0, "dust": 0.25},
+}
+PRESERVED_ENTITY_FIELDS = (
+    "task_id",
+    "role",
+    "state_sequence",
+    "semantic_role",
+    "background_role",
+    "contract_scenario_id",
+    "contract_inspect_uav",
+    "background_vehicle",
+    "background_pedestrian",
+    "contract_facility",
+    "contract_logical_sidecar",
+    "uav_corridor_role",
+    "uav_corridor",
+    "assigned_altitude_m",
+    "inspect_altitude_code",
+    "inspect_altitude_m",
+    "min_path_length_m",
+    "full_episode_presence",
+    "lifecycle",
+    "activation_tick",
+    "spawn_policy",
+    "category",
+    "route_waypoints_enu_m",
+)
 
 
 def read_json(path: Path) -> Any:
@@ -47,6 +82,10 @@ def project_relative(path: Path, dataset_root: Path) -> str:
         return str(path.resolve())
 
 
+def remove_prefix(value: str, prefix: str) -> str:
+    return value[len(prefix) :] if value.startswith(prefix) else value
+
+
 def resolve_param(value: Any, params: dict[str, Any]) -> Any:
     if isinstance(value, str) and value.startswith("$param."):
         return params.get(value[len("$param.") :], value)
@@ -68,6 +107,10 @@ def vector3(value: Any, default: Sequence[float] = (0.0, 0.0, 0.0)) -> list[floa
 
 def distance3(a: Sequence[float], b: Sequence[float]) -> float:
     return math.sqrt(sum((float(a[i]) - float(b[i])) ** 2 for i in range(3)))
+
+
+def path_length_m(points: Sequence[Sequence[float]]) -> float:
+    return sum(distance3(a, b) for a, b in zip(points, points[1:]))
 
 
 def stable_unit_interval(seed_text: str) -> float:
@@ -427,52 +470,6 @@ def position_from_placement(entity: dict[str, Any]) -> list[float]:
     return [50.0, 20.0, 0.0]
 
 
-def event_ticks(script: dict[str, Any]) -> dict[str, int]:
-    params = dict(script.get("parameters") or {})
-    triggers = {str(trigger.get("trigger_id")): dict(trigger) for trigger in script.get("triggers", [])}
-    events = list(script.get("events") or [])
-    resolved: dict[str, int] = {}
-
-    def trigger_tick(trigger_id: str, stack: set[str] | None = None) -> int:
-        stack = stack or set()
-        if trigger_id in stack:
-            return 0
-        trigger = triggers.get(trigger_id) or {}
-        ttype = str(trigger.get("type") or "")
-        if ttype == "tick":
-            value = resolve_param(trigger.get("tick", 0), params)
-            try:
-                return max(0, int(value))
-            except (TypeError, ValueError):
-                return 0
-        if ttype == "event_fired_after":
-            return resolved.get(str(trigger.get("event_id") or ""), 0) + int(trigger.get("delay_ticks") or 0)
-        if ttype == "event_fired":
-            return resolved.get(str(trigger.get("event_id") or ""), 0) + 1
-        if ttype == "composite":
-            child_ticks = [trigger_tick(str(child), stack | {trigger_id}) for child in trigger.get("children", [])]
-            return max(child_ticks) if child_ticks else 0
-        if ttype == "weather_state":
-            return 300
-        if ttype == "entity_proximity":
-            return 300
-        return 0
-
-    for _ in range(max(1, len(events))):
-        changed = False
-        for event in events:
-            event_id = str(event.get("event_id") or "")
-            if not event_id:
-                continue
-            tick = trigger_tick(str(event.get("trigger_ref") or ""))
-            if resolved.get(event_id) != tick:
-                resolved[event_id] = tick
-                changed = True
-        if not changed:
-            break
-    return resolved
-
-
 def _state_label(state: str, *, pedestrian: bool, moving: bool = False) -> str:
     if pedestrian:
         return normalize_activity_type(state, moving=moving)
@@ -526,6 +523,8 @@ def keyframes_for(
             pedestrian=pedestrian,
         )
         _append_frame(frames, start_tick, current_pos, moving_activity, pedestrian=pedestrian, moving=True)
+        if schedule.get("start_pos_enu") is not None:
+            current_pos = vector3(schedule.get("start_pos_enu"), current_pos)
         for waypoint_index, waypoint in enumerate(waypoints):
             target = vector3(waypoint, current_pos)
             distance = distance3(current_pos, target)
@@ -560,9 +559,131 @@ def sample_keyframes(frames: list[tuple[int, list[float], str]], tick: int) -> t
     return list(frames[-1][1]), [0.0, 0.0, 0.0], frames[-1][2]
 
 
+def preserved_fields_from(*sources: dict[str, Any]) -> dict[str, Any]:
+    preserved: dict[str, Any] = {}
+    for field in PRESERVED_ENTITY_FIELDS:
+        for source in sources:
+            if field in source and source[field] not in (None, ""):
+                preserved[field] = copy.deepcopy(source[field])
+                break
+            for nested_key in ("initial_state", "visual_state"):
+                nested = source.get(nested_key)
+                if isinstance(nested, dict) and field in nested and nested[field] not in (None, ""):
+                    preserved[field] = copy.deepcopy(nested[field])
+                    break
+            if field in preserved:
+                break
+    return preserved
+
+
+def weather_payload(profile: str, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+    key = str(profile or "clear").strip().lower()
+    payload = copy.deepcopy(WEATHER_PROFILES.get(key))
+    if payload is None:
+        raise RuntimeError(f"Unknown deterministic weather profile: {profile}")
+    payload["condition"] = str(profile or payload.get("condition") or key)
+    for field, value in dict(overrides or {}).items():
+        payload[field] = value
+        if field == "visibility_m":
+            payload["visibility"] = value
+        elif field == "visibility":
+            payload["visibility_m"] = value
+        elif field == "fog":
+            payload["fog_density"] = value
+        elif field == "fog_density":
+            payload["fog"] = value
+    if "visibility_m" not in payload and "visibility" in payload:
+        payload["visibility_m"] = payload["visibility"]
+    if "visibility" not in payload and "visibility_m" in payload:
+        payload["visibility"] = payload["visibility_m"]
+    if "fog" not in payload and "fog_density" in payload:
+        payload["fog"] = payload["fog_density"]
+    if "fog_density" not in payload and "fog" in payload:
+        payload["fog_density"] = payload["fog"]
+    return payload
+
+
+def initial_weather_state(scene_setup: dict[str, Any]) -> dict[str, Any]:
+    profile = dict(scene_setup.get("weather_profile") or {})
+    return weather_payload(str(profile.get("initial") or "clear"))
+
+
+def scheduled_weather_transitions(scene_setup: dict[str, Any]) -> dict[int, list[dict[str, Any]]]:
+    transitions: dict[int, list[dict[str, Any]]] = {}
+    for transition in (scene_setup.get("weather_profile") or {}).get("transitions") or []:
+        tick = _to_int(transition.get("tick"), 0)
+        if tick < 0:
+            raise RuntimeError(f"Weather transition tick is negative: {transition}")
+        transitions.setdefault(tick, []).append(
+            weather_payload(str(transition.get("profile") or "clear"), dict(transition.get("overrides") or {}))
+        )
+    return transitions
+
+
+def row_activity_payload(label_class: str, state: str) -> dict[str, Any]:
+    if label_class == "pedestrian":
+        activity = get_activity(state)
+        return {
+            "activity_type": activity.activity_type,
+            "animation_hint": activity.animation_hint,
+            "posture": activity.posture,
+            "social_state": activity.social_state,
+        }
+    return {
+        "activity_type": state,
+        "animation_hint": state,
+        "posture": "standing",
+        "social_state": "solo",
+    }
+
+
+def route_motion_schedule(
+    *,
+    scenario_id: str,
+    entity_id: str,
+    label_class: str,
+    initial_pos: Sequence[float],
+    route_waypoints: list[Any],
+    initial_state: str,
+) -> list[dict[str, Any]]:
+    if not route_waypoints:
+        return []
+    velocity = 4.0
+    if label_class == "uav":
+        velocity = 5.0
+    elif label_class == "vehicle":
+        velocity = 6.0
+    elif label_class == "pedestrian":
+        velocity = 1.25
+    activity_type = initial_state
+    post_activity_type = initial_state
+    if label_class == "pedestrian":
+        activity_type = normalize_activity_type("walking", moving=True)
+        post_activity_type = normalize_activity_type(initial_state or "waiting")
+    return [
+        {
+            "type": "move",
+            "tick": 0,
+            "waypoints_enu_m": [vector3(waypoint) for waypoint in route_waypoints],
+            "velocity_mps": velocity,
+            "activity_type": activity_type,
+            "post_activity_type": post_activity_type,
+            "source": "scene_setup.route_waypoints_enu_m",
+            "action_id": f"{scenario_id}.{entity_id}.route_waypoints",
+            "start_pos_enu": vector3(initial_pos),
+        }
+    ]
+
+
 def build_entities(scene_setup: dict[str, Any], script: dict[str, Any]) -> dict[str, dict[str, Any]]:
     entities: dict[str, dict[str, Any]] = {}
     scenario_id = str(script.get("scenario_id") or "")
+    event_move_targets = {
+        str(action.get("entity_id") or "")
+        for event in script.get("events") or []
+        for action in event.get("actions") or []
+        if str(action.get("type") or "") == "move_entity"
+    }
     for scene_entity in scene_setup.get("entities") or []:
         entity_id = str(scene_entity.get("entity_id") or scene_entity.get("instance_id") or "")
         if not entity_id:
@@ -580,168 +701,301 @@ def build_entities(scene_setup: dict[str, Any], script: dict[str, Any]) -> dict[
         )
         if logical_asset_id.startswith("pedestrian.") or category == "pedestrian":
             initial_activity = normalize_activity_type(str(initial_activity or "waiting"))
+        label_class = label_class_for(entity_id, logical_asset_id, category)
+        position = position_from_placement(scene_entity)
+        preserved = preserved_fields_from(scene_entity)
+        role = str(preserved.get("role") or "")
+        auto_route = bool(scene_entity.get("route_waypoints_enu_m")) and (
+            entity_id not in event_move_targets
+            or bool(scene_entity.get("contract_inspect_uav"))
+            or bool(scene_entity.get("background_vehicle"))
+            or bool(scene_entity.get("background_pedestrian"))
+            or role in {"U_inspect", "semantic_background_vehicle", "semantic_background_pedestrian"}
+            or entity_id.startswith("uav_observer_")
+        )
         entities[entity_id] = {
             "entity_id": entity_id,
-            "pos": position_from_placement(scene_entity),
-            "label_class": label_class_for(entity_id, logical_asset_id, category),
+            "pos": position,
+            "label_class": label_class,
             "asset_id": logical_asset_id,
             "state": str(initial_activity or "idle"),
             "active_from": activation_tick if activation_tick > 0 or spawn_policy == "event_script_only" else 0,
-            "schedules": [],
-        }
-
-    ticks = event_ticks(script)
-    params = dict(script.get("parameters") or {})
-    for event_index, event in enumerate(script.get("events") or []):
-        tick = int(ticks.get(str(event.get("event_id") or ""), 0))
-        for action_index, action in enumerate(event.get("actions") or []):
-            atype = str(action.get("type") or "")
-            entity_id = str(resolve_param(action.get("entity_id", action.get("ped_id", "")), params) or "")
-            if not entity_id:
-                continue
-            if atype == "spawn_entity":
-                asset_id = str(resolve_param(action.get("asset_id", ""), params) or "")
-                position = vector3(resolve_param(action.get("position_enu_m", [50.0, 20.0, 0.0]), params))
-                if entity_id not in entities:
-                    raise RuntimeError(f"spawn_entity references undeclared entity {entity_id}")
-                entities.setdefault(
-                    entity_id,
-                    {
-                        "entity_id": entity_id,
-                        "pos": position,
-                        "label_class": label_class_for(entity_id, asset_id, ""),
-                        "asset_id": asset_id,
-                        "state": "idle",
-                        "active_from": tick,
-                        "schedules": [],
-                    },
-                )
-            if atype == "move_entity":
-                waypoints = resolve_param(action.get("waypoints_enu_m", []), params)
-                if entity_id not in entities:
-                    raise RuntimeError(f"move_entity references undeclared entity {entity_id}")
-                label_class = str(entities[entity_id].get("label_class") or "")
-                action_id = str(action.get("action_id") or f"{event.get('event_id', f'event_{event_index}')}_{action_index}")
-                activity_type = action.get("activity_type")
-                post_activity_type = action.get("post_activity_type")
-                if label_class == "pedestrian":
-                    activity_type = normalize_activity_type(str(activity_type or "walking"), moving=True)
-                    post_activity_type = normalize_activity_type(str(post_activity_type or "waiting"))
-                base_velocity = _to_float(action.get("velocity_mps", 1.0), 1.0)
-                start_pos = vector3(entities[entity_id]["pos"])
-                schedules = list(entities[entity_id].get("schedules") or [])
-                for prior_schedule in reversed(schedules):
-                    if str(prior_schedule.get("type") or "") != "move":
-                        continue
-                    prior_waypoints = list(prior_schedule.get("waypoints_enu_m") or [])
-                    if prior_waypoints:
-                        start_pos = vector3(prior_waypoints[-1], start_pos)
-                        break
-                varied_tick, varied_velocity, varied_waypoints = _apply_move_variation(
+            "scene_setup": copy.deepcopy(scene_entity),
+            "schedules": (
+                route_motion_schedule(
                     scenario_id=scenario_id,
                     entity_id=entity_id,
-                    action_id=action_id,
                     label_class=label_class,
-                    tick=tick,
-                    velocity_mps=base_velocity,
-                    start_pos=start_pos,
-                    waypoints=waypoints if isinstance(waypoints, list) else [],
-                    action=action,
-                    params=params,
+                    initial_pos=position,
+                    route_waypoints=list(scene_entity.get("route_waypoints_enu_m") or []),
+                    initial_state=str(initial_activity or "idle"),
                 )
-                entities[entity_id]["schedules"].append(
-                    {
-                        "type": "move",
-                        "tick": varied_tick,
-                        "waypoints_enu_m": varied_waypoints,
-                        "velocity_mps": varied_velocity,
-                        "activity_type": activity_type,
-                        "post_activity_type": post_activity_type,
-                    }
-                )
-            if atype == "set_pedestrian_activity":
-                if entity_id not in entities:
-                    raise RuntimeError(f"set_pedestrian_activity references undeclared entity {entity_id}")
-                activity_type = normalize_activity_type(str(action.get("activity_type") or "waiting"))
-                entities[entity_id]["schedules"].append(
-                    {
-                        "type": "activity",
-                        "tick": tick,
-                        "activity_type": activity_type,
-                    }
-                )
-            if atype == "play_animation" and entity_id not in entities:
-                raise RuntimeError(f"play_animation references undeclared entity {entity_id}")
+                if auto_route
+                else []
+            ),
+            **preserved,
+        }
     return entities
 
 
-def generate_trajectories(scene_setup: dict[str, Any], script: dict[str, Any], duration_ticks: int) -> list[dict[str, Any]]:
-    entities = build_entities(scene_setup, script)
-    keyframes = {
-        entity_id: keyframes_for(
+class EpisodeStateEngine:
+    def __init__(self, scene_setup: dict[str, Any], script: dict[str, Any], script_path: Path, duration_ticks: int) -> None:
+        self.scene_setup = scene_setup
+        self.script = script
+        self.script_path = script_path
+        self.duration_ticks = int(duration_ticks)
+        self.scenario_id = str(script.get("scenario_id") or script_path.parent.name)
+        self.params = dict(script.get("parameters") or {})
+        self.entities = build_entities(scene_setup, script)
+        self.keyframes: dict[str, list[tuple[int, list[float], str]]] = {
+            entity_id: self._frames_for_entity(entity)
+            for entity_id, entity in self.entities.items()
+        }
+        self.weather = initial_weather_state(scene_setup)
+        self.weather_transitions = scheduled_weather_transitions(scene_setup)
+        self.trajectory_rows: list[dict[str, Any]] = []
+        self.weather_rows: list[dict[str, Any]] = []
+        self.executed_actions: list[dict[str, Any]] = []
+
+    def _frames_for_entity(self, entity: dict[str, Any]) -> list[tuple[int, list[float], str]]:
+        return keyframes_for(
             vector3(entity["pos"]),
             list(entity.get("schedules") or []),
             str(entity.get("state") or "idle"),
             pedestrian=str(entity.get("label_class") or "") == "pedestrian",
         )
-        for entity_id, entity in entities.items()
-    }
-    rows: list[dict[str, Any]] = []
-    for tick in range(0, duration_ticks + 1, 10):
-        for entity_id, entity in sorted(entities.items()):
-            if tick < int(entity.get("active_from") or 0):
-                pos = vector3(entity["pos"])
-                vel = [0.0, 0.0, 0.0]
-                state = "offstage"
-            else:
-                pos, vel, state = sample_keyframes(keyframes[entity_id], tick)
-            rows.append(
+
+    def _refresh_entity_frames(self, entity_id: str) -> None:
+        self.keyframes[entity_id] = self._frames_for_entity(self.entities[entity_id])
+
+    def _entity_sample(self, entity_id: str, tick: int) -> tuple[list[float], list[float], str]:
+        entity = self.entities[entity_id]
+        if tick < int(entity.get("active_from") or 0):
+            return vector3(entity["pos"]), [0.0, 0.0, 0.0], "offstage"
+        return sample_keyframes(self.keyframes[entity_id], tick)
+
+    def _entity_pos_at(self, entity_id: str, tick: int) -> list[float]:
+        return self._entity_sample(entity_id, tick)[0]
+
+    def _append_action_result(self, action: dict[str, Any], status: str, **extra: Any) -> dict[str, Any]:
+        result = {"status": status, **extra}
+        self.executed_actions.append(
+            {
+                "tick": int(extra.get("tick", -1)),
+                "action_id": str(action.get("action_id") or ""),
+                "type": str(action.get("type") or ""),
+                "entity_id": str(action.get("entity_id") or action.get("ped_id") or ""),
+                "result": result,
+            }
+        )
+        return result
+
+    def _handle_move_entity(self, action: dict[str, Any], tick: int) -> dict[str, Any]:
+        entity_id = str(resolve_param(action.get("entity_id", ""), self.params) or "")
+        if entity_id not in self.entities:
+            raise RuntimeError(f"move_entity references undeclared entity {entity_id}")
+        entity = self.entities[entity_id]
+        label_class = str(entity.get("label_class") or "")
+        waypoints_raw = resolve_param(action.get("waypoints_enu_m", []), self.params)
+        waypoints = [vector3(point) for point in waypoints_raw] if isinstance(waypoints_raw, list) else []
+        if not waypoints:
+            raise RuntimeError(f"move_entity action has no waypoints: {action.get('action_id')}")
+        action_id = str(action.get("action_id") or f"{self.scenario_id}.{entity_id}.move_at_{tick}")
+        activity_type = action.get("activity_type")
+        post_activity_type = action.get("post_activity_type")
+        if label_class == "pedestrian":
+            activity_type = normalize_activity_type(str(activity_type or "walking"), moving=True)
+            post_activity_type = normalize_activity_type(str(post_activity_type or "waiting"))
+        current_pos = self._entity_pos_at(entity_id, tick)
+        varied_tick, varied_velocity, varied_waypoints = _apply_move_variation(
+            scenario_id=self.scenario_id,
+            entity_id=entity_id,
+            action_id=action_id,
+            label_class=label_class,
+            tick=tick,
+            velocity_mps=_to_float(action.get("velocity_mps", 1.0), 1.0),
+            start_pos=current_pos,
+            waypoints=waypoints,
+            action=action,
+            params=self.params,
+        )
+        schedule = {
+            "type": "move",
+            "tick": varied_tick,
+            "waypoints_enu_m": varied_waypoints,
+            "velocity_mps": varied_velocity,
+            "activity_type": activity_type,
+            "post_activity_type": post_activity_type,
+            "source": "event_script.move_entity",
+            "source_event_tick": tick,
+            "action_id": action_id,
+            "start_pos_enu": current_pos,
+        }
+        entity.setdefault("schedules", []).append(schedule)
+        self._refresh_entity_frames(entity_id)
+        return self._append_action_result(
+            action,
+            "ok",
+            tick=tick,
+            scheduled_tick=varied_tick,
+            entity_id=entity_id,
+            path_length_m=round(path_length_m([current_pos, *varied_waypoints]), 6),
+        )
+
+    def _handle_set_visual_state(self, action: dict[str, Any], tick: int) -> dict[str, Any]:
+        entity_id = str(resolve_param(action.get("entity_id", ""), self.params) or "")
+        if entity_id not in self.entities:
+            raise RuntimeError(f"set_visual_state references undeclared entity {entity_id}")
+        visual_state = dict(action.get("visual_state") or {})
+        mode = str(visual_state.get("mode") or action.get("mode") or "")
+        if mode:
+            self.entities[entity_id]["state"] = mode
+            self.entities[entity_id].setdefault("schedules", []).append(
                 {
+                    "type": "activity",
                     "tick": tick,
-                    "entity_id": entity_id,
-                    "label_class": entity["label_class"],
-                    "asset_id": entity["asset_id"],
-                    "pos_enu": [round(float(value), 6) for value in pos],
-                    "vel_mps": [round(float(value), 6) for value in vel],
-                    "state": state,
-                    "activity_type": get_activity(state).activity_type if entity["label_class"] == "pedestrian" else state,
-                    "animation_hint": get_activity(state).animation_hint if entity["label_class"] == "pedestrian" else state,
-                    "posture": get_activity(state).posture if entity["label_class"] == "pedestrian" else "standing",
-                    "social_state": get_activity(state).social_state if entity["label_class"] == "pedestrian" else "solo",
+                    "activity_type": mode,
+                    "source": "event_script.set_visual_state",
+                    "action_id": str(action.get("action_id") or ""),
                 }
             )
-    return rows
+            self._refresh_entity_frames(entity_id)
+        self.entities[entity_id].update(preserved_fields_from(visual_state))
+        return self._append_action_result(action, "ok", tick=tick, entity_id=entity_id, mode=mode)
 
+    def _handle_set_pedestrian_activity(self, action: dict[str, Any], tick: int) -> dict[str, Any]:
+        entity_id = str(resolve_param(action.get("entity_id", action.get("ped_id", "")), self.params) or "")
+        if entity_id not in self.entities:
+            raise RuntimeError(f"set_pedestrian_activity references undeclared entity {entity_id}")
+        activity_type = normalize_activity_type(str(action.get("activity_type") or "waiting"))
+        self.entities[entity_id]["state"] = activity_type
+        self.entities[entity_id].setdefault("schedules", []).append(
+            {
+                "type": "activity",
+                "tick": tick,
+                "activity_type": activity_type,
+                "source": "event_script.set_pedestrian_activity",
+                "action_id": str(action.get("action_id") or ""),
+            }
+        )
+        self._refresh_entity_frames(entity_id)
+        return self._append_action_result(action, "ok", tick=tick, entity_id=entity_id, activity_type=activity_type)
 
-def generate_weather(script: dict[str, Any], duration_ticks: int) -> list[dict[str, Any]]:
-    current = {"rain": 0.0, "fog": 0.0, "wind_speed": 2.0, "visibility_m": 20000.0}
-    params = dict(script.get("parameters") or {})
-    changes: dict[int, dict[str, Any]] = {}
-    trigger_by_id = {str(t.get("trigger_id")): dict(t) for t in script.get("triggers") or []}
-    for event in script.get("events") or []:
-        trigger = trigger_by_id.get(str(event.get("trigger_ref") or "")) or {}
-        tick = 0
-        if str(trigger.get("type") or "") == "tick":
-            try:
-                tick = int(resolve_param(trigger.get("tick", 0), params))
-            except (TypeError, ValueError):
-                tick = 0
-        for action in event.get("actions") or []:
-            if action.get("type") == "set_weather":
-                changes.setdefault(tick, {}).update(dict(action.get("overrides") or {}))
-    for trigger in script.get("triggers") or []:
-        if trigger.get("type") != "weather_state":
-            continue
-        parameter = str(trigger.get("parameter") or "")
-        if parameter:
-            changes.setdefault(300, {})[parameter] = resolve_param(trigger.get("value", 0.0), params)
+    def _handle_set_weather(self, action: dict[str, Any], tick: int) -> dict[str, Any]:
+        profile = str(action.get("profile") or "clear")
+        self.weather = weather_payload(profile, dict(action.get("overrides") or {}))
+        return self._append_action_result(action, "ok", tick=tick, profile=profile)
 
-    rows: list[dict[str, Any]] = []
-    for tick in range(0, duration_ticks + 1, 10):
-        if tick in changes:
-            current.update(changes[tick])
-        rows.append({"tick": tick, **current})
-    return rows
+    def _handle_spawn_entity(self, action: dict[str, Any], tick: int) -> dict[str, Any]:
+        entity_id = str(resolve_param(action.get("entity_id", ""), self.params) or "")
+        if entity_id not in self.entities:
+            raise RuntimeError(f"spawn_entity references undeclared entity {entity_id}")
+        position = vector3(resolve_param(action.get("position_enu_m", self.entities[entity_id]["pos"]), self.params))
+        entity = self.entities[entity_id]
+        entity["pos"] = position
+        entity["active_from"] = tick
+        if action.get("asset_id"):
+            entity["asset_id"] = str(resolve_param(action.get("asset_id"), self.params) or entity.get("asset_id") or "")
+        entity.setdefault("schedules", []).append(
+            {
+                "type": "activity",
+                "tick": tick,
+                "activity_type": str((action.get("visual_state") or {}).get("mode") or entity.get("state") or "spawned"),
+                "source": "event_script.spawn_entity",
+                "action_id": str(action.get("action_id") or ""),
+            }
+        )
+        self._refresh_entity_frames(entity_id)
+        return self._append_action_result(action, "ok", tick=tick, entity_id=entity_id)
+
+    def _handle_capture_screenshot(self, action: dict[str, Any], tick: int) -> dict[str, Any]:
+        return self._append_action_result(action, "ok", tick=tick, capture_id=str(action.get("action_id") or action.get("camera_id") or ""))
+
+    def _handle_noop(self, action: dict[str, Any], tick: int) -> dict[str, Any]:
+        atype = str(action.get("type") or "")
+        if atype in {"sequence", "remove_entity", "play_animation", "spawn_crowd"}:
+            return self._append_action_result(action, "ok", tick=tick)
+        raise RuntimeError(f"Unhandled deterministic event action type: {atype}")
+
+    def _row_for_entity(self, entity_id: str, tick: int) -> dict[str, Any]:
+        entity = self.entities[entity_id]
+        pos, vel, state = self._entity_sample(entity_id, tick)
+        row = {
+            "tick": tick,
+            "entity_id": entity_id,
+            "label_class": entity["label_class"],
+            "asset_id": entity["asset_id"],
+            "pos_enu": [round(float(value), 6) for value in pos],
+            "vel_mps": [round(float(value), 6) for value in vel],
+            "state": state,
+            **row_activity_payload(str(entity["label_class"]), state),
+        }
+        row.update(preserved_fields_from(entity))
+        return row
+
+    def _record_tick_rows(self, tick: int) -> list[dict[str, Any]]:
+        rows = [self._row_for_entity(entity_id, tick) for entity_id in sorted(self.entities)]
+        self.trajectory_rows.extend(rows)
+        weather_row = {"tick": tick, **copy.deepcopy(self.weather)}
+        self.weather_rows.append(weather_row)
+        return rows
+
+    def run(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]]]:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "Plugins" / "SumoImporter" / "Scripts"))
+        from donghu_core.event_script_interpreter import EventScriptInterpreter
+
+        interpreter = EventScriptInterpreter(self.script_path)
+        current_tick = 0
+        interpreter.register_handler("move_entity", lambda action: self._handle_move_entity(action, current_tick))
+        interpreter.register_handler("set_visual_state", lambda action: self._handle_set_visual_state(action, current_tick))
+        interpreter.register_handler("set_pedestrian_activity", lambda action: self._handle_set_pedestrian_activity(action, current_tick))
+        interpreter.register_handler("set_weather", lambda action: self._handle_set_weather(action, current_tick))
+        interpreter.register_handler("spawn_entity", lambda action: self._handle_spawn_entity(action, current_tick))
+        interpreter.register_handler("capture_screenshot", lambda action: self._handle_capture_screenshot(action, current_tick))
+        interpreter.register_handler("remove_entity", lambda action: self._handle_noop(action, current_tick))
+        interpreter.register_handler("sequence", lambda action: self._handle_noop(action, current_tick))
+        interpreter.register_handler("play_animation", lambda action: self._handle_noop(action, current_tick))
+        interpreter.register_handler("spawn_crowd", lambda action: self._handle_noop(action, current_tick))
+
+        for tick in range(self.duration_ticks + 1):
+            current_tick = tick
+            for payload in self.weather_transitions.get(tick, []):
+                self.weather = payload
+            rows = self._record_tick_rows(tick)
+            for row in rows:
+                interpreter.update_entity_state(row["entity_id"], row["pos_enu"], {}, row["vel_mps"])
+                if str(row.get("label_class") or "") == "pedestrian":
+                    interpreter.update_entity_activity(row["entity_id"], str(row.get("activity_type") or ""))
+            interpreter.update_weather_state(self.weather_rows[-1])
+            interpreter.tick(tick)
+
+        event_log = interpreter.get_event_log()
+        fired_event_ids = {
+            remove_prefix(str(row.get("topic") or row.get("source_event_id") or ""), f"evt_{self.scenario_id}_")
+            for row in event_log
+        }
+        logged_event_topics = {str(row.get("topic") or "") for row in event_log}
+        missing: list[str] = []
+        for event_def in self.script.get("events") or []:
+            event_id = str(event_def.get("event_id") or "")
+            if not event_id:
+                continue
+            log_event = dict(event_def.get("log_event") or {})
+            topic = str(log_event.get("topic") or event_id)
+            if topic not in logged_event_topics and event_id not in fired_event_ids:
+                missing.append(event_id)
+        if missing:
+            raise RuntimeError(f"{self.scenario_id}: declared events did not fire in deterministic episode simulation: {missing}")
+
+        roster: dict[str, dict[str, Any]] = {}
+        for entity_id, entity in sorted(self.entities.items()):
+            roster[entity_id] = {
+                "entity_id": entity_id,
+                "label_class": entity["label_class"],
+                "asset_id": entity["asset_id"],
+                **preserved_fields_from(entity),
+            }
+        return self.trajectory_rows, self.weather_rows, event_log, roster
 
 
 def generate_episode(script_path: Path, episode_dir: Path, dataset_root: Path, seed: int = 0, skip_graphs: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -754,38 +1008,11 @@ def generate_episode(script_path: Path, episode_dir: Path, dataset_root: Path, s
     scenario_id = str(script.get("scenario_id") or script_path.parent.name)
     duration = int(script.get("parameters", {}).get("duration_ticks") or DEFAULT_DURATION_TICKS)
 
-    trajectories = generate_trajectories(scene_setup, script, duration)
-    weather = generate_weather(script, duration)
+    engine = EpisodeStateEngine(scene_setup, script, script_path, duration)
+    trajectories, weather, event_log, roster = engine.run()
     write_jsonl(episode_dir / "trajectories.jsonl", trajectories)
     write_jsonl(episode_dir / "weather_meta.jsonl", weather)
-
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "Plugins" / "SumoImporter" / "Scripts"))
-    from donghu_core.event_script_interpreter import EventScriptInterpreter
-
-    by_tick: dict[int, list[dict[str, Any]]] = {}
-    for row in trajectories:
-        by_tick.setdefault(int(row["tick"]), []).append(row)
-    weather_by_tick = {int(row["tick"]): row for row in weather}
-    interpreter = EventScriptInterpreter(script_path)
-    for tick in range(duration + 1):
-        for row in by_tick.get(tick, []):
-            interpreter.update_entity_state(row["entity_id"], row["pos_enu"], {}, row["vel_mps"])
-        if tick in weather_by_tick:
-            interpreter.update_weather_state(weather_by_tick[tick])
-        interpreter.tick(tick)
-    event_log = interpreter.get_event_log()
     write_jsonl(episode_dir / "event_trace.jsonl", event_log)
-
-    roster: dict[str, dict[str, Any]] = {}
-    for row in trajectories:
-        roster.setdefault(
-            row["entity_id"],
-            {
-                "entity_id": row["entity_id"],
-                "label_class": row["label_class"],
-                "asset_id": row["asset_id"],
-            },
-        )
     write_json(episode_dir / "global_entity_roster.json", roster)
 
     manifest = {

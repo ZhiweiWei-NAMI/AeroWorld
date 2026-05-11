@@ -24,35 +24,35 @@ Each scenario directory contains:
 - Every episode must expose a captureable event chain in `event_script.json`, `event_trace.jsonl`, `dynamic_labels.jsonl`, and `truth_frames.jsonl`.
 - Every layer must include baseline background human, vehicle, and UAV context actors.
 - The layer-specific actor remains the semantic target; background context is support data.
-- Any code change should move through the Python chain first: `spec.py` -> `spec_compiler.py` -> `regenerate_boundary_scenarios.py` -> `batch_generate.py` -> `convert_to_render_ready.py` -> `batch_render_dataset.py` -> `run_semantic_event_chain_every10.py` -> `episode_render_host.py` -> validators.
+- Any code change should move through the Python chain first: `spec.py` -> `spec_compiler.py` -> `regenerate_boundary_scenarios.py` -> `batch_generate.py` -> `convert_to_render_ready.py` -> `run_semantic_event_chain_every10.py` -> `episode_render_host.py` -> validators.
 
 ## Directory Structure
 
 ```text
 Dataset/
-├── README.md
-├── taxonomy.json
-├── ontology.ttl
-├── coverage_report.md
-├── scenarios/
-│   ├── L1_airspace/              # 7 base variants
-│   ├── L2_infrastructure/        # 9 base variants
-│   ├── L3_dynamic_constraints/   # 5 base variants
-│   ├── L4_agents/                # 24 base variants
-│   ├── L5_environment/           # 9 base variants
-│   ├── L6_digital_layer/         # 10 base variants
-│   └── X_cross_layer/            # 6 cross-layer chains
-└── tools/
-    ├── spec_compiler.py
-    ├── regenerate_boundary_scenarios.py
-    ├── validate_coverage.py
-    ├── validate_scene_grounding.py
-    ├── batch_generate.py
-    ├── batch_render_dataset.py
-    ├── generate_graph_labels.py
-    ├── export_pyg.py
-    ├── export_rdf.py
-    └── statistics.py
+|-- README.md
+|-- taxonomy.json
+|-- ontology.ttl
+|-- coverage_report.md
+|-- scenarios/
+|   |-- L1_airspace/              # 7 base variants
+|   |-- L2_infrastructure/        # 9 base variants
+|   |-- L3_dynamic_constraints/   # 5 base variants
+|   |-- L4_agents/                # 24 base variants
+|   |-- L5_environment/           # 9 base variants
+|   |-- L6_digital_layer/         # 10 base variants
+|   `-- X_cross_layer/            # 6 cross-layer chains
+`-- tools/
+    |-- spec_compiler.py
+    |-- regenerate_boundary_scenarios.py
+    |-- validate_coverage.py
+    |-- validate_scene_grounding.py
+    |-- batch_generate.py
+    |-- run_semantic_event_chain_every10.py
+    |-- generate_graph_labels.py
+    |-- export_pyg.py
+    |-- export_rdf.py
+    `-- statistics.py
 ```
 
 ## Quick Start

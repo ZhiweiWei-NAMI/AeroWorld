@@ -49,6 +49,13 @@ ENTITY_PROFILES: dict[str, dict[str, str]] = {
         "logical_asset_id": "facility.radio.base_tower.v1",
         "mode": "scene_sync",
     },
+    "landing_pad": {
+        "entity_category": "facility",
+        "entity_kind": "facility.landing_pad",
+        "proxy_template_id": "proxy.facility_landing_pad",
+        "logical_asset_id": "facility.landing_pad.visible.v1",
+        "mode": "scene_sync",
+    },
     "traffic_light": {
         "entity_category": "traffic_light",
         "entity_kind": "traffic_light.signal",
@@ -61,6 +68,41 @@ ENTITY_PROFILES: dict[str, dict[str, str]] = {
         "entity_kind": "facility.charger",
         "proxy_template_id": "proxy.facility_charger",
         "logical_asset_id": "facility.charger.cityops.v1",
+        "mode": "scene_sync",
+    },
+    "barrier": {
+        "entity_category": "facility",
+        "entity_kind": "facility.barrier",
+        "proxy_template_id": "proxy.facility_barrier",
+        "logical_asset_id": "facility.barrier.basic",
+        "mode": "scene_sync",
+    },
+    "beacon": {
+        "entity_category": "facility",
+        "entity_kind": "facility.beacon",
+        "proxy_template_id": "proxy.traffic_light_signal",
+        "logical_asset_id": "prop.traffic_control.signal_light.v1",
+        "mode": "scene_sync",
+    },
+    "signal": {
+        "entity_category": "traffic_light",
+        "entity_kind": "traffic_light.signal",
+        "proxy_template_id": "proxy.traffic_light_signal",
+        "logical_asset_id": "prop.traffic_control.signal_light.v1",
+        "mode": "scene_sync",
+    },
+    "hazmat": {
+        "entity_category": "facility",
+        "entity_kind": "facility.hazmat_proxy",
+        "proxy_template_id": "proxy.hazmat_trigger_box",
+        "logical_asset_id": "semantic.trigger_box.extent_12_10_15.v1",
+        "mode": "scene_sync",
+    },
+    "hazard_trigger": {
+        "entity_category": "facility",
+        "entity_kind": "facility.hazmat_proxy",
+        "proxy_template_id": "proxy.hazmat_trigger_box",
+        "logical_asset_id": "semantic.trigger_box.extent_12_10_15.v1",
         "mode": "scene_sync",
     },
     "no_fly_zone": {
@@ -78,6 +120,33 @@ ENTITY_PROFILES: dict[str, dict[str, str]] = {
         "mode": "metadata_only",
     },
 }
+
+ENTITY_PROFILES_BY_ASSET_ID: dict[str, dict[str, str]] = {
+    "facility.charging_pile.basic": ENTITY_PROFILES["charging_pile"],
+    "facility.charger.cityops.v1": ENTITY_PROFILES["charging_pile"],
+    "facility.landing_pad.visible.v1": ENTITY_PROFILES["landing_pad"],
+    "facility.radio.base_tower.v1": ENTITY_PROFILES["radio_tower"],
+    "facility.barrier.basic": ENTITY_PROFILES["barrier"],
+    "prop.roadwork.barrier.v1": ENTITY_PROFILES["barrier"],
+    "prop.traffic_control.signal_light.v1": ENTITY_PROFILES["traffic_light"],
+    "semantic.trigger_box.extent_12_10_15.v1": ENTITY_PROFILES["hazard_trigger"],
+    "semantic.trigger_box.extent_12_9_15.v1": ENTITY_PROFILES["hazard_trigger"],
+    "semantic.trigger_box.extent_13_10_4.v1": ENTITY_PROFILES["hazard_trigger"],
+    "semantic.trigger_box.extent_14_10_14.v1": ENTITY_PROFILES["hazard_trigger"],
+}
+LOGICAL_ONLY_ASSET_IDS = {
+    "semantic.landing_pad",
+    "semantic.spawn_zone",
+    "semantic.asset_anchor",
+}
+VISIBLE_FACILITY_ASSET_PREFIXES = (
+    "facility.",
+    "prop.traffic_control.",
+    "prop.roadwork.",
+    "semantic.trigger_box.",
+)
+PRESERVED_ENTITY_FIELDS = ("task_id", "role", "state_sequence")
+PRESERVED_EVENT_FIELDS = ("task_id", "role", "state_sequence")
 
 
 def load_json(path: Path) -> Any:
@@ -158,21 +227,88 @@ def render_presence(roi_id: str) -> dict[str, Any]:
     }
 
 
-def profile_for_label(label_class: str) -> dict[str, str]:
-    return dict(ENTITY_PROFILES.get(label_class) or {
+def metadata_only_profile(label_class: str) -> dict[str, str]:
+    return {
         "entity_category": "other",
         "entity_kind": f"other.{label_class or 'unknown'}",
         "proxy_template_id": "",
         "logical_asset_id": "",
         "mode": "metadata_only",
-    })
+    }
+
+
+def profile_for_label(label_class: str) -> dict[str, str]:
+    return dict(ENTITY_PROFILES.get(label_class) or metadata_only_profile(label_class))
+
+
+def profile_for_entity(source_entry: dict[str, Any], first_row: dict[str, Any]) -> dict[str, str]:
+    label_class = str(source_entry.get("label_class") or first_row.get("label_class") or "unknown")
+    asset_id = str(
+        source_entry.get("logical_asset_id")
+        or source_entry.get("asset_id")
+        or first_row.get("logical_asset_id")
+        or first_row.get("asset_id")
+        or ""
+    ).strip()
+    if asset_id in LOGICAL_ONLY_ASSET_IDS:
+        profile = metadata_only_profile(label_class)
+        profile["entity_category"] = str(source_entry.get("category") or first_row.get("category") or "facility")
+        profile["entity_kind"] = f"{profile['entity_category']}.{label_class or 'logical'}"
+        profile["logical_asset_id"] = asset_id
+        return profile
+    if asset_id in ENTITY_PROFILES_BY_ASSET_ID:
+        return dict(ENTITY_PROFILES_BY_ASSET_ID[asset_id])
+    profile = profile_for_label(label_class)
+    if (
+        asset_id
+        and asset_id.startswith(VISIBLE_FACILITY_ASSET_PREFIXES)
+        and str(profile.get("mode") or "") != "scene_sync"
+    ):
+        raise RuntimeError(
+            "Missing deterministic visual facility profile: "
+            f"entity_id={source_entry.get('entity_id') or first_row.get('entity_id') or '<unknown>'} "
+            f"label_class={label_class or '<empty>'} logical_asset_id={asset_id}"
+        )
+    return profile
 
 
 def logical_asset_for(source_entry: dict[str, Any], profile: dict[str, str]) -> str:
-    asset_id = str(source_entry.get("asset_id") or "").strip()
+    asset_id = str(source_entry.get("logical_asset_id") or source_entry.get("asset_id") or "").strip()
     if asset_id and asset_id.lower() not in {"unknown", "none", "null"}:
         return asset_id
     return str(profile.get("logical_asset_id") or "")
+
+
+def preserved_fields_from(*sources: dict[str, Any]) -> dict[str, Any]:
+    preserved: dict[str, Any] = {}
+    for field in PRESERVED_ENTITY_FIELDS:
+        for source in sources:
+            if field in source and source[field] not in (None, ""):
+                preserved[field] = copy.deepcopy(source[field])
+                break
+            nested_state = source.get("initial_state")
+            if isinstance(nested_state, dict) and field in nested_state and nested_state[field] not in (None, ""):
+                preserved[field] = copy.deepcopy(nested_state[field])
+                break
+            nested_visual_state = source.get("visual_state")
+            if isinstance(nested_visual_state, dict) and field in nested_visual_state and nested_visual_state[field] not in (None, ""):
+                preserved[field] = copy.deepcopy(nested_visual_state[field])
+                break
+    return preserved
+
+
+def preserved_event_fields(row: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(row.get("payload") or {})
+    metadata = dict(row.get("metadata") or {})
+    preserved: dict[str, Any] = {}
+    for field in PRESERVED_EVENT_FIELDS:
+        if field in row and row[field] not in (None, ""):
+            preserved[field] = copy.deepcopy(row[field])
+        elif field in payload and payload[field] not in (None, ""):
+            preserved[field] = copy.deepcopy(payload[field])
+        elif field in metadata and metadata[field] not in (None, ""):
+            preserved[field] = copy.deepcopy(metadata[field])
+    return preserved
 
 
 def read_legacy_roster(path: Path) -> dict[str, dict[str, Any]]:
@@ -397,21 +533,23 @@ def build_dynamic_labels(event_rows: Sequence[dict[str, Any]], episode_id: str) 
     labels: list[dict[str, Any]] = []
     for index, row in enumerate(event_rows):
         tick = int(row.get("tick", row.get("activated_tick", 0)) or 0)
+        label = {
+            "schema_name": "dynamic_label",
+            "schema_version": "v1",
+            "episode_id": episode_id,
+            "label_id": str(row.get("sample_id") or row.get("instance_id") or f"label_{index:04d}"),
+            "tick": tick,
+            "frame_id": str(row.get("frame_id") or f"tick:{tick}"),
+            "source_event_id": str(row.get("source_event_id") or ""),
+            "topic": str(row.get("topic") or ""),
+            "semantic_class": str(row.get("semantic_class") or "state_event"),
+            "target_ids": target_ids_from_event(row),
+            "render_hints": dict(row.get("render_hints") or {}),
+            "payload": dict(row.get("payload") or {}),
+        }
+        label.update(preserved_event_fields(row))
         labels.append(
-            {
-                "schema_name": "dynamic_label",
-                "schema_version": "v1",
-                "episode_id": episode_id,
-                "label_id": str(row.get("sample_id") or row.get("instance_id") or f"label_{index:04d}"),
-                "tick": tick,
-                "frame_id": str(row.get("frame_id") or f"tick:{tick}"),
-                "source_event_id": str(row.get("source_event_id") or ""),
-                "topic": str(row.get("topic") or ""),
-                "semantic_class": str(row.get("semantic_class") or "state_event"),
-                "target_ids": target_ids_from_event(row),
-                "render_hints": dict(row.get("render_hints") or {}),
-                "payload": dict(row.get("payload") or {}),
-            }
+            label
         )
     return labels
 
@@ -479,8 +617,8 @@ def convert_episode(
     for entity_id in sorted(grouped):
         source_entry = dict(legacy_roster.get(entity_id) or {"entity_id": entity_id})
         label_class = str(source_entry.get("label_class") or grouped[entity_id][0].get("label_class") or "unknown")
-        profile = profile_for_label(label_class)
         first_row = sample_row_at_tick(grouped[entity_id], ticks[0], tick_hz)
+        profile = profile_for_entity(source_entry, first_row)
         first_position = normalized_position_for_render(first_row)
         first_velocity = normalize_vector3(first_row.get("vel_mps"))
         first_yaw = heading_deg_from_velocity(first_velocity)
@@ -493,31 +631,31 @@ def convert_episode(
             "profile": profile,
         }
         last_yaw_by_entity[entity_id] = first_yaw
-        roster_entities.append(
-            {
-                "entity_id": entity_id,
-                "label_class": label_class,
-                "asset_id": str(source_entry.get("asset_id") or "unknown"),
-                "site_id": site_id,
-                "roi_id": roi_id,
-                "entity_category": profile["entity_category"],
-                "entity_kind": profile["entity_kind"],
-                "entity_type": profile["entity_kind"],
-                "proxy_template_id": profile["proxy_template_id"],
-                "logical_asset_id": logical_asset_for(source_entry, profile),
-                "mode": profile["mode"],
-                "initial_position_enu_m": first_position,
-                "initial_yaw_deg": round(first_yaw, 6),
-                "tags": [profile["entity_category"], label_class],
-            }
-        )
+        roster_entry = {
+            "entity_id": entity_id,
+            "label_class": label_class,
+            "asset_id": str(source_entry.get("asset_id") or "unknown"),
+            "site_id": site_id,
+            "roi_id": roi_id,
+            "entity_category": profile["entity_category"],
+            "entity_kind": profile["entity_kind"],
+            "entity_type": profile["entity_kind"],
+            "proxy_template_id": profile["proxy_template_id"],
+            "logical_asset_id": logical_asset_for(source_entry, profile),
+            "mode": profile["mode"],
+            "initial_position_enu_m": first_position,
+            "initial_yaw_deg": round(first_yaw, 6),
+            "tags": [profile["entity_category"], label_class],
+        }
+        roster_entry.update(preserved_fields_from(source_entry, first_row))
+        roster_entities.append(roster_entry)
 
     truth_frames: list[dict[str, Any]] = []
     for tick in ticks:
         entities: list[dict[str, Any]] = []
         for roster_entry in roster_entities:
             entity_id = str(roster_entry["entity_id"])
-            profile = profile_for_label(str(roster_entry.get("label_class") or "unknown"))
+            profile = profile_for_entity(roster_entry, grouped[entity_id][0])
             category = str(profile["entity_category"])
             row = sample_row_at_tick(grouped[entity_id], tick, tick_hz)
             position = normalized_position_for_render(row)
@@ -551,6 +689,9 @@ def convert_episode(
                 "state_revision": int(tick) + 1,
                 "visual_revision": 1,
             }
+            entity.update(preserved_fields_from(row, roster_entry))
+            if row.get("state") not in (None, ""):
+                entity["state"] = row.get("state")
             entities.append(entity)
 
         counts = Counter(str(entity["entity_category"]) for entity in entities)

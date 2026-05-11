@@ -13,11 +13,11 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7104.831,
-      6336.322,
+      7097.163,
+      6331.667,
       0.0
     ],
-    "radius_m": 228.443,
+    "radius_m": 236.847,
     "source": "scene_entities_and_routes"
   },
   "entities": [
@@ -65,6 +65,12 @@
       ],
       "initial_state": {
         "mode": "preflight_on_pad",
+        "task_id": "uav_crowd_monitor_l4_8_v1.task",
+        "role": "mission_uav",
+        "state_sequence": [
+          "monitor"
+        ],
+        "semantic_role": "monitor",
         "assigned_altitude_m": 50.0,
         "uav_corridor_role": "mission_uav"
       },
@@ -121,7 +127,14 @@
         }
       },
       "route_waypoints_enu_m": [],
-      "initial_state": {},
+      "initial_state": {
+        "task_id": "crowd_anchor_l4_8_v1.task",
+        "role": "semantic_context",
+        "state_sequence": [
+          "idle"
+        ],
+        "semantic_role": "idle"
+      },
       "activation_tick": 0
     },
     {
@@ -151,7 +164,13 @@
         "activity_type": "standing",
         "animation_hint": "pedestrian_idle",
         "posture": "standing",
-        "social_state": "solo"
+        "social_state": "solo",
+        "task_id": "ped_evac_l4_8_v1_00.task",
+        "role": "semantic_pedestrian",
+        "state_sequence": [
+          "standing"
+        ],
+        "semantic_role": "standing"
       },
       "activation_tick": 0
     },
@@ -182,7 +201,13 @@
         "activity_type": "standing",
         "animation_hint": "pedestrian_idle",
         "posture": "standing",
-        "social_state": "solo"
+        "social_state": "solo",
+        "task_id": "ped_evac_l4_8_v1_01.task",
+        "role": "semantic_pedestrian",
+        "state_sequence": [
+          "standing"
+        ],
+        "semantic_role": "standing"
       },
       "activation_tick": 0
     },
@@ -213,7 +238,13 @@
         "activity_type": "standing",
         "animation_hint": "pedestrian_idle",
         "posture": "standing",
-        "social_state": "solo"
+        "social_state": "solo",
+        "task_id": "ped_evac_l4_8_v1_02.task",
+        "role": "semantic_pedestrian",
+        "state_sequence": [
+          "standing"
+        ],
+        "semantic_role": "standing"
       },
       "activation_tick": 0
     },
@@ -244,7 +275,13 @@
         "activity_type": "standing",
         "animation_hint": "pedestrian_idle",
         "posture": "standing",
-        "social_state": "solo"
+        "social_state": "solo",
+        "task_id": "ped_evac_l4_8_v1_03.task",
+        "role": "semantic_pedestrian",
+        "state_sequence": [
+          "standing"
+        ],
+        "semantic_role": "standing"
       },
       "activation_tick": 0
     },
@@ -275,7 +312,13 @@
         "activity_type": "standing",
         "animation_hint": "pedestrian_idle",
         "posture": "standing",
-        "social_state": "solo"
+        "social_state": "solo",
+        "task_id": "ped_evac_l4_8_v1_04.task",
+        "role": "semantic_pedestrian",
+        "state_sequence": [
+          "standing"
+        ],
+        "semantic_role": "standing"
       },
       "activation_tick": 0
     },
@@ -306,7 +349,13 @@
         "activity_type": "standing",
         "animation_hint": "pedestrian_idle",
         "posture": "standing",
-        "social_state": "solo"
+        "social_state": "solo",
+        "task_id": "ped_evac_l4_8_v1_05.task",
+        "role": "semantic_pedestrian",
+        "state_sequence": [
+          "standing"
+        ],
+        "semantic_role": "standing"
       },
       "activation_tick": 0
     },
@@ -337,7 +386,13 @@
         "activity_type": "standing",
         "animation_hint": "pedestrian_idle",
         "posture": "standing",
-        "social_state": "solo"
+        "social_state": "solo",
+        "task_id": "ped_evac_l4_8_v1_06.task",
+        "role": "semantic_pedestrian",
+        "state_sequence": [
+          "standing"
+        ],
+        "semantic_role": "standing"
       },
       "activation_tick": 0
     },
@@ -368,9 +423,553 @@
         "activity_type": "standing",
         "animation_hint": "pedestrian_idle",
         "posture": "standing",
-        "social_state": "solo"
+        "social_state": "solo",
+        "task_id": "ped_evac_l4_8_v1_07.task",
+        "role": "semantic_pedestrian",
+        "state_sequence": [
+          "standing"
+        ],
+        "semantic_role": "standing"
       },
       "activation_tick": 0
+    },
+    {
+      "entity_id": "u_inspect_l4_8_v1",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          7064.914,
+          6305.136,
+          10.0
+        ],
+        "resolved_position_enu_m": [
+          7064.914,
+          6305.136,
+          10.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 45.0
+        }
+      },
+      "route_waypoints_enu_m": [
+        [
+          7062.584,
+          6313.206,
+          10.0
+        ],
+        [
+          7064.914,
+          6305.136,
+          10.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "preflight_on_pad",
+        "task_id": "L4-8_v1.u_inspect",
+        "role": "U_inspect",
+        "semantic_role": "long-lived UAV inspect view replacing high overview",
+        "state_sequence": [
+          "takeoff",
+          "inspect_racetrack",
+          "orbit",
+          "land"
+        ],
+        "assigned_altitude_m": 10.0,
+        "inspect_altitude_code": "I10",
+        "min_path_length_m": 80.0,
+        "full_episode_presence": true,
+        "uav_corridor_role": "mission_uav"
+      },
+      "activation_tick": 0,
+      "uav_corridor_role": "inspect_observer",
+      "contract_inspect_uav": {
+        "policy": "semantic_event_contract_v1",
+        "inspect_altitude_m": 10.0,
+        "inspect_altitude_code": "I10",
+        "min_path_length_m": 80.0
+      },
+      "lifecycle": {
+        "auto_lifecycle_applied": true,
+        "home_pad_entity_id": "pad_home_u_inspect_l4_8_v1",
+        "home_hover_enu_m": [
+          7064.914,
+          6305.136,
+          10.0
+        ],
+        "mission_start_enu_m": [
+          7064.914,
+          6305.136,
+          10.0
+        ],
+        "requires_takeoff": true,
+        "requires_landing_or_terminal_resolution": true,
+        "assigned_altitude_m": 10.0,
+        "waypoint_repair_applied": true
+      },
+      "uav_corridor": {
+        "assigned_altitude_m": 10.0,
+        "altitude_layers_m": [
+          30.0,
+          50.0,
+          80.0
+        ],
+        "used_lateral_bypass": false
+      },
+      "validation_tags": [
+        "uav_corridor_contract"
+      ]
+    },
+    {
+      "entity_id": "bg_vehicle_l4_8_v1_01",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_122",
+        "lane_index": 0,
+        "longitudinal_s": 238.0,
+        "lateral_offset_m": 0.0,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 0.0,
+        "placement_semantics": "lane_center",
+        "resolved_position_enu_m": [
+          7120.798,
+          6336.465,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 22.992
+        },
+        "source_edge_id_hint": "cg_edge_122",
+        "source_longitudinal_s_hint": 238.0
+      },
+      "route_waypoints_enu_m": [
+        [
+          7128.154,
+          6339.661,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "braking",
+        "task_id": "L4-8_v1.vehicle_background.01",
+        "role": "semantic_background_vehicle",
+        "semantic_role": "stopped/held perimeter vehicles",
+        "state_sequence": [
+          "braking",
+          "traffic_flow"
+        ],
+        "background_role": "semantic_context"
+      },
+      "activation_tick": 0,
+      "background_vehicle": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "stopped/held perimeter vehicles",
+        "contract_scenario_id": "L4-8_v1"
+      }
+    },
+    {
+      "entity_id": "bg_vehicle_l4_8_v1_02",
+      "logical_asset_id": "vehicle.emergency.suv.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_122",
+        "lane_index": 0,
+        "longitudinal_s": 221.0,
+        "lateral_offset_m": 0.0,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 0.0,
+        "placement_semantics": "lane_center",
+        "resolved_position_enu_m": [
+          7105.26,
+          6329.644,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 24.362
+        },
+        "source_edge_id_hint": "cg_edge_122",
+        "source_longitudinal_s_hint": 221.0
+      },
+      "route_waypoints_enu_m": [
+        [
+          7113.466,
+          6333.316,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "braking",
+        "task_id": "L4-8_v1.vehicle_background.02",
+        "role": "semantic_background_vehicle",
+        "semantic_role": "stopped/held perimeter vehicles",
+        "state_sequence": [
+          "braking",
+          "traffic_flow"
+        ],
+        "background_role": "semantic_context"
+      },
+      "activation_tick": 0,
+      "background_vehicle": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "stopped/held perimeter vehicles",
+        "contract_scenario_id": "L4-8_v1"
+      }
+    },
+    {
+      "entity_id": "bg_ped_l4_8_v1_09",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_122",
+        "longitudinal_s": 221.0,
+        "offset_from_curb_m": 1.2,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 3.1,
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "resolved_position_enu_m": [
+          7103.981,
+          6332.468,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 24.362
+        },
+        "contract_scenario_id": "L4-8_v1"
+      },
+      "route_waypoints_enu_m": [
+        [
+          7124.126,
+          6341.274,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "evacuating",
+        "task_id": "L4-8_v1.pedestrian_background.09",
+        "role": "semantic_background_pedestrian",
+        "semantic_role": "evacuating crowd",
+        "state_sequence": [
+          "evacuating",
+          "walking"
+        ],
+        "background_role": "semantic_context",
+        "activity_type": "evacuating",
+        "animation_hint": "pedestrian_evacuation_walk",
+        "posture": "standing",
+        "social_state": "group"
+      },
+      "activation_tick": 0,
+      "background_pedestrian": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "evacuating crowd",
+        "contract_scenario_id": "L4-8_v1"
+      }
+    },
+    {
+      "entity_id": "bg_ped_l4_8_v1_10",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_122",
+        "longitudinal_s": 227.0,
+        "offset_from_curb_m": 1.2,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 3.1,
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "resolved_position_enu_m": [
+          7109.441,
+          6334.925,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 24.02
+        },
+        "contract_scenario_id": "L4-8_v1"
+      },
+      "route_waypoints_enu_m": [
+        [
+          7130.496,
+          6344.104,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "evacuating",
+        "task_id": "L4-8_v1.pedestrian_background.10",
+        "role": "semantic_background_pedestrian",
+        "semantic_role": "evacuating crowd",
+        "state_sequence": [
+          "evacuating",
+          "walking"
+        ],
+        "background_role": "semantic_context",
+        "activity_type": "evacuating",
+        "animation_hint": "pedestrian_evacuation_walk",
+        "posture": "standing",
+        "social_state": "group"
+      },
+      "activation_tick": 0,
+      "background_pedestrian": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "evacuating crowd",
+        "contract_scenario_id": "L4-8_v1"
+      }
+    },
+    {
+      "entity_id": "bg_ped_l4_8_v1_11",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_122",
+        "longitudinal_s": 222.0,
+        "offset_from_curb_m": 1.2,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 3.1,
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "resolved_position_enu_m": [
+          7104.906,
+          6332.887,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 24.332
+        },
+        "contract_scenario_id": "L4-8_v1"
+      },
+      "route_waypoints_enu_m": [
+        [
+          7126.897,
+          6342.495,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "evacuating",
+        "task_id": "L4-8_v1.pedestrian_background.11",
+        "role": "semantic_background_pedestrian",
+        "semantic_role": "evacuating crowd",
+        "state_sequence": [
+          "evacuating",
+          "walking"
+        ],
+        "background_role": "semantic_context",
+        "activity_type": "evacuating",
+        "animation_hint": "pedestrian_evacuation_walk",
+        "posture": "standing",
+        "social_state": "group"
+      },
+      "activation_tick": 0,
+      "background_pedestrian": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "evacuating crowd",
+        "contract_scenario_id": "L4-8_v1"
+      }
+    },
+    {
+      "entity_id": "bg_ped_l4_8_v1_12",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_122",
+        "longitudinal_s": 229.0,
+        "offset_from_curb_m": 1.2,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 3.1,
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "resolved_position_enu_m": [
+          7111.314,
+          6335.756,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 23.824
+        },
+        "contract_scenario_id": "L4-8_v1"
+      },
+      "route_waypoints_enu_m": [
+        [
+          7134.177,
+          6345.775,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "evacuating",
+        "task_id": "L4-8_v1.pedestrian_background.12",
+        "role": "semantic_background_pedestrian",
+        "semantic_role": "evacuating crowd",
+        "state_sequence": [
+          "evacuating",
+          "walking"
+        ],
+        "background_role": "semantic_context",
+        "activity_type": "evacuating",
+        "animation_hint": "pedestrian_evacuation_walk",
+        "posture": "standing",
+        "social_state": "group"
+      },
+      "activation_tick": 0,
+      "background_pedestrian": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "evacuating crowd",
+        "contract_scenario_id": "L4-8_v1"
+      }
+    },
+    {
+      "entity_id": "contract_facility_l4_8_v1_01",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          7115.257,
+          6334.099,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          7115.257,
+          6334.099,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 0.0
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available",
+        "task_id": "L4-8_v1.facility_context.01",
+        "role": "semantic_facility",
+        "semantic_role": "visible facility context required by low-altitude event-chain contract",
+        "state_sequence": [
+          "available"
+        ]
+      },
+      "activation_tick": 0,
+      "contract_facility": {
+        "policy": "semantic_event_contract_v1",
+        "contract_scenario_id": "L4-8_v1"
+      }
+    },
+    {
+      "entity_id": "contract_facility_l4_8_v1_02",
+      "logical_asset_id": "facility.charger.cityops.v1",
+      "category": "facility",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          7115.257,
+          6334.099,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          7115.257,
+          6334.099,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 45.0
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available",
+        "task_id": "L4-8_v1.facility_context.02",
+        "role": "semantic_facility",
+        "semantic_role": "visible facility context required by low-altitude event-chain contract",
+        "state_sequence": [
+          "available"
+        ]
+      },
+      "activation_tick": 0,
+      "contract_facility": {
+        "policy": "semantic_event_contract_v1",
+        "contract_scenario_id": "L4-8_v1"
+      }
+    },
+    {
+      "entity_id": "uav_observer_l4_8_v1_3",
+      "logical_asset_id": "uav.airsim.cv_pawn.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          7048.95,
+          6322.368,
+          80.0
+        ],
+        "resolved_position_enu_m": [
+          7048.95,
+          6322.368,
+          80.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 22.314
+        }
+      },
+      "route_waypoints_enu_m": [
+        [
+          7051.988,
+          6310.346,
+          80.0
+        ],
+        [
+          7048.95,
+          6322.368,
+          80.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "preflight_on_pad",
+        "task_id": "uav_observer_l4_8_v1_3.task",
+        "role": "mission_uav",
+        "state_sequence": [
+          "corridor_observer"
+        ],
+        "semantic_role": "corridor_observer",
+        "assigned_altitude_m": 80.0,
+        "uav_corridor_role": "mission_uav"
+      },
+      "activation_tick": 0,
+      "uav_corridor_role": "observer",
+      "lifecycle": {
+        "auto_lifecycle_applied": true,
+        "home_pad_entity_id": "pad_home_uav_observer_l4_8_v1_3",
+        "home_hover_enu_m": [
+          7048.95,
+          6322.368,
+          80.0
+        ],
+        "mission_start_enu_m": [
+          7048.95,
+          6322.368,
+          80.0
+        ],
+        "requires_takeoff": true,
+        "requires_landing_or_terminal_resolution": true,
+        "assigned_altitude_m": 80.0,
+        "waypoint_repair_applied": true
+      },
+      "uav_corridor": {
+        "assigned_altitude_m": 80.0,
+        "altitude_layers_m": [
+          30.0,
+          50.0,
+          80.0
+        ],
+        "used_lateral_bypass": true
+      },
+      "validation_tags": [
+        "uav_corridor_contract"
+      ]
     },
     {
       "entity_id": "pad_home_uav_crowd_monitor_l4_8_v1",
@@ -396,7 +995,81 @@
       },
       "route_waypoints_enu_m": [],
       "initial_state": {
-        "mode": "available"
+        "mode": "available",
+        "task_id": "pad_home_uav_crowd_monitor_l4_8_v1.task",
+        "role": "semantic_facility",
+        "state_sequence": [
+          "available"
+        ],
+        "semantic_role": "available"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "pad_home_u_inspect_l4_8_v1",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "home_u_inspect_l4_8_v1",
+        "approach_side": "departure",
+        "position_enu_m": [
+          7064.914,
+          6305.136,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          7064.914,
+          6305.136,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 16.105
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available",
+        "task_id": "pad_home_u_inspect_l4_8_v1.task",
+        "role": "semantic_facility",
+        "state_sequence": [
+          "available"
+        ],
+        "semantic_role": "available"
+      },
+      "activation_tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_observer_l4_8_v1_3",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "home_uav_observer_l4_8_v1_3",
+        "approach_side": "departure",
+        "position_enu_m": [
+          7048.95,
+          6322.368,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          7048.95,
+          6322.368,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 14.182
+        }
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available",
+        "task_id": "pad_home_uav_observer_l4_8_v1_3.task",
+        "role": "semantic_facility",
+        "state_sequence": [
+          "available"
+        ],
+        "semantic_role": "available"
       },
       "activation_tick": 0
     },
@@ -452,7 +1125,7 @@
       "initial_state": {
         "mode": "semantic_corridor",
         "semantic_class": "uav_corridor",
-        "custom_stencil_only": true
+        "custom_stencil_only": false
       },
       "query_tags": [
         "UAVCorridor",
@@ -514,7 +1187,7 @@
       "initial_state": {
         "mode": "semantic_corridor",
         "semantic_class": "uav_corridor",
-        "custom_stencil_only": true
+        "custom_stencil_only": false
       },
       "query_tags": [
         "UAVCorridor",
@@ -576,7 +1249,7 @@
       "initial_state": {
         "mode": "semantic_corridor",
         "semantic_class": "uav_corridor",
-        "custom_stencil_only": true
+        "custom_stencil_only": false
       },
       "query_tags": [
         "UAVCorridor",
@@ -585,140 +1258,6 @@
       ],
       "activation_tick": 0,
       "enabled": true
-    },
-    {
-      "entity_id": "corridor_l4_8_v1_uav_crowd_monitor_l4_8_v1_03",
-      "logical_asset_id": "semantic.uav_corridor.segment.v1",
-      "category": "airspace_corridor",
-      "placement_mode": "box_volume",
-      "placement": {
-        "center_enu_m": [
-          7128.775,
-          6355.739,
-          50.0
-        ],
-        "resolved_position_enu_m": [
-          7128.775,
-          6355.739,
-          50.0
-        ],
-        "extent_m": [
-          39.243,
-          4.0,
-          4.0
-        ],
-        "size_m": [
-          78.486,
-          8.0,
-          8.0
-        ],
-        "rotation_deg": {
-          "pitch_deg": 0.0,
-          "yaw_deg": -116.036,
-          "roll_deg": 0.0
-        },
-        "scale_xyz": [
-          78.486,
-          8.0,
-          8.0
-        ],
-        "source_uav_entity_id": "uav_crowd_monitor_l4_8_v1",
-        "segment_start_enu_m": [
-          7146.0,
-          6391.0,
-          50.0
-        ],
-        "segment_end_enu_m": [
-          7111.55,
-          6320.479,
-          50.0
-        ],
-        "altitude_layer_m": 50.0
-      },
-      "initial_state": {
-        "mode": "semantic_corridor",
-        "semantic_class": "uav_corridor",
-        "custom_stencil_only": true
-      },
-      "query_tags": [
-        "UAVCorridor",
-        "HighAltitudeCorridor",
-        "event_semantic"
-      ],
-      "activation_tick": 0,
-      "enabled": true
-    },
-    {
-      "entity_id": "bg_vehicle_l4_8_v1_01",
-      "logical_asset_id": "vehicle.ground.boxcar.v1",
-      "category": "vehicle",
-      "placement_mode": "lane_anchor",
-      "placement": {
-        "edge_id": "cg_edge_122",
-        "lane_index": 0,
-        "longitudinal_s": 242.0,
-        "lateral_offset_m": 0.0,
-        "lane_half_width_m": 1.9,
-        "resolved_lateral_from_center_m": 0.0,
-        "placement_semantics": "lane_center",
-        "resolved_position_enu_m": [
-          7124.436,
-          6338.028,
-          0.0
-        ],
-        "rotation_deg": {
-          "yaw_deg": 23.5
-        },
-        "source_edge_id_hint": "cg_edge_122",
-        "source_longitudinal_s_hint": 242.0
-      },
-      "route_waypoints_enu_m": [],
-      "initial_state": {
-        "mode": "background_parked",
-        "background_role": "road_context"
-      },
-      "activation_tick": 0,
-      "background_vehicle": {
-        "policy": "road_context_non_event_actor_v1",
-        "reason": "crowd evacuation perimeter traffic",
-        "min_clearance_rule": "background_vehicle_clearance"
-      }
-    },
-    {
-      "entity_id": "bg_vehicle_l4_8_v1_02",
-      "logical_asset_id": "vehicle.emergency.suv.v1",
-      "category": "vehicle",
-      "placement_mode": "lane_anchor",
-      "placement": {
-        "edge_id": "cg_edge_122",
-        "lane_index": 0,
-        "longitudinal_s": 192.0,
-        "lateral_offset_m": 0.0,
-        "lane_half_width_m": 1.9,
-        "resolved_lateral_from_center_m": 0.0,
-        "placement_semantics": "lane_center",
-        "resolved_position_enu_m": [
-          7078.678,
-          6318.426,
-          0.0
-        ],
-        "rotation_deg": {
-          "yaw_deg": 19.989
-        },
-        "source_edge_id_hint": "cg_edge_122",
-        "source_longitudinal_s_hint": 192.0
-      },
-      "route_waypoints_enu_m": [],
-      "initial_state": {
-        "mode": "background_parked",
-        "background_role": "road_context"
-      },
-      "activation_tick": 0,
-      "background_vehicle": {
-        "policy": "road_context_non_event_actor_v1",
-        "reason": "crowd evacuation perimeter traffic",
-        "min_clearance_rule": "background_vehicle_clearance"
-      }
     }
   ],
   "spawn_sequencing": [
@@ -763,7 +1302,55 @@
       "tick": 0
     },
     {
+      "entity_id": "u_inspect_l4_8_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_vehicle_l4_8_v1_01",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_vehicle_l4_8_v1_02",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_ped_l4_8_v1_09",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_ped_l4_8_v1_10",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_ped_l4_8_v1_11",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_ped_l4_8_v1_12",
+      "tick": 0
+    },
+    {
+      "entity_id": "contract_facility_l4_8_v1_01",
+      "tick": 0
+    },
+    {
+      "entity_id": "contract_facility_l4_8_v1_02",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_observer_l4_8_v1_3",
+      "tick": 0
+    },
+    {
       "entity_id": "pad_home_uav_crowd_monitor_l4_8_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "pad_home_u_inspect_l4_8_v1",
+      "tick": 0
+    },
+    {
+      "entity_id": "pad_home_uav_observer_l4_8_v1_3",
       "tick": 0
     },
     {
@@ -777,18 +1364,6 @@
     {
       "entity_id": "corridor_l4_8_v1_uav_crowd_monitor_l4_8_v1_02",
       "tick": 0
-    },
-    {
-      "entity_id": "corridor_l4_8_v1_uav_crowd_monitor_l4_8_v1_03",
-      "tick": 0
-    },
-    {
-      "entity_id": "bg_vehicle_l4_8_v1_01",
-      "tick": 0
-    },
-    {
-      "entity_id": "bg_vehicle_l4_8_v1_02",
-      "tick": 0
     }
   ],
   "weather_profile": {
@@ -801,9 +1376,9 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7104.831,
-          6336.322,
-          144.243
+          7097.163,
+          6331.667,
+          156.427
         ],
         "rotation_deg": {
           "pitch_deg": -70.0,
@@ -837,20 +1412,47 @@
       "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
     },
     {
-      "rule": "uav_corridor_contract",
-      "target_uav_count": 1,
-      "corridor_segment_count": 4,
-      "allow_building_impact": false,
-      "description": "UAV waypoints are repaired for building clearance and visualized as high-altitude corridors"
+      "rule": "semantic_event_contract",
+      "contract": {
+        "schema": "low_altitude_event_chain_contract_v1",
+        "scenario_id": "L4-8_v1",
+        "exact_counts": {
+          "uav": 3,
+          "vehicle": 2,
+          "pedestrian": 12,
+          "facility": 2,
+          "logical": 4
+        },
+        "inspect": {
+          "role": "U_inspect",
+          "altitude_code": "I10",
+          "altitude_m": 10.0,
+          "min_path_length_m": 80.0,
+          "required_presence": "episode_full_duration",
+          "motion_policy": "inspect_orbit_or_racetrack_not_static_hover"
+        },
+        "required_event": "crowd evacuation > safe hold",
+        "background_semantics": {
+          "vehicle_role": "stopped/held perimeter vehicles",
+          "pedestrian_role": "evacuating crowd",
+          "policy": "semantic_context_not_decoration"
+        },
+        "weather": "clear",
+        "determinism": {
+          "fallback": "forbidden",
+          "guessing": "forbidden",
+          "compatibility_paths": "forbidden"
+        }
+      },
+      "description": "Episode must match the low-altitude semantic event-chain contract exactly after generation"
     },
     {
-      "rule": "background_vehicle_clearance",
-      "min_count": 2,
-      "entity_ids": [
-        "bg_vehicle_l4_8_v1_01",
-        "bg_vehicle_l4_8_v1_02"
-      ],
-      "description": "Background road vehicles must stay clear of overlays, logical regions, pads, pedestrians, and event motion points"
+      "rule": "uav_corridor_contract",
+      "target_uav_count": 3,
+      "corridor_segment_count": 8,
+      "materialized_corridor_scene_count": 3,
+      "allow_building_impact": false,
+      "description": "UAV waypoints are repaired for building clearance; corridor scene entities are capped by the exact episode logical-sidecar contract"
     },
     {
       "rule": "explicit_pedestrian_count_min",

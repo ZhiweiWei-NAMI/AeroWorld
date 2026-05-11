@@ -167,6 +167,8 @@ class BuildingObstacleIndex:
         return self.point_collision(point_enu_m) is None
 
     def segment_clear(self, a_enu_m: Sequence[float], b_enu_m: Sequence[float]) -> bool:
+        if _dist_xy(a_enu_m, b_enu_m) <= 1e-6:
+            return self.point_clear(a_enu_m) and self.point_clear(b_enu_m)
         return self.segment_collision(a_enu_m, b_enu_m) is None
 
     def air_point_clear(self, point_enu_m: Sequence[float]) -> bool:
@@ -176,6 +178,8 @@ class BuildingObstacleIndex:
         return self.point_clear(point_enu_m)
 
     def air_segment_clear(self, a_enu_m: Sequence[float], b_enu_m: Sequence[float]) -> bool:
+        if _dist_xy(a_enu_m, b_enu_m) <= 1e-6:
+            return self.air_point_clear(a_enu_m) and self.air_point_clear(b_enu_m)
         line = LineString([(float(a_enu_m[0]), float(a_enu_m[1])), (float(b_enu_m[0]), float(b_enu_m[1]))])
         if not self.spatial.bounds_union.covers(line):
             return False

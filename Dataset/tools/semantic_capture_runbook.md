@@ -39,7 +39,7 @@ Event-level semantic objects such as `nfz_l1_3_v1`, `pad_home_intruder_l1_3_v1`,
 
 ## Default Formal Run
 
-- Runner: `Dataset/tools/run_semantic_70_dual_view_tick100.py`
+- Runner: `Dataset/tools/run_semantic_event_chain_every10.py`
 - Machine contract: `Config/LowAltitude/semantic_capture_runtime_contract.json`
 - Output root: `Saved/AirSim/semantic_70events_rgb_depth_seg_tick100`
 - Summary: `Saved/AirSim/semantic_70events_rgb_depth_seg_tick100_summary.csv`

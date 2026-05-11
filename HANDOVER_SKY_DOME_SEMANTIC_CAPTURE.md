@@ -19,7 +19,7 @@ Workspace: `E:\DynamicCityCreatorSamples`
 ## Code-First Contract
 
 - Every behavior change must be traced through the Python chain first.
-- Preferred Python sequence: `Dataset/tools/spec_compiler.py` -> `Dataset/tools/regenerate_boundary_scenarios.py` -> `Dataset/tools/batch_generate.py` -> `Dataset/tools/convert_to_render_ready.py` -> `Dataset/tools/batch_render_dataset.py` -> `Dataset/tools/run_semantic_event_chain_every10.py` -> `Plugins/SumoImporter/Scripts/episode_render_host.py` -> validators.
+- Preferred Python sequence: `Dataset/tools/spec_compiler.py` -> `Dataset/tools/regenerate_boundary_scenarios.py` -> `Dataset/tools/batch_generate.py` -> `Dataset/tools/convert_to_render_ready.py` -> `Dataset/tools/run_semantic_event_chain_every10.py` -> `Plugins/SumoImporter/Scripts/episode_render_host.py` -> validators.
 - Do not reach for C++ unless the Python chain cannot express the change.
 - Every layer must keep baseline background human, vehicle, and UAV context actors.
 - Every event must be a captureable chain, not a static label.
@@ -52,7 +52,7 @@ The failing C++ path touched `captures_[Scene]->HiddenComponents` while an `APIP
 
 - `Config\LowAltitude\semantic_stencil_rules.json`
   - Drone priority is now above pedestrian. This fixed X6 UAV names containing `crowd_evacuation` being misclassified as pedestrian.
-- `Dataset\tools\run_semantic_70_dual_view_tick100.py`
+- `Dataset\tools\run_semantic_event_chain_every10.py`
   - Default output root is `F:\aw_cap`.
   - Default summary is `F:\aw_cap_summary.csv`.
   - Formal runner rejects non-`F:` output/summary paths when the contract requires it.
@@ -78,7 +78,7 @@ The failing C++ path touched `captures_[Scene]->HiddenComponents` while an `APIP
 Historical command before the sidecar-only logical-region contract:
 
 ```powershell
-python Dataset\tools\run_semantic_70_dual_view_tick100.py --episodes-root Dataset\render_ready_episodes --output-root Saved\AirSim\x6_smoke_drone_rule_fix --summary Saved\AirSim\x6_smoke_drone_rule_fix_summary.csv --start-index 69 --limit 1 --skip-high-overview --requested-tick 0 --host 127.0.0.1 --port 41451 --airsim-capture-entity uav_observer_x6_crowd_evacuation_to_airspace_lockdown_3
+python Dataset\tools\run_semantic_event_chain_every10.py --episodes-root Dataset\render_ready_episodes --output-root F:\aw_cap --summary F:\aw_cap_summary.csv --start-index 69 --limit 1 --skip-high-overview --host 127.0.0.1 --port 41451 --airsim-capture-entity uav_observer_x6_crowd_evacuation_to_airspace_lockdown_3
 ```
 
 Result:
@@ -118,14 +118,14 @@ The background-context generation path must continue to satisfy overlay/collisio
 python -m json.tool Config\LowAltitude\semantic_stencil_rules.json
 python -m json.tool Config\LowAltitude\semantic_capture_runtime_contract.json
 python -m json.tool Plugins\SumoImporter\Scripts\episode_render_host_config.json
-python -m py_compile Plugins\SumoImporter\Scripts\episode_render_host.py Dataset\tools\run_semantic_70_dual_view_tick100.py Dataset\tools\test_semantic_visibility_contract.py Dataset\tools\verify_semantic_visibility_contract.py Dataset\tools\verify_semantic_uav_logical_samples.py
+python -m py_compile Plugins\SumoImporter\Scripts\episode_render_host.py Dataset\tools\run_semantic_event_chain_every10.py Dataset\tools\test_semantic_visibility_contract.py Dataset\tools\verify_semantic_visibility_contract.py Dataset\tools\verify_semantic_uav_logical_samples.py
 python -m unittest Dataset.tools.test_semantic_visibility_contract
 ```
 
 For a new formal smoke, omit `--output-root` and `--summary` to use the required defaults:
 
 ```powershell
-python Dataset\tools\run_semantic_70_dual_view_tick100.py --episodes-root Dataset\render_ready_episodes --start-index 69 --limit 1 --skip-high-overview --requested-tick 0 --host 127.0.0.1 --port 41451 --airsim-capture-entity uav_observer_x6_crowd_evacuation_to_airspace_lockdown_3
+python Dataset\tools\run_semantic_event_chain_every10.py --episodes-root Dataset\render_ready_episodes --start-index 69 --limit 1 --skip-high-overview --host 127.0.0.1 --port 41451 --airsim-capture-entity uav_observer_x6_crowd_evacuation_to_airspace_lockdown_3
 ```
 
 Expected default outputs are under `F:\aw_cap`, with summary at `F:\aw_cap_summary.csv`.
