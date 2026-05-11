@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from map_spatial_index import MapSpatialIndex  # noqa: E402
 from pedestrian_activity_catalog import get_activity, normalize_activity_type, validate_local_animation_assets  # noqa: E402
 from uav_corridor_planner import BuildingObstacleIndex, UAV_CORRIDOR_LOGICAL_ASSET_ID  # noqa: E402
+from semantic_event_contract import all_contracts, get_contract, required_event_sequence_matches  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -38,6 +39,31 @@ MOVE_START_TOLERANCE_UAV_M = 18.0
 UAV_INITIAL_ALTITUDE_MAX_M = 5.0
 UAV_MISSION_ALTITUDE_MIN_M = 18.0
 UAV_TERMINAL_ALTITUDE_MAX_M = 8.0
+SEMANTIC_ALLOWED_STATIC_STATES = {
+    "available",
+    "idle",
+    "waiting",
+    "queued",
+    "blocked",
+    "blocked_by_barrier",
+    "held",
+    "stopped",
+    "hold",
+    "traffic_flow",
+    "traffic_slow",
+    "cautious_flow",
+    "braking",
+    "evacuating",
+    "retreat",
+    "frozen",
+    "landing",
+    "touchdown",
+    "landed",
+    "preflight_on_pad",
+    "inspect_racetrack",
+    "orbit",
+    "patrol",
+}
 INITIAL_OVERLAP_MIN_M = {
     ("pedestrian", "pedestrian"): 0.75,
     ("vehicle", "vehicle"): 2.2,
@@ -118,6 +144,20 @@ class LaneResolver:
 def load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8-sig") as f:
         return json.load(f)
+
+
+def load_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8-sig") as f:
+        for line_number, line in enumerate(f, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                rows.append(json.loads(stripped))
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"{path}:{line_number}: invalid JSONL: {exc}") from exc
+    return rows
 
 
 def asset_ids(catalog_path: Path) -> set[str]:
@@ -320,6 +360,48 @@ def referenced_events(script: dict[str, Any]) -> set[str]:
     return refs
 
 
+def contract_stage_terms(text: str) -> list[list[str]]:
+    stages: list[list[str]] = []
+    for raw_stage in str(text or "").split(">"):
+        options: list[str] = []
+        for raw_option in raw_stage.split("/"):
+            normalized = " ".join(token for token in str(raw_option).lower().replace("-", " ").replace("_", " ").split() if token)
+            if normalized:
+                options.append(normalized)
+        if options:
+            stages.append(options)
+    return stages
+
+
+def sequence_contains_terms(sequence: Any, terms: list[str]) -> bool:
+    if not isinstance(sequence, list):
+        return False
+    hay = " ".join(str(item).lower() for item in sequence)
+    return all(term in hay for term in terms)
+
+
+def sequence_has_allowed_semantics(sequence: Any) -> bool:
+    if not isinstance(sequence, list) or not sequence:
+        return False
+    return any(str(item).lower() in SEMANTIC_ALLOWED_STATIC_STATES for item in sequence)
+
+
+def event_field_haystack(event: dict[str, Any]) -> str:
+    payload = dict(event.get("payload") or {})
+    parts = [
+        event.get("event_id"),
+        event.get("topic"),
+        event.get("source_event_id"),
+        event.get("source_topic"),
+        payload.get("title"),
+        payload.get("category"),
+        payload.get("phase"),
+        payload.get("source_kind"),
+        payload.get("event_id"),
+    ]
+    return " ".join(str(part or "").lower() for part in parts)
+
+
 def declared_ids(scene: dict[str, Any]) -> set[str]:
     return {entity["entity_id"] for entity in scene.get("entities", [])}
 
@@ -353,6 +435,94 @@ def check_entity_references(scene: dict[str, Any], script: dict[str, Any], issue
         for target_id in event.get("log_event", {}).get("target_ids", []):
             if target_id not in ids:
                 issues.append(f"{script['scenario_id']}: log_event target_id is not declared: {target_id}")
+
+
+def check_contract_payload(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    contract = get_contract(scene.get("scenario_id") or script.get("scenario_id") or scene.get("episode_id") or script.get("episode_id") or "")
+    payload = dict(script.get("parameters", {}).get("semantic_event_contract") or {})
+    if str(payload.get("schema") or "") != "low_altitude_event_chain_contract_v1":
+        issues.append(f"{script['scenario_id']}: missing semantic_event_contract schema")
+        return
+    if dict(payload.get("exact_counts") or {}) != contract.counts:
+        issues.append(f"{script['scenario_id']}: exact_counts do not match contract")
+    if str(payload.get("required_event") or "") != contract.required_event:
+        issues.append(f"{script['scenario_id']}: required_event does not match contract")
+    background = dict(payload.get("background_semantics") or {})
+    if str(background.get("vehicle_role") or "") != contract.vehicle_role:
+        issues.append(f"{script['scenario_id']}: background vehicle_role does not match contract")
+    if str(background.get("pedestrian_role") or "") != contract.pedestrian_role:
+        issues.append(f"{script['scenario_id']}: background pedestrian_role does not match contract")
+    if str(payload.get("weather") or "") != contract.weather:
+        issues.append(f"{script['scenario_id']}: weather does not match contract")
+
+
+def check_scene_contract_counts(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    contract = get_contract(scene.get("scenario_id") or script.get("scenario_id") or "")
+    entities = scene.get("entities", [])
+    counts = {
+        "uav": 0,
+        "vehicle": 0,
+        "pedestrian": 0,
+        "facility": 0,
+        "logical": 0,
+    }
+    background_vehicle_semantics: list[str] = []
+    background_pedestrian_semantics: list[str] = []
+    inspect_entities: list[dict[str, Any]] = []
+    for entity in entities:
+        asset_id = str(entity.get("logical_asset_id") or "")
+        category = str(entity.get("category") or "")
+        entity_id = str(entity.get("entity_id") or "")
+        if asset_id.startswith("uav."):
+            counts["uav"] += 1
+        elif asset_id.startswith("vehicle.") or category == "vehicle":
+            counts["vehicle"] += 1
+        elif asset_id.startswith("pedestrian.") or category == "pedestrian":
+            counts["pedestrian"] += 1
+        elif entity_id.startswith("pad_home_"):
+            pass
+        elif asset_id.startswith("facility.") or category in {"facility", "traffic_signal"}:
+            counts["facility"] += 1
+        elif asset_id == UAV_CORRIDOR_LOGICAL_ASSET_ID or asset_id.startswith("trigger.") or category in {"airspace_constraint", "hazard_zone", "crowd_anchor", "airspace_corridor"}:
+            counts["logical"] += 1
+        initial_state = dict(entity.get("initial_state") or {})
+        role = str(initial_state.get("role") or "")
+        state_sequence = initial_state.get("state_sequence")
+        semantic_role = str(initial_state.get("semantic_role") or "")
+        if role == "U_inspect":
+            inspect_entities.append(entity)
+        if role == "semantic_background_vehicle":
+            background_vehicle_semantics.append(semantic_role)
+            if not sequence_has_allowed_semantics(state_sequence):
+                issues.append(f"{script['scenario_id']}: background vehicle {entity_id} lacks traffic-oriented state sequence")
+        if role == "semantic_background_pedestrian":
+            background_pedestrian_semantics.append(semantic_role)
+            if not sequence_has_allowed_semantics(state_sequence):
+                issues.append(f"{script['scenario_id']}: background pedestrian {entity_id} lacks semantic state sequence")
+    for key, expected in contract.counts.items():
+        actual = counts[key]
+        if actual != expected:
+            issues.append(f"{script['scenario_id']}: source scene count mismatch for {key}: expected {expected}, got {actual}")
+    if len(inspect_entities) != 1:
+        issues.append(f"{script['scenario_id']}: source scene must contain exactly one U_inspect")
+    else:
+        inspect = inspect_entities[0]
+        initial_state = dict(inspect.get("initial_state") or {})
+        if float(initial_state.get("assigned_altitude_m") or initial_state.get("inspect_altitude_m") or initial_state.get("altitude_m") or 0.0) != float(contract.inspect_altitude_m):
+            issues.append(f"{script['scenario_id']}: U_inspect altitude mismatch")
+        if not sequence_contains_terms(initial_state.get("state_sequence"), ["inspect", "orbit"]) and not sequence_contains_terms(initial_state.get("state_sequence"), ["inspect", "racetrack"]):
+            issues.append(f"{script['scenario_id']}: U_inspect state sequence must include inspect/orbit or inspect/racetrack")
+        route = [pos3(point) for point in inspect.get("route_waypoints_enu_m") or []]
+        route = [point for point in route if point]
+        if len(route) >= 2:
+            if path_length_m(route) < 80.0:
+                issues.append(f"{script['scenario_id']}: U_inspect route is too short")
+        else:
+            issues.append(f"{script['scenario_id']}: U_inspect route missing")
+    if background_vehicle_semantics and any(not item for item in background_vehicle_semantics):
+        issues.append(f"{script['scenario_id']}: background vehicle semantic_role missing")
+    if background_pedestrian_semantics and any(not item for item in background_pedestrian_semantics):
+        issues.append(f"{script['scenario_id']}: background pedestrian semantic_role missing")
 
 
 def check_assets(scene: dict[str, Any], known_assets: set[str], issues: list[str]) -> None:
@@ -1208,6 +1378,82 @@ def check_render_ready_configs(render_ready_root: Path, issues: list[str]) -> No
             issues.append(f"{config_path}: Dataset render config must disable pedestrian_roadside_projection.enabled")
 
 
+def _render_ready_entity_counts(episode_dir: Path) -> dict[str, int]:
+    roster_path = episode_dir / "global_entity_roster.json"
+    if not roster_path.exists():
+        return {}
+    roster = load_json(roster_path)
+    counts = {"uav": 0, "vehicle": 0, "pedestrian": 0, "facility": 0, "logical": 0}
+    for entity in roster.get("entities") or []:
+        category = str(entity.get("entity_category") or "")
+        asset_id = str(entity.get("logical_asset_id") or "")
+        role = str(entity.get("role") or entity.get("background_role") or "")
+        if category == "uav":
+            counts["uav"] += 1
+        elif category == "vehicle":
+            counts["vehicle"] += 1
+        elif category == "pedestrian":
+            counts["pedestrian"] += 1
+        elif category == "facility" or str(entity.get("entity_kind") or "").startswith("facility."):
+            counts["facility"] += 1
+        if asset_id == UAV_CORRIDOR_LOGICAL_ASSET_ID or str(entity.get("entity_kind") or "").startswith("airspace_corridor.") or role == "semantic_logical_sidecar":
+            counts["logical"] += 1
+    return counts
+
+
+def check_render_ready_contract(render_ready_root: Path, issues: list[str]) -> None:
+    if not render_ready_root.exists():
+        return
+    for episode_dir in sorted(path for path in render_ready_root.iterdir() if path.is_dir()):
+        scenario_plan_path = episode_dir / "scenario_plan.json"
+        truth_frames_path = episode_dir / "truth_frames.jsonl"
+        event_trace_path = episode_dir / "event_trace.jsonl"
+        dynamic_labels_path = episode_dir / "dynamic_labels.jsonl"
+        roster_path = episode_dir / "global_entity_roster.json"
+        if not scenario_plan_path.exists() or not truth_frames_path.exists() or not event_trace_path.exists() or not dynamic_labels_path.exists() or not roster_path.exists():
+            issues.append(f"{episode_dir}: missing render-ready artifacts")
+            continue
+        scenario_plan = load_json(scenario_plan_path)
+        scenario_id = str(scenario_plan.get("scenario_id") or scenario_plan.get("episode_id") or episode_dir.name)
+        if "__seed" in scenario_id:
+            scenario_id = scenario_id.split("__seed", 1)[0]
+        contract = get_contract(scenario_id)
+        roster = load_json(roster_path).get("entities") or []
+        counts = _render_ready_entity_counts(episode_dir)
+        for key, expected in contract.counts.items():
+            actual = counts.get(key, 0)
+            if actual != expected:
+                issues.append(f"{episode_dir.name}: render-ready {key} count mismatch: expected {expected}, got {actual}")
+        inspect_entities = [entity for entity in roster if str(entity.get("role") or "") == "U_inspect" or str((entity.get("task_id") or "")).endswith(".u_inspect")]
+        if len(inspect_entities) != 1:
+            issues.append(f"{episode_dir.name}: render-ready must contain exactly one U_inspect")
+        else:
+            inspect = inspect_entities[0]
+            if str(inspect.get("inspect_altitude_code") or "") != contract.inspect_code:
+                issues.append(f"{episode_dir.name}: render-ready U_inspect altitude code mismatch")
+            if float(inspect.get("min_path_length_m") or 0.0) < 80.0:
+                issues.append(f"{episode_dir.name}: render-ready U_inspect min path length too short")
+        truths = load_jsonl(truth_frames_path)
+        if not truths:
+            issues.append(f"{episode_dir.name}: empty truth_frames")
+        else:
+            for frame in truths[:3]:
+                frame_counts = dict((frame.get("roster_summary") or {}).get("by_category") or {})
+                for key, expected in contract.counts.items():
+                    if int(frame_counts.get(key, 0) or 0) < 0:
+                        issues.append(f"{episode_dir.name}: invalid truth_frame count payload for {key}")
+                        break
+        events = load_jsonl(event_trace_path)
+        labels = load_jsonl(dynamic_labels_path)
+        event_pairs = [(str(row.get("topic") or row.get("source_event_id") or row.get("event_id") or ""), int(row.get("tick", 0) or 0)) for row in events]
+        label_pairs = [(str(row.get("topic") or row.get("source_event_id") or row.get("event_id") or ""), int(row.get("tick", 0) or 0)) for row in labels]
+        if event_pairs != label_pairs:
+            issues.append(f"{episode_dir.name}: event_trace/dynamic_labels mismatch")
+        ok, matched = required_event_sequence_matches(contract.required_event, events)
+        if not ok:
+            issues.append(f"{episode_dir.name}: render-ready required_event order mismatch: {contract.required_event} (matched={matched})")
+
+
 def building_index(spatial: MapSpatialIndex) -> BuildingObstacleIndex:
     global _BUILDING_INDEX_CACHE
     if _BUILDING_INDEX_CACHE is None:
@@ -1315,6 +1561,8 @@ def validate_scenario(
         return [f"{scene_path.parent}: missing event_script.json"]
     script = load_json(script_path)
     issues: list[str] = []
+    check_contract_payload(scene, script, issues)
+    check_scene_contract_counts(scene, script, issues)
     check_entity_references(scene, script, issues)
     check_assets(scene, known_assets, issues)
     check_dynamic_spawn_policy(scene, script, issues)
@@ -1363,6 +1611,7 @@ def main() -> None:
         all_issues.extend(validate_scenario(scene_path, lanes, spatial, known_assets, known_buildings))
     if not args.skip_render_ready_configs:
         check_render_ready_configs(Path(args.render_ready_root).resolve(), all_issues)
+        check_render_ready_contract(Path(args.render_ready_root).resolve(), all_issues)
 
     print("=" * 72)
     print("Scene Grounding Validation")

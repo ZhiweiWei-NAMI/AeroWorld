@@ -134,6 +134,12 @@ ENTITY_PROFILES_BY_ASSET_ID: dict[str, dict[str, str]] = {
     "semantic.trigger_box.extent_13_10_4.v1": ENTITY_PROFILES["hazard_trigger"],
     "semantic.trigger_box.extent_14_10_14.v1": ENTITY_PROFILES["hazard_trigger"],
 }
+ENTITY_CATEGORY_OVERRIDES: dict[str, str] = {
+    "facility.landing_pad.visible.v1": "facility",
+    "facility.charger.cityops.v1": "facility",
+    "facility.radio.base_tower.v1": "facility",
+    "facility.barrier.basic": "facility",
+}
 LOGICAL_ONLY_ASSET_IDS = {
     "semantic.landing_pad",
     "semantic.spawn_zone",
@@ -145,8 +151,41 @@ VISIBLE_FACILITY_ASSET_PREFIXES = (
     "prop.roadwork.",
     "semantic.trigger_box.",
 )
-PRESERVED_ENTITY_FIELDS = ("task_id", "role", "state_sequence")
-PRESERVED_EVENT_FIELDS = ("task_id", "role", "state_sequence")
+PRESERVED_ENTITY_FIELDS = (
+    "task_id",
+    "role",
+    "state_sequence",
+    "semantic_role",
+    "background_role",
+    "contract_scenario_id",
+    "contract_inspect_uav",
+    "background_vehicle",
+    "background_pedestrian",
+    "contract_facility",
+    "contract_logical_sidecar",
+    "uav_corridor_role",
+    "assigned_altitude_m",
+    "inspect_altitude_code",
+    "min_path_length_m",
+    "full_episode_presence",
+    "task_kind",
+    "task_state",
+)
+PRESERVED_EVENT_FIELDS = (
+    "task_id",
+    "role",
+    "state_sequence",
+    "semantic_role",
+    "background_role",
+    "contract_scenario_id",
+    "chain_id",
+    "instance_id",
+    "scope",
+    "source_kind",
+    "source_frame_id",
+    "published_event_refs",
+    "state_diff_refs",
+)
 
 
 def load_json(path: Path) -> Any:
@@ -259,6 +298,12 @@ def profile_for_entity(source_entry: dict[str, Any], first_row: dict[str, Any]) 
     if asset_id in ENTITY_PROFILES_BY_ASSET_ID:
         return dict(ENTITY_PROFILES_BY_ASSET_ID[asset_id])
     profile = profile_for_label(label_class)
+    if asset_id in ENTITY_CATEGORY_OVERRIDES:
+        category = ENTITY_CATEGORY_OVERRIDES[asset_id]
+        profile["entity_category"] = category
+        profile["entity_kind"] = f"{category}.{label_class or 'logical'}"
+        if asset_id.startswith("facility."):
+            profile["mode"] = "scene_sync"
     if (
         asset_id
         and asset_id.startswith(VISIBLE_FACILITY_ASSET_PREFIXES)
@@ -294,6 +339,13 @@ def preserved_fields_from(*sources: dict[str, Any]) -> dict[str, Any]:
             if isinstance(nested_visual_state, dict) and field in nested_visual_state and nested_visual_state[field] not in (None, ""):
                 preserved[field] = copy.deepcopy(nested_visual_state[field])
                 break
+            for nested_key in ("background_vehicle", "background_pedestrian", "contract_facility", "contract_inspect_uav", "contract_logical_sidecar", "uav_corridor"):
+                nested = source.get(nested_key)
+                if isinstance(nested, dict) and field in nested and nested[field] not in (None, ""):
+                    preserved[field] = copy.deepcopy(nested[field])
+                    break
+            if field in preserved:
+                break
     return preserved
 
 
@@ -308,6 +360,10 @@ def preserved_event_fields(row: dict[str, Any]) -> dict[str, Any]:
             preserved[field] = copy.deepcopy(payload[field])
         elif field in metadata and metadata[field] not in (None, ""):
             preserved[field] = copy.deepcopy(metadata[field])
+    for nested_key in ("scope", "render_hints"):
+        nested = row.get(nested_key)
+        if isinstance(nested, dict):
+            preserved[nested_key] = copy.deepcopy(nested)
     return preserved
 
 
@@ -648,6 +704,10 @@ def convert_episode(
             "tags": [profile["entity_category"], label_class],
         }
         roster_entry.update(preserved_fields_from(source_entry, first_row))
+        if str(roster_entry.get("role") or "") == "semantic_facility" and profile["entity_category"] == "facility":
+            roster_entry["entity_category"] = "facility"
+            roster_asset_id = str(roster_entry.get("asset_id") or source_entry.get("asset_id") or "")
+            roster_entry["entity_kind"] = "facility.landing_pad" if roster_asset_id.startswith("facility.landing_pad") else roster_entry["entity_kind"]
         roster_entities.append(roster_entry)
 
     truth_frames: list[dict[str, Any]] = []
@@ -690,6 +750,8 @@ def convert_episode(
                 "visual_revision": 1,
             }
             entity.update(preserved_fields_from(row, roster_entry))
+            if str(entity.get("role") or "") == "semantic_facility" and category == "facility":
+                entity["entity_category"] = "facility"
             if row.get("state") not in (None, ""):
                 entity["state"] = row.get("state")
             entities.append(entity)

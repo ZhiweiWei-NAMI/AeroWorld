@@ -556,8 +556,15 @@ def build_episode_plan(args: argparse.Namespace, episode_dir: Path, index: int, 
     active_by_entity = runtime_uav_active_ticks_by_entity(episode_dir, ticks)
     active_by_entity = {entity_id: tick_list for entity_id, tick_list in active_by_entity.items() if tick_list}
     explicit = str(args.airsim_capture_entity or "").strip()
-    if explicit:
-        active_by_entity = {explicit: active_by_entity.get(explicit, [])}
+    if not explicit:
+        raise RuntimeError(
+            f"{episode_dir.name}: --airsim-capture-entity is required for canonical UAV capture tasks"
+        )
+    if explicit not in active_by_entity:
+        raise RuntimeError(
+            f"{episode_dir.name}: explicit --airsim-capture-entity {explicit} has no active capture ticks"
+        )
+    active_by_entity = {explicit: active_by_entity.get(explicit, [])}
     return EpisodePlan(
         index=index,
         episode_dir=episode_dir,

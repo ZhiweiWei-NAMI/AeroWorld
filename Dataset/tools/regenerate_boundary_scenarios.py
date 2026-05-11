@@ -2675,6 +2675,7 @@ def apply_uav_corridor_contract(
     spec_by_id = {spec["entity_id"]: spec for spec in specs}
     uav_scenes = [scene for scene in scenes if _is_uav_scene(scene)]
     repaired_routes_by_entity: dict[str, list[list[float]]] = {}
+    original_routes_by_entity: dict[str, list[list[float]]] = {}
     assigned_altitudes: dict[str, float] = {}
     used_lateral_bypass: dict[str, bool] = {}
     used_altitudes: set[float] = set()
@@ -2683,6 +2684,14 @@ def apply_uav_corridor_contract(
         spec = spec_by_id.get(entity_id)
         if spec is None:
             continue
+        original_route = []
+        start_for_original = scene_pos(scene)
+        if start_for_original:
+            original_route.append(start_for_original)
+        for waypoint in scene.get("route_waypoints_enu_m") or []:
+            if isinstance(waypoint, list) and len(waypoint) >= 3:
+                original_route.append([float(waypoint[0]), float(waypoint[1]), float(waypoint[2])])
+        original_routes_by_entity[entity_id] = original_route
         actions = _event_uav_actions(events, entity_id)
         route_points = _uav_route_points(scene, actions)
         initial_state = dict(scene.get("initial_state") or {})
@@ -2729,6 +2738,10 @@ def apply_uav_corridor_contract(
                 for point in action_waypoints:
                     if not repaired_route or dist_xy(repaired_route[-1], point) > 0.05 or abs(repaired_route[-1][2] - point[2]) > 0.05:
                         repaired_route.append(point)
+        if str(initial_state.get("role") or "") == "U_inspect":
+            for point in original_routes_by_entity.get(entity_id, [])[1:]:
+                if not repaired_route or dist_xy(repaired_route[-1], point) > 0.05 or abs(repaired_route[-1][2] - point[2]) > 0.05:
+                    repaired_route.append(point)
         if len(repaired_route) == 1 and scene.get("route_waypoints_enu_m"):
             extra = _repair_uav_waypoints(scene.get("route_waypoints_enu_m") or [], altitude_m)
             repaired_route.extend(extra)

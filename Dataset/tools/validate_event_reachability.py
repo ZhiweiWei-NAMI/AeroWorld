@@ -22,6 +22,7 @@ if str(SUMO_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SUMO_SCRIPTS_DIR))
 
 from donghu_core.event_script_interpreter import EventScriptInterpreter  # noqa: E402
+from semantic_event_contract import get_contract, required_event_sequence_matches  # noqa: E402
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -85,6 +86,7 @@ def validate_scene(scene_path: Path) -> list[str]:
     scene = load_json(scene_path)
     script_path = scene_path.with_name("event_script.json")
     script = load_json(script_path)
+    contract = get_contract(scene.get("scenario_id") or script.get("scenario_id") or scene_path.parent.name)
     positions = {
         str(entity["entity_id"]): entity_pos(entity)
         for entity in scene.get("entities", [])
@@ -165,6 +167,30 @@ def validate_scene(scene_path: Path) -> list[str]:
         issues.append(f"{script['scenario_id']}: unreachable events: {', '.join(missing)}")
     if skipped_actions:
         issues.append(f"{script['scenario_id']}: skipped actions: {len(skipped_actions)}")
+    ordered = sorted(
+        (
+            int(row.get("tick", row.get("activated_tick", 0)) or 0),
+            str(row.get("topic") or row.get("source_event_id") or row.get("event_id") or ""),
+        )
+        for row in interpreter.get_event_log()
+    )
+    ordered_rows: list[dict[str, Any]] = []
+    seen = set()
+    for _, topic in ordered:
+        if topic in seen:
+            continue
+        seen.add(topic)
+        for row in interpreter.get_event_log():
+            row_topic = str(row.get("topic") or row.get("source_event_id") or row.get("event_id") or "")
+            if row_topic == topic:
+                ordered_rows.append(dict(row))
+                break
+    ok, matched_topics = required_event_sequence_matches(contract.required_event, ordered_rows)
+    if not ok:
+        issues.append(
+            f"{script['scenario_id']}: required_event order mismatch: {contract.required_event} "
+            f"(matched={matched_topics})"
+        )
     return issues
 
 

@@ -8,6 +8,7 @@ consume this contract instead of copying counts or role policy locally.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from pathlib import Path
 from typing import Any
 
@@ -202,3 +203,64 @@ def contract_payload(contract: EpisodeContract) -> dict[str, Any]:
 
 def all_contracts() -> tuple[EpisodeContract, ...]:
     return tuple(EPISODE_CONTRACTS[key] for key in EPISODE_CONTRACTS)
+
+
+def normalize_semantic_text(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+
+
+def required_event_stages(required_event: str) -> tuple[tuple[tuple[str, ...], ...], ...]:
+    stages: list[tuple[tuple[str, ...], ...]] = []
+    for raw_stage in str(required_event or "").split(">"):
+        options: list[tuple[str, ...]] = []
+        for raw_option in raw_stage.split("/"):
+            tokens = tuple(token for token in normalize_semantic_text(raw_option).split() if token)
+            if tokens:
+                options.append(tokens)
+        if options:
+            stages.append(tuple(options))
+    return tuple(stages)
+
+
+def event_text_haystack(event: dict[str, Any]) -> str:
+    payload = dict(event.get("payload") or {})
+    parts = [
+        event.get("event_id"),
+        event.get("topic"),
+        event.get("source_event_id"),
+        event.get("source_topic"),
+        payload.get("event_id"),
+        payload.get("source_topic"),
+        payload.get("title"),
+        payload.get("category"),
+        payload.get("phase"),
+        payload.get("source_kind"),
+    ]
+    return normalize_semantic_text(" ".join(str(part or "") for part in parts))
+
+
+def required_event_sequence_matches(required_event: str, events: list[dict[str, Any]]) -> tuple[bool, list[str]]:
+    stages = required_event_stages(required_event)
+    if not stages:
+        return True, []
+    matches: list[str] = []
+    start_index = 0
+    for stage in stages:
+        found_index = -1
+        for index in range(start_index, len(events)):
+            haystack = event_text_haystack(events[index])
+            if any(all(token in haystack for token in option) for option in stage):
+                found_index = index
+                break
+        if found_index < 0:
+            return False, matches
+        matches.append(
+            str(
+                events[found_index].get("topic")
+                or events[found_index].get("source_event_id")
+                or events[found_index].get("event_id")
+                or ""
+            )
+        )
+        start_index = found_index + 1
+    return True, matches
