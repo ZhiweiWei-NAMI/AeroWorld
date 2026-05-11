@@ -12,17 +12,24 @@
 - **Mechanism categories**: 5/5 (100%)
 - **Scene grounding validation**: 70/70 pass with `Dataset/tools/validate_scene_grounding.py`
 
+## Capture Contract
+
+- Every scenario must carry a captureable event chain from trigger to rendered evidence.
+- Every layer must include baseline background human, vehicle, and UAV context actors.
+- Background context is support data; the layer-specific actor remains the semantic target.
+- Validation should confirm the chain appears in `event_trace.jsonl`, `dynamic_labels.jsonl`, `truth_frames.jsonl`, and the rendered outputs.
+
 ## Per-Layer Breakdown
 
 | Layer | Event Types | Scenario definitions | Main entities |
 |-------|-------------|----------------------|---------------|
-| L1 Airspace | 4 (L1-1 to L1-4) | 7 | UAV, no-fly zone, corridor/hazard zone |
-| L2 Infrastructure | 5 (L2-1 to L2-5) | 9 | UAV, radio tower, charger, landing pad, traffic signal, vehicle |
-| L3 Dynamic Constraints | 3 (L3-1 to L3-3) | 5 | roadwork props, hazard zone, UAV, vehicle, pedestrian |
-| L4 Agents | 11 (L4-1 to L4-11) | 24 | UAV, vehicle, pedestrian, crowd |
-| L5 Environment | 5 (L5-1 to L5-5) | 9 | UAV, vehicle, pedestrian, weather |
-| L6 Digital Layer | 5 (L6-1 to L6-5) | 10 | UAV, radio tower, ground station |
-| X Cross-Layer | 6 chains | 6 | mixed entities spanning at least two ODD layers |
+| L1 Airspace | 4 (L1-1 to L1-4) | 7 | UAV event target, plus baseline background human/vehicle/UAV context |
+| L2 Infrastructure | 5 (L2-1 to L2-5) | 9 | infrastructure event target, plus baseline background human/vehicle/UAV context |
+| L3 Dynamic Constraints | 3 (L3-1 to L3-3) | 5 | constraint event target, plus baseline background human/vehicle/UAV context |
+| L4 Agents | 11 (L4-1 to L4-11) | 24 | agent event target, plus baseline background human/vehicle/UAV context |
+| L5 Environment | 5 (L5-1 to L5-5) | 9 | environment event target, plus baseline background human/vehicle/UAV context |
+| L6 Digital Layer | 5 (L6-1 to L6-5) | 10 | digital event target, plus baseline background human/vehicle/UAV context |
+| X Cross-Layer | 6 chains | 6 | mixed event targets spanning at least two ODD layers with baseline background context |
 
 ## Cross-Layer Event Chains
 
@@ -37,7 +44,7 @@
 
 ## Validation Scope
 
-`validate_coverage.py` checks taxonomy coverage. `validate_scene_grounding.py` checks executable grounding:
+`validate_coverage.py` checks taxonomy coverage. `validate_scene_grounding.py` checks executable grounding and capture-chain readiness:
 
 - event-script entity references resolve to `scene_setup.entities`;
 - logical asset IDs exist in `Config/LowAltitude/asset_catalog.json`;
@@ -46,6 +53,8 @@
 - pedestrian and crowd positions stay out of roadway except explicit crossing/retreat phases;
 - weather-state scenarios have tick/weather-profile bootstraps;
 - composite triggers reference existing child triggers;
+- every scenario has a captureable event chain;
+- every scenario has baseline background human, vehicle, and UAV context actors;
 - scenario `validation_rules` are executed and reported pass/fail.
 
 ## CAAC Compliance
@@ -66,10 +75,3 @@
 | CAAC-12 (emergency response at sites) | Covered | L2-4, L3-3, X3 |
 | CAAC-13 (collision with facilities/vehicles/personnel) | Covered | L4-2, L4-4, L4-5 |
 | CAAC-14 (death/serious injury) | Covered | L4-3, L4-5, L4-6 |
-
-## Standards Alignment
-
-- **NASA Belcastro et al. (2017)**: all 4 hazard domains covered.
-- **JARUS SORA v2.5**: SAIL I through VI represented.
-- **ICAO CICTT (ADREP)**: MAC, GCOL, CFIT, SCF-NP, SCF-PP, NAV, SEC, WSTRW, TURB, UIMC, MED, and EVAC represented.
-- **PEGASUS 6-layer model**: all UAM-adapted layers represented with multiple scenario definitions.

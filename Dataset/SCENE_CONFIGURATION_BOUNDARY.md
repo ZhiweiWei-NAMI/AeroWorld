@@ -9,10 +9,18 @@
 > 2. 编译产物 `event_script.json`
 >
 > 每个场景必须满足下面定义的语义落点、实体解析、触发条件和验证标准。
+> 3. 只写代码链路和验证链路，不写论文表述；优先修改 Python 上下链路，尽量不动 C++。
 
 ---
 
 ## 零、基础设施清单（写死在 prompt 里，GPT 不能编造）
+
+## 全局捕捉约束
+
+- 不论层级，所有场景都必须带基础背景人、车、UAV context actors。
+- 每个事件都必须有可捕捉的 event chain：trigger -> action -> truth_frames -> event_trace -> dynamic_labels -> rendered outputs。
+- 生成说明必须优先写 Python 上下链路和验证链路；只有 Python 无法表达时才考虑 C++。
+- 背景上下文是支撑项，不改变场景所属层级的主事件类型。
 
 ### 可用资产 (`logical_asset_id`)
 

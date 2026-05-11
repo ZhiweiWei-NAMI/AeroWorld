@@ -16,6 +16,14 @@ Workspace: `E:\DynamicCityCreatorSamples`
   - summary: `F:\aw_cap_summary.csv`
 - Primary image paths and filenames must stay simple. Use paths like `F:\aw_cap\uav\e69\v000\rgb\tick_000000.png`; write long episode IDs, capture entity IDs, alignment keys, coordinates, audits, and contracts into sidecar/meta JSON files.
 
+## Code-First Contract
+
+- Every behavior change must be traced through the Python chain first.
+- Preferred Python sequence: `Dataset/tools/spec_compiler.py` -> `Dataset/tools/regenerate_boundary_scenarios.py` -> `Dataset/tools/batch_generate.py` -> `Dataset/tools/convert_to_render_ready.py` -> `Dataset/tools/batch_render_dataset.py` -> `Dataset/tools/run_semantic_event_chain_every10.py` -> `Plugins/SumoImporter/Scripts/episode_render_host.py` -> validators.
+- Do not reach for C++ unless the Python chain cannot express the change.
+- Every layer must keep baseline background human, vehicle, and UAV context actors.
+- Every event must be a captureable chain, not a static label.
+
 ## Crash Boundary
 
 The previous crash was likely caused by Python/editor remote execution mutating AirSim PIPCamera hidden lists. The stack was:
@@ -96,13 +104,13 @@ This smoke is now intentionally obsolete for primary segmentation: classes `11` 
 
 ## Data Layer Notes
 
-Subagent read-only analysis found many episodes without vehicles. Priority scenes for background vehicle additions were:
+Subagent read-only analysis found many episodes without full background context. Priority scenes for background context additions were:
 
 ```text
 X1, X6, L4-8_v1/v2, L4-3_v1/v2/v3, L4-5_v1/v2/v3
 ```
 
-The background-vehicle generation path must continue to satisfy overlay/collision clearance rules before rendering.
+The background-context generation path must continue to satisfy overlay/collision clearance rules before rendering, and the chain must stay captureable end to end.
 
 ## Checks To Rerun After Edits
 

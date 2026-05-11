@@ -70,7 +70,7 @@ Saved/AirSim/full_capture/L4-5_v1/site.intersection_a/L4-5_v1__uav_ped_nearmiss_
   - sidecar 写 `segmentation_kind: airsim_semantic_class_id_color` 和 `semantic_segmentation_claim: true`。
   - 静态类包括 `city_base_background`、6 个 building subtype；动态类包括 UAV、vehicle、pedestrian、roadwork、traffic control、facility、hazard trigger、service/misc props。
 
-论文表述不得声称当前 `seg` 能区分 road/terrain/water/material；`BP_CityBaseGenerator0` 统一作为 merged city-base background 类。建筑 subtype 可在训练或论文统计时合并为 `building`。
+当前 `seg` 不用于区分 road/terrain/water/material；`BP_CityBaseGenerator0` 统一作为 merged city-base background 类。建筑 subtype 可在统计时合并为 `building`。
 
 ## 多 UAV 视角调度
 
@@ -107,7 +107,7 @@ python Plugins\SumoImporter\Scripts\episode_render_host.py `
 5. 深度和 segmentation 都走 `simGetImages`，长跑存在 RPC、GPU readback、PNG/Numpy 编码和内存压力。必须小 chunk 运行，失败后保留 PIE 现场。
 6. 每轮只采一个 camera 的一个 modality。多视角或多通道并行采集会增加显存和 RPC 压力，不作为默认路线。
 7. 动态 actor 生命周期要保持可审计。普通 episode/chunk 结束只清理脚本实体，不关闭 UE/PIE；只有 C++ 编译或用户明确要求时关闭。
-8. `event_fired_after` 是 scripted causal delay，不等同于物理动作完成。论文表述应区分 scripted causal chain 和 fully physics-completed action chain。
+8. `event_fired_after` 是 scripted causal delay，不等同于物理动作完成。代码说明应区分 scripted causal chain 和 fully physics-completed action chain。
 9. validation pass 不能替代图像 smoke。坐标、碰撞、朝向、可见性和相机覆盖必须用代表场景图像抽查。
 10. 重跑同一 modality 会删除并覆盖该 modality 目录；不同 modality 是 sibling 目录，不互相删除。全量脚本必须按 root/batch/view/modality 粒度断点重跑。
 

@@ -535,6 +535,7 @@ def write_guarded_config(args: argparse.Namespace, episode_dir: Path, index: int
         "capture_ticks_per_host_run": int(args.capture_ticks_per_host_run),
         "ground_modalities": ["rgb"],
         "uav_modalities": list(args.uav_modalities),
+        "write_depth_preview": bool(args.write_depth_preview),
         "oom_policy": "parent_guard_kills_host_child_keeps_ue_open",
     }
     target = args.output_root / "_meta" / "configs" / f"{simple_episode_dir_name(index)}_{short_stable_name(episode_dir.name, 'e')}.json"
@@ -593,7 +594,7 @@ def clear_output_targets(paths: list[Path], root: Path) -> None:
 
 
 def base_host_command(args: argparse.Namespace, guarded_config: Path, output_dir: Path, site_id: str) -> list[str]:
-    return [
+    command = [
         sys.executable,
         "-u",
         str(HOST_SCRIPT),
@@ -617,6 +618,9 @@ def base_host_command(args: argparse.Namespace, guarded_config: Path, output_dir
         "1",
         "--preserve_capture_output_dir",
     ]
+    if bool(args.write_depth_preview):
+        command.append("--write-depth-preview")
+    return command
 
 
 def run_host_chunks(
@@ -777,6 +781,12 @@ def validate_uav_modality_outputs(
                     f"npy={tuple(depth.shape)} sidecar={(payload['height'], payload['width'])}"
                 )
             payload["depth_shape"] = [int(value) for value in depth.shape]
+            depth_preview_path = str(sidecar.get("depth_preview_path") or "").strip()
+            if depth_preview_path:
+                preview_path = Path(depth_preview_path)
+                if not preview_path.exists():
+                    raise RuntimeError(f"Missing depth preview output: {preview_path}")
+                payload["depth_preview_path"] = str(preview_path)
         if modality == "seg":
             palette_path = Path(str(sidecar.get("semantic_palette_preview_path") or primary_path.with_name(f"{primary_path.stem}__palette.png")))
             if not palette_path.exists():
@@ -1330,6 +1340,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allow-missing-capture-ticks", action="store_true")
     parser.add_argument("--allow-nonstandard-tick-step", action="store_true")
     parser.add_argument("--allow-single-host-full-chain", action="store_true")
+    parser.add_argument("--write-depth-preview", dest="write_depth_preview", action="store_true", default=True)
+    parser.add_argument("--no-write-depth-preview", dest="write_depth_preview", action="store_false")
     parser.add_argument("--no-verify-seg-pixels", dest="verify_seg_pixels", action="store_false", default=True)
     parser.add_argument("--plan-only", action="store_true", help="Print deterministic plan and exit without touching UE.")
     args = parser.parse_args()

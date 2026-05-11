@@ -2,7 +2,7 @@
 
 ## Overview
 
-This dataset contains **64 base event scenarios plus 6 cross-layer chains** (70 scenario directories total) for low-altitude urban air mobility research. The scenarios are organized across **33 event types** in a UAM-adapted PEGASUS 6-layer Operational Design Domain (ODD) model.
+This dataset contains **64 base event scenarios plus 6 cross-layer chains** (70 scenario directories total) for low-altitude urban air mobility event-chain capture and code validation. The scenarios are organized across **33 event types** in a UAM-adapted PEGASUS 6-layer Operational Design Domain (ODD) model.
 
 Each scenario directory contains:
 
@@ -14,9 +14,17 @@ Each scenario directory contains:
 
 - **6-layer ODD coverage**: L1 airspace, L2 infrastructure, L3 dynamic constraints, L4 agents, L5 environment, and L6 digital layer.
 - **Cross-layer chains**: 6 additional X scenarios linking weather, digital layer failures, airspace constraints, and agent responses.
+- **Capture contract**: every episode carries a captureable event chain plus baseline background human, vehicle, and UAV context actors.
 - **Grounded placement**: semantic anchors are resolved into ENU coordinates against the Donghu traffic bundle where applicable.
-- **Executable validation**: `validate_scene_grounding.py` checks entity references, asset IDs, placement resolution, action coordinates, weather bootstraps, and per-scenario validation rules.
+- **Executable validation**: `validate_scene_grounding.py` checks entity references, asset IDs, placement resolution, action coordinates, weather bootstraps, event-chain reachability, background context presence, and per-scenario validation rules.
 - **Graph/RDF tooling**: existing tools export frame graphs, PyG data, and RDF triples from generated episodes.
+
+## Capture Contract
+
+- Every episode must expose a captureable event chain in `event_script.json`, `event_trace.jsonl`, `dynamic_labels.jsonl`, and `truth_frames.jsonl`.
+- Every layer must include baseline background human, vehicle, and UAV context actors.
+- The layer-specific actor remains the semantic target; background context is support data.
+- Any code change should move through the Python chain first: `spec.py` -> `spec_compiler.py` -> `regenerate_boundary_scenarios.py` -> `batch_generate.py` -> `convert_to_render_ready.py` -> `batch_render_dataset.py` -> `run_semantic_event_chain_every10.py` -> `episode_render_host.py` -> validators.
 
 ## Directory Structure
 
@@ -93,14 +101,6 @@ python Dataset/tools/validate_scene_grounding.py --dataset-root Dataset
 | L6 | Digital Layer | 5 | 10 |
 | X | Cross-layer Chains | 6 chains | 6 |
 
-## References
-
-- Belcastro, C. M., et al. (2017). "Hazards Identification and Analysis for Unmanned Aircraft System Operations." AIAA 2017-3269.
-- CAAC MinGui [2025] No.15. "Civil Unmanned Aircraft Event Information Management Measures."
-- JARUS SORA v2.5. "Specific Operations Risk Assessment."
-- ICAO CICTT. "Aviation Occurrence Categories." ADREP Taxonomy.
-- Scholtes, M., et al. (2021). "6-Layer Model for a Structured Description and Categorization of Urban Traffic and Environment." IEEE Access.
-
 ## License
 
-This dataset is intended for research purposes.
+This dataset is intended for capture, validation, and code-driven generation workflows.

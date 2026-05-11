@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
 import time
 from pathlib import Path
@@ -14,6 +15,7 @@ PROJECT_ROOT = SCRIPT_DIR.parents[2]
 REMOTE_EXEC_RELATIVE_PATH = Path("Plugins/Experimental/PythonScriptPlugin/Content/Python/remote_execution.py")
 DEFAULT_DISCOVERY_TIMEOUT_S = 15.0
 DEFAULT_CAPTURE_TIMEOUT_S = 15.0
+DEFAULT_COMMAND_PORT_CANDIDATES = (6976, 7076, 7176, 7276, 7376, 7476, 7576, 7676)
 
 
 def _load_json(path: Path) -> Any:
@@ -122,6 +124,33 @@ def _import_remote_execution(project_root: Path) -> tuple[Path, Any]:
     return engine_root, remote_execution
 
 
+def _can_bind_tcp_endpoint(host: str, port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((host, int(port)))
+        return True
+    except OSError:
+        return False
+
+
+def _select_command_endpoint(remote_execution: Any) -> tuple[str, int]:
+    default_host, default_port = remote_execution.DEFAULT_COMMAND_ENDPOINT
+    host = str(os.environ.get("UE_PYTHON_REMOTE_COMMAND_HOST") or default_host or "127.0.0.1")
+    requested_port = str(os.environ.get("UE_PYTHON_REMOTE_COMMAND_PORT") or "").strip()
+    if requested_port:
+        port = int(requested_port)
+        if not _can_bind_tcp_endpoint(host, port):
+            raise RuntimeError(f"UE Python remote command endpoint is not bindable: {host}:{port}")
+        return host, port
+
+    candidates = [int(default_port), *DEFAULT_COMMAND_PORT_CANDIDATES]
+    for port in candidates:
+        if _can_bind_tcp_endpoint(host, port):
+            return host, int(port)
+    raise RuntimeError(f"No bindable UE Python remote command endpoint found for host {host}: {candidates}")
+
+
 class UnrealEditorRemoteExecution:
     def __init__(
         self,
@@ -166,7 +195,9 @@ class UnrealEditorRemoteExecution:
             return
 
         self.close()
-        self._session = self.remote_execution.RemoteExecution()
+        config = self.remote_execution.RemoteExecutionConfig()
+        config.command_endpoint = _select_command_endpoint(self.remote_execution)
+        self._session = self.remote_execution.RemoteExecution(config)
         self._session.start()
 
         deadline = time.perf_counter() + self.discovery_timeout_s

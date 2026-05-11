@@ -6717,7 +6717,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--write-depth-preview",
         action="store_true",
-        help="Write an extra 8-bit PNG preview next to depth .npy for smoke/debug only. Formal dataset generation should leave this off.",
+        default=True,
+        help="Write an extra 8-bit PNG preview next to depth .npy for persistent review and presentation artifacts.",
+    )
+    parser.add_argument(
+        "--no-write-depth-preview",
+        dest="write_depth_preview",
+        action="store_false",
+        help="Disable depth preview PNG output and keep only the depth .npy plus sidecar.",
     )
     parser.add_argument(
         "--semantic-stencil-audit-only",
