@@ -25,29 +25,29 @@
         ],
         "boundary_role": "capture_boundary",
         "z_policy": "ground_to_event_altitude",
-        "source": "event_motion_bbox",
-        "source_entity_id": "",
+        "source": "event_entity_envelope",
+        "source_entity_id": "uav_forced_landing_l4_3_v3",
         "center_enu_m": [
-          7852.808,
-          6412.681,
+          7827.856,
+          6411.574,
           0.0
         ],
         "polygon_enu_m": [
           [
-            7797.016,
-            6386.024
+            7801.016,
+            6390.024
           ],
           [
-            7908.601,
-            6386.024
+            7854.697,
+            6390.024
           ],
           [
-            7908.601,
-            6439.337
+            7854.697,
+            6433.124
           ],
           [
-            7797.016,
-            6439.337
+            7801.016,
+            6433.124
           ]
         ],
         "uav_boundary_crossing_required": true,
@@ -66,12 +66,17 @@
         "fov_coverage_required": true,
         "sensor_profile_required": true
       },
-      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": [
+          "terminal_landing_zone"
+        ]
+      },
       "uav_boundary_crossing_required": true,
       "inspect_fov_coverage_required": true,
       "required_event": "forced landing variant > touchdown",
       "required_intents": [
-        "landing_or_terminal_resolution"
+        "forced_landing"
       ],
       "background_semantics": {
         "vehicle_role": "stopped/slow response",
@@ -92,7 +97,7 @@
     "target_logical_count": 4,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 12,
+    "uav_corridor_segment_count": 18,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -117,7 +122,7 @@
       },
       {
         "entity_id": "u_inspect_l4_3_v3",
-        "point_count": 4,
+        "point_count": 11,
         "assigned_altitude_m": 10.0,
         "used_lateral_bypass": false
       },
@@ -253,13 +258,13 @@
         "entity_id": "u_inspect_l4_3_v3",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7811.798,
-          6423.995,
+          7827.856,
+          6409.524,
           10.0
         ],
         "segment_end_enu_m": [
-          7878.77,
-          6405.568,
+          7801.016,
+          6390.024,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -268,13 +273,13 @@
         "entity_id": "u_inspect_l4_3_v3",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7878.77,
-          6405.568,
+          7801.016,
+          6390.024,
           10.0
         ],
         "segment_end_enu_m": [
-          7811.798,
-          6423.995,
+          7827.856,
+          6390.024,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -283,13 +288,103 @@
         "entity_id": "u_inspect_l4_3_v3",
         "segment_index": 2,
         "segment_start_enu_m": [
-          7811.798,
-          6423.995,
+          7827.856,
+          6390.024,
           10.0
         ],
         "segment_end_enu_m": [
-          7878.77,
-          6405.568,
+          7854.697,
+          6390.024,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_3_v3",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7854.697,
+          6390.024,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7854.697,
+          6409.524,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_3_v3",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7854.697,
+          6409.524,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7854.697,
+          6429.024,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_3_v3",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7854.697,
+          6429.024,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7827.856,
+          6429.024,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_3_v3",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7827.856,
+          6429.024,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7801.016,
+          6429.024,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_3_v3",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7801.016,
+          6429.024,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7801.016,
+          6409.524,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_3_v3",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7801.016,
+          6409.524,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7827.856,
+          6409.524,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -303,8 +398,8 @@
           80.0
         ],
         "segment_end_enu_m": [
-          7896.601,
-          6414.305,
+          7893.63,
+          6414.141,
           80.0
         ],
         "assigned_altitude_m": 80.0
@@ -320,29 +415,29 @@
     ],
     "capture_boundary": {
       "boundary_id": "capture_boundary_l4_3_v3",
-      "source": "event_motion_bbox",
-      "source_entity_id": "",
+      "source": "event_entity_envelope",
+      "source_entity_id": "uav_forced_landing_l4_3_v3",
       "center_enu_m": [
-        7852.808,
-        6412.681,
+        7827.856,
+        6411.574,
         0.0
       ],
       "polygon_enu_m": [
         [
-          7797.016,
-          6386.024
+          7801.016,
+          6390.024
         ],
         [
-          7908.601,
-          6386.024
+          7854.697,
+          6390.024
         ],
         [
-          7908.601,
-          6439.337
+          7854.697,
+          6433.124
         ],
         [
-          7797.016,
-          6439.337
+          7801.016,
+          6433.124
         ]
       ],
       "uav_boundary_crossing_required": true,
@@ -443,6 +538,14 @@
           }
         }
       ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "L4-3_v3.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L4-3_v3_lifecycle_takeoff_uav_forced_landing_l4_3_v3",
         "category": "uav_lifecycle",
@@ -452,6 +555,13 @@
         "target_ids": [
           "uav_forced_landing_l4_3_v3",
           "pad_home_uav_forced_landing_l4_3_v3"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "L4-3_v3.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -510,6 +620,13 @@
           "activity_type": "chatting"
         }
       ],
+      "intent": "ground_crowd_is_visible_before_the_uav_fault_begins",
+      "intent_stage": "00.ground_crowd_is_visible_before_the_uav_fault_begins",
+      "causal_chain_id": "L4-3_v3.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_L4-3_v3_crowd_present",
         "category": "pedestrian",
@@ -525,6 +642,13 @@
           "ped_landing_crowd_l4_3_v3_03",
           "ped_landing_crowd_l4_3_v3_04",
           "ped_landing_crowd_l4_3_v3_05"
+        ],
+        "intent": "ground_crowd_is_visible_before_the_uav_fault_begins",
+        "intent_stage": "00.ground_crowd_is_visible_before_the_uav_fault_begins",
+        "causal_chain_id": "L4-3_v3.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "pedestrian"
         ]
       }
     },
@@ -543,6 +667,14 @@
           }
         }
       ],
+      "intent": "uav_fault_appears_near_a_ground_crowd",
+      "intent_stage": "01.uav_fault_appears_near_a_ground_crowd",
+      "causal_chain_id": "L4-3_v3.semantic_event_chain",
+      "causal_predecessor_intent": "ground_crowd_is_visible_before_the_uav_fault_begins",
+      "target_roles": [
+        "mission_uav",
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_L4-3_v3_forced_landing_fault",
         "category": "uav_mission",
@@ -553,6 +685,14 @@
           "uav_forced_landing_l4_3_v3",
           "ped_landing_l4_3_v3_a",
           "ped_landing_l4_3_v3_b"
+        ],
+        "intent": "uav_fault_appears_near_a_ground_crowd",
+        "intent_stage": "01.uav_fault_appears_near_a_ground_crowd",
+        "causal_chain_id": "L4-3_v3.semantic_event_chain",
+        "causal_predecessor_intent": "ground_crowd_is_visible_before_the_uav_fault_begins",
+        "target_roles": [
+          "mission_uav",
+          "pedestrian"
         ]
       }
     },
@@ -628,6 +768,13 @@
           }
         }
       ],
+      "intent": "uav_descends_from_30m_to_low_height",
+      "intent_stage": "02.uav_descends_from_30m_to_low_height",
+      "causal_chain_id": "L4-3_v3.semantic_event_chain",
+      "causal_predecessor_intent": "uav_fault_appears_near_a_ground_crowd",
+      "target_roles": [
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L4-3_v3_descent_to_low_altitude",
         "category": "uav_mission",
@@ -636,6 +783,13 @@
         "overlay": "uav_mission",
         "target_ids": [
           "uav_forced_landing_l4_3_v3"
+        ],
+        "intent": "uav_descends_from_30m_to_low_height",
+        "intent_stage": "02.uav_descends_from_30m_to_low_height",
+        "causal_chain_id": "L4-3_v3.semantic_event_chain",
+        "causal_predecessor_intent": "uav_fault_appears_near_a_ground_crowd",
+        "target_roles": [
+          "mission_uav"
         ]
       }
     },
@@ -691,6 +845,14 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "forced_landing",
+      "intent_stage": "03.forced_landing",
+      "causal_chain_id": "L4-3_v3.semantic_event_chain",
+      "causal_predecessor_intent": "uav_descends_from_30m_to_low_height",
+      "target_roles": [
+        "mission_uav",
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_L4-3_v3_crowd_proximity_response",
         "category": "pedestrian",
@@ -701,6 +863,14 @@
           "ped_landing_l4_3_v3_a",
           "ped_landing_l4_3_v3_b",
           "uav_forced_landing_l4_3_v3"
+        ],
+        "intent": "forced_landing",
+        "intent_stage": "03.forced_landing",
+        "causal_chain_id": "L4-3_v3.semantic_event_chain",
+        "causal_predecessor_intent": "uav_descends_from_30m_to_low_height",
+        "target_roles": [
+          "mission_uav",
+          "pedestrian"
         ]
       }
     },
@@ -746,6 +916,13 @@
           }
         }
       ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "04.landing_or_terminal_resolution",
+      "causal_chain_id": "L4-3_v3.semantic_event_chain",
+      "causal_predecessor_intent": "forced_landing",
+      "target_roles": [
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L4-3_v3_safe_landing",
         "category": "uav_mission",
@@ -754,6 +931,13 @@
         "overlay": "uav_mission",
         "target_ids": [
           "uav_forced_landing_l4_3_v3"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "04.landing_or_terminal_resolution",
+        "causal_chain_id": "L4-3_v3.semantic_event_chain",
+        "causal_predecessor_intent": "forced_landing",
+        "target_roles": [
+          "mission_uav"
         ]
       }
     }

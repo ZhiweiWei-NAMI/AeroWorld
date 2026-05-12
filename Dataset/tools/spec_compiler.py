@@ -106,6 +106,11 @@ class EventStepSpec:
     log_severity: str = "info"      # info | warning | critical
     log_overlay: str = ""
     log_target_ids: list[str] = field(default_factory=list)
+    intent: str = ""
+    intent_stage: str = ""
+    causal_chain_id: str = ""
+    causal_predecessor_intent: str = ""
+    target_roles: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -274,6 +279,15 @@ class SpecCompiler:
                 event["require_conditions"] = require_conds
             if step.on_fire_emit:
                 event["on_fire"] = {"emit_events": list(step.on_fire_emit)}
+            if step.intent:
+                event["intent"] = step.intent
+            if step.intent_stage:
+                event["intent_stage"] = step.intent_stage
+            if step.causal_chain_id:
+                event["causal_chain_id"] = step.causal_chain_id
+            event["causal_predecessor_intent"] = step.causal_predecessor_intent
+            if step.target_roles:
+                event["target_roles"] = list(step.target_roles)
             if step.log_topic:
                 event["log_event"] = {
                     "topic": step.log_topic,
@@ -283,6 +297,16 @@ class SpecCompiler:
                     "overlay": step.log_overlay,
                     "target_ids": list(step.log_target_ids),
                 }
+                if step.intent:
+                    event["log_event"]["intent"] = step.intent
+                if step.intent_stage:
+                    event["log_event"]["intent_stage"] = step.intent_stage
+                if step.causal_chain_id:
+                    event["log_event"]["causal_chain_id"] = step.causal_chain_id
+                if step.causal_predecessor_intent:
+                    event["log_event"]["causal_predecessor_intent"] = step.causal_predecessor_intent
+                if step.target_roles:
+                    event["log_event"]["target_roles"] = list(step.target_roles)
 
             events.append(event)
 

@@ -25,29 +25,29 @@
         ],
         "boundary_role": "capture_boundary",
         "z_policy": "ground_to_event_altitude",
-        "source": "event_motion_bbox",
-        "source_entity_id": "",
+        "source": "event_entity_envelope",
+        "source_entity_id": "car_intersection_l4_9_v2_a",
         "center_enu_m": [
-          7140.976,
-          6352.91,
+          7138.543,
+          6344.524,
           0.0
         ],
         "polygon_enu_m": [
           [
-            7073.128,
-            6310.783
+            7115.513,
+            6329.628
           ],
           [
-            7208.825,
-            6310.783
+            7161.573,
+            6329.628
           ],
           [
-            7208.825,
-            6395.038
+            7161.573,
+            6359.421
           ],
           [
-            7073.128,
-            6395.038
+            7115.513,
+            6359.421
           ]
         ],
         "uav_boundary_crossing_required": true,
@@ -66,7 +66,12 @@
         "fov_coverage_required": true,
         "sensor_profile_required": true
       },
-      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": [
+          "conflict_point"
+        ]
+      },
       "uav_boundary_crossing_required": true,
       "inspect_fov_coverage_required": true,
       "required_event": "alternate vehicle conflict",
@@ -92,7 +97,7 @@
     "target_logical_count": 2,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 5,
+    "uav_corridor_segment_count": 11,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -111,7 +116,7 @@
     "uav_corridor_segments": [
       {
         "entity_id": "u_inspect_l4_9_v2",
-        "point_count": 4,
+        "point_count": 11,
         "assigned_altitude_m": 18.0,
         "used_lateral_bypass": false
       },
@@ -133,13 +138,13 @@
         "entity_id": "u_inspect_l4_9_v2",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7100.721,
-          6327.588,
+          7138.543,
+          6344.524,
           18.0
         ],
         "segment_end_enu_m": [
-          7182.381,
-          6365.302,
+          7115.513,
+          6329.628,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -148,13 +153,13 @@
         "entity_id": "u_inspect_l4_9_v2",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7182.381,
-          6365.302,
+          7115.513,
+          6329.628,
           18.0
         ],
         "segment_end_enu_m": [
-          7100.721,
-          6327.588,
+          7138.543,
+          6329.628,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -163,13 +168,103 @@
         "entity_id": "u_inspect_l4_9_v2",
         "segment_index": 2,
         "segment_start_enu_m": [
-          7100.721,
-          6327.588,
+          7138.543,
+          6329.628,
           18.0
         ],
         "segment_end_enu_m": [
-          7182.381,
-          6365.302,
+          7161.573,
+          6329.628,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v2",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7161.573,
+          6329.628,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7161.573,
+          6344.524,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v2",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7161.573,
+          6344.524,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7161.573,
+          6359.421,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v2",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7161.573,
+          6359.421,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7138.543,
+          6359.421,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v2",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7138.543,
+          6359.421,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7115.513,
+          6359.421,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v2",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7115.513,
+          6359.421,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7115.513,
+          6344.524,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v2",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7115.513,
+          6344.524,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7138.543,
+          6344.524,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -178,13 +273,13 @@
         "entity_id": "uav_observer_l4_9_v2_2",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7089.775,
-          6322.783,
+          7084.255,
+          6320.536,
           50.0
         ],
         "segment_end_enu_m": [
-          7196.825,
-          6372.08,
+          7193.213,
+          6370.443,
           50.0
         ],
         "assigned_altitude_m": 50.0
@@ -193,13 +288,13 @@
         "entity_id": "uav_observer_l4_9_v2_3",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7085.128,
-          6333.846,
+          7079.864,
+          6331.704,
           80.0
         ],
         "segment_end_enu_m": [
-          7191.933,
-          6383.038,
+          7188.203,
+          6381.347,
           80.0
         ],
         "assigned_altitude_m": 80.0
@@ -207,29 +302,29 @@
     ],
     "capture_boundary": {
       "boundary_id": "capture_boundary_l4_9_v2",
-      "source": "event_motion_bbox",
-      "source_entity_id": "",
+      "source": "event_entity_envelope",
+      "source_entity_id": "car_intersection_l4_9_v2_a",
       "center_enu_m": [
-        7140.976,
-        6352.91,
+        7138.543,
+        6344.524,
         0.0
       ],
       "polygon_enu_m": [
         [
-          7073.128,
-          6310.783
+          7115.513,
+          6329.628
         ],
         [
-          7208.825,
-          6310.783
+          7161.573,
+          6329.628
         ],
         [
-          7208.825,
-          6395.038
+          7161.573,
+          6359.421
         ],
         [
-          7073.128,
-          6395.038
+          7115.513,
+          6359.421
         ]
       ],
       "uav_boundary_crossing_required": true,
@@ -309,6 +404,13 @@
           "velocity_mps": 7.5
         }
       ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "01.traffic_or_facility_incident",
+      "causal_chain_id": "L4-9_v2.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "vehicle"
+      ],
       "log_event": {
         "topic": "evt_L4-9_v2_vehicles_enter_intersection",
         "category": "vehicle",
@@ -318,6 +420,12 @@
         "target_ids": [
           "car_intersection_l4_9_v2_a",
           "car_intersection_l4_9_v2_b"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "01.traffic_or_facility_incident",
+        "causal_chain_id": "L4-9_v2.semantic_event_chain",
+        "target_roles": [
+          "vehicle"
         ]
       }
     },
@@ -369,6 +477,13 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "vehicle_brake",
+      "intent_stage": "02.vehicle_brake",
+      "causal_chain_id": "L4-9_v2.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "vehicle"
+      ],
       "log_event": {
         "topic": "evt_L4-9_v2_vehicle_collision_warning",
         "category": "vehicle",
@@ -378,6 +493,13 @@
         "target_ids": [
           "car_intersection_l4_9_v2_a",
           "car_intersection_l4_9_v2_b"
+        ],
+        "intent": "vehicle_brake",
+        "intent_stage": "02.vehicle_brake",
+        "causal_chain_id": "L4-9_v2.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "vehicle"
         ]
       }
     }

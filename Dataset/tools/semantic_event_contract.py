@@ -82,9 +82,17 @@ class EpisodeContract:
 INTENT_ALIASES: dict[str, frozenset[str]] = {
     "airspace_boundary_conflict": frozenset(
         {
+            "approach boundary",
             "boundary conflict",
+            "constrained airspace",
+            "congestion",
+            "dense congestion",
             "geofence intrusion",
+            "altitude corridor",
             "nfz proximity alert",
+            "alternate nfz proximity",
+            "approaches nfz",
+            "spoofed route approaches nfz",
             "no fly zone violation",
             "airspace boundary conflict",
             "nfz violation alert",
@@ -101,10 +109,30 @@ INTENT_ALIASES: dict[str, frozenset[str]] = {
             "return home",
             "return safe airspace",
             "reroute",
+            "reroutes",
+            "changes behavior under degraded c2",
+            "degraded c2 response",
             "deconflict",
             "separation",
             "divert",
+            "diverted",
+            "diverts",
             "pull up",
+            "resume patrol",
+            "safe airspace",
+            "separate",
+            "separates",
+            "hold divert",
+            "priority resequence",
+            "resequence",
+        }
+    ),
+    "arbitration": frozenset(
+        {
+            "arbitration",
+            "pad priority arbitration",
+            "priority arbitration",
+            "reserves pad",
         }
     ),
     "landing_or_terminal_resolution": frozenset(
@@ -117,17 +145,41 @@ INTENT_ALIASES: dict[str, frozenset[str]] = {
             "terminal resolution",
             "backup landing",
             "forced landing",
+            "dual landing",
+            "staged landing",
+            "staged landings",
         }
     ),
     "pad_contention": frozenset(
         {
+            "dual pad",
+            "available pad",
+            "contention",
+            "contend",
+            "landing pad request",
             "pad contention",
             "pad request",
             "pad arbitration",
             "priority landing",
+            "same landing pad",
+            "two uavs request",
             "charger unavailable",
             "charger failure",
             "station fail",
+            "station failure",
+            "backup pad unavailable",
+        }
+    ),
+    "uav_convergence": frozenset(
+        {
+            "alternate convergence",
+            "converge",
+            "convergence",
+            "two uavs converge",
+            "uav convergence",
+            "uav conflict",
+            "uav proximity conflict",
+            "converging route conflict",
         }
     ),
     "collision_or_near_miss": frozenset(
@@ -141,23 +193,48 @@ INTENT_ALIASES: dict[str, frozenset[str]] = {
             "vehicle conflict",
             "contact risk",
             "jaywalk conflict",
+            "crossing",
+            "uav and vehicle trajectories cross",
+            "trajectories cross",
+            "pedestrian conflict",
         }
     ),
     "forced_landing": frozenset({"forced descent", "forced landing", "emergency landing", "touchdown"}),
-    "crowd_evacuation": frozenset({"crowd evacuation", "crowd evac", "evacuation", "evac", "crowd response", "crowd clear"}),
+    "crowd_evacuation": frozenset(
+        {
+            "crowd evacuation",
+            "crowd evac",
+            "evacuation",
+            "evac",
+            "pedestrians evacuate",
+            "evacuate from hazmat",
+            "crowd response",
+            "crowd clear",
+        }
+    ),
     "weather_degradation": frozenset({"rain", "fog", "wind", "gust", "dusk", "heat", "visibility"}),
     "digital_anomaly": frozenset(
         {
             "c2 degraded",
             "tower degraded",
+            "communication station degraded",
+            "station degraded",
+            "degraded c2",
             "c2 loss",
             "latency",
             "packet loss",
             "spoof",
             "jamming",
             "gcs intrusion",
+            "ground control station intrusion",
+            "ground control station intrusion detected",
+            "intrusion variant",
             "gnss anomaly",
+            "gnss spoofing",
+            "spoofing starts",
             "gnss drift",
+            "c2 degradation",
+            "degradation starts",
         }
     ),
     "recovery_or_restore": frozenset(
@@ -165,34 +242,97 @@ INTENT_ALIASES: dict[str, frozenset[str]] = {
             "restore",
             "recovery",
             "recover",
+            "recovers",
+            "uavs recover",
+            "recover after fog conflict",
+            "eases",
+            "exits degraded area",
+            "exits gust corridor",
             "correction",
             "corrected",
+            "corrects",
             "relocalize",
+            "relocalization",
+            "visual relocalization",
             "handoff",
             "validate",
             "report",
+            "documents emergency response",
+            "emergency response documented",
+            "incident documented",
+            "monitors hazmat zone",
             "secure recovery",
             "backup link",
             "channel",
             "lockout",
+            "restored",
+            "validation",
+            "ground control station secured",
         }
     ),
     "traffic_or_facility_incident": frozenset(
         {
             "roadwork closure",
+            "roadwork barriers",
+            "roadwork barriers and cones",
+            "lane closure",
+            "lane closure becomes active",
             "hazmat leak",
             "hazmat spread",
             "signal fault",
             "queue",
             "manual flow",
-            "ambulance priority",
             "av fault",
             "av failure",
+            "autonomous vehicle sensor fault",
+            "two vehicles enter",
             "fall",
+            "pedestrian fall",
             "responder",
             "medical handoff",
         }
     ),
+    "altitude_deviation": frozenset({"altitude deviation", "assigned corridor deviation"}),
+    "intruder_conflict": frozenset({"intruder conflict", "noncooperative intruder", "intruder enters constrained airspace"}),
+    "fast_intruder_crossing": frozenset({"fast intruder crossing", "intruder crossing"}),
+    "drift": frozenset({"drift", "drifts", "route drift", "off planned route"}),
+    "detour": frozenset({"detour", "detours", "vehicle detour", "blocked vehicle detours"}),
+    "inspect": frozenset({"inspect", "inspection", "uav inspection", "uav reports lane closure", "reports lane closure geometry"}),
+    "isolation": frozenset({"isolation", "isolation zone"}),
+    "facade_proximity": frozenset({"facade proximity", "facade approach", "approaches building facade", "faulty route"}),
+    "low_alt_inspect": frozenset({"low alt inspect", "low altitude inspect", "descends toward pedestrian head height"}),
+    "jaywalk": frozenset({"jaywalk", "texting pedestrian", "pedestrian moves from sidewalk into roadway"}),
+    "vehicle_brake": frozenset({"vehicle brake", "vehicle brakes", "vehicle braking", "brakes for pedestrian", "vehicle vehicle proximity triggers simultaneous braking"}),
+    "brake": frozenset({"brake", "brakes", "braking", "simultaneous braking", "emergency stop"}),
+    "clear": frozenset({"clear", "clears", "clears uav operating area"}),
+    "uav_detect": frozenset({"uav detect", "uav detects", "detects fallen pedestrian"}),
+    "ambulance": frozenset({"ambulance", "ambulance priority", "ambulance response", "ambulance responds"}),
+    "safe_hold": frozenset({"safe hold", "enter safe hold", "safe hold under jamming", "completes without removing visible agents"}),
+    "yield": frozenset({"yield", "yields", "civilian vehicle yields"}),
+    "clearance": frozenset({"clearance", "priority clearance"}),
+    "safe_stop": frozenset({"safe stop", "safe stop in lane"}),
+    "hazard_hold": frozenset({"hazard hold", "hazard state"}),
+    "slowdown": frozenset({"slowdown", "slow", "slows", "speed reduction"}),
+    "degraded_route": frozenset({"degraded route", "navigation degrades", "visibility drops"}),
+    "abort": frozenset({"abort", "aborts", "terminates mission"}),
+    "payload_swing": frozenset({"payload swing", "payload swings"}),
+    "ir_switch": frozenset({"ir switch", "infrared switch", "switches to infrared"}),
+    "charger_decision": frozenset({"charger decision", "battery derating", "range shortens", "thermal abort"}),
+    "offset": frozenset({"offset", "route offset", "deviates from planned route", "deviates"}),
+    "retreat": frozenset({"retreat", "retreats", "pedestrian retreats"}),
+}
+
+INTENT_IMPLICATIONS: dict[str, frozenset[str]] = {
+    "avoid_or_rth": frozenset({"recovery_or_restore"}),
+    "abort": frozenset({"recovery_or_restore"}),
+    "charger_decision": frozenset({"weather_degradation"}),
+    "collision_or_near_miss": frozenset({"avoid_or_rth"}),
+    "clear": frozenset({"recovery_or_restore"}),
+    "facade_proximity": frozenset({"collision_or_near_miss"}),
+    "forced_landing": frozenset({"crowd_evacuation"}),
+    "recovery_or_restore": frozenset({"avoid_or_rth"}),
+    "yield": frozenset({"clearance"}),
+    "vehicle_brake": frozenset({"brake", "collision_or_near_miss"}),
 }
 
 
@@ -208,7 +348,33 @@ def _contains_phrase(text: str, phrase: str) -> bool:
     normalized = normalize_semantic_text(phrase)
     if not normalized:
         return False
-    return normalized in text
+    if f" {normalized} " in f" {text} ":
+        return True
+    text_tokens = text.split()
+    phrase_tokens = normalized.split()
+    if not text_tokens or not phrase_tokens:
+        return False
+    cursor = 0
+    for phrase_token in phrase_tokens:
+        matched = False
+        variants = {phrase_token}
+        if phrase_token.endswith("s") and len(phrase_token) > 3:
+            variants.add(phrase_token[:-1])
+        else:
+            variants.add(f"{phrase_token}s")
+        if phrase_token.endswith("ed") and len(phrase_token) > 4:
+            variants.add(phrase_token[:-2])
+        if phrase_token.endswith("ing") and len(phrase_token) > 5:
+            variants.add(phrase_token[:-3])
+        while cursor < len(text_tokens):
+            token = text_tokens[cursor]
+            cursor += 1
+            if token in variants:
+                matched = True
+                break
+        if not matched:
+            return False
+    return True
 
 
 def canonical_intent_from_text(value: str) -> str | None:
@@ -218,6 +384,52 @@ def canonical_intent_from_text(value: str) -> str | None:
     normalized = normalize_intent(text)
     if normalized in INTENT_ALIASES:
         return normalized
+    priority_intents = (
+        "arbitration",
+        "pad_contention",
+        "altitude_deviation",
+        "intruder_conflict",
+        "fast_intruder_crossing",
+        "safe_hold",
+        "inspect",
+        "recovery_or_restore",
+        "uav_convergence",
+        "vehicle_brake",
+        "collision_or_near_miss",
+        "facade_proximity",
+        "low_alt_inspect",
+        "jaywalk",
+        "brake",
+        "forced_landing",
+        "airspace_boundary_conflict",
+        "avoid_or_rth",
+        "detour",
+        "traffic_or_facility_incident",
+        "isolation",
+        "uav_detect",
+        "yield",
+        "ambulance",
+        "clearance",
+        "hazard_hold",
+        "safe_stop",
+        "slowdown",
+        "degraded_route",
+        "abort",
+        "payload_swing",
+        "ir_switch",
+        "charger_decision",
+        "offset",
+        "landing_or_terminal_resolution",
+        "crowd_evacuation",
+        "clear",
+        "retreat",
+        "digital_anomaly",
+        "weather_degradation",
+    )
+    for intent in priority_intents:
+        aliases = INTENT_ALIASES.get(intent, frozenset())
+        if any(_contains_phrase(text, alias) for alias in aliases):
+            return intent
     for intent, aliases in INTENT_ALIASES.items():
         if intent == normalized or any(_contains_phrase(text, alias) for alias in aliases):
             return intent
@@ -330,13 +542,19 @@ def _default_capture_boundary_contract(scenario_id: str) -> CaptureBoundaryContr
     )
 
 
-def _default_pad_boundary_policy(scenario_id: str) -> PadBoundaryPolicy:
-    if scenario_id.startswith(("L2-4_", "X5_")):
-        return PadBoundaryPolicy(
-            default="outside_allowed",
-            inside_required_for=("pad_contention", "priority_landing_arbitration"),
-        )
-    return PadBoundaryPolicy(default="outside_allowed", inside_required_for=())
+def _default_pad_boundary_policy(scenario_id: str, required_event: str) -> PadBoundaryPolicy:
+    event_text = normalize_semantic_text(required_event)
+    inside: list[str] = []
+    if any(
+        token in event_text for token in ("pad request", "pad contention", "same landing pad", "priority landing")
+    ):
+        inside.extend(["pad_contention", "priority_landing_arbitration"])
+    if any(token in event_text for token in ("convergence", "conflict", "near miss", "collision")):
+        inside.append("conflict_point")
+    if any(token in event_text for token in ("forced landing", "forced descent", "emergency landing")):
+        inside.append("terminal_landing_zone")
+    deduped = tuple(dict.fromkeys(inside))
+    return PadBoundaryPolicy(default="outside_allowed", inside_required_for=deduped)
 
 
 def _default_inspect_contract(inspect_altitude_m: float) -> InspectContract:
@@ -380,7 +598,7 @@ def _build_contracts() -> dict[str, EpisodeContract]:
             required_intents=required_intents_for_event_text(required_event),
             capture_boundary=_default_capture_boundary_contract(scenario_id),
             uav_boundary_crossing_required=True,
-            pad_policy=_default_pad_boundary_policy(scenario_id),
+            pad_policy=_default_pad_boundary_policy(scenario_id, required_event),
             inspect=_default_inspect_contract(inspect_altitude_m),
             vehicle_role=vehicle_role,
             pedestrian_role=pedestrian_role,
@@ -461,42 +679,17 @@ def all_contracts() -> tuple[EpisodeContract, ...]:
     return tuple(EPISODE_CONTRACTS[key] for key in EPISODE_CONTRACTS)
 
 
-def event_text_haystack(event: dict[str, Any]) -> str:
-    payload = dict(event.get("payload") or {})
-    chain_id = str(event.get("chain_id") or "")
-    is_takeoff = chain_id.startswith("lifecycle_takeoff")
-    semantic_chain_id = "" if is_takeoff else chain_id
-    semantic_event_id = "" if is_takeoff else str(event.get("event_id") or "")
-    semantic_source_event_id = "" if is_takeoff else str(event.get("source_event_id") or "")
-    semantic_payload_event_id = "" if is_takeoff else str(payload.get("event_id") or "")
-    parts = [
-        semantic_event_id,
-        semantic_source_event_id,
-        semantic_chain_id,
-        semantic_payload_event_id,
-        payload.get("title"),
-        payload.get("category"),
-        payload.get("phase"),
-        payload.get("source_kind"),
-    ]
-    return normalize_semantic_text(" ".join(str(part or "") for part in parts))
-
-
 def canonical_event_intents(event: dict[str, Any]) -> set[str]:
     payload = dict(event.get("payload") or {})
     explicit = _intent_values(event.get("intent"))
     if explicit:
-        return {canonical_intent_from_text(item) or normalize_intent(item) for item in explicit}
+        intents = {canonical_intent_from_text(item) or normalize_intent(item) for item in explicit}
+        return intents | {implied for intent in intents for implied in INTENT_IMPLICATIONS.get(intent, frozenset())}
     payload_intent = _intent_values(payload.get("intent"))
     if payload_intent:
-        return {canonical_intent_from_text(item) or normalize_intent(item) for item in payload_intent}
-
-    haystack = event_text_haystack(event)
-    matched: set[str] = set()
-    for intent, aliases in INTENT_ALIASES.items():
-        if normalize_intent(intent) in haystack.replace(" ", "_") or any(normalize_semantic_text(alias) in haystack for alias in aliases):
-            matched.add(intent)
-    return matched
+        intents = {canonical_intent_from_text(item) or normalize_intent(item) for item in payload_intent}
+        return intents | {implied for intent in intents for implied in INTENT_IMPLICATIONS.get(intent, frozenset())}
+    return set()
 
 
 def required_intent_sequence_matches(
@@ -506,24 +699,20 @@ def required_intent_sequence_matches(
     if not required_intents:
         return True, []
     matches: list[str] = []
-    index = 0
-    for required in required_intents:
-        required_intent = normalize_intent(required)
-        found = False
-        while index < len(events):
-            if required_intent in canonical_event_intents(events[index]):
+    normalized_required = [normalize_intent(required) for required in required_intents]
+    required_index = 0
+    for event in events:
+        event_intents = canonical_event_intents(event)
+        while required_index < len(normalized_required) and normalized_required[required_index] in event_intents:
+            topic = str(
+                event.get("topic")
+                or event.get("source_event_id")
+                or event.get("event_id")
+                or ""
+            )
+            if not matches or matches[-1] != topic:
                 matches.append(
-                    str(
-                        events[index].get("topic")
-                        or events[index].get("source_event_id")
-                        or events[index].get("event_id")
-                        or ""
-                    )
+                    topic
                 )
-                found = True
-                index += 1
-                break
-            index += 1
-        if not found:
-            return False, matches
-    return True, matches
+            required_index += 1
+    return required_index == len(normalized_required), matches

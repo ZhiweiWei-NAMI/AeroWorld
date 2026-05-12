@@ -25,29 +25,29 @@
         ],
         "boundary_role": "capture_boundary",
         "z_policy": "ground_to_event_altitude",
-        "source": "event_motion_bbox",
-        "source_entity_id": "",
+        "source": "event_entity_envelope",
+        "source_entity_id": "uav_l2_3_v2",
         "center_enu_m": [
-          7104.337,
-          6197.619,
+          7093.5,
+          6215.5,
           0.0
         ],
         "polygon_enu_m": [
           [
-            7056.675,
-            6156.73
+            7072.0,
+            6204.5
           ],
           [
-            7152.0,
-            6156.73
+            7115.0,
+            6204.5
           ],
           [
-            7152.0,
-            6238.508
+            7115.0,
+            6226.5
           ],
           [
-            7056.675,
-            6238.508
+            7072.0,
+            6226.5
           ]
         ],
         "uav_boundary_crossing_required": true,
@@ -66,7 +66,10 @@
         "fov_coverage_required": true,
         "sensor_profile_required": true
       },
-      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": []
+      },
       "uav_boundary_crossing_required": true,
       "inspect_fov_coverage_required": true,
       "required_event": "alternate charger failure > reroute",
@@ -93,7 +96,7 @@
     "target_logical_count": 6,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 15,
+    "uav_corridor_segment_count": 21,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -118,7 +121,7 @@
       },
       {
         "entity_id": "u_inspect_l2_3_v2",
-        "point_count": 4,
+        "point_count": 11,
         "assigned_altitude_m": 18.0,
         "used_lateral_bypass": false
       },
@@ -299,13 +302,13 @@
         "entity_id": "u_inspect_l2_3_v2",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7068.675,
-          6168.73,
+          7093.5,
+          6215.5,
           18.0
         ],
         "segment_end_enu_m": [
-          7112.726,
-          6198.394,
+          7072.0,
+          6204.5,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -314,13 +317,13 @@
         "entity_id": "u_inspect_l2_3_v2",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7112.726,
-          6198.394,
+          7072.0,
+          6204.5,
           18.0
         ],
         "segment_end_enu_m": [
-          7068.675,
-          6168.73,
+          7093.5,
+          6204.5,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -329,13 +332,103 @@
         "entity_id": "u_inspect_l2_3_v2",
         "segment_index": 2,
         "segment_start_enu_m": [
-          7068.675,
-          6168.73,
+          7093.5,
+          6204.5,
           18.0
         ],
         "segment_end_enu_m": [
-          7112.726,
-          6198.394,
+          7115.0,
+          6204.5,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_3_v2",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7115.0,
+          6204.5,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7115.0,
+          6215.5,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_3_v2",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7115.0,
+          6215.5,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7115.0,
+          6226.5,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_3_v2",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7115.0,
+          6226.5,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7093.5,
+          6226.5,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_3_v2",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7093.5,
+          6226.5,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7072.0,
+          6226.5,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_3_v2",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7072.0,
+          6226.5,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7072.0,
+          6215.5,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_3_v2",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7072.0,
+          6215.5,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7093.5,
+          6215.5,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -358,29 +451,29 @@
     ],
     "capture_boundary": {
       "boundary_id": "capture_boundary_l2_3_v2",
-      "source": "event_motion_bbox",
-      "source_entity_id": "",
+      "source": "event_entity_envelope",
+      "source_entity_id": "uav_l2_3_v2",
       "center_enu_m": [
-        7104.337,
-        6197.619,
+        7093.5,
+        6215.5,
         0.0
       ],
       "polygon_enu_m": [
         [
-          7056.675,
-          6156.73
+          7072.0,
+          6204.5
         ],
         [
-          7152.0,
-          6156.73
+          7115.0,
+          6204.5
         ],
         [
-          7152.0,
-          6238.508
+          7115.0,
+          6226.5
         ],
         [
-          7056.675,
-          6238.508
+          7072.0,
+          6226.5
         ]
       ],
       "uav_boundary_crossing_required": true,
@@ -467,6 +560,14 @@
           }
         }
       ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "L2-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L2-3_v2_lifecycle_takeoff_uav_l2_3_v2",
         "category": "uav_lifecycle",
@@ -476,6 +577,13 @@
         "target_ids": [
           "uav_l2_3_v2",
           "pad_home_uav_l2_3_v2"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "L2-3_v2.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -494,6 +602,13 @@
           }
         }
       ],
+      "intent": "pad_contention",
+      "intent_stage": "01.pad_contention",
+      "causal_chain_id": "L2-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "facility"
+      ],
       "log_event": {
         "topic": "evt_L2-3_v2_charger_unavailable",
         "category": "infrastructure",
@@ -502,6 +617,13 @@
         "overlay": "infrastructure",
         "target_ids": [
           "charger_primary_l2_3_v2"
+        ],
+        "intent": "pad_contention",
+        "intent_stage": "01.pad_contention",
+        "causal_chain_id": "L2-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "facility"
         ]
       }
     },
@@ -562,6 +684,14 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "uav_checks_the_unavailable_charger",
+      "intent_stage": "02.uav_checks_the_unavailable_charger",
+      "causal_chain_id": "L2-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "pad_contention",
+      "target_roles": [
+        "facility",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L2-3_v2_uav_inspects_charger",
         "category": "uav_mission",
@@ -571,6 +701,14 @@
         "target_ids": [
           "uav_l2_3_v2",
           "charger_primary_l2_3_v2"
+        ],
+        "intent": "uav_checks_the_unavailable_charger",
+        "intent_stage": "02.uav_checks_the_unavailable_charger",
+        "causal_chain_id": "L2-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "pad_contention",
+        "target_roles": [
+          "facility",
+          "mission_uav"
         ]
       }
     },
@@ -634,6 +772,14 @@
           }
         }
       ],
+      "intent": "avoid_or_rth",
+      "intent_stage": "03.avoid_or_rth",
+      "causal_chain_id": "L2-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "uav_checks_the_unavailable_charger",
+      "target_roles": [
+        "facility",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L2-3_v2_reroute_backup_charger",
         "category": "uav_mission",
@@ -643,6 +789,14 @@
         "target_ids": [
           "uav_l2_3_v2",
           "charger_backup_l2_3_v2"
+        ],
+        "intent": "avoid_or_rth",
+        "intent_stage": "03.avoid_or_rth",
+        "causal_chain_id": "L2-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "uav_checks_the_unavailable_charger",
+        "target_roles": [
+          "facility",
+          "mission_uav"
         ]
       }
     },
@@ -723,6 +877,14 @@
           }
         }
       ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "L2-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "avoid_or_rth",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L2-3_v2_lifecycle_landing_uav_l2_3_v2",
         "category": "uav_lifecycle",
@@ -732,6 +894,14 @@
         "target_ids": [
           "uav_l2_3_v2",
           "pad_home_uav_l2_3_v2"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "L2-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "avoid_or_rth",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     }

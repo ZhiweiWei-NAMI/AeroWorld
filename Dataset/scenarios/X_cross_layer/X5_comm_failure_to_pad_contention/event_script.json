@@ -24,29 +24,29 @@
         ],
         "boundary_role": "capture_boundary",
         "z_policy": "ground_to_event_altitude",
-        "source": "event_motion_bbox",
-        "source_entity_id": "",
+        "source": "event_entity_envelope",
+        "source_entity_id": "uav_x5_priority",
         "center_enu_m": [
-          7124.38,
-          6486.126,
+          7114.0,
+          6478.0,
           0.0
         ],
         "polygon_enu_m": [
           [
-            7076.0,
-            6430.634
+            7080.0,
+            6452.0
           ],
           [
-            7172.759,
-            6430.634
+            7148.0,
+            6452.0
           ],
           [
-            7172.759,
-            6541.617
+            7148.0,
+            6504.0
           ],
           [
-            7076.0,
-            6541.617
+            7080.0,
+            6504.0
           ]
         ],
         "uav_boundary_crossing_required": true,
@@ -65,7 +65,13 @@
         "fov_coverage_required": true,
         "sensor_profile_required": true
       },
-      "pad_boundary_policy": "event_pads_inside_capture_boundary",
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": [
+          "pad_contention",
+          "priority_landing_arbitration"
+        ]
+      },
       "uav_boundary_crossing_required": true,
       "inspect_fov_coverage_required": true,
       "required_event": "station fail > pad contention",
@@ -91,7 +97,7 @@
     "target_logical_count": 10,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 13,
+    "uav_corridor_segment_count": 19,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -122,7 +128,7 @@
       },
       {
         "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
-        "point_count": 4,
+        "point_count": 11,
         "assigned_altitude_m": 18.0,
         "used_lateral_bypass": false
       }
@@ -282,13 +288,13 @@
         "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7109.158,
-          6529.617,
+          7114.0,
+          6478.0,
           18.0
         ],
         "segment_end_enu_m": [
-          7160.759,
-          6454.042,
+          7080.0,
+          6452.0,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -297,13 +303,13 @@
         "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7160.759,
-          6454.042,
+          7080.0,
+          6452.0,
           18.0
         ],
         "segment_end_enu_m": [
-          7109.158,
-          6529.617,
+          7114.0,
+          6452.0,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -312,13 +318,103 @@
         "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
         "segment_index": 2,
         "segment_start_enu_m": [
-          7109.158,
-          6529.617,
+          7114.0,
+          6452.0,
           18.0
         ],
         "segment_end_enu_m": [
-          7160.759,
-          6454.042,
+          7148.0,
+          6452.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7148.0,
+          6452.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7148.0,
+          6478.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7148.0,
+          6478.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7148.0,
+          6504.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7148.0,
+          6504.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7114.0,
+          6504.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7114.0,
+          6504.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7080.0,
+          6504.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7080.0,
+          6504.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7080.0,
+          6478.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_x5_comm_failure_to_pad_contention",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7080.0,
+          6478.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7114.0,
+          6478.0,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -334,29 +430,29 @@
     ],
     "capture_boundary": {
       "boundary_id": "capture_boundary_x5_comm_failure_to_pad_contention",
-      "source": "event_motion_bbox",
-      "source_entity_id": "",
+      "source": "event_entity_envelope",
+      "source_entity_id": "uav_x5_priority",
       "center_enu_m": [
-        7124.38,
-        6486.126,
+        7114.0,
+        6478.0,
         0.0
       ],
       "polygon_enu_m": [
         [
-          7076.0,
-          6430.634
+          7080.0,
+          6452.0
         ],
         [
-          7172.759,
-          6430.634
+          7148.0,
+          6452.0
         ],
         [
-          7172.759,
-          6541.617
+          7148.0,
+          6504.0
         ],
         [
-          7076.0,
-          6541.617
+          7080.0,
+          6504.0
         ]
       ],
       "uav_boundary_crossing_required": true,
@@ -410,10 +506,10 @@
       "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_second_uav_reroute_delay_41",
+      "trigger_id": "trig_after_second_uav_reroute_delay_63",
       "type": "event_fired_after",
       "event_id": "second_uav_reroute",
-      "delay_ticks": 41
+      "delay_ticks": 63
     },
     {
       "trigger_id": "trig_after_station_recovered_delay_88",
@@ -470,6 +566,14 @@
           }
         }
       ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_lifecycle_takeoff_uav_x5_priority",
         "category": "uav_lifecycle",
@@ -479,6 +583,13 @@
         "target_ids": [
           "uav_x5_priority",
           "pad_home_uav_x5_priority"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -529,6 +640,14 @@
           }
         }
       ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_lifecycle_takeoff_uav_x5_second",
         "category": "uav_lifecycle",
@@ -538,6 +657,14 @@
         "target_ids": [
           "uav_x5_second",
           "pad_home_uav_x5_second"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -556,6 +683,13 @@
           }
         }
       ],
+      "intent": "pad_contention",
+      "intent_stage": "01.pad_contention",
+      "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "facility"
+      ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_station_failure",
         "category": "infrastructure",
@@ -564,6 +698,13 @@
         "overlay": "infrastructure",
         "target_ids": [
           "tower_x5_comm"
+        ],
+        "intent": "pad_contention",
+        "intent_stage": "01.pad_contention",
+        "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "facility"
         ]
       }
     },
@@ -582,6 +723,13 @@
           }
         }
       ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "02.landing_or_terminal_resolution",
+      "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+      "causal_predecessor_intent": "pad_contention",
+      "target_roles": [
+        "landing_pad"
+      ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_backup_pad_unavailable",
         "category": "infrastructure",
@@ -591,6 +739,13 @@
         "target_ids": [
           "pad_x5_primary",
           "pad_x5_backup"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "02.landing_or_terminal_resolution",
+        "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+        "causal_predecessor_intent": "pad_contention",
+        "target_roles": [
+          "landing_pad"
         ]
       }
     },
@@ -676,6 +831,14 @@
           }
         }
       ],
+      "intent": "pad_contention",
+      "intent_stage": "03.pad_contention",
+      "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+      "causal_predecessor_intent": "landing_or_terminal_resolution",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_dual_uav_pad_contention",
         "category": "uav_mission",
@@ -686,6 +849,14 @@
           "uav_x5_priority",
           "uav_x5_second",
           "pad_x5_primary"
+        ],
+        "intent": "pad_contention",
+        "intent_stage": "03.pad_contention",
+        "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+        "causal_predecessor_intent": "landing_or_terminal_resolution",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -712,6 +883,14 @@
           }
         }
       ],
+      "intent": "arbitration",
+      "intent_stage": "04.arbitration",
+      "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+      "causal_predecessor_intent": "pad_contention",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_pad_priority_arbitration",
         "category": "infrastructure",
@@ -722,6 +901,14 @@
           "uav_x5_priority",
           "uav_x5_second",
           "pad_x5_primary"
+        ],
+        "intent": "arbitration",
+        "intent_stage": "04.arbitration",
+        "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+        "causal_predecessor_intent": "pad_contention",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -736,6 +923,11 @@
           "action_id": "move_x5_uav_b_reroute",
           "entity_id": "uav_x5_second",
           "waypoints_enu_m": [
+            [
+              7114.0,
+              6482.0,
+              34.0
+            ],
             [
               7114.0,
               6482.0,
@@ -767,6 +959,13 @@
           }
         }
       ],
+      "intent": "pad_contention",
+      "intent_stage": "05.pad_contention",
+      "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+      "causal_predecessor_intent": "arbitration",
+      "target_roles": [
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_second_uav_reroute",
         "category": "uav_mission",
@@ -775,12 +974,19 @@
         "overlay": "uav_mission",
         "target_ids": [
           "uav_x5_second"
+        ],
+        "intent": "pad_contention",
+        "intent_stage": "05.pad_contention",
+        "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+        "causal_predecessor_intent": "arbitration",
+        "target_roles": [
+          "mission_uav"
         ]
       }
     },
     {
       "event_id": "station_recovered",
-      "trigger_ref": "trig_after_second_uav_reroute_delay_41",
+      "trigger_ref": "trig_after_second_uav_reroute_delay_63",
       "priority": 6,
       "max_fire_count": 1,
       "actions": [
@@ -793,6 +999,13 @@
           }
         }
       ],
+      "intent": "recovery_or_restore",
+      "intent_stage": "06.recovery_or_restore",
+      "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+      "causal_predecessor_intent": "pad_contention",
+      "target_roles": [
+        "facility"
+      ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_station_recovered",
         "category": "infrastructure",
@@ -801,6 +1014,13 @@
         "overlay": "infrastructure",
         "target_ids": [
           "tower_x5_comm"
+        ],
+        "intent": "recovery_or_restore",
+        "intent_stage": "06.recovery_or_restore",
+        "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+        "causal_predecessor_intent": "pad_contention",
+        "target_roles": [
+          "facility"
         ]
       }
     },
@@ -866,6 +1086,14 @@
           }
         }
       ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+      "causal_predecessor_intent": "recovery_or_restore",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X5_comm_failure_to_pad_contention_lifecycle_landing_uav_x5_second",
         "category": "uav_lifecycle",
@@ -875,6 +1103,14 @@
         "target_ids": [
           "uav_x5_second",
           "pad_home_uav_x5_second"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "X5_comm_failure_to_pad_contention.semantic_event_chain",
+        "causal_predecessor_intent": "recovery_or_restore",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     }

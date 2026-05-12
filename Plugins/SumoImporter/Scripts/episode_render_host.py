@@ -981,24 +981,30 @@ class EpisodeRenderHost:
         self.runtime_uav_direct_rpc_disable_reason = ""
         runtime_uav_cfg = dict(self.config.get("runtime_uav") or {})
         runtime_uav_backend_arg = str(getattr(self.args, "runtime_uav_control_backend", "") or "").strip().lower()
+        configured_runtime_uav_backend = str(runtime_uav_cfg.get("control_backend") or "").strip().lower()
         self.runtime_uav_control_backend = runtime_uav_backend_arg or str(
-            runtime_uav_cfg.get("control_backend") or "airsim_move"
+            configured_runtime_uav_backend or "pose_sync"
         ).strip().lower()
         if self.runtime_uav_control_backend not in {"airsim_move", "pose_sync"}:
             raise RuntimeError(
                 "Unsupported runtime UAV control backend "
                 f"'{self.runtime_uav_control_backend}'. Expected airsim_move or pose_sync."
             )
-        self.runtime_uav_editor_hook_fallback_enabled = bool(
-            runtime_uav_cfg.get("editor_hook_fallback_enabled", self.runtime_uav_control_backend != "pose_sync")
-        )
-        if self.runtime_uav_control_backend == "pose_sync" and self.runtime_uav_editor_hook_fallback_enabled:
+        if self.runtime_uav_control_backend == "airsim_move" and runtime_uav_cfg.get("allow_legacy_airsim_move") is not True:
             raise RuntimeError(
-                "Formal pose_sync runtime UAV control forbids editor-hook fallback. "
-                "Set runtime_uav.editor_hook_fallback_enabled=false or use the legacy airsim_move backend outside formal capture."
+                "airsim_move is a legacy runtime UAV control backend and is forbidden for formal dataset capture. "
+                "Use pose_sync, or set runtime_uav.allow_legacy_airsim_move=true for an explicit diagnostic run."
+            )
+        self.runtime_uav_editor_hook_fallback_enabled = bool(
+            runtime_uav_cfg.get("editor_hook_fallback_enabled", False)
+        )
+        if self.runtime_uav_editor_hook_fallback_enabled:
+            raise RuntimeError(
+                "Formal runtime UAV control forbids editor-hook fallback. "
+                "Set runtime_uav.editor_hook_fallback_enabled=false for dataset capture."
             )
         self.runtime_uav_non_capture_failure_nonfatal = bool(
-            runtime_uav_cfg.get("non_capture_rpc_failure_nonfatal", self.runtime_uav_control_backend == "pose_sync")
+            runtime_uav_cfg.get("non_capture_rpc_failure_nonfatal", False)
         )
         self.runtime_uav_debug_cfg = dict(self.config.get("runtime_uav_debug") or {})
         self.runtime_uav_debug_entity_ids = {
@@ -6889,8 +6895,8 @@ def parse_args() -> argparse.Namespace:
         choices=["airsim_move", "pose_sync"],
         default="",
         help=(
-            "Runtime UAV scene-control backend. airsim_move keeps legacy takeoff/hover/moveToPosition; "
-            "pose_sync uses deterministic truth-frame pose sync for formal dataset capture."
+            "Runtime UAV scene-control backend. Defaults to formal pose_sync. "
+            "airsim_move is allowed only when runtime_uav.allow_legacy_airsim_move=true for diagnostics."
         ),
     )
     parser.add_argument(

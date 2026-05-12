@@ -16,7 +16,7 @@
         "logical": 4
       },
       "capture_boundary": {
-        "boundary_id": "crowd_anchor_l4_8_v1",
+        "boundary_id": "capture_boundary_l4_8_v1",
         "geometry_source": "event_entity",
         "anchor_entity_roles": [
           "capture_boundary",
@@ -25,14 +25,31 @@
         ],
         "boundary_role": "capture_boundary",
         "z_policy": "ground_to_event_altitude",
-        "source": "scene_entity",
-        "source_entity_id": "crowd_anchor_l4_8_v1",
+        "source": "event_entity_envelope",
+        "source_entity_id": "uav_crowd_monitor_l4_8_v1",
         "center_enu_m": [
-          7091.0,
-          6333.0,
+          7115.873,
+          6355.5,
           0.0
         ],
-        "polygon_enu_m": [],
+        "polygon_enu_m": [
+          [
+            7077.747,
+            6312.0
+          ],
+          [
+            7154.0,
+            6312.0
+          ],
+          [
+            7154.0,
+            6399.0
+          ],
+          [
+            7077.747,
+            6399.0
+          ]
+        ],
         "uav_boundary_crossing_required": true,
         "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
         "inspect_fov_coverage_required": true,
@@ -49,7 +66,10 @@
         "fov_coverage_required": true,
         "sensor_profile_required": true
       },
-      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": []
+      },
       "uav_boundary_crossing_required": true,
       "inspect_fov_coverage_required": true,
       "required_event": "crowd evacuation > safe hold",
@@ -76,7 +96,7 @@
     "target_logical_count": 4,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 10,
+    "uav_corridor_segment_count": 16,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -101,7 +121,7 @@
       },
       {
         "entity_id": "u_inspect_l4_8_v1",
-        "point_count": 4,
+        "point_count": 11,
         "assigned_altitude_m": 10.0,
         "used_lateral_bypass": false
       },
@@ -207,13 +227,13 @@
         "entity_id": "u_inspect_l4_8_v1",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7062.584,
-          6313.206,
+          7115.873,
+          6355.5,
           10.0
         ],
         "segment_end_enu_m": [
-          7145.434,
-          6347.573,
+          7077.747,
+          6312.0,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -222,13 +242,13 @@
         "entity_id": "u_inspect_l4_8_v1",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7145.434,
-          6347.573,
+          7077.747,
+          6312.0,
           10.0
         ],
         "segment_end_enu_m": [
-          7062.584,
-          6313.206,
+          7115.873,
+          6312.0,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -237,13 +257,103 @@
         "entity_id": "u_inspect_l4_8_v1",
         "segment_index": 2,
         "segment_start_enu_m": [
-          7062.584,
-          6313.206,
+          7115.873,
+          6312.0,
           10.0
         ],
         "segment_end_enu_m": [
-          7145.434,
-          6347.573,
+          7154.0,
+          6312.0,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_8_v1",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7154.0,
+          6312.0,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7154.0,
+          6355.5,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_8_v1",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7154.0,
+          6355.5,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7154.0,
+          6399.0,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_8_v1",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7154.0,
+          6399.0,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7115.873,
+          6399.0,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_8_v1",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7115.873,
+          6399.0,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7077.747,
+          6399.0,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_8_v1",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7077.747,
+          6399.0,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7077.747,
+          6355.5,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_l4_8_v1",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7077.747,
+          6355.5,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7115.873,
+          6355.5,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -252,28 +362,45 @@
         "entity_id": "uav_observer_l4_8_v1_3",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7051.988,
-          6310.346,
+          7055.826,
+          6311.338,
           80.0
         ],
         "segment_end_enu_m": [
-          7162.601,
-          6355.744,
+          7166.211,
+          6357.484,
           80.0
         ],
         "assigned_altitude_m": 80.0
       }
     ],
     "capture_boundary": {
-      "boundary_id": "crowd_anchor_l4_8_v1",
-      "source": "scene_entity",
-      "source_entity_id": "crowd_anchor_l4_8_v1",
+      "boundary_id": "capture_boundary_l4_8_v1",
+      "source": "event_entity_envelope",
+      "source_entity_id": "uav_crowd_monitor_l4_8_v1",
       "center_enu_m": [
-        7091.0,
-        6333.0,
+        7115.873,
+        6355.5,
         0.0
       ],
-      "polygon_enu_m": [],
+      "polygon_enu_m": [
+        [
+          7077.747,
+          6312.0
+        ],
+        [
+          7154.0,
+          6312.0
+        ],
+        [
+          7154.0,
+          6399.0
+        ],
+        [
+          7077.747,
+          6399.0
+        ]
+      ],
       "uav_boundary_crossing_required": true,
       "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
       "inspect_fov_coverage_required": true,
@@ -363,6 +490,14 @@
           }
         }
       ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "L4-8_v1.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "mission_uav",
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_L4-8_v1_lifecycle_takeoff_uav_crowd_monitor_l4_8_v1",
         "category": "uav_lifecycle",
@@ -372,6 +507,13 @@
         "target_ids": [
           "uav_crowd_monitor_l4_8_v1",
           "pad_home_uav_crowd_monitor_l4_8_v1"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "L4-8_v1.semantic_event_chain",
+        "target_roles": [
+          "mission_uav",
+          "pedestrian"
         ]
       }
     },
@@ -381,6 +523,13 @@
       "priority": 1,
       "max_fire_count": 1,
       "actions": [],
+      "intent": "crowd_evacuation",
+      "intent_stage": "01.crowd_evacuation",
+      "causal_chain_id": "L4-8_v1.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_L4-8_v1_crowd_generated",
         "category": "pedestrian",
@@ -389,6 +538,13 @@
         "overlay": "pedestrian",
         "target_ids": [
           "crowd_anchor_l4_8_v1"
+        ],
+        "intent": "crowd_evacuation",
+        "intent_stage": "01.crowd_evacuation",
+        "causal_chain_id": "L4-8_v1.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "pedestrian"
         ]
       }
     },
@@ -599,6 +755,13 @@
           "post_activity_type": "waiting"
         }
       ],
+      "intent": "crowd_evacuation",
+      "intent_stage": "02.crowd_evacuation",
+      "causal_chain_id": "L4-8_v1.semantic_event_chain",
+      "causal_predecessor_intent": "crowd_evacuation",
+      "target_roles": [
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_L4-8_v1_evacuation_triggered",
         "category": "pedestrian",
@@ -607,6 +770,13 @@
         "overlay": "pedestrian",
         "target_ids": [
           "crowd_anchor_l4_8_v1"
+        ],
+        "intent": "crowd_evacuation",
+        "intent_stage": "02.crowd_evacuation",
+        "causal_chain_id": "L4-8_v1.semantic_event_chain",
+        "causal_predecessor_intent": "crowd_evacuation",
+        "target_roles": [
+          "pedestrian"
         ]
       }
     },
@@ -667,6 +837,13 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "crowd_evacuation",
+      "intent_stage": "03.crowd_evacuation",
+      "causal_chain_id": "L4-8_v1.semantic_event_chain",
+      "causal_predecessor_intent": "crowd_evacuation",
+      "target_roles": [
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L4-8_v1_uav_evacuation_monitor",
         "category": "uav_mission",
@@ -675,6 +852,13 @@
         "overlay": "uav_mission",
         "target_ids": [
           "uav_crowd_monitor_l4_8_v1"
+        ],
+        "intent": "crowd_evacuation",
+        "intent_stage": "03.crowd_evacuation",
+        "causal_chain_id": "L4-8_v1.semantic_event_chain",
+        "causal_predecessor_intent": "crowd_evacuation",
+        "target_roles": [
+          "mission_uav"
         ]
       }
     },
@@ -690,6 +874,13 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "safe_hold",
+      "intent_stage": "04.safe_hold",
+      "causal_chain_id": "L4-8_v1.semantic_event_chain",
+      "causal_predecessor_intent": "crowd_evacuation",
+      "target_roles": [
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L4-8_v1_crowd_safe_hold",
         "category": "pedestrian",
@@ -698,6 +889,13 @@
         "overlay": "pedestrian",
         "target_ids": [
           "uav_crowd_monitor_l4_8_v1"
+        ],
+        "intent": "safe_hold",
+        "intent_stage": "04.safe_hold",
+        "causal_chain_id": "L4-8_v1.semantic_event_chain",
+        "causal_predecessor_intent": "crowd_evacuation",
+        "target_roles": [
+          "mission_uav"
         ]
       }
     },
@@ -763,6 +961,14 @@
           }
         }
       ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "L4-8_v1.semantic_event_chain",
+      "causal_predecessor_intent": "safe_hold",
+      "target_roles": [
+        "mission_uav",
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_L4-8_v1_lifecycle_landing_uav_crowd_monitor_l4_8_v1",
         "category": "uav_lifecycle",
@@ -772,6 +978,14 @@
         "target_ids": [
           "uav_crowd_monitor_l4_8_v1",
           "pad_home_uav_crowd_monitor_l4_8_v1"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "L4-8_v1.semantic_event_chain",
+        "causal_predecessor_intent": "safe_hold",
+        "target_roles": [
+          "mission_uav",
+          "pedestrian"
         ]
       }
     }

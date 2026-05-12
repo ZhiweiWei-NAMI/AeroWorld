@@ -78,6 +78,41 @@ ENTITY_PROFILES: dict[str, dict[str, str]] = {
         "logical_asset_id": "facility.barrier.basic",
         "mode": "scene_sync",
     },
+    "roadwork_barrier": {
+        "entity_category": "prop",
+        "entity_kind": "prop.roadwork_barrier",
+        "proxy_template_id": "prop.roadwork.barrier.v1",
+        "logical_asset_id": "prop.roadwork.barrier.v1",
+        "mode": "scene_sync",
+    },
+    "traffic_cone": {
+        "entity_category": "prop",
+        "entity_kind": "prop.traffic_cone",
+        "proxy_template_id": "prop.roadwork.traffic_cone.v1",
+        "logical_asset_id": "prop.roadwork.traffic_cone.v1",
+        "mode": "scene_sync",
+    },
+    "construction_fence": {
+        "entity_category": "prop",
+        "entity_kind": "prop.construction_fence",
+        "proxy_template_id": "prop.roadwork.construction_fence.v1",
+        "logical_asset_id": "prop.roadwork.construction_fence.v1",
+        "mode": "scene_sync",
+    },
+    "police_tape": {
+        "entity_category": "prop",
+        "entity_kind": "prop.police_tape",
+        "proxy_template_id": "prop.incident.police_tape.v1",
+        "logical_asset_id": "prop.incident.police_tape.v1",
+        "mode": "scene_sync",
+    },
+    "delivery_bag": {
+        "entity_category": "prop",
+        "entity_kind": "prop.delivery_bag",
+        "proxy_template_id": "prop.service.delivery_bag.v1",
+        "logical_asset_id": "prop.service.delivery_bag.v1",
+        "mode": "scene_sync",
+    },
     "beacon": {
         "entity_category": "facility",
         "entity_kind": "facility.beacon",
@@ -128,7 +163,11 @@ ENTITY_PROFILES_BY_ASSET_ID: dict[str, dict[str, str]] = {
     "facility.landing_pad.visible.v1": ENTITY_PROFILES["landing_pad"],
     "facility.radio.base_tower.v1": ENTITY_PROFILES["radio_tower"],
     "facility.barrier.basic": ENTITY_PROFILES["barrier"],
-    "prop.roadwork.barrier.v1": ENTITY_PROFILES["barrier"],
+    "prop.roadwork.barrier.v1": ENTITY_PROFILES["roadwork_barrier"],
+    "prop.roadwork.construction_fence.v1": ENTITY_PROFILES["construction_fence"],
+    "prop.roadwork.traffic_cone.v1": ENTITY_PROFILES["traffic_cone"],
+    "prop.incident.police_tape.v1": ENTITY_PROFILES["police_tape"],
+    "prop.service.delivery_bag.v1": ENTITY_PROFILES["delivery_bag"],
     "prop.traffic_control.signal_light.v1": ENTITY_PROFILES["traffic_light"],
     "semantic.trigger_box.extent_12_10_15.v1": ENTITY_PROFILES["hazard_trigger"],
     "semantic.trigger_box.extent_12_9_15.v1": ENTITY_PROFILES["hazard_trigger"],
@@ -207,7 +246,12 @@ PRESERVED_EVENT_FIELDS = (
     "intent",
     "intent_stage",
     "causal_chain_id",
+    "causal_predecessor_intent",
+    "target_roles",
     "capture_boundary_id",
+    "uav_boundary_crossing_required",
+    "inspect_fov_coverage_required",
+    "pad_boundary_policy",
 )
 
 
@@ -289,22 +333,25 @@ def render_presence(roi_id: str) -> dict[str, Any]:
     }
 
 
-def metadata_only_profile(label_class: str) -> dict[str, str]:
+def logical_only_profile(label_class: str) -> dict[str, str]:
     return {
         "entity_category": "other",
-        "entity_kind": f"other.{label_class or 'unknown'}",
+        "entity_kind": f"other.{label_class or 'logical'}",
         "proxy_template_id": "",
         "logical_asset_id": "",
-        "mode": "metadata_only",
+        "mode": "logical_contract",
     }
 
 
 def profile_for_label(label_class: str) -> dict[str, str]:
-    return dict(ENTITY_PROFILES.get(label_class) or metadata_only_profile(label_class))
+    profile = ENTITY_PROFILES.get(label_class)
+    if not profile:
+        raise RuntimeError(f"Missing deterministic entity profile for label_class={label_class or '<empty>'}")
+    return dict(profile)
 
 
 def profile_for_entity(source_entry: dict[str, Any], first_row: dict[str, Any]) -> dict[str, str]:
-    label_class = str(source_entry.get("label_class") or first_row.get("label_class") or "unknown")
+    label_class = str(source_entry.get("label_class") or first_row.get("label_class") or "")
     asset_id = str(
         source_entry.get("logical_asset_id")
         or source_entry.get("asset_id")
@@ -313,7 +360,7 @@ def profile_for_entity(source_entry: dict[str, Any], first_row: dict[str, Any]) 
         or ""
     ).strip()
     if asset_id in LOGICAL_ONLY_ASSET_IDS:
-        profile = metadata_only_profile(label_class)
+        profile = logical_only_profile(label_class)
         profile["entity_category"] = str(source_entry.get("category") or first_row.get("category") or "facility")
         profile["entity_kind"] = f"{profile['entity_category']}.{label_class or 'logical'}"
         profile["logical_asset_id"] = asset_id
@@ -404,9 +451,9 @@ def preserved_event_fields(row: dict[str, Any]) -> dict[str, Any]:
     return preserved
 
 
-def read_legacy_roster(path: Path) -> dict[str, dict[str, Any]]:
+def read_source_roster(path: Path) -> dict[str, dict[str, Any]]:
     if not path.exists():
-        return {}
+        raise RuntimeError(f"Missing required source global_entity_roster.json: {path}")
     payload = load_json(path)
     if isinstance(payload, dict) and isinstance(payload.get("entities"), list):
         return {str(entity.get("entity_id")): dict(entity) for entity in payload["entities"]}
@@ -719,9 +766,14 @@ def inspect_route_from_source(inspect_entity: dict[str, Any], inspect_contract: 
     if not isinstance(route, list):
         raise RuntimeError(f"Missing inspect loop route on contract {inspect_entity.get('entity_id')!r}")
     route_points = [point for point in route if isinstance(point, Sequence) and not isinstance(point, (str, bytes))]
-    if len(route_points) < 2:
-        raise RuntimeError(f"Inspect route is too short on entity {inspect_entity.get('entity_id')!r}")
-    return [[float(value) for value in point[:3]] for point in route_points]
+    if len(route_points) < 4:
+        raise RuntimeError(f"Inspect loop route is too short on entity {inspect_entity.get('entity_id')!r}")
+    normalized = [[float(value) for value in point[:3]] for point in route_points]
+    first = normalized[0]
+    last = normalized[-1]
+    if math.sqrt((first[0] - last[0]) ** 2 + (first[1] - last[1]) ** 2 + (first[2] - last[2]) ** 2) > 1.0:
+        raise RuntimeError(f"Inspect route must be a closed loop on entity {inspect_entity.get('entity_id')!r}")
+    return normalized
 
 
 def inspect_entity_from_source(entities: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -737,12 +789,20 @@ def inspect_entity_from_source(entities: dict[str, dict[str, Any]]) -> dict[str,
     return inspect_entities[0]
 
 
-def source_capture_boundary_id(event_script: dict[str, Any]) -> str:
+def source_boundary_payload(event_script: dict[str, Any]) -> dict[str, Any]:
     params = dict(event_script.get("parameters") or {})
-    boundary = dict(params.get("capture_boundary") or {})
     contract = dict(params.get("semantic_event_contract") or {})
+    boundary = {
+        **dict(contract.get("capture_boundary") or {}),
+        **dict(params.get("capture_boundary") or {}),
+    }
     if not boundary:
-        boundary = dict(contract.get("capture_boundary") or {})
+        raise RuntimeError("Missing capture_boundary in source event_script.json")
+    return boundary
+
+
+def source_capture_boundary_id(event_script: dict[str, Any]) -> str:
+    boundary = source_boundary_payload(event_script)
     boundary_id = str(boundary.get("boundary_id") or boundary.get("source_entity_id") or "").strip()
     if not boundary_id:
         raise RuntimeError("Missing capture_boundary.boundary_id in source event_script.json")
@@ -755,11 +815,147 @@ def source_pad_boundary_policy(event_script: dict[str, Any]) -> Any:
     policy = contract.get("pad_boundary_policy")
     if policy not in (None, ""):
         return policy
-    boundary = dict(params.get("capture_boundary") or contract.get("capture_boundary") or {})
+    boundary = source_boundary_payload(event_script)
     policy = boundary.get("pad_boundary_policy")
     if policy in (None, ""):
         raise RuntimeError("Missing pad_boundary_policy in source event_script.json")
     return policy
+
+
+def point_in_polygon_xy(point: Sequence[float], polygon: Sequence[Sequence[float]]) -> bool:
+    x = float(point[0])
+    y = float(point[1])
+    inside = False
+    count = len(polygon)
+    for index in range(count):
+        x1, y1 = float(polygon[index][0]), float(polygon[index][1])
+        x2, y2 = float(polygon[(index + 1) % count][0]), float(polygon[(index + 1) % count][1])
+        if (y1 > y) != (y2 > y):
+            x_intersect = (x2 - x1) * (y - y1) / (y2 - y1 + 1e-12) + x1
+            if x < x_intersect:
+                inside = not inside
+    return inside
+
+
+def segment_intersects_polygon_xy(a: Sequence[float], b: Sequence[float], polygon: Sequence[Sequence[float]]) -> bool:
+    def ccw(p1: Sequence[float], p2: Sequence[float], p3: Sequence[float]) -> bool:
+        return (float(p3[1]) - float(p1[1])) * (float(p2[0]) - float(p1[0])) > (float(p2[1]) - float(p1[1])) * (float(p3[0]) - float(p1[0]))
+
+    if point_in_polygon_xy(a, polygon) or point_in_polygon_xy(b, polygon):
+        return True
+    for index in range(len(polygon)):
+        c = polygon[index]
+        d = polygon[(index + 1) % len(polygon)]
+        if ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d):
+            return True
+    return False
+
+
+def route_crosses_boundary(route: Sequence[Sequence[float]], polygon: Sequence[Sequence[float]]) -> bool:
+    if not route or not polygon:
+        return False
+    if any(point_in_polygon_xy(point, polygon) for point in route):
+        return True
+    return any(segment_intersects_polygon_xy(a, b, polygon) for a, b in zip(route, route[1:]))
+
+
+def point_in_oriented_frustum_footprint_xy(
+    point: Sequence[float],
+    a: Sequence[float],
+    b: Sequence[float],
+    half_width_m: float,
+    half_height_m: float,
+) -> bool:
+    ax, ay = float(a[0]), float(a[1])
+    bx, by = float(b[0]), float(b[1])
+    px, py = float(point[0]), float(point[1])
+    dx = bx - ax
+    dy = by - ay
+    length = math.hypot(dx, dy)
+    if length <= 1e-6:
+        return abs(px - ax) <= half_width_m and abs(py - ay) <= half_height_m
+    ux = dx / length
+    uy = dy / length
+    rel_x = px - ax
+    rel_y = py - ay
+    along = rel_x * ux + rel_y * uy
+    cross = abs(-rel_x * uy + rel_y * ux)
+    return -half_height_m <= along <= length + half_height_m and cross <= half_width_m
+
+
+def source_boundary_polygon(event_script: dict[str, Any]) -> list[list[float]]:
+    boundary = source_boundary_payload(event_script)
+    polygon = []
+    for point in boundary.get("polygon_enu_m") or []:
+        if isinstance(point, Sequence) and not isinstance(point, (str, bytes)) and len(point) >= 2:
+            polygon.append([float(point[0]), float(point[1])])
+    if not polygon:
+        raise RuntimeError("Source capture_boundary lacks polygon_enu_m")
+    return polygon
+
+
+def source_uav_role(entity: dict[str, Any]) -> str:
+    initial_state = dict(entity.get("initial_state") or {})
+    if str(initial_state.get("role") or "") == "U_inspect":
+        return "inspect"
+    corridor_role = str(entity.get("uav_corridor_role") or initial_state.get("uav_corridor_role") or "")
+    if corridor_role == "inspect_observer":
+        return "inspect"
+    if corridor_role == "observer" or "observer" in str(initial_state.get("semantic_role") or ""):
+        return "observer"
+    return "mission"
+
+
+def trajectory_route_for_entity(grouped_rows: dict[str, list[dict[str, Any]]], entity_id: str) -> list[list[float]]:
+    route = []
+    for row in grouped_rows.get(entity_id, []):
+        position = normalize_vector3(row.get("pos_enu"))
+        route.append(position)
+    return route
+
+
+def source_uavs_cross_boundary(
+    scene_setup: dict[str, Any],
+    grouped_rows: dict[str, list[dict[str, Any]]],
+    polygon: list[list[float]],
+) -> bool:
+    uavs = [
+        entity
+        for entity in scene_setup.get("entities") or []
+        if str(entity.get("logical_asset_id") or "").startswith("uav.") and source_uav_role(entity) != "inspect"
+    ]
+    if not uavs:
+        return False
+    for entity in uavs:
+        entity_id = str(entity.get("entity_id") or "")
+        route = trajectory_route_for_entity(grouped_rows, entity_id)
+        if not route_crosses_boundary(route, polygon):
+            return False
+    return True
+
+
+def inspect_frustum_observes_boundary(route: list[list[float]], polygon: list[list[float]], inspect_contract: dict[str, Any]) -> bool:
+    profile = dict(inspect_contract.get("sensor_profile") or {})
+    hfov_deg = float(profile.get("hfov_deg") or profile.get("FOV_Degrees") or profile.get("fov_degrees") or 0.0)
+    width = float(profile.get("width") or 0.0)
+    height = float(profile.get("height") or 0.0)
+    rotation = dict(profile.get("fixed_rotation_offset_deg") or {})
+    pitch_deg = float(rotation.get("pitch_deg", 0.0))
+    if not route or not polygon or hfov_deg <= 0.0 or width <= 0.0 or height <= 0.0 or pitch_deg > -60.0:
+        return False
+    altitude_m = float(inspect_contract.get("inspect_altitude_m") or route[0][2])
+    half_width_m = math.tan(math.radians(hfov_deg / 2.0)) * altitude_m
+    vfov_deg = math.degrees(2.0 * math.atan(math.tan(math.radians(hfov_deg / 2.0)) * (height / width)))
+    half_height_m = math.tan(math.radians(vfov_deg / 2.0)) * altitude_m
+    samples = list(polygon)
+    xs = [point[0] for point in polygon]
+    ys = [point[1] for point in polygon]
+    samples.append([sum(xs) / len(xs), sum(ys) / len(ys)])
+    segments = list(zip(route, route[1:]))
+    return all(
+        any(point_in_oriented_frustum_footprint_xy(sample, a, b, half_width_m, half_height_m) for a, b in segments)
+        for sample in samples
+    )
 
 
 def capture_contract_from_source(
@@ -768,6 +964,7 @@ def capture_contract_from_source(
     manifest: dict[str, Any],
     project_root: Path,
     scenario_id: str,
+    grouped_rows: dict[str, list[dict[str, Any]]],
 ) -> dict[str, Any]:
     scene_setup_path = resolve_manifest_path(manifest.get("source_scene_setup_path"), source_episode_dir, project_root)
     event_script_path = resolve_manifest_path(manifest.get("source_event_script_path"), source_episode_dir, project_root)
@@ -787,14 +984,27 @@ def capture_contract_from_source(
         raise RuntimeError("Source semantic_event_contract must require UAV boundary crossing")
     if semantic_contract.get("inspect_fov_coverage_required") is not True:
         raise RuntimeError("Source semantic_event_contract must require inspect FoV coverage")
+    boundary = source_boundary_payload(event_script)
+    if str(boundary.get("geometry_source") or "") != "event_entity":
+        raise RuntimeError("Source capture_boundary.geometry_source must be event_entity")
+    boundary_entity_id = str(boundary.get("source_entity_id") or boundary.get("boundary_id") or "")
+    if boundary_entity_id and not any(str(entity.get("entity_id") or "") == boundary_entity_id for entity in entities.values()):
+        raise RuntimeError(f"Source capture boundary entity is not declared in scene_setup: {boundary_entity_id}")
+    polygon = source_boundary_polygon(event_script)
+    inspect_route = inspect_route_from_source(inspect_entity, inspect_contract)
+    inspect_altitude_m = float(inspect_contract.get("inspect_altitude_m") or inspect_route[0][2])
+    if any(abs(float(point[2]) - inspect_altitude_m) > 0.001 for point in inspect_route):
+        raise RuntimeError("Source inspect route must stay at fixed inspect altitude")
+    uav_crosses_boundary = source_uavs_cross_boundary(scene_setup, grouped_rows, polygon)
+    inspect_observes_boundary = inspect_frustum_observes_boundary(inspect_route, polygon, inspect_contract)
 
     return {
         "capture_boundary_id": source_capture_boundary_id(event_script),
-        "uav_crosses_boundary": True,
-        "inspect_observes_boundary": True,
+        "uav_crosses_boundary": uav_crosses_boundary,
+        "inspect_observes_boundary": inspect_observes_boundary,
         "pad_boundary_policy": source_pad_boundary_policy(event_script),
         "inspect_entity_id": str(inspect_entity.get("entity_id") or "").strip(),
-        "inspect_route_enu_m": inspect_route_from_source(inspect_entity, inspect_contract),
+        "inspect_route_enu_m": inspect_route,
         "inspect_contract": inspect_contract,
     }
 
@@ -858,19 +1068,14 @@ def convert_episode(
     trajectory_rows = load_jsonl(source_episode_dir / "trajectories.jsonl")
     event_rows = load_jsonl(source_episode_dir / "event_trace.jsonl")
     source_weather_rows = load_jsonl(source_episode_dir / "weather_meta.jsonl")
-    legacy_roster = read_legacy_roster(source_episode_dir / "global_entity_roster.json")
+    source_roster = read_source_roster(source_episode_dir / "global_entity_roster.json")
 
     grouped = rows_by_entity(trajectory_rows)
-    for entity_id, entity_rows in grouped.items():
-        if entity_id not in legacy_roster and entity_rows:
-            legacy_roster[entity_id] = {
-                "entity_id": entity_id,
-                "label_class": str(entity_rows[0].get("label_class") or "unknown"),
-                "asset_id": str(entity_rows[0].get("asset_id") or "unknown"),
-            }
-
     if not grouped:
         raise RuntimeError(f"No trajectory rows found in {source_episode_dir}")
+    missing_roster = sorted(entity_id for entity_id in grouped if entity_id not in source_roster)
+    if missing_roster:
+        raise RuntimeError(f"{source_episode_dir.name}: trajectory entities missing from source roster: {missing_roster}")
     max_traj_tick = max(int(row.get("tick", 0)) for row in trajectory_rows)
     if duration_ticks <= 0:
         duration_ticks = max_traj_tick
@@ -880,18 +1085,31 @@ def convert_episode(
         manifest=manifest,
         project_root=project_root,
         scenario_id=scenario_id,
+        grouped_rows=grouped,
     )
+    if not source_contract["uav_crosses_boundary"]:
+        raise RuntimeError(f"{source_episode_dir.name}: source trajectories do not prove all mission/observer UAVs cross capture boundary")
+    if not source_contract["inspect_observes_boundary"]:
+        raise RuntimeError(f"{source_episode_dir.name}: source inspect route/sensor profile does not prove boundary observation")
 
-    activity_overrides = build_activity_overrides(event_rows, legacy_roster)
+    activity_overrides = build_activity_overrides(event_rows, source_roster)
     roster_entities: list[dict[str, Any]] = []
     first_samples: dict[str, dict[str, Any]] = {}
     last_yaw_by_entity: dict[str, float] = {}
 
     for entity_id in sorted(grouped):
-        source_entry = dict(legacy_roster.get(entity_id) or {"entity_id": entity_id})
-        label_class = str(source_entry.get("label_class") or grouped[entity_id][0].get("label_class") or "unknown")
+        source_entry = dict(source_roster[entity_id])
+        label_class = str(source_entry.get("label_class") or grouped[entity_id][0].get("label_class") or "")
         first_row = sample_row_at_tick(grouped[entity_id], ticks[0], tick_hz)
         profile = profile_for_entity(source_entry, first_row)
+        source_asset_id = str(
+            source_entry.get("asset_id")
+            or source_entry.get("logical_asset_id")
+            or profile.get("logical_asset_id")
+            or ""
+        )
+        if not source_asset_id:
+            raise RuntimeError(f"{source_episode_dir.name}: source roster entry lacks asset id: {entity_id}")
         first_position = normalized_position_for_render(first_row)
         first_velocity = normalize_vector3(first_row.get("vel_mps"))
         first_yaw = heading_deg_from_velocity(first_velocity)
@@ -907,7 +1125,7 @@ def convert_episode(
         roster_entry = {
             "entity_id": entity_id,
             "label_class": label_class,
-            "asset_id": str(source_entry.get("asset_id") or "unknown"),
+            "asset_id": source_asset_id,
             "site_id": site_id,
             "roi_id": roi_id,
             "entity_category": profile["entity_category"],

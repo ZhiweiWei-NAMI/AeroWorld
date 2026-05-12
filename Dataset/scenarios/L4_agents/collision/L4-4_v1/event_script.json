@@ -25,29 +25,29 @@
         ],
         "boundary_role": "capture_boundary",
         "z_policy": "ground_to_event_altitude",
-        "source": "event_motion_bbox",
-        "source_entity_id": "",
+        "source": "event_entity_envelope",
+        "source_entity_id": "uav_falls_vehicle_l4_4_v1",
         "center_enu_m": [
-          7095.003,
-          6321.184,
+          7073.5,
+          6301.0,
           0.0
         ],
         "polygon_enu_m": [
           [
-            7042.14,
-            6284.0
+            7054.5,
+            6288.0
           ],
           [
-            7147.865,
-            6284.0
+            7092.5,
+            6288.0
           ],
           [
-            7147.865,
-            6358.367
+            7092.5,
+            6314.0
           ],
           [
-            7042.14,
-            6358.367
+            7054.5,
+            6314.0
           ]
         ],
         "uav_boundary_crossing_required": true,
@@ -66,7 +66,10 @@
         "fov_coverage_required": true,
         "sensor_profile_required": true
       },
-      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": []
+      },
       "uav_boundary_crossing_required": true,
       "inspect_fov_coverage_required": true,
       "required_event": "UAV-vehicle crossing > brake",
@@ -93,7 +96,7 @@
     "target_logical_count": 4,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 8,
+    "uav_corridor_segment_count": 14,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -118,7 +121,7 @@
       },
       {
         "entity_id": "u_inspect_l4_4_v1",
-        "point_count": 4,
+        "point_count": 11,
         "assigned_altitude_m": 18.0,
         "used_lateral_bypass": false
       },
@@ -194,13 +197,13 @@
         "entity_id": "u_inspect_l4_4_v1",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7061.251,
-          6298.296,
+          7073.5,
+          6301.0,
           18.0
         ],
         "segment_end_enu_m": [
-          7118.162,
-          6322.571,
+          7054.5,
+          6288.0,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -209,13 +212,13 @@
         "entity_id": "u_inspect_l4_4_v1",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7118.162,
-          6322.571,
+          7054.5,
+          6288.0,
           18.0
         ],
         "segment_end_enu_m": [
-          7061.251,
-          6298.296,
+          7073.5,
+          6288.0,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -224,13 +227,103 @@
         "entity_id": "u_inspect_l4_4_v1",
         "segment_index": 2,
         "segment_start_enu_m": [
-          7061.251,
-          6298.296,
+          7073.5,
+          6288.0,
           18.0
         ],
         "segment_end_enu_m": [
-          7118.162,
-          6322.571,
+          7092.5,
+          6288.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_4_v1",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7092.5,
+          6288.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7092.5,
+          6301.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_4_v1",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7092.5,
+          6301.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7092.5,
+          6314.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_4_v1",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7092.5,
+          6314.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7073.5,
+          6314.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_4_v1",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7073.5,
+          6314.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7054.5,
+          6314.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_4_v1",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7054.5,
+          6314.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7054.5,
+          6301.0,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_4_v1",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7054.5,
+          6301.0,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7073.5,
+          6301.0,
           18.0
         ],
         "assigned_altitude_m": 18.0
@@ -244,8 +337,8 @@
           80.0
         ],
         "segment_end_enu_m": [
-          7135.865,
-          6346.367,
+          7130.242,
+          6344.251,
           80.0
         ],
         "assigned_altitude_m": 80.0
@@ -261,29 +354,29 @@
     ],
     "capture_boundary": {
       "boundary_id": "capture_boundary_l4_4_v1",
-      "source": "event_motion_bbox",
-      "source_entity_id": "",
+      "source": "event_entity_envelope",
+      "source_entity_id": "uav_falls_vehicle_l4_4_v1",
       "center_enu_m": [
-        7095.003,
-        6321.184,
+        7073.5,
+        6301.0,
         0.0
       ],
       "polygon_enu_m": [
         [
-          7042.14,
-          6284.0
+          7054.5,
+          6288.0
         ],
         [
-          7147.865,
-          6284.0
+          7092.5,
+          6288.0
         ],
         [
-          7147.865,
-          6358.367
+          7092.5,
+          6314.0
         ],
         [
-          7042.14,
-          6358.367
+          7054.5,
+          6314.0
         ]
       ],
       "uav_boundary_crossing_required": true,
@@ -361,6 +454,14 @@
           }
         }
       ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "L4-4_v1.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "mission_uav",
+        "vehicle"
+      ],
       "log_event": {
         "topic": "evt_L4-4_v1_lifecycle_takeoff_uav_falls_vehicle_l4_4_v1",
         "category": "uav_lifecycle",
@@ -370,6 +471,13 @@
         "target_ids": [
           "uav_falls_vehicle_l4_4_v1",
           "pad_home_uav_falls_vehicle_l4_4_v1"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "L4-4_v1.semantic_event_chain",
+        "target_roles": [
+          "mission_uav",
+          "vehicle"
         ]
       }
     },
@@ -448,6 +556,14 @@
           "velocity_mps": 7.0
         }
       ],
+      "intent": "collision_or_near_miss",
+      "intent_stage": "01.collision_or_near_miss",
+      "causal_chain_id": "L4-4_v1.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "mission_uav",
+        "vehicle"
+      ],
       "log_event": {
         "topic": "evt_L4-4_v1_crossing_trajectories",
         "category": "uav_mission",
@@ -457,6 +573,14 @@
         "target_ids": [
           "uav_falls_vehicle_l4_4_v1",
           "car_under_uav_l4_4_v1"
+        ],
+        "intent": "collision_or_near_miss",
+        "intent_stage": "01.collision_or_near_miss",
+        "causal_chain_id": "L4-4_v1.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "mission_uav",
+          "vehicle"
         ]
       }
     },
@@ -533,6 +657,14 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "vehicle_brake",
+      "intent_stage": "02.vehicle_brake",
+      "causal_chain_id": "L4-4_v1.semantic_event_chain",
+      "causal_predecessor_intent": "collision_or_near_miss",
+      "target_roles": [
+        "mission_uav",
+        "vehicle"
+      ],
       "log_event": {
         "topic": "evt_L4-4_v1_vehicle_roof_contact",
         "category": "vehicle",
@@ -542,6 +674,14 @@
         "target_ids": [
           "uav_falls_vehicle_l4_4_v1",
           "car_under_uav_l4_4_v1"
+        ],
+        "intent": "vehicle_brake",
+        "intent_stage": "02.vehicle_brake",
+        "causal_chain_id": "L4-4_v1.semantic_event_chain",
+        "causal_predecessor_intent": "collision_or_near_miss",
+        "target_roles": [
+          "mission_uav",
+          "vehicle"
         ]
       }
     }

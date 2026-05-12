@@ -13,12 +13,12 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7079.544,
-      6427.047,
+      7077.884,
+      6426.992,
       0.0
     ],
-    "radius_m": 272.493,
-    "source": "scene_entities_and_routes"
+    "radius_m": 270.863,
+    "source": "export_envelope_only"
   },
   "entities": [
     {
@@ -51,7 +51,20 @@
         ],
         "semantic_role": "online"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "digital_anomaly",
+          "recovery_or_restore"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "uav_x1_forced_landing",
@@ -161,7 +174,22 @@
       },
       "validation_tags": [
         "uav_corridor_contract"
-      ]
+      ],
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+          "weather_degradation",
+          "digital_anomaly",
+          "forced_landing",
+          "recovery_or_restore"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 851.532
+      }
     },
     {
       "entity_id": "ped_x1_crowd_anchor",
@@ -206,6 +234,17 @@
         "policy": "semantic_event_contract_v1",
         "semantic_role": "crowd evade/recover",
         "contract_scenario_id": "X1_rain_to_c2loss_to_forced_landing"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
       }
     },
     {
@@ -244,7 +283,18 @@
         ],
         "semantic_role": "observing"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "ped_x1_crowd_x1_01",
@@ -282,7 +332,18 @@
         ],
         "semantic_role": "observing"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "ped_x1_crowd_x1_02",
@@ -320,7 +381,18 @@
         ],
         "semantic_role": "observing"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "ped_x1_crowd_x1_03",
@@ -358,7 +430,18 @@
         ],
         "semantic_role": "observing"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "ped_x1_crowd_x1_04",
@@ -396,7 +479,18 @@
         ],
         "semantic_role": "observing"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "ped_x1_crowd_x1_05",
@@ -434,7 +528,18 @@
         ],
         "semantic_role": "observing"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "ped_x1_crowd_x1_06",
@@ -472,7 +577,18 @@
         ],
         "semantic_role": "observing"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "ped_x1_crowd_x1_07",
@@ -510,7 +626,18 @@
         ],
         "semantic_role": "observing"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "ped_x1_crowd_x1_08",
@@ -548,7 +675,18 @@
         ],
         "semantic_role": "observing"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
@@ -557,13 +695,13 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7156.817,
-          6422.917,
+          7076.725,
+          6436.45,
           10.0
         ],
         "resolved_position_enu_m": [
-          7156.817,
-          6422.917,
+          7076.725,
+          6436.45,
           10.0
         ],
         "rotation_deg": {
@@ -572,18 +710,58 @@
       },
       "route_waypoints_enu_m": [
         [
-          7117.119,
-          6427.869,
+          7076.725,
+          6436.45,
           10.0
         ],
         [
-          7156.817,
-          6422.917,
+          7037.0,
+          6419.9,
           10.0
         ],
         [
-          7117.119,
-          6427.869,
+          7076.725,
+          6419.9,
+          10.0
+        ],
+        [
+          7116.449,
+          6419.9,
+          10.0
+        ],
+        [
+          7116.449,
+          6436.45,
+          10.0
+        ],
+        [
+          7116.449,
+          6453.0,
+          10.0
+        ],
+        [
+          7076.725,
+          6453.0,
+          10.0
+        ],
+        [
+          7037.0,
+          6453.0,
+          10.0
+        ],
+        [
+          7037.0,
+          6436.45,
+          10.0
+        ],
+        [
+          7076.725,
+          6436.45,
+          10.0
+        ],
+        [
+          7076.725,
+          6436.45,
           10.0
         ]
       ],
@@ -609,80 +787,199 @@
       "contract_inspect_uav": {
         "policy": "semantic_event_contract_v1",
         "corridor_role": "inspect_observer",
+        "corridor_policy": "inspect_capture_corridor",
         "motion_policy": "fixed_altitude_loop_observes_capture_boundary",
         "inspect_altitude_m": 10.0,
         "inspect_altitude_code": "I10",
         "sensor_fov_deg": 85.0,
         "sensor_fov_source": "Plugins/SumoImporter/Scripts/episode_capture_presets.json:uav_cameras.default[0].fov_degrees",
+        "sensor_profile": {
+          "source": "Plugins/SumoImporter/Scripts/episode_capture_presets.json:uav_cameras.default[0]",
+          "camera_name": "bottom_center",
+          "capture_backend": "airsim_native",
+          "width": 1280,
+          "height": 720,
+          "hfov_deg": 85.0,
+          "fixed_rotation_offset_deg": {
+            "pitch_deg": -90.0,
+            "yaw_deg": 0.0,
+            "roll_deg": 0.0
+          }
+        },
         "min_path_length_m": 80.0,
         "fixed_altitude_loop": true,
         "planned_route_enu_m": [
           [
-            7156.817,
-            6422.917,
+            7076.725,
+            6436.45,
             10.0
           ],
           [
-            7117.119,
-            6427.869,
+            7037.0,
+            6419.9,
             10.0
           ],
           [
-            7156.817,
-            6422.917,
+            7076.725,
+            6419.9,
             10.0
           ],
           [
-            7117.119,
-            6427.869,
+            7116.449,
+            6419.9,
+            10.0
+          ],
+          [
+            7116.449,
+            6436.45,
+            10.0
+          ],
+          [
+            7116.449,
+            6453.0,
+            10.0
+          ],
+          [
+            7076.725,
+            6453.0,
+            10.0
+          ],
+          [
+            7037.0,
+            6453.0,
+            10.0
+          ],
+          [
+            7037.0,
+            6436.45,
+            10.0
+          ],
+          [
+            7076.725,
+            6436.45,
+            10.0
+          ],
+          [
+            7076.725,
+            6436.45,
             10.0
           ]
         ],
         "loop_route_enu_m": [
           [
-            7156.817,
-            6422.917,
+            7076.725,
+            6436.45,
             10.0
           ],
           [
-            7117.119,
-            6427.869,
+            7037.0,
+            6419.9,
             10.0
           ],
           [
-            7156.817,
-            6422.917,
+            7076.725,
+            6419.9,
             10.0
           ],
           [
-            7117.119,
-            6427.869,
+            7116.449,
+            6419.9,
+            10.0
+          ],
+          [
+            7116.449,
+            6436.45,
+            10.0
+          ],
+          [
+            7116.449,
+            6453.0,
+            10.0
+          ],
+          [
+            7076.725,
+            6453.0,
+            10.0
+          ],
+          [
+            7037.0,
+            6453.0,
+            10.0
+          ],
+          [
+            7037.0,
+            6436.45,
+            10.0
+          ],
+          [
+            7076.725,
+            6436.45,
+            10.0
+          ],
+          [
+            7076.725,
+            6436.45,
             10.0
           ]
         ],
         "repaired_route_enu_m": [
           [
-            7156.817,
-            6422.917,
+            7076.725,
+            6436.45,
             10.0
           ],
           [
-            7117.119,
-            6427.869,
+            7037.0,
+            6419.9,
             10.0
           ],
           [
-            7156.817,
-            6422.917,
+            7076.725,
+            6419.9,
             10.0
           ],
           [
-            7117.119,
-            6427.869,
+            7116.449,
+            6419.9,
+            10.0
+          ],
+          [
+            7116.449,
+            6436.45,
+            10.0
+          ],
+          [
+            7116.449,
+            6453.0,
+            10.0
+          ],
+          [
+            7076.725,
+            6453.0,
+            10.0
+          ],
+          [
+            7037.0,
+            6453.0,
+            10.0
+          ],
+          [
+            7037.0,
+            6436.45,
+            10.0
+          ],
+          [
+            7076.725,
+            6436.45,
+            10.0
+          ],
+          [
+            7076.725,
+            6436.45,
             10.0
           ]
         ],
-        "repaired_path_length_m": 120.017,
+        "repaired_path_length_m": 291.308,
         "observed_capture_boundary_id": "capture_boundary_x1_rain_to_c2loss_to_forced_landing",
         "inspect_fov_coverage_required": true
       },
@@ -697,11 +994,155 @@
       },
       "validation_tags": [
         "uav_corridor_contract"
-      ]
+      ],
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "digital_anomaly",
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 291.308
+      }
     },
     {
       "entity_id": "bg_vehicle_x1_rain_to_c2loss_to_forced_landing_01",
       "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_718",
+        "lane_index": 0,
+        "longitudinal_s": 24.0,
+        "lateral_offset_m": 0.0,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 0.0,
+        "placement_semantics": "lane_center",
+        "resolved_position_enu_m": [
+          7148.414,
+          6415.858,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -140.654
+        },
+        "source_edge_id_hint": "cg_edge_718",
+        "source_longitudinal_s_hint": 24.0
+      },
+      "route_waypoints_enu_m": [
+        [
+          7148.414,
+          6415.858,
+          0.0
+        ],
+        [
+          7122.308,
+          6414.768,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "responder",
+        "task_id": "X1_rain_to_c2loss_to_forced_landing.vehicle_background.01",
+        "role": "semantic_background_vehicle",
+        "semantic_role": "emergency response/hold",
+        "state_sequence": [
+          "responder",
+          "traffic_flow"
+        ],
+        "background_role": "semantic_context"
+      },
+      "activation_tick": 0,
+      "background_vehicle": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "emergency response/hold",
+        "contract_scenario_id": "X1_rain_to_c2loss_to_forced_landing"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "digital_anomaly",
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 26.129
+      }
+    },
+    {
+      "entity_id": "bg_vehicle_x1_rain_to_c2loss_to_forced_landing_02",
+      "logical_asset_id": "vehicle.emergency.suv.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_718",
+        "lane_index": 0,
+        "longitudinal_s": 8.0,
+        "lateral_offset_m": 0.0,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 0.0,
+        "placement_semantics": "lane_center",
+        "resolved_position_enu_m": [
+          7160.658,
+          6426.105,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -140.853
+        },
+        "source_edge_id_hint": "cg_edge_718",
+        "source_longitudinal_s_hint": 8.0
+      },
+      "route_waypoints_enu_m": [
+        [
+          7160.658,
+          6426.105,
+          0.0
+        ],
+        [
+          7133.452,
+          6406.195,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "responder",
+        "task_id": "X1_rain_to_c2loss_to_forced_landing.vehicle_background.02",
+        "role": "semantic_background_vehicle",
+        "semantic_role": "emergency response/hold",
+        "state_sequence": [
+          "responder",
+          "traffic_flow"
+        ],
+        "background_role": "semantic_context"
+      },
+      "activation_tick": 0,
+      "background_vehicle": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "emergency response/hold",
+        "contract_scenario_id": "X1_rain_to_c2loss_to_forced_landing"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "digital_anomaly",
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 33.713
+      }
+    },
+    {
+      "entity_id": "bg_vehicle_x1_rain_to_c2loss_to_forced_landing_03",
+      "logical_asset_id": "vehicle.service.box.v1",
       "category": "vehicle",
       "placement_mode": "lane_anchor",
       "placement": {
@@ -725,106 +1166,13 @@
       },
       "route_waypoints_enu_m": [
         [
+          7166.952,
+          6430.929,
+          0.0
+        ],
+        [
           7140.499,
           6409.845,
-          0.0
-        ]
-      ],
-      "initial_state": {
-        "mode": "responder",
-        "task_id": "X1_rain_to_c2loss_to_forced_landing.vehicle_background.01",
-        "role": "semantic_background_vehicle",
-        "semantic_role": "emergency response/hold",
-        "state_sequence": [
-          "responder",
-          "traffic_flow"
-        ],
-        "background_role": "semantic_context"
-      },
-      "activation_tick": 0,
-      "background_vehicle": {
-        "policy": "semantic_event_contract_v1",
-        "semantic_role": "emergency response/hold",
-        "contract_scenario_id": "X1_rain_to_c2loss_to_forced_landing"
-      }
-    },
-    {
-      "entity_id": "bg_vehicle_x1_rain_to_c2loss_to_forced_landing_02",
-      "logical_asset_id": "vehicle.emergency.suv.v1",
-      "category": "vehicle",
-      "placement_mode": "lane_anchor",
-      "placement": {
-        "edge_id": "cg_edge_50",
-        "lane_index": 0,
-        "longitudinal_s": 396.0,
-        "lateral_offset_m": 0.0,
-        "lane_half_width_m": 1.9,
-        "resolved_lateral_from_center_m": 0.0,
-        "placement_semantics": "lane_center",
-        "resolved_position_enu_m": [
-          7152.84,
-          6451.744,
-          0.0
-        ],
-        "rotation_deg": {
-          "yaw_deg": -59.778
-        },
-        "source_edge_id_hint": "cg_edge_50",
-        "source_longitudinal_s_hint": 396.0
-      },
-      "route_waypoints_enu_m": [
-        [
-          7158.145,
-          6442.634,
-          0.0
-        ]
-      ],
-      "initial_state": {
-        "mode": "responder",
-        "task_id": "X1_rain_to_c2loss_to_forced_landing.vehicle_background.02",
-        "role": "semantic_background_vehicle",
-        "semantic_role": "emergency response/hold",
-        "state_sequence": [
-          "responder",
-          "traffic_flow"
-        ],
-        "background_role": "semantic_context"
-      },
-      "activation_tick": 0,
-      "background_vehicle": {
-        "policy": "semantic_event_contract_v1",
-        "semantic_role": "emergency response/hold",
-        "contract_scenario_id": "X1_rain_to_c2loss_to_forced_landing"
-      }
-    },
-    {
-      "entity_id": "bg_vehicle_x1_rain_to_c2loss_to_forced_landing_03",
-      "logical_asset_id": "vehicle.service.box.v1",
-      "category": "vehicle",
-      "placement_mode": "lane_anchor",
-      "placement": {
-        "edge_id": "cg_edge_50",
-        "lane_index": 0,
-        "longitudinal_s": 378.0,
-        "lateral_offset_m": 0.0,
-        "lane_half_width_m": 1.9,
-        "resolved_lateral_from_center_m": 0.0,
-        "placement_semantics": "lane_center",
-        "resolved_position_enu_m": [
-          7143.766,
-          6467.268,
-          0.0
-        ],
-        "rotation_deg": {
-          "yaw_deg": -59.729
-        },
-        "source_edge_id_hint": "cg_edge_50",
-        "source_longitudinal_s_hint": 378.0
-      },
-      "route_waypoints_enu_m": [
-        [
-          7158.145,
-          6442.634,
           0.0
         ]
       ],
@@ -844,6 +1192,18 @@
         "policy": "semantic_event_contract_v1",
         "semantic_role": "emergency response/hold",
         "contract_scenario_id": "X1_rain_to_c2loss_to_forced_landing"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "digital_anomaly",
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 33.827
       }
     },
     {
@@ -880,6 +1240,18 @@
       "contract_facility": {
         "policy": "semantic_event_contract_v1",
         "contract_scenario_id": "X1_rain_to_c2loss_to_forced_landing"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "digital_anomaly",
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
       }
     },
     {
@@ -916,6 +1288,18 @@
       "contract_facility": {
         "policy": "semantic_event_contract_v1",
         "contract_scenario_id": "X1_rain_to_c2loss_to_forced_landing"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "digital_anomaly",
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
       }
     },
     {
@@ -943,6 +1327,11 @@
           7117.119,
           6427.869,
           80.0
+        ],
+        [
+          7076.725,
+          6436.45,
+          80.0
         ]
       ],
       "initial_state": {
@@ -958,6 +1347,11 @@
       },
       "activation_tick": 0,
       "uav_corridor_role": "observer",
+      "boundary_crossing_injected": {
+        "policy": "semantic_event_contract_v1",
+        "capture_boundary_id": "capture_boundary_x1_rain_to_c2loss_to_forced_landing",
+        "reason": "non_inspect_uav_route_must_cross_capture_boundary"
+      },
       "uav_corridor": {
         "assigned_altitude_m": 80.0,
         "altitude_layers_m": [
@@ -969,7 +1363,19 @@
       },
       "validation_tags": [
         "uav_corridor_contract"
-      ]
+      ],
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "digital_anomaly",
+          "forced_landing"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 81.986
+      }
     },
     {
       "entity_id": "pad_home_uav_x1_forced_landing",
@@ -1003,7 +1409,18 @@
         ],
         "semantic_role": "available"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
     },
     {
       "entity_id": "corridor_x1_rain_to_c2loss_to_forced_landing_uav_x1_forced_landing_00",
@@ -1635,8 +2052,8 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7079.544,
-          6427.047,
+          7077.884,
+          6426.992,
           180.0
         ],
         "rotation_deg": {
@@ -1683,7 +2100,7 @@
           "logical": 8
         },
         "capture_boundary": {
-          "boundary_id": "capture_boundary.X1_rain_to_c2loss_to_forced_landing.primary",
+          "boundary_id": "capture_boundary_x1_rain_to_c2loss_to_forced_landing",
           "geometry_source": "event_entity",
           "anchor_entity_roles": [
             "capture_boundary",
@@ -1691,7 +2108,36 @@
             "airspace_constraint"
           ],
           "boundary_role": "capture_boundary",
-          "z_policy": "ground_to_event_altitude"
+          "z_policy": "ground_to_event_altitude",
+          "source": "event_entity_envelope",
+          "source_entity_id": "uav_x1_forced_landing",
+          "center_enu_m": [
+            7079.725,
+            6436.45,
+            0.0
+          ],
+          "polygon_enu_m": [
+            [
+              7037.0,
+              6419.9
+            ],
+            [
+              7122.449,
+              6419.9
+            ],
+            [
+              7122.449,
+              6453.0
+            ],
+            [
+              7037.0,
+              6453.0
+            ]
+          ],
+          "uav_boundary_crossing_required": true,
+          "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+          "inspect_fov_coverage_required": true,
+          "inspect_entity_role": "U_inspect"
         },
         "inspect": {
           "role": "U_inspect",
@@ -1706,13 +2152,15 @@
         },
         "pad_boundary_policy": {
           "default": "outside_allowed",
-          "inside_required_for": []
+          "inside_required_for": [
+            "terminal_landing_zone"
+          ]
         },
         "uav_boundary_crossing_required": true,
         "inspect_fov_coverage_required": true,
         "required_event": "rain + C2 loss > forced landing",
         "required_intents": [
-          "weather_degradation",
+          "digital_anomaly",
           "forced_landing"
         ],
         "background_semantics": {
@@ -1732,7 +2180,7 @@
     {
       "rule": "uav_corridor_contract",
       "target_uav_count": 3,
-      "corridor_segment_count": 13,
+      "corridor_segment_count": 20,
       "materialized_corridor_scene_count": 8,
       "allow_building_impact": false,
       "description": "UAV waypoints are repaired for building clearance; corridor scene entities are capped by the exact episode logical-sidecar contract"

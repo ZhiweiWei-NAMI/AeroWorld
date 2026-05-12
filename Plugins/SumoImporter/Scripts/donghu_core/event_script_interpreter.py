@@ -472,8 +472,58 @@ class EventScriptInterpreter:
         topic = str(log_cfg.get("topic", event_def["event_id"]))
         chain_id = str(log_cfg.get("chain_id", event_def.get("chain_id", event_def["event_id"])))
         target_ids = list(log_cfg.get("target_ids") or [])
+        semantic_fields: dict[str, Any] = {}
+        for field_name in (
+            "intent",
+            "intent_stage",
+            "causal_chain_id",
+            "causal_predecessor_intent",
+            "target_roles",
+        ):
+            value = log_cfg.get(field_name)
+            if value in (None, "", []):
+                value = event_def.get(field_name)
+            if value not in (None, "", []):
+                semantic_fields[field_name] = copy.deepcopy(value)
+        contract = dict(self.parameters.get("semantic_event_contract") or {})
+        capture_boundary = dict(self.parameters.get("capture_boundary") or contract.get("capture_boundary") or {})
+        pad_boundary_policy = self.parameters.get("pad_boundary_policy")
+        if pad_boundary_policy in (None, "", []):
+            pad_boundary_policy = contract.get("pad_boundary_policy")
+        capture_fields = {
+            "capture_boundary_id": capture_boundary.get("boundary_id") or capture_boundary.get("capture_boundary_id"),
+            "uav_boundary_crossing_required": contract.get("uav_boundary_crossing_required"),
+            "inspect_fov_coverage_required": contract.get("inspect_fov_coverage_required"),
+            "pad_boundary_policy": pad_boundary_policy,
+        }
+        capture_fields = {
+            key: copy.deepcopy(value)
+            for key, value in capture_fields.items()
+            if value not in (None, "", [])
+        }
+        metadata = dict(log_cfg.get("metadata") or {})
+        metadata.update({key: copy.deepcopy(value) for key, value in semantic_fields.items() if key not in metadata})
+        metadata.update({key: copy.deepcopy(value) for key, value in capture_fields.items() if key not in metadata})
+        payload = {
+            "activated_tick": tick,
+            "category": log_cfg.get("category", ""),
+            "causal_delay_ticks": 0,
+            "duration_ticks": 0,
+            "end_tick": tick,
+            "event_id": topic,
+            "phase": log_cfg.get("phase", ""),
+            "roi_id": log_cfg.get("roi_id", ""),
+            "sequence_no": len(self.event_log) + 1,
+            "source_kind": "scheduled",
+            "source_tick": tick,
+            "source_topic": topic,
+            "start_tick": tick,
+            "title": log_cfg.get("title", topic),
+        }
+        payload.update(copy.deepcopy(semantic_fields))
+        payload.update(copy.deepcopy(capture_fields))
 
-        return {
+        row = {
             "activated_frame_id": frame_id,
             "activated_tick": tick,
             "agent_id": "",
@@ -484,24 +534,9 @@ class EventScriptInterpreter:
             "episode_id": self.episode_id,
             "frame_id": frame_id,
             "instance_id": f"evt_{topic}",
-            "metadata": log_cfg.get("metadata", {}),
+            "metadata": metadata,
             "parent_event_id": "",
-            "payload": {
-                "activated_tick": tick,
-                "category": log_cfg.get("category", ""),
-                "causal_delay_ticks": 0,
-                "duration_ticks": 0,
-                "end_tick": tick,
-                "event_id": topic,
-                "phase": log_cfg.get("phase", ""),
-                "roi_id": log_cfg.get("roi_id", ""),
-                "sequence_no": len(self.event_log) + 1,
-                "source_kind": "scheduled",
-                "source_tick": tick,
-                "source_topic": topic,
-                "start_tick": tick,
-                "title": log_cfg.get("title", topic),
-            },
+            "payload": payload,
             "published_event_refs": [],
             "recovered_frame_id": "",
             "recovered_tick": None,
@@ -536,3 +571,6 @@ class EventScriptInterpreter:
             "tick": tick,
             "topic": topic,
         }
+        row.update(copy.deepcopy(semantic_fields))
+        row.update(copy.deepcopy(capture_fields))
+        return row

@@ -65,7 +65,10 @@
         "fov_coverage_required": true,
         "sensor_profile_required": true
       },
-      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": []
+      },
       "uav_boundary_crossing_required": true,
       "inspect_fov_coverage_required": true,
       "required_event": "spoof > NFZ violation alert",
@@ -92,7 +95,7 @@
     "target_logical_count": 8,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 13,
+    "uav_corridor_segment_count": 20,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -117,13 +120,13 @@
       },
       {
         "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
-        "point_count": 4,
+        "point_count": 11,
         "assigned_altitude_m": 22.0,
         "used_lateral_bypass": false
       },
       {
         "entity_id": "uav_observer_x2_gnss_spoof_to_geofence_violation_3",
-        "point_count": 2,
+        "point_count": 3,
         "assigned_altitude_m": 80.0,
         "used_lateral_bypass": false
       }
@@ -268,13 +271,13 @@
         "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7164.578,
-          6429.194,
+          7089.0,
+          6465.0,
           22.0
         ],
         "segment_end_enu_m": [
-          7117.119,
-          6427.869,
+          7077.0,
+          6455.0,
           22.0
         ],
         "assigned_altitude_m": 22.0
@@ -283,13 +286,13 @@
         "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7117.119,
-          6427.869,
+          7077.0,
+          6455.0,
           22.0
         ],
         "segment_end_enu_m": [
-          7164.578,
-          6429.194,
+          7089.0,
+          6455.0,
           22.0
         ],
         "assigned_altitude_m": 22.0
@@ -298,13 +301,103 @@
         "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
         "segment_index": 2,
         "segment_start_enu_m": [
-          7164.578,
-          6429.194,
+          7089.0,
+          6455.0,
           22.0
         ],
         "segment_end_enu_m": [
-          7117.119,
-          6427.869,
+          7101.0,
+          6455.0,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7101.0,
+          6455.0,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7101.0,
+          6465.0,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7101.0,
+          6465.0,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7101.0,
+          6475.0,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7101.0,
+          6475.0,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7089.0,
+          6475.0,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7089.0,
+          6475.0,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7077.0,
+          6475.0,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7077.0,
+          6475.0,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7077.0,
+          6465.0,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_x2_gnss_spoof_to_geofence_violation",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7077.0,
+          6465.0,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7089.0,
+          6465.0,
           22.0
         ],
         "assigned_altitude_m": 22.0
@@ -320,6 +413,21 @@
         "segment_end_enu_m": [
           7117.119,
           6427.869,
+          80.0
+        ],
+        "assigned_altitude_m": 80.0
+      },
+      {
+        "entity_id": "uav_observer_x2_gnss_spoof_to_geofence_violation_3",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7117.119,
+          6427.869,
+          80.0
+        ],
+        "segment_end_enu_m": [
+          7089.0,
+          6465.0,
           80.0
         ],
         "assigned_altitude_m": 80.0
@@ -452,6 +560,14 @@
           }
         }
       ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X2_gnss_spoof_to_geofence_violation_lifecycle_takeoff_uav_x2_spoofed",
         "category": "uav_lifecycle",
@@ -461,6 +577,13 @@
         "target_ids": [
           "uav_x2_spoofed",
           "pad_home_uav_x2_spoofed"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -479,6 +602,13 @@
           }
         }
       ],
+      "intent": "digital_anomaly",
+      "intent_stage": "01.digital_anomaly",
+      "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X2_gnss_spoof_to_geofence_violation_spoofing_start",
         "category": "digital_layer",
@@ -487,6 +617,13 @@
         "overlay": "digital_layer",
         "target_ids": [
           "uav_x2_spoofed"
+        ],
+        "intent": "digital_anomaly",
+        "intent_stage": "01.digital_anomaly",
+        "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "mission_uav"
         ]
       }
     },
@@ -542,6 +679,13 @@
           }
         }
       ],
+      "intent": "offset",
+      "intent_stage": "02.offset",
+      "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+      "causal_predecessor_intent": "digital_anomaly",
+      "target_roles": [
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X2_gnss_spoof_to_geofence_violation_trajectory_offset",
         "category": "uav_mission",
@@ -550,6 +694,13 @@
         "overlay": "uav_mission",
         "target_ids": [
           "uav_x2_spoofed"
+        ],
+        "intent": "offset",
+        "intent_stage": "02.offset",
+        "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+        "causal_predecessor_intent": "digital_anomaly",
+        "target_roles": [
+          "mission_uav"
         ]
       }
     },
@@ -573,6 +724,14 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "airspace_boundary_conflict",
+      "intent_stage": "03.airspace_boundary_conflict",
+      "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+      "causal_predecessor_intent": "offset",
+      "target_roles": [
+        "capture_boundary",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X2_gnss_spoof_to_geofence_violation_geofence_violation",
         "category": "airspace",
@@ -582,6 +741,14 @@
         "target_ids": [
           "uav_x2_spoofed",
           "nfz_x2_geofence"
+        ],
+        "intent": "airspace_boundary_conflict",
+        "intent_stage": "03.airspace_boundary_conflict",
+        "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+        "causal_predecessor_intent": "offset",
+        "target_roles": [
+          "capture_boundary",
+          "mission_uav"
         ]
       }
     },
@@ -627,6 +794,14 @@
           }
         }
       ],
+      "intent": "recovery_or_restore",
+      "intent_stage": "04.recovery_or_restore",
+      "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+      "causal_predecessor_intent": "airspace_boundary_conflict",
+      "target_roles": [
+        "capture_boundary",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X2_gnss_spoof_to_geofence_violation_safety_correction",
         "category": "uav_mission",
@@ -636,6 +811,14 @@
         "target_ids": [
           "uav_x2_spoofed",
           "nfz_x2_geofence"
+        ],
+        "intent": "recovery_or_restore",
+        "intent_stage": "04.recovery_or_restore",
+        "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+        "causal_predecessor_intent": "airspace_boundary_conflict",
+        "target_roles": [
+          "capture_boundary",
+          "mission_uav"
         ]
       }
     },
@@ -654,6 +837,13 @@
           }
         }
       ],
+      "intent": "recovery_or_restore",
+      "intent_stage": "05.recovery_or_restore",
+      "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+      "causal_predecessor_intent": "recovery_or_restore",
+      "target_roles": [
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X2_gnss_spoof_to_geofence_violation_route_recovered",
         "category": "digital_layer",
@@ -662,6 +852,13 @@
         "overlay": "digital_layer",
         "target_ids": [
           "uav_x2_spoofed"
+        ],
+        "intent": "recovery_or_restore",
+        "intent_stage": "05.recovery_or_restore",
+        "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+        "causal_predecessor_intent": "recovery_or_restore",
+        "target_roles": [
+          "mission_uav"
         ]
       }
     },
@@ -737,6 +934,14 @@
           }
         }
       ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+      "causal_predecessor_intent": "recovery_or_restore",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X2_gnss_spoof_to_geofence_violation_lifecycle_landing_uav_x2_spoofed",
         "category": "uav_lifecycle",
@@ -746,6 +951,14 @@
         "target_ids": [
           "uav_x2_spoofed",
           "pad_home_uav_x2_spoofed"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "X2_gnss_spoof_to_geofence_violation.semantic_event_chain",
+        "causal_predecessor_intent": "recovery_or_restore",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     }

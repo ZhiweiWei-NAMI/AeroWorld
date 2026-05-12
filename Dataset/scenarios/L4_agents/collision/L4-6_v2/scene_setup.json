@@ -13,12 +13,12 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7125.823,
-      6337.716,
+      7126.282,
+      6333.738,
       0.0
     ],
-    "radius_m": 221.235,
-    "source": "scene_entities_and_routes"
+    "radius_m": 222.395,
+    "source": "export_envelope_only"
   },
   "entities": [
     {
@@ -68,7 +68,20 @@
         ],
         "semantic_role": "waiting"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "jaywalk",
+          "vehicle_brake",
+          "retreat"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 6.199
+      }
     },
     {
       "entity_id": "car_jaywalk_l4_6_v2",
@@ -104,7 +117,19 @@
         ],
         "semantic_role": "moving"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "jaywalk",
+          "vehicle_brake"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 21.328
+      }
     },
     {
       "entity_id": "u_inspect_l4_6_v2",
@@ -113,13 +138,13 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7084.255,
-          6320.536,
+          7128.147,
+          6330.299,
           10.0
         ],
         "resolved_position_enu_m": [
-          7084.255,
-          6320.536,
+          7128.147,
+          6330.299,
           10.0
         ],
         "rotation_deg": {
@@ -128,18 +153,58 @@
       },
       "route_waypoints_enu_m": [
         [
-          7166.211,
-          6357.484,
+          7128.147,
+          6330.299,
           10.0
         ],
         [
-          7084.255,
-          6320.536,
+          7119.126,
+          6314.323,
           10.0
         ],
         [
-          7166.211,
-          6357.484,
+          7128.147,
+          6314.323,
+          10.0
+        ],
+        [
+          7137.167,
+          6314.323,
+          10.0
+        ],
+        [
+          7137.167,
+          6330.299,
+          10.0
+        ],
+        [
+          7137.167,
+          6346.274,
+          10.0
+        ],
+        [
+          7128.147,
+          6346.274,
+          10.0
+        ],
+        [
+          7119.126,
+          6346.274,
+          10.0
+        ],
+        [
+          7119.126,
+          6330.299,
+          10.0
+        ],
+        [
+          7128.147,
+          6330.299,
+          10.0
+        ],
+        [
+          7128.147,
+          6330.299,
           10.0
         ]
       ],
@@ -165,80 +230,199 @@
       "contract_inspect_uav": {
         "policy": "semantic_event_contract_v1",
         "corridor_role": "inspect_observer",
+        "corridor_policy": "inspect_capture_corridor",
         "motion_policy": "fixed_altitude_loop_observes_capture_boundary",
         "inspect_altitude_m": 10.0,
         "inspect_altitude_code": "I10",
         "sensor_fov_deg": 85.0,
         "sensor_fov_source": "Plugins/SumoImporter/Scripts/episode_capture_presets.json:uav_cameras.default[0].fov_degrees",
+        "sensor_profile": {
+          "source": "Plugins/SumoImporter/Scripts/episode_capture_presets.json:uav_cameras.default[0]",
+          "camera_name": "bottom_center",
+          "capture_backend": "airsim_native",
+          "width": 1280,
+          "height": 720,
+          "hfov_deg": 85.0,
+          "fixed_rotation_offset_deg": {
+            "pitch_deg": -90.0,
+            "yaw_deg": 0.0,
+            "roll_deg": 0.0
+          }
+        },
         "min_path_length_m": 80.0,
         "fixed_altitude_loop": true,
         "planned_route_enu_m": [
           [
-            7084.255,
-            6320.536,
+            7128.147,
+            6330.299,
             10.0
           ],
           [
-            7166.211,
-            6357.484,
+            7119.126,
+            6314.323,
             10.0
           ],
           [
-            7084.255,
-            6320.536,
+            7128.147,
+            6314.323,
             10.0
           ],
           [
-            7166.211,
-            6357.484,
+            7137.167,
+            6314.323,
+            10.0
+          ],
+          [
+            7137.167,
+            6330.299,
+            10.0
+          ],
+          [
+            7137.167,
+            6346.274,
+            10.0
+          ],
+          [
+            7128.147,
+            6346.274,
+            10.0
+          ],
+          [
+            7119.126,
+            6346.274,
+            10.0
+          ],
+          [
+            7119.126,
+            6330.299,
+            10.0
+          ],
+          [
+            7128.147,
+            6330.299,
+            10.0
+          ],
+          [
+            7128.147,
+            6330.299,
             10.0
           ]
         ],
         "loop_route_enu_m": [
           [
-            7084.255,
-            6320.536,
+            7128.147,
+            6330.299,
             10.0
           ],
           [
-            7166.211,
-            6357.484,
+            7119.126,
+            6314.323,
             10.0
           ],
           [
-            7084.255,
-            6320.536,
+            7128.147,
+            6314.323,
             10.0
           ],
           [
-            7166.211,
-            6357.484,
+            7137.167,
+            6314.323,
+            10.0
+          ],
+          [
+            7137.167,
+            6330.299,
+            10.0
+          ],
+          [
+            7137.167,
+            6346.274,
+            10.0
+          ],
+          [
+            7128.147,
+            6346.274,
+            10.0
+          ],
+          [
+            7119.126,
+            6346.274,
+            10.0
+          ],
+          [
+            7119.126,
+            6330.299,
+            10.0
+          ],
+          [
+            7128.147,
+            6330.299,
+            10.0
+          ],
+          [
+            7128.147,
+            6330.299,
             10.0
           ]
         ],
         "repaired_route_enu_m": [
           [
-            7084.255,
-            6320.536,
+            7128.147,
+            6330.299,
             10.0
           ],
           [
-            7166.211,
-            6357.484,
+            7119.126,
+            6314.323,
             10.0
           ],
           [
-            7084.255,
-            6320.536,
+            7128.147,
+            6314.323,
             10.0
           ],
           [
-            7166.211,
-            6357.484,
+            7137.167,
+            6314.323,
+            10.0
+          ],
+          [
+            7137.167,
+            6330.299,
+            10.0
+          ],
+          [
+            7137.167,
+            6346.274,
+            10.0
+          ],
+          [
+            7128.147,
+            6346.274,
+            10.0
+          ],
+          [
+            7119.126,
+            6346.274,
+            10.0
+          ],
+          [
+            7119.126,
+            6330.299,
+            10.0
+          ],
+          [
+            7128.147,
+            6330.299,
+            10.0
+          ],
+          [
+            7128.147,
+            6330.299,
             10.0
           ]
         ],
-        "repaired_path_length_m": 269.699,
+        "repaired_path_length_m": 111.376,
         "observed_capture_boundary_id": "capture_boundary_l4_6_v2",
         "inspect_fov_coverage_required": true
       },
@@ -253,7 +437,18 @@
       },
       "validation_tags": [
         "uav_corridor_contract"
-      ]
+      ],
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "collision_or_near_miss"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 111.376
+      }
     },
     {
       "entity_id": "bg_vehicle_l4_6_v2_02",
@@ -281,6 +476,11 @@
       },
       "route_waypoints_enu_m": [
         [
+          7108.877,
+          6331.276,
+          0.0
+        ],
+        [
           7117.09,
           6334.89,
           0.0
@@ -302,6 +502,17 @@
         "policy": "semantic_event_contract_v1",
         "semantic_role": "brake/recover traffic",
         "contract_scenario_id": "L4-6_v2"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "collision_or_near_miss"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 8.973
       }
     },
     {
@@ -316,6 +527,7 @@
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": -3.1,
         "placement_semantics": "semantic_event_background_pedestrian",
+        "allow_green": true,
         "resolved_position_enu_m": [
           7124.743,
           6334.783,
@@ -353,6 +565,17 @@
         "policy": "semantic_event_contract_v1",
         "semantic_role": "retreat/wait",
         "contract_scenario_id": "L4-6_v2"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "collision_or_near_miss"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 13.149
       }
     },
     {
@@ -362,25 +585,26 @@
       "placement_mode": "sidewalk_anchor",
       "placement": {
         "lane_edge_id": "cg_edge_122",
-        "longitudinal_s": 242.0,
+        "longitudinal_s": 247.0,
         "offset_from_curb_m": 1.2,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": -3.1,
         "placement_semantics": "semantic_event_background_pedestrian",
+        "allow_green": true,
         "resolved_position_enu_m": [
-          7125.672,
-          6335.185,
+          7130.311,
+          6337.227,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 23.5
+          "yaw_deg": 24.008
         },
         "contract_scenario_id": "L4-6_v2"
       },
       "route_waypoints_enu_m": [
         [
-          7138.555,
-          6340.96,
+          7143.104,
+          6343.063,
           0.0
         ]
       ],
@@ -404,6 +628,17 @@
         "policy": "semantic_event_contract_v1",
         "semantic_role": "retreat/wait",
         "contract_scenario_id": "L4-6_v2"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "collision_or_near_miss"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 14.061
       }
     },
     {
@@ -413,13 +648,13 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7133.609,
-          6342.11,
+          7132.687,
+          6341.692,
           0.0
         ],
         "resolved_position_enu_m": [
-          7133.609,
-          6342.11,
+          7132.687,
+          6341.692,
           0.0
         ],
         "rotation_deg": {
@@ -440,6 +675,17 @@
       "contract_facility": {
         "policy": "semantic_event_contract_v1",
         "contract_scenario_id": "L4-6_v2"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "collision_or_near_miss"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
       }
     },
     {
@@ -449,23 +695,23 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7070.201,
-          6315.526,
+          7069.237,
+          6315.218,
           50.0
         ],
         "resolved_position_enu_m": [
-          7070.201,
-          6315.526,
+          7069.237,
+          6315.218,
           50.0
         ],
         "rotation_deg": {
-          "yaw_deg": 23.883
+          "yaw_deg": 23.815
         }
       },
       "route_waypoints_enu_m": [
         [
-          7179.746,
-          6364.03,
+          7178.837,
+          6363.591,
           50.0
         ]
       ],
@@ -493,7 +739,18 @@
       },
       "validation_tags": [
         "uav_corridor_contract"
-      ]
+      ],
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "collision_or_near_miss"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 119.8
+      }
     },
     {
       "entity_id": "uav_observer_l4_6_v2_3",
@@ -502,23 +759,28 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7066.53,
-          6326.951,
+          7065.612,
+          6326.657,
           80.0
         ],
         "resolved_position_enu_m": [
-          7066.53,
-          6326.951,
+          7065.612,
+          6326.657,
           80.0
         ],
         "rotation_deg": {
-          "yaw_deg": 23.912
+          "yaw_deg": 23.846
         }
       },
       "route_waypoints_enu_m": [
         [
-          7174.525,
-          6374.835,
+          7173.613,
+          6374.394,
+          80.0
+        ],
+        [
+          7128.147,
+          6330.299,
           80.0
         ]
       ],
@@ -535,6 +797,11 @@
       },
       "activation_tick": 0,
       "uav_corridor_role": "observer",
+      "boundary_crossing_injected": {
+        "policy": "semantic_event_contract_v1",
+        "capture_boundary_id": "capture_boundary_l4_6_v2",
+        "reason": "non_inspect_uav_route_must_cross_capture_boundary"
+      },
       "uav_corridor": {
         "assigned_altitude_m": 80.0,
         "altitude_layers_m": [
@@ -546,7 +813,18 @@
       },
       "validation_tags": [
         "uav_corridor_contract"
-      ]
+      ],
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "collision_or_near_miss"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 181.417
+      }
     },
     {
       "entity_id": "corridor_l4_6_v2_u_inspect_l4_6_v2_00",
@@ -555,44 +833,44 @@
       "placement_mode": "box_volume",
       "placement": {
         "center_enu_m": [
-          7125.233,
-          6339.01,
+          7123.637,
+          6322.311,
           10.0
         ],
         "resolved_position_enu_m": [
-          7125.233,
-          6339.01,
+          7123.637,
+          6322.311,
           10.0
         ],
         "extent_m": [
-          44.95,
+          9.173,
           4.0,
           4.0
         ],
         "size_m": [
-          89.9,
+          18.347,
           8.0,
           8.0
         ],
         "rotation_deg": {
           "pitch_deg": 0.0,
-          "yaw_deg": 24.267,
+          "yaw_deg": -119.452,
           "roll_deg": 0.0
         },
         "scale_xyz": [
-          89.9,
+          18.347,
           8.0,
           8.0
         ],
         "source_uav_entity_id": "u_inspect_l4_6_v2",
         "segment_start_enu_m": [
-          7084.255,
-          6320.536,
+          7128.147,
+          6330.299,
           10.0
         ],
         "segment_end_enu_m": [
-          7166.211,
-          6357.484,
+          7119.126,
+          6314.323,
           10.0
         ],
         "altitude_layer_m": 10.0
@@ -617,44 +895,44 @@
       "placement_mode": "box_volume",
       "placement": {
         "center_enu_m": [
-          7125.233,
-          6339.01,
+          7123.637,
+          6314.323,
           10.0
         ],
         "resolved_position_enu_m": [
-          7125.233,
-          6339.01,
+          7123.637,
+          6314.323,
           10.0
         ],
         "extent_m": [
-          44.95,
+          4.51,
           4.0,
           4.0
         ],
         "size_m": [
-          89.9,
+          9.021,
           8.0,
           8.0
         ],
         "rotation_deg": {
           "pitch_deg": 0.0,
-          "yaw_deg": -155.733,
+          "yaw_deg": 0.0,
           "roll_deg": 0.0
         },
         "scale_xyz": [
-          89.9,
+          9.021,
           8.0,
           8.0
         ],
         "source_uav_entity_id": "u_inspect_l4_6_v2",
         "segment_start_enu_m": [
-          7166.211,
-          6357.484,
+          7119.126,
+          6314.323,
           10.0
         ],
         "segment_end_enu_m": [
-          7084.255,
-          6320.536,
+          7128.147,
+          6314.323,
           10.0
         ],
         "altitude_layer_m": 10.0
@@ -729,9 +1007,9 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7125.823,
-          6337.716,
-          133.791
+          7126.282,
+          6333.738,
+          135.473
         ],
         "rotation_deg": {
           "pitch_deg": -70.0,
@@ -777,7 +1055,7 @@
           "logical": 2
         },
         "capture_boundary": {
-          "boundary_id": "capture_boundary.L4-6_v2.primary",
+          "boundary_id": "capture_boundary_l4_6_v2",
           "geometry_source": "event_entity",
           "anchor_entity_roles": [
             "capture_boundary",
@@ -785,7 +1063,36 @@
             "airspace_constraint"
           ],
           "boundary_role": "capture_boundary",
-          "z_policy": "ground_to_event_altitude"
+          "z_policy": "ground_to_event_altitude",
+          "source": "event_entity_envelope",
+          "source_entity_id": "ped_jaywalk_l4_6_v2",
+          "center_enu_m": [
+            7128.147,
+            6330.299,
+            0.0
+          ],
+          "polygon_enu_m": [
+            [
+              7119.126,
+              6314.323
+            ],
+            [
+              7137.167,
+              6314.323
+            ],
+            [
+              7137.167,
+              6346.274
+            ],
+            [
+              7119.126,
+              6346.274
+            ]
+          ],
+          "uav_boundary_crossing_required": true,
+          "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+          "inspect_fov_coverage_required": true,
+          "inspect_entity_role": "U_inspect"
         },
         "inspect": {
           "role": "U_inspect",
@@ -800,7 +1107,9 @@
         },
         "pad_boundary_policy": {
           "default": "outside_allowed",
-          "inside_required_for": []
+          "inside_required_for": [
+            "conflict_point"
+          ]
         },
         "uav_boundary_crossing_required": true,
         "inspect_fov_coverage_required": true,
@@ -825,7 +1134,7 @@
     {
       "rule": "uav_corridor_contract",
       "target_uav_count": 3,
-      "corridor_segment_count": 5,
+      "corridor_segment_count": 12,
       "materialized_corridor_scene_count": 2,
       "allow_building_impact": false,
       "description": "UAV waypoints are repaired for building clearance; corridor scene entities are capped by the exact episode logical-sidecar contract"

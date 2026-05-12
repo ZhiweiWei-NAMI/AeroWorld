@@ -24,29 +24,29 @@
         ],
         "boundary_role": "capture_boundary",
         "z_policy": "ground_to_event_altitude",
-        "source": "event_motion_bbox",
-        "source_entity_id": "",
+        "source": "event_entity_envelope",
+        "source_entity_id": "uav_x1_forced_landing",
         "center_enu_m": [
-          7068.437,
-          6434.533,
+          7079.725,
+          6436.45,
           0.0
         ],
         "polygon_enu_m": [
           [
-            6957.922,
-            6389.798
+            7037.0,
+            6419.9
           ],
           [
-            7178.952,
-            6389.798
+            7122.449,
+            6419.9
           ],
           [
-            7178.952,
-            6479.268
+            7122.449,
+            6453.0
           ],
           [
-            6957.922,
-            6479.268
+            7037.0,
+            6453.0
           ]
         ],
         "uav_boundary_crossing_required": true,
@@ -65,12 +65,17 @@
         "fov_coverage_required": true,
         "sensor_profile_required": true
       },
-      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": [
+          "terminal_landing_zone"
+        ]
+      },
       "uav_boundary_crossing_required": true,
       "inspect_fov_coverage_required": true,
       "required_event": "rain + C2 loss > forced landing",
       "required_intents": [
-        "weather_degradation",
+        "digital_anomaly",
         "forced_landing"
       ],
       "background_semantics": {
@@ -92,7 +97,7 @@
     "target_logical_count": 8,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 13,
+    "uav_corridor_segment_count": 20,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -117,13 +122,13 @@
       },
       {
         "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
-        "point_count": 4,
+        "point_count": 11,
         "assigned_altitude_m": 10.0,
         "used_lateral_bypass": false
       },
       {
         "entity_id": "uav_observer_x1_rain_to_c2loss_to_forced_landing_3",
-        "point_count": 2,
+        "point_count": 3,
         "assigned_altitude_m": 80.0,
         "used_lateral_bypass": false
       }
@@ -268,13 +273,13 @@
         "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7156.817,
-          6422.917,
+          7076.725,
+          6436.45,
           10.0
         ],
         "segment_end_enu_m": [
-          7117.119,
-          6427.869,
+          7037.0,
+          6419.9,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -283,13 +288,13 @@
         "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7117.119,
-          6427.869,
+          7037.0,
+          6419.9,
           10.0
         ],
         "segment_end_enu_m": [
-          7156.817,
-          6422.917,
+          7076.725,
+          6419.9,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -298,13 +303,103 @@
         "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
         "segment_index": 2,
         "segment_start_enu_m": [
-          7156.817,
-          6422.917,
+          7076.725,
+          6419.9,
           10.0
         ],
         "segment_end_enu_m": [
-          7117.119,
-          6427.869,
+          7116.449,
+          6419.9,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7116.449,
+          6419.9,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7116.449,
+          6436.45,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7116.449,
+          6436.45,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7116.449,
+          6453.0,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7116.449,
+          6453.0,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7076.725,
+          6453.0,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7076.725,
+          6453.0,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7037.0,
+          6453.0,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7037.0,
+          6453.0,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7037.0,
+          6436.45,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x1_rain_to_c2loss_to_forced_landing",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7037.0,
+          6436.45,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7076.725,
+          6436.45,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -323,6 +418,21 @@
           80.0
         ],
         "assigned_altitude_m": 80.0
+      },
+      {
+        "entity_id": "uav_observer_x1_rain_to_c2loss_to_forced_landing_3",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7117.119,
+          6427.869,
+          80.0
+        ],
+        "segment_end_enu_m": [
+          7076.725,
+          6436.45,
+          80.0
+        ],
+        "assigned_altitude_m": 80.0
       }
     ],
     "proximity_reachability_normalization": [
@@ -335,29 +445,29 @@
     ],
     "capture_boundary": {
       "boundary_id": "capture_boundary_x1_rain_to_c2loss_to_forced_landing",
-      "source": "event_motion_bbox",
-      "source_entity_id": "",
+      "source": "event_entity_envelope",
+      "source_entity_id": "uav_x1_forced_landing",
       "center_enu_m": [
-        7068.437,
-        6434.533,
+        7079.725,
+        6436.45,
         0.0
       ],
       "polygon_enu_m": [
         [
-          6957.922,
-          6389.798
+          7037.0,
+          6419.9
         ],
         [
-          7178.952,
-          6389.798
+          7122.449,
+          6419.9
         ],
         [
-          7178.952,
-          6479.268
+          7122.449,
+          6453.0
         ],
         [
-          6957.922,
-          6479.268
+          7037.0,
+          6453.0
         ]
       ],
       "uav_boundary_crossing_required": true,
@@ -405,10 +515,10 @@
       ]
     },
     {
-      "trigger_id": "trig_after_c2_loss_after_rain_delay_37",
+      "trigger_id": "trig_after_c2_loss_after_rain_delay_52",
       "type": "event_fired_after",
       "event_id": "c2_loss_after_rain",
-      "delay_ticks": 37
+      "delay_ticks": 52
     },
     {
       "trigger_id": "trig_crowd_reacts_to_landing",
@@ -490,6 +600,14 @@
           }
         }
       ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X1_rain_to_c2loss_to_forced_landing_lifecycle_takeoff_uav_x1_forced_landing",
         "category": "uav_lifecycle",
@@ -499,6 +617,13 @@
         "target_ids": [
           "uav_x1_forced_landing",
           "pad_home_uav_x1_forced_landing"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -569,6 +694,13 @@
           "activity_type": "observing"
         }
       ],
+      "intent": "forced_landing",
+      "intent_stage": "00.forced_landing",
+      "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_X1_rain_to_c2loss_to_forced_landing_crowd_present",
         "category": "pedestrian",
@@ -586,6 +718,13 @@
           "ped_x1_crowd_x1_06",
           "ped_x1_crowd_x1_07",
           "ped_x1_crowd_x1_08"
+        ],
+        "intent": "forced_landing",
+        "intent_stage": "00.forced_landing",
+        "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "pedestrian"
         ]
       }
     },
@@ -605,6 +744,14 @@
           }
         }
       ],
+      "intent": "weather_degradation",
+      "intent_stage": "01.weather_degradation",
+      "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+      "causal_predecessor_intent": "forced_landing",
+      "target_roles": [
+        "facility",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X1_rain_to_c2loss_to_forced_landing_rain_onset",
         "category": "weather",
@@ -614,6 +761,14 @@
         "target_ids": [
           "uav_x1_forced_landing",
           "tower_x1_c2"
+        ],
+        "intent": "weather_degradation",
+        "intent_stage": "01.weather_degradation",
+        "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+        "causal_predecessor_intent": "forced_landing",
+        "target_roles": [
+          "facility",
+          "mission_uav"
         ]
       }
     },
@@ -633,6 +788,14 @@
           }
         }
       ],
+      "intent": "weather_degradation",
+      "intent_stage": "01.weather_degradation",
+      "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+      "causal_predecessor_intent": "weather_degradation",
+      "target_roles": [
+        "facility",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X1_rain_to_c2loss_to_forced_landing_rain_threshold",
         "category": "weather",
@@ -642,6 +805,14 @@
         "target_ids": [
           "uav_x1_forced_landing",
           "tower_x1_c2"
+        ],
+        "intent": "weather_degradation",
+        "intent_stage": "01.weather_degradation",
+        "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+        "causal_predecessor_intent": "weather_degradation",
+        "target_roles": [
+          "facility",
+          "mission_uav"
         ]
       }
     },
@@ -660,6 +831,13 @@
           }
         }
       ],
+      "intent": "digital_anomaly",
+      "intent_stage": "02.digital_anomaly",
+      "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+      "causal_predecessor_intent": "weather_degradation",
+      "target_roles": [
+        "facility"
+      ],
       "log_event": {
         "topic": "evt_X1_rain_to_c2loss_to_forced_landing_c2_loss_tick",
         "category": "digital_layer",
@@ -668,6 +846,13 @@
         "overlay": "digital_layer",
         "target_ids": [
           "tower_x1_c2"
+        ],
+        "intent": "digital_anomaly",
+        "intent_stage": "02.digital_anomaly",
+        "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+        "causal_predecessor_intent": "weather_degradation",
+        "target_roles": [
+          "facility"
         ]
       }
     },
@@ -693,6 +878,11 @@
             [
               7042.0,
               6444.0,
+              32.0
+            ],
+            [
+              7042.0,
+              6444.0,
               50.0
             ],
             [
@@ -701,7 +891,7 @@
               50.0
             ]
           ],
-          "velocity_mps": 3.0,
+          "velocity_mps": 6.0,
           "uav_corridor_validation": {
             "status": "waypoints_repaired_for_building_clearance",
             "assigned_altitude_m": 50.0,
@@ -721,6 +911,14 @@
           }
         }
       ],
+      "intent": "digital_anomaly",
+      "intent_stage": "03.digital_anomaly",
+      "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+      "causal_predecessor_intent": "digital_anomaly",
+      "target_roles": [
+        "facility",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X1_rain_to_c2loss_to_forced_landing_c2_loss_after_rain",
         "category": "digital_layer",
@@ -730,12 +928,20 @@
         "target_ids": [
           "uav_x1_forced_landing",
           "tower_x1_c2"
+        ],
+        "intent": "digital_anomaly",
+        "intent_stage": "03.digital_anomaly",
+        "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+        "causal_predecessor_intent": "digital_anomaly",
+        "target_roles": [
+          "facility",
+          "mission_uav"
         ]
       }
     },
     {
       "event_id": "forced_landing_descent",
-      "trigger_ref": "trig_after_c2_loss_after_rain_delay_37",
+      "trigger_ref": "trig_after_c2_loss_after_rain_delay_52",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -765,7 +971,7 @@
               3.0
             ]
           ],
-          "velocity_mps": 2.5,
+          "velocity_mps": 6.0,
           "uav_corridor_validation": {
             "status": "low_altitude_waypoints_preserved_and_building_clear",
             "assigned_altitude_m": 50.0,
@@ -790,6 +996,14 @@
           }
         }
       ],
+      "intent": "forced_landing",
+      "intent_stage": "04.forced_landing",
+      "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+      "causal_predecessor_intent": "digital_anomaly",
+      "target_roles": [
+        "mission_uav",
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_X1_rain_to_c2loss_to_forced_landing_forced_landing_descent",
         "category": "uav_mission",
@@ -799,6 +1013,14 @@
         "target_ids": [
           "uav_x1_forced_landing",
           "ped_x1_crowd_anchor"
+        ],
+        "intent": "forced_landing",
+        "intent_stage": "04.forced_landing",
+        "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+        "causal_predecessor_intent": "digital_anomaly",
+        "target_roles": [
+          "mission_uav",
+          "pedestrian"
         ]
       }
     },
@@ -829,6 +1051,14 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "forced_landing",
+      "intent_stage": "05.forced_landing",
+      "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+      "causal_predecessor_intent": "forced_landing",
+      "target_roles": [
+        "mission_uav",
+        "pedestrian"
+      ],
       "log_event": {
         "topic": "evt_X1_rain_to_c2loss_to_forced_landing_crowd_reacts_to_landing",
         "category": "pedestrian",
@@ -838,6 +1068,14 @@
         "target_ids": [
           "uav_x1_forced_landing",
           "ped_x1_crowd_anchor"
+        ],
+        "intent": "forced_landing",
+        "intent_stage": "05.forced_landing",
+        "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+        "causal_predecessor_intent": "forced_landing",
+        "target_roles": [
+          "mission_uav",
+          "pedestrian"
         ]
       }
     },
@@ -864,6 +1102,14 @@
           }
         }
       ],
+      "intent": "recovery_or_restore",
+      "intent_stage": "06.recovery_or_restore",
+      "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+      "causal_predecessor_intent": "forced_landing",
+      "target_roles": [
+        "facility",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_X1_rain_to_c2loss_to_forced_landing_x1_recovery",
         "category": "digital_layer",
@@ -873,6 +1119,14 @@
         "target_ids": [
           "uav_x1_forced_landing",
           "tower_x1_c2"
+        ],
+        "intent": "recovery_or_restore",
+        "intent_stage": "06.recovery_or_restore",
+        "causal_chain_id": "X1_rain_to_c2loss_to_forced_landing.semantic_event_chain",
+        "causal_predecessor_intent": "forced_landing",
+        "target_roles": [
+          "facility",
+          "mission_uav"
         ]
       }
     }

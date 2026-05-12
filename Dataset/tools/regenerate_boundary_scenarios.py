@@ -8,6 +8,7 @@ and validation metadata that event_script_v1 does not carry.
 
 from __future__ import annotations
 
+import argparse
 import json
 import csv
 import math
@@ -36,6 +37,7 @@ from uav_corridor_planner import (  # noqa: E402
 )
 from semantic_event_contract import (  # noqa: E402
     EpisodeContract,
+    canonical_intent_from_text,
     contract_payload,
     get_contract,
 )
@@ -132,7 +134,33 @@ def default_uav_sensor_fov_deg() -> float:
     return fov
 
 
+def default_uav_sensor_profile() -> dict[str, Any]:
+    presets = json.loads(CAPTURE_PRESETS.read_text(encoding="utf-8-sig"))
+    cameras = list((presets.get("uav_cameras") or {}).get("default") or [])
+    if not cameras:
+        raise RuntimeError(f"No default UAV camera preset found in {CAPTURE_PRESETS}")
+    profile = dict(cameras[0])
+    fov = float(profile.get("fov_degrees") or 0.0)
+    width = int(profile.get("width") or 0)
+    height = int(profile.get("height") or 0)
+    rotation = dict(profile.get("fixed_rotation_offset_deg") or {})
+    if fov <= 0.0 or width <= 0 or height <= 0:
+        raise RuntimeError(f"Default UAV camera preset lacks fov/width/height in {CAPTURE_PRESETS}")
+    if float(rotation.get("pitch_deg", 0.0)) > -60.0:
+        raise RuntimeError(f"Default UAV camera preset must be downward looking for inspect coverage: {CAPTURE_PRESETS}")
+    return {
+        "source": "Plugins/SumoImporter/Scripts/episode_capture_presets.json:uav_cameras.default[0]",
+        "camera_name": str(profile.get("camera_name") or ""),
+        "capture_backend": str(profile.get("capture_backend") or ""),
+        "width": width,
+        "height": height,
+        "hfov_deg": fov,
+        "fixed_rotation_offset_deg": rotation,
+    }
+
+
 DEFAULT_UAV_SENSOR_FOV_DEG = default_uav_sensor_fov_deg()
+DEFAULT_UAV_SENSOR_PROFILE = default_uav_sensor_profile()
 
 SEMANTIC_STATIC_STATES = {
     "queued",
@@ -552,6 +580,58 @@ def safe_id(value: str) -> str:
     return "".join(ch.lower() if ch.isalnum() else "_" for ch in str(value)).strip("_")
 
 
+def _event_intent(event_id: str, title: str, category: str) -> str:
+    for value in (title, event_id, category):
+        intent = canonical_intent_from_text(value)
+        if intent:
+            return intent
+    raise RuntimeError(f"Unable to assign explicit intent for event {event_id}")
+
+
+def _target_role_from_id(entity_id: str) -> str:
+    lowered = entity_id.lower()
+    if "u_inspect" in lowered:
+        return "inspect_observer"
+    if lowered.startswith("uav") or lowered.startswith("u_"):
+        return "mission_uav"
+    if lowered.startswith("ped") or "_ped" in lowered or "crowd" in lowered:
+        return "pedestrian"
+    if lowered.startswith(("car", "veh", "ambulance", "police")) or "_vehicle" in lowered:
+        return "vehicle"
+    if "pad" in lowered:
+        return "landing_pad"
+    if any(token in lowered for token in ("nfz", "hazard", "zone", "boundary", "anchor")):
+        return "capture_boundary"
+    if any(token in lowered for token in ("tower", "charger", "facility")):
+        return "facility"
+    return "semantic_context"
+
+
+def _target_roles(targets: list[str]) -> list[str]:
+    roles = sorted({_target_role_from_id(str(target)) for target in targets if str(target)})
+    return roles or ["semantic_context"]
+
+
+def finalize_event_semantics(events: list[dict[str, Any]], scenario_id: str) -> None:
+    predecessor = ""
+    for index, item in enumerate(events):
+        locked_intent = bool(item.pop("_intent_locked", False))
+        if locked_intent and item.get("intent"):
+            intent = str(item["intent"])
+        else:
+            intent = _event_intent(
+                str(item.get("event_id") or index),
+                str(item.get("log_title") or ""),
+                str(item.get("log_category") or ""),
+            )
+        item["intent"] = intent
+        item["intent_stage"] = str(item.get("intent_stage") or f"{index:02d}.{intent}")
+        item["causal_chain_id"] = str(item.get("causal_chain_id") or f"{scenario_id}.semantic_event_chain")
+        item["causal_predecessor_intent"] = predecessor
+        item["target_roles"] = list(item.get("target_roles") or _target_roles(list(item.get("log_target_ids") or [])))
+        predecessor = intent
+
+
 def event(
     event_id: str,
     trigger: dict[str, Any],
@@ -564,7 +644,10 @@ def event(
     severity: str = "info",
     overlay: str | None = None,
     emits: list[str] | None = None,
+    intent: str | None = None,
 ) -> dict[str, Any]:
+    event_intent = intent or _event_intent(event_id, title, category)
+    intent_stage = f"{priority:02d}.{event_intent}"
     return {
         "event_id": event_id,
         "trigger": trigger,
@@ -572,6 +655,12 @@ def event(
         "priority": priority,
         "max_fire_count": 1,
         "on_fire_emit": emits or [],
+        "intent": event_intent,
+        "_intent_locked": intent is not None,
+        "intent_stage": intent_stage,
+        "causal_chain_id": f"{scenario_id}.semantic_event_chain",
+        "causal_predecessor_intent": "",
+        "target_roles": _target_roles(targets),
         "log_topic": f"evt_{scenario_id}_{event_id}",
         "log_category": category,
         "log_title": title,
@@ -1327,7 +1416,7 @@ def _add_contract_vehicle(
         start,
         sample.yaw_deg,
         mode,
-        route=route,
+        route=[start, *route],
         visual_state=semantic_state(
             task_id=f"{scenario_id}.vehicle_background.{index + 1:02d}",
             role="semantic_background_vehicle",
@@ -1392,6 +1481,7 @@ def _add_contract_pedestrian(
         "lane_half_width_m": LANE_HALF_WIDTH_M,
         "resolved_lateral_from_center_m": round(anchor.resolved_lateral_from_center_m, 3),
         "placement_semantics": "semantic_event_background_pedestrian",
+        "allow_green": True,
         "resolved_position_enu_m": anchor.position_enu_m,
         "rotation_deg": rot(anchor.sample.yaw_deg),
         "contract_scenario_id": scenario_id,
@@ -1414,9 +1504,45 @@ def _inspect_racetrack_points(center: list[float], altitude_m: float, index_seed
         q(center[0] + radius_x, center[1] + radius_y, altitude_m),
         q(center[0] - radius_x, center[1] + radius_y, altitude_m),
         q(center[0] - radius_x, center[1] - radius_y, altitude_m),
-        q(center[0] + radius_x, center[1] - radius_y, altitude_m),
-        q(center[0] + radius_x, center[1] + radius_y, altitude_m),
     ]
+    return start, route
+
+
+def _inspect_boundary_sample_loop(scenes: list[dict[str, Any]], events: list[dict[str, Any]], altitude_m: float) -> tuple[list[float], list[list[float]]] | None:
+    boundary = _capture_boundary_from_points("inspect", scenes, events)
+    polygon = [
+        [float(point[0]), float(point[1])]
+        for point in boundary.get("polygon_enu_m") or []
+        if isinstance(point, list) and len(point) >= 2
+    ]
+    if len(polygon) < 3:
+        return None
+    center = list(boundary.get("center_enu_m") or [])
+    if len(center) < 2:
+        center = [
+            sum(point[0] for point in polygon) / len(polygon),
+            sum(point[1] for point in polygon) / len(polygon),
+        ]
+    start = q(float(center[0]), float(center[1]), altitude_m)
+    samples: list[list[float]] = []
+    for index, point in enumerate(polygon):
+        nxt = polygon[(index + 1) % len(polygon)]
+        samples.append(q(point[0], point[1], altitude_m))
+        samples.append(q((point[0] + nxt[0]) * 0.5, (point[1] + nxt[1]) * 0.5, altitude_m))
+    samples.append(start)
+    route = samples + [start]
+    if _route_length_m([start, *route]) < 80.0:
+        radius_x = 18.0
+        radius_y = 12.0
+        route.extend(
+            [
+                q(start[0] + radius_x, start[1], altitude_m),
+                q(start[0], start[1] + radius_y, altitude_m),
+                q(start[0] - radius_x, start[1], altitude_m),
+                q(start[0], start[1] - radius_y, altitude_m),
+                start,
+            ]
+        )
     return start, route
 
 
@@ -1431,10 +1557,120 @@ def _route_length_m(points: list[list[float]]) -> float:
     return length
 
 
+def _visible_physical_scene(scene: dict[str, Any]) -> bool:
+    if scene.get("enabled") is False:
+        return False
+    asset = str(scene.get("logical_asset_id") or "")
+    category = str(scene.get("category") or "")
+    if asset == UAV_CORRIDOR_LOGICAL_ASSET_ID:
+        return False
+    if asset.startswith(("uav.", "vehicle.", "pedestrian.", "facility.", "prop.")):
+        return True
+    return category in {"uav", "vehicle", "pedestrian", "facility", "traffic_signal", "airspace_constraint", "hazard_zone"}
+
+
+def _motion_points_for_entity(scene: dict[str, Any], events: list[dict[str, Any]]) -> list[list[float]]:
+    entity_id = str(scene.get("entity_id") or "")
+    points: list[list[float]] = []
+    start = scene_pos(scene)
+    if start:
+        points.append(start)
+    for waypoint in scene.get("route_waypoints_enu_m") or []:
+        if isinstance(waypoint, list) and len(waypoint) >= 3:
+            points.append([float(waypoint[0]), float(waypoint[1]), float(waypoint[2])])
+    for event_def in events:
+        for action_def in event_def.get("actions") or []:
+            params = action_params(action_def)
+            if str(params.get("entity_id") or params.get("ped_id") or "") != entity_id:
+                continue
+            for waypoint in params.get("waypoints_enu_m") or []:
+                if isinstance(waypoint, list) and len(waypoint) >= 3:
+                    points.append([float(waypoint[0]), float(waypoint[1]), float(waypoint[2])])
+    return points
+
+
+def _linked_intents_for_entity(scene: dict[str, Any], events: list[dict[str, Any]], contract: EpisodeContract) -> list[str]:
+    entity_id = str(scene.get("entity_id") or "")
+    linked: list[str] = []
+    for event_def in events:
+        intent = str(event_def.get("intent") or "")
+        if not intent:
+            continue
+        targets = {str(target) for target in event_def.get("log_target_ids") or []}
+        action_targets = {
+            str(action_params(action).get("entity_id") or action_params(action).get("ped_id") or "")
+            for action in event_def.get("actions") or []
+        }
+        if entity_id in targets or entity_id in action_targets:
+            if intent not in linked:
+                linked.append(intent)
+    if linked:
+        return linked
+    return list(contract.required_intents or ("semantic_context",))
+
+
+def apply_motion_contracts(scenes: list[dict[str, Any]], events: list[dict[str, Any]], contract: EpisodeContract) -> None:
+    for scene in scenes:
+        if not _visible_physical_scene(scene):
+            continue
+        points = _motion_points_for_entity(scene, events)
+        displacement_m = _route_length_m(points) if len(points) >= 2 else 0.0
+        asset = str(scene.get("logical_asset_id") or "")
+        category = str(scene.get("category") or "")
+        can_locomote = asset.startswith(("uav.", "vehicle.", "pedestrian.")) or category in {"uav", "vehicle", "pedestrian"}
+        motion_kind = "kinematic_path" if can_locomote and displacement_m >= 0.5 else "state_animation"
+        scene["motion_contract"] = {
+            "schema": "semantic_motion_contract_v1",
+            "required": True,
+            "motion_kind": motion_kind,
+            "semantic_link_required": True,
+            "linked_intents": _linked_intents_for_entity(scene, events, contract),
+            "min_displacement_m": 0.5 if motion_kind == "kinematic_path" else 0.0,
+            "planned_displacement_m": round(displacement_m, 3),
+        }
+
+
 def _capture_boundary_entity(scene: dict[str, Any]) -> bool:
+    capture_contract = dict(scene.get("capture_contract") or {})
+    if str(capture_contract.get("boundary_role") or "") == "capture_boundary":
+        return True
     asset_id = str(scene.get("logical_asset_id") or "")
     category = str(scene.get("category") or "")
-    return asset_id.startswith("trigger.") or category in {"airspace_constraint", "hazard_zone", "crowd_anchor"}
+    return asset_id.startswith("trigger.") or category in {"airspace_constraint", "hazard_zone"}
+
+
+def _mobile_capture_boundary_subject(scene: dict[str, Any]) -> bool:
+    asset_id = str(scene.get("logical_asset_id") or "")
+    category = str(scene.get("category") or "")
+    return asset_id.startswith(("uav.", "vehicle.", "pedestrian.")) or category in {"uav", "vehicle", "pedestrian"}
+
+
+def _capture_boundary_anchor_entity_id(scenes: list[dict[str, Any]], events: list[dict[str, Any]]) -> str:
+    scenes_by_id = {str(scene.get("entity_id") or ""): scene for scene in scenes}
+    candidate_ids: list[str] = []
+    for event_def in events:
+        for target in event_def.get("log_target_ids") or []:
+            candidate_ids.append(str(target))
+        for action_def in event_def.get("actions") or []:
+            params = action_params(action_def)
+            candidate_ids.append(str(params.get("entity_id") or params.get("ped_id") or ""))
+    candidate_ids.extend(str(scene.get("entity_id") or "") for scene in scenes)
+    seen: set[str] = set()
+    for entity_id in candidate_ids:
+        if not entity_id or entity_id in seen:
+            continue
+        seen.add(entity_id)
+        scene = scenes_by_id.get(entity_id)
+        if not scene:
+            continue
+        asset_id = str(scene.get("logical_asset_id") or "")
+        if asset_id == UAV_CORRIDOR_LOGICAL_ASSET_ID or asset_id.startswith("semantic."):
+            continue
+        if str((scene.get("initial_state") or {}).get("role") or "") == "U_inspect":
+            continue
+        if scene_pos(scene):
+            return entity_id
+    raise RuntimeError("Unable to anchor capture boundary to an existing event entity")
 
 
 def _scene_polygon_xy(scene: dict[str, Any]) -> list[list[float]]:
@@ -1460,6 +1696,58 @@ def _scene_polygon_xy(scene: dict[str, Any]) -> list[list[float]]:
     ]
 
 
+def _capture_boundary_focus_points(scenes: list[dict[str, Any]], events: list[dict[str, Any]]) -> list[list[float]]:
+    boundary_scenes = [scene for scene in scenes if _capture_boundary_entity(scene)]
+    points: list[list[float]] = []
+    for scene in boundary_scenes:
+        polygon = _scene_polygon_xy(scene)
+        if polygon:
+            z = float((scene_pos(scene) or [0.0, 0.0, GROUND_Z_M])[2])
+            points.extend(q(point[0], point[1], z) for point in polygon)
+        else:
+            position = scene_pos(scene)
+            if position:
+                points.append(position)
+    if points:
+        return points
+
+    scenes_by_id = {str(scene.get("entity_id") or ""): scene for scene in scenes}
+
+    def add_scene_point(entity_id: str) -> None:
+        scene = scenes_by_id.get(entity_id)
+        if not scene:
+            return
+        if str((scene.get("initial_state") or {}).get("role") or "") == "U_inspect":
+            return
+        if _mobile_capture_boundary_subject(scene):
+            return
+        position = scene_pos(scene)
+        if position:
+            points.append(position)
+
+    for event_def in events:
+        if str(event_def.get("event_id") or "").startswith("lifecycle_"):
+            continue
+        for target in event_def.get("log_target_ids") or []:
+            add_scene_point(str(target))
+        for action_def in event_def.get("actions") or []:
+            params = action_params(action_def)
+            add_scene_point(str(params.get("entity_id") or params.get("ped_id") or ""))
+            for waypoint in params.get("waypoints_enu_m") or []:
+                if isinstance(waypoint, list) and len(waypoint) >= 3:
+                    points.append(q(float(waypoint[0]), float(waypoint[1]), float(waypoint[2])))
+    return points or _contract_anchor_points(scenes, events)
+
+
+def _capture_boundary_focus_center(scenes: list[dict[str, Any]], events: list[dict[str, Any]]) -> list[float]:
+    points = _capture_boundary_focus_points(scenes, events)
+    return [
+        round(sum(point[0] for point in points) / len(points), 3),
+        round(sum(point[1] for point in points) / len(points), 3),
+        round(sum(point[2] for point in points) / len(points), 3),
+    ]
+
+
 def _capture_boundary_from_points(scenario_id: str, scenes: list[dict[str, Any]], events: list[dict[str, Any]]) -> dict[str, Any]:
     boundary_scenes = [scene for scene in scenes if _capture_boundary_entity(scene)]
     if boundary_scenes:
@@ -1473,17 +1761,18 @@ def _capture_boundary_from_points(scenario_id: str, scenes: list[dict[str, Any]]
             "center_enu_m": q(center[0], center[1], center[2] if len(center) > 2 else 0.0),
             "polygon_enu_m": polygon,
         }
-    points = _contract_anchor_points(scenes, events)
+    points = _capture_boundary_focus_points(scenes, events)
     xs = [float(point[0]) for point in points]
     ys = [float(point[1]) for point in points]
-    margin = 12.0
+    margin = 5.0
     min_x, max_x = min(xs) - margin, max(xs) + margin
     min_y, max_y = min(ys) - margin, max(ys) + margin
     center = q((min_x + max_x) * 0.5, (min_y + max_y) * 0.5, GROUND_Z_M)
+    source_entity_id = _capture_boundary_anchor_entity_id(scenes, events)
     return {
         "boundary_id": f"capture_boundary_{safe_id(scenario_id)}",
-        "source": "event_motion_bbox",
-        "source_entity_id": "",
+        "source": "event_entity_envelope",
+        "source_entity_id": source_entity_id,
         "center_enu_m": center,
         "polygon_enu_m": [
             [round(min_x, 3), round(min_y, 3)],
@@ -1494,8 +1783,91 @@ def _capture_boundary_from_points(scenario_id: str, scenes: list[dict[str, Any]]
     }
 
 
+def _point_in_polygon_xy(point: list[float], polygon: list[list[float]]) -> bool:
+    x, y = float(point[0]), float(point[1])
+    inside = False
+    count = len(polygon)
+    for index in range(count):
+        x1, y1 = float(polygon[index][0]), float(polygon[index][1])
+        x2, y2 = float(polygon[(index + 1) % count][0]), float(polygon[(index + 1) % count][1])
+        if (y1 > y) != (y2 > y):
+            x_intersect = (x2 - x1) * (y - y1) / (y2 - y1 + 1e-12) + x1
+            if x < x_intersect:
+                inside = not inside
+    return inside
+
+
+def _segments_intersect_xy(a: list[float], b: list[float], c: list[float], d: list[float]) -> bool:
+    def ccw(p1: list[float], p2: list[float], p3: list[float]) -> bool:
+        return (p3[1] - p1[1]) * (p2[0] - p1[0]) > (p2[1] - p1[1]) * (p3[0] - p1[0])
+
+    return ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d)
+
+
+def _route_crosses_polygon_xy(route: list[list[float]], polygon: list[list[float]]) -> bool:
+    if not route or not polygon:
+        return False
+    if any(_point_in_polygon_xy(point, polygon) for point in route):
+        return True
+    return any(
+        _segments_intersect_xy(a, b, polygon[index], polygon[(index + 1) % len(polygon)])
+        for a, b in zip(route, route[1:])
+        for index in range(len(polygon))
+    )
+
+
+def ensure_uav_routes_cross_capture_boundary(
+    scenario_id: str,
+    specs: list[dict[str, Any]],
+    scenes: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    capture_boundary: dict[str, Any],
+    contract: EpisodeContract,
+) -> None:
+    polygon = [
+        [float(point[0]), float(point[1])]
+        for point in capture_boundary.get("polygon_enu_m") or []
+        if isinstance(point, list) and len(point) >= 2
+    ]
+    if not polygon:
+        raise RuntimeError(f"{scenario_id}: capture boundary polygon missing before UAV crossing enforcement")
+    center = list(capture_boundary.get("center_enu_m") or [])
+    if len(center) < 2:
+        center = [
+            sum(point[0] for point in polygon) / len(polygon),
+            sum(point[1] for point in polygon) / len(polygon),
+        ]
+    spec_by_id = {str(spec.get("entity_id") or ""): spec for spec in specs}
+    crossing_z = max(float(contract.inspect_altitude_m), 22.0)
+    crossing_waypoint = q(float(center[0]), float(center[1]), crossing_z)
+    for scene in scenes:
+        if not str(scene.get("logical_asset_id") or "").startswith("uav."):
+            continue
+        if str((scene.get("initial_state") or {}).get("role") or "") == "U_inspect":
+            continue
+        route_points = _motion_points_for_entity(scene, events)
+        if _route_crosses_polygon_xy(route_points, polygon):
+            continue
+        route = [
+            [float(point[0]), float(point[1]), float(point[2])]
+            for point in scene.get("route_waypoints_enu_m") or []
+            if isinstance(point, list) and len(point) >= 3
+        ]
+        route = [crossing_waypoint, *route]
+        scene["route_waypoints_enu_m"] = route
+        scene["boundary_crossing_injected"] = {
+            "policy": "semantic_event_contract_v1",
+            "capture_boundary_id": capture_boundary.get("boundary_id"),
+            "reason": "non_inspect_uav_route_must_cross_capture_boundary",
+        }
+        spec = spec_by_id.get(str(scene.get("entity_id") or ""))
+        if spec is not None:
+            spec["movement_waypoints"] = route
+
+
 def _scenario_pad_boundary_policy(scenario_id: str) -> str:
-    if scenario_id.startswith(("L2-4_", "X5_")):
+    inside_required_for = set(get_contract(scenario_id).pad_policy.inside_required_for)
+    if inside_required_for.intersection({"pad_contention", "priority_landing_arbitration", "terminal_pad_queue"}):
         return "event_pads_inside_capture_boundary"
     return "pads_may_be_outside_capture_boundary"
 
@@ -1548,21 +1920,29 @@ def _find_clear_inspect_lane_route(center: list[float], altitude_m: float) -> tu
                 start_sample = LANES.resolve_edge_s(sample.edge_id, s0)
                 end_sample = LANES.resolve_edge_s(sample.edge_id, s1)
                 for lateral_m in (0.0, 8.0, -8.0, 16.0, -16.0, 24.0, -24.0, 36.0, -36.0):
-                    start = _offset_from_lane(start_sample, lateral_m, altitude_m)
-                    end = _offset_from_lane(end_sample, lateral_m, altitude_m)
-                    if not UAV_CORRIDORS.buildings.route_clear_at_altitude([start, end], altitude_m):
+                    opposite_lateral_m = lateral_m + (8.0 if lateral_m <= 0.0 else -8.0)
+                    loop = [
+                        _offset_from_lane(start_sample, lateral_m, altitude_m),
+                        _offset_from_lane(end_sample, lateral_m, altitude_m),
+                        _offset_from_lane(end_sample, opposite_lateral_m, altitude_m),
+                        _offset_from_lane(start_sample, opposite_lateral_m, altitude_m),
+                        _offset_from_lane(start_sample, lateral_m, altitude_m),
+                    ]
+                    if not UAV_CORRIDORS.buildings.route_clear_at_altitude(loop, altitude_m):
                         continue
-                    route = [end, start, end]
-                    if _route_length_m([start, *route]) >= 80.0:
-                        return start, route
+                    if _route_length_m(loop) >= 80.0:
+                        return loop[0], loop[1:]
     return None
 
 
 def _find_inspect_route(scenario_id: str, scenes: list[dict[str, Any]], events: list[dict[str, Any]], contract: EpisodeContract) -> tuple[list[float], list[list[float]]]:
-    center = _contract_center(scenes, events)
-    lane_route = _find_clear_inspect_lane_route(center, contract.inspect_altitude_m)
-    if lane_route is not None:
-        return lane_route
+    center = _capture_boundary_focus_center(scenes, events)
+    boundary_loop = _inspect_boundary_sample_loop(scenes, events, contract.inspect_altitude_m)
+    if boundary_loop is not None:
+        start, route = boundary_loop
+        planned = [start, *route]
+        if _route_length_m(planned) >= 80.0:
+            return start, route
     seen: set[tuple[float, float, float]] = set()
     for index_seed, candidate_center in enumerate(_inspect_route_candidates(center, contract.inspect_altitude_m)):
         key = (round(float(candidate_center[0]), 3), round(float(candidate_center[1]), 3), round(float(candidate_center[2]), 3))
@@ -1571,15 +1951,15 @@ def _find_inspect_route(scenario_id: str, scenes: list[dict[str, Any]], events: 
         seen.add(key)
         for attempt_seed in range(8):
             start, route = _inspect_racetrack_points(candidate_center, contract.inspect_altitude_m, index_seed + attempt_seed)
-            try:
-                repaired = UAV_CORRIDORS.buildings.repair_route_at_altitude([start, *route], contract.inspect_altitude_m)
-            except RuntimeError:
+            planned = [start, *route]
+            if not UAV_CORRIDORS.buildings.route_clear_at_altitude(planned, contract.inspect_altitude_m):
                 continue
-            if len(repaired) < 2:
+            if _route_length_m(planned) < 80.0:
                 continue
-            if _route_length_m(repaired) < 80.0:
-                continue
-            return repaired[0], repaired[1:]
+            return start, route
+    lane_route = _find_clear_inspect_lane_route(center, contract.inspect_altitude_m)
+    if lane_route is not None:
+        return lane_route
     raise RuntimeError(
         f"{scenario_id}: unable to place deterministic U_inspect route at {contract.inspect_code}"
     )
@@ -1627,10 +2007,11 @@ def _add_contract_inspect_uav(
         "inspect_altitude_code": contract.inspect_code,
         "sensor_fov_deg": DEFAULT_UAV_SENSOR_FOV_DEG,
         "sensor_fov_source": "Plugins/SumoImporter/Scripts/episode_capture_presets.json:uav_cameras.default[0].fov_degrees",
+        "sensor_profile": dict(DEFAULT_UAV_SENSOR_PROFILE),
         "min_path_length_m": 80.0,
         "fixed_altitude_loop": True,
         "planned_route_enu_m": [start, *route],
-        "loop_route_enu_m": route,
+        "loop_route_enu_m": [start, *route],
     }
     add(specs, scenes, (spec, scene))
     return entity_id
@@ -2373,6 +2754,7 @@ def add_uav_lifecycle(
                     "uav_lifecycle",
                     [entity_id, pad_id],
                     "info",
+                    intent="landing_or_terminal_resolution",
                 )
             )
 
@@ -2392,7 +2774,7 @@ def local_bounds_for_bundle(bundle: ScenarioBundle) -> dict[str, Any]:
     return {
         "center_enu_m": q(cx, cy, 0.0),
         "radius_m": round(max(120.0, radius + 160.0), 3),
-        "source": "scene_entities_and_routes",
+        "source": "export_envelope_only",
     }
 
 
@@ -2412,6 +2794,15 @@ def make_bundle(
     contract = apply_semantic_event_contract(scenario_id, spec_entities, scene_entities, events, parameters)
     ensure_uav_corridor_population(scenario_id, spec_entities, scene_entities, events, parameters)
     add_uav_lifecycle(scenario_id, spec_entities, scene_entities, events)
+    provisional_capture_boundary = _capture_boundary_from_points(scenario_id, scene_entities, events)
+    ensure_uav_routes_cross_capture_boundary(
+        scenario_id,
+        spec_entities,
+        scene_entities,
+        events,
+        provisional_capture_boundary,
+        contract,
+    )
     apply_uav_corridor_contract(scenario_id, spec_entities, scene_entities, events, parameters)
     normalize_proximity_trigger_reachability(scenario_id, scene_entities, events, parameters)
     capture_boundary_policy = _scenario_pad_boundary_policy(scenario_id)
@@ -2475,6 +2866,8 @@ def make_bundle(
     if len(rules) < 2 and ids:
         rules.append({"rule": "entity_resolvable", "entity_id": ids[0], "description": "Entity must resolve"})
     enforce_physical_delays(events)
+    finalize_event_semantics(events, scenario_id)
+    apply_motion_contracts(scene_entities, events, contract)
     final_counts = _scene_counts(scene_entities)
     for key in ("uav", "vehicle", "pedestrian", "facility", "logical"):
         expected = contract.counts[key]
@@ -2694,7 +3087,10 @@ def _set_uav_altitude_metadata(
 ) -> None:
     if not repaired_route:
         return
-    scene["route_waypoints_enu_m"] = list(repaired_route[1:] or [repaired_route[0]])
+    route_waypoints = list(repaired_route[1:] or [repaired_route[0]])
+    if str((scene.get("initial_state") or {}).get("role") or "") == "U_inspect":
+        route_waypoints = list(repaired_route)
+    scene["route_waypoints_enu_m"] = route_waypoints
     scene["initial_state"] = {
         **(scene.get("initial_state") or {}),
         "assigned_altitude_m": altitude_m,
@@ -2714,7 +3110,7 @@ def _set_uav_altitude_metadata(
             "assigned_altitude_m": altitude_m,
             "waypoint_repair_applied": True,
         }
-    spec["movement_waypoints"] = list(repaired_route[1:] or [repaired_route[0]])
+    spec["movement_waypoints"] = route_waypoints
     spec["visual_state"] = {
         **(spec.get("visual_state") or {}),
         "assigned_altitude_m": altitude_m,
@@ -2958,6 +3354,10 @@ def apply_uav_corridor_contract(
                 validation_status = "low_altitude_waypoints_preserved_and_building_clear"
             else:
                 action_waypoints = _repair_uav_waypoints(route_input, altitude_m)
+                if route_input and action_waypoints:
+                    route_start = route_input[0]
+                    if dist_xy(route_start, action_waypoints[0]) <= 0.05 and abs(route_start[2] - action_waypoints[0][2]) > 0.05:
+                        action_waypoints = [route_start] + action_waypoints
                 validation_status = "waypoints_repaired_for_building_clearance"
             _replace_uav_action_waypoints(action_def, action_waypoints, altitude_m, validation_status=validation_status)
             if action_waypoints:
@@ -2977,13 +3377,13 @@ def apply_uav_corridor_contract(
                     f"{scenario_id}: U_inspect planned route is shorter than the deterministic contract minimum: "
                     f"{entity_id} length={_route_length_m(planned_route):.3f}m"
                 )
-            inspect_route = _repair_uav_waypoints(planned_route, altitude_m)
+            inspect_route = planned_route
             if _route_length_m(inspect_route) < 80.0:
                 raise RuntimeError(
                     f"{scenario_id}: U_inspect repaired route is shorter than the deterministic contract minimum: "
                     f"{entity_id} length={_route_length_m(inspect_route):.3f}m"
                 )
-            inspect_loop_route = list(inspect_route[1:] or inspect_route)
+            inspect_loop_route = list(inspect_route)
             scene["contract_inspect_uav"] = {
                 **(scene.get("contract_inspect_uav") or {}),
                 "repaired_route_enu_m": inspect_route,
@@ -2991,9 +3391,7 @@ def apply_uav_corridor_contract(
                 "repaired_path_length_m": round(_route_length_m(inspect_route), 3),
                 "fixed_altitude_loop": True,
             }
-            for point in inspect_route:
-                if not repaired_route or dist_xy(repaired_route[-1], point) > 0.05 or abs(repaired_route[-1][2] - point[2]) > 0.05:
-                    repaired_route.append(point)
+            repaired_route = list(inspect_route)
             if _route_length_m(repaired_route) < 80.0:
                 raise RuntimeError(
                     f"{scenario_id}: U_inspect final generated route is shorter than the deterministic contract minimum: "
@@ -3120,7 +3518,7 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
         ),
         event(
             "boundary_conflict",
-            prox(uav, zone, 14.0, 3),
+            prox(uav, zone, 14.0, 3, metric="xy"),
             [
                 move("move_boundary_avoidance", uav, [near, avoidance_hold], 3.0),
                 visual("hover_boundary_hold", uav, "hover"),
@@ -3150,8 +3548,10 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
         intr_near = q(center[0] + 3, center[1] - 2, 29)
         add(specs, scenes, world_entity(intruder, "uav.airsim.flying_pawn.v1", "uav", intr_start, 215, "noncooperative", route=[intr_near]))
         events[0]["actions"].append(move("move_intruder_converge", intruder, [intr_start, intr_near], 10.0))
-        events[1]["trigger"] = prox(intruder, zone, 14.0, 3)
+        events[1]["trigger"] = prox(intruder, zone, 14.0, 3, metric="xy")
         events[1]["log_title"] = "Noncooperative intruder enters constrained airspace"
+        if scenario_id.startswith("L1-3_v2"):
+            events[1]["log_title"] = "Fast intruder crossing constrained airspace"
         events[1]["log_target_ids"].append(intruder)
     if scenario_id.startswith("L1-4"):
         uav_b = f"uav_{scenario_id.lower().replace('-', '_')}_secondary"
@@ -3241,7 +3641,7 @@ def build_l2(scenario_id: str, idx: int) -> ScenarioBundle:
         events = [
             event("gnss_anomaly", tick(250), [visual("set_tower_multipath", tower, "multipath_warning")], 1, scenario_id, "GNSS multipath anomaly in urban canyon", "digital_layer", [uav, tower], "warning"),
             event("route_drift", fired("gnss_anomaly"), [move("move_uav_multipath_drift", uav, [start, planned, drift], 6.0)], 2, scenario_id, "UAV drifts off planned route by more than 10m", "uav_mission", [uav, facade], "warning"),
-            event("visual_relocalization", prox(uav, facade, 8.0, 3), [visual("set_uav_visual_reloc", uav, "visual_relocalization"), screenshot("capture_gnss_drift")], 3, scenario_id, "Visual relocalization engages near facade", "uav_mission", [uav, facade], "warning"),
+            event("visual_relocalization", prox(uav, facade, 8.0, 3, metric="xy"), [visual("set_uav_visual_reloc", uav, "visual_relocalization"), screenshot("capture_gnss_drift")], 3, scenario_id, "Visual relocalization engages near facade", "uav_mission", [uav, facade], "warning"),
             event("route_corrected", fired("visual_relocalization"), [move("move_uav_corrected_route", uav, [drift, corrected], 5.0)], 4, scenario_id, "UAV corrects the route after visual relocalization", "uav_mission", [uav], "info"),
         ]
         desc = "GNSS urban canyon multipath drift and visual correction"
@@ -3373,7 +3773,7 @@ def build_l3(scenario_id: str, idx: int) -> ScenarioBundle:
         events = [
             event("temporary_nfz_declared", tick(280), [spawn_from_scene("spawn_temporary_nfz", nfz_scene, visual_state={"mode": "active"})], 1, scenario_id, "Temporary no-fly zone declared mid-operation", "dynamic_constraint", [nfz], "warning"),
             event("uav_approaches_temporary_nfz", fired("temporary_nfz_declared"), [move("move_uav_to_nfz_edge", uav, [start, approach], 7.0)], 2, scenario_id, "UAV approaches newly declared NFZ", "uav_mission", [uav, nfz], "warning"),
-            event("nfz_proximity_alert", prox(uav, nfz, 12.0, 3), [move("move_uav_nfz_reroute", uav, [approach, p(ox - 2, oy + 18, 34), p(ox + 24, oy + 28, 34)], 8.5), screenshot("capture_temporary_nfz")], 3, scenario_id, "UAV reroutes around temporary NFZ", "uav_mission", [uav, nfz], "info"),
+            event("nfz_proximity_alert", prox(uav, nfz, 12.0, 3, metric="xy"), [move("move_uav_nfz_reroute", uav, [approach, p(ox - 2, oy + 18, 34), p(ox + 24, oy + 28, 34)], 8.5), screenshot("capture_temporary_nfz")], 3, scenario_id, "UAV reroutes around temporary NFZ", "uav_mission", [uav, nfz], "info"),
         ]
         desc = "Temporary no-fly zone activation and UAV reroute"
         rules = [{"rule": "dynamic_spawn_required", "entity_id": nfz, "description": "Temporary NFZ is spawned by event, not pre-activated statically"}]
@@ -3397,8 +3797,8 @@ def build_l3(scenario_id: str, idx: int) -> ScenarioBundle:
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", p(ox - 8, oy - 15, 33), 45, "monitor"))
         events = [
             event("hazmat_leak", tick(240), [spawn_from_scene("spawn_hazmat_zone", hazard_scene, visual_state={"mode": "isolation_active"})], 1, scenario_id, "Hazmat leak declares isolation zone", "dynamic_constraint", [hazard], "critical"),
-            event("pedestrian_evacuation", fired("hazmat_leak"), [move("move_ped_a_safe", ped_a, [ped_a_start, ped_a_safe], 1.6, activity_type="evacuating"), move("move_ped_b_safe", ped_b, [ped_b_start, ped_b_safe], 1.4, activity_type="evacuating")], 2, scenario_id, "Pedestrians evacuate from hazmat zone", "pedestrian", [ped_a, ped_b, hazard], "warning"),
-            event("ambulance_arrival", fired("pedestrian_evacuation"), [move("move_ambulance_hazmat", ambulance, [ambulance_start, ambulance_arrival], 11.0)], 3, scenario_id, "Ambulance arrives at isolation perimeter", "vehicle", [ambulance, hazard], "warning"),
+            event("ambulance_arrival", fired("hazmat_leak"), [move("move_ambulance_hazmat", ambulance, [ambulance_start, ambulance_arrival], 11.0)], 2, scenario_id, "Ambulance arrives at isolation perimeter", "vehicle", [ambulance, hazard], "warning"),
+            event("pedestrian_evacuation", fired("ambulance_arrival"), [move("move_ped_a_safe", ped_a, [ped_a_start, ped_a_safe], 1.6, activity_type="evacuating"), move("move_ped_b_safe", ped_b, [ped_b_start, ped_b_safe], 1.4, activity_type="evacuating")], 3, scenario_id, "Pedestrians evacuate from hazmat zone", "pedestrian", [ped_a, ped_b, hazard], "warning"),
             event("uav_external_monitor", fired("ambulance_arrival"), [move("move_uav_hazmat_orbit", uav, [p(ox - 8, oy - 15, 33), p(ox + 2, oy - 5, 30), p(ox + 18, oy + 18, 30)], 5.0), screenshot("capture_hazmat_monitor")], 4, scenario_id, "UAV monitors hazmat zone from outside", "uav_mission", [uav, hazard], "info"),
         ]
         desc = "Hazmat leak isolation, evacuation, and UAV monitoring"
@@ -3433,7 +3833,7 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         add(specs, scenes, world_entity(uav_b, "uav.airsim.flying_pawn.v1", "uav", b0, 250, "patrol"))
         events = [
             event("converging_approach", tick(240), [move("move_uav_a_converge", uav_a, [a0, p(ox - 5, oy + 4, 25), meet], 8.0), move("move_uav_b_converge", uav_b, [b0, p(ox + 6, oy + 8, 30), meet], 7.5)], 1, scenario_id, "Two UAVs converge from separated starts", "uav_mission", [uav_a, uav_b], "warning"),
-            event("uav_conflict_resolution", prox(uav_a, uav_b, 8.0, 2), [visual("set_uav_a_hover", uav_a, "hover"), move("move_uav_b_altitude_reroute", uav_b, [meet, p(ox + 12, oy + 18, 36)], 9.0), screenshot("capture_uav_conflict")], 2, scenario_id, "UAV-UAV proximity conflict triggers separation", "uav_mission", [uav_a, uav_b], "critical"),
+            event("uav_conflict_resolution", prox(uav_a, uav_b, 8.0, 2, metric="xy_plus_z", horizontal_distance_m=8.0, vertical_distance_m=35.0), [visual("set_uav_a_hover", uav_a, "hover"), move("move_uav_b_altitude_reroute", uav_b, [meet, p(ox + 12, oy + 18, 36)], 9.0), screenshot("capture_uav_conflict")], 2, scenario_id, "UAV-UAV proximity conflict triggers separation", "uav_mission", [uav_a, uav_b], "critical"),
             event("resume_patrols", fired("uav_conflict_resolution"), [move("move_uav_a_resume", uav_a, [meet, p(ox - 18, oy + 20, 27)], 6.0), move("move_uav_b_resume", uav_b, [p(ox + 12, oy + 18, 36), p(ox + 24, oy + 22, 32)], 7.0)], 3, scenario_id, "UAVs separate and resume patrol", "uav_mission", [uav_a, uav_b], "info"),
         ]
         desc = "UAV-UAV converging conflict and separation"
@@ -3846,8 +4246,8 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
             event("rain_onset", tick(180), [set_weather("set_x1_rain_onset", "rain", rain=0.62, visibility_m=1600.0)], 1, scenario_id, "Rain onset is applied before C2 coupling", "weather", [uav, tower], "info"),
             event("rain_threshold", weather("rain", "gte", 0.5, 5), [set_weather("set_x1_rain", "rain", rain=0.65, visibility_m=1500.0)], 1, scenario_id, "Rain threshold triggers L5 degradation", "weather", [uav, tower], "warning"),
             event("c2_loss_tick", tick(260), [visual("set_x1_tower_stressed", tower, "rain_stressed")], 2, scenario_id, "C2 loss timing condition becomes true", "digital_layer", [tower], "warning"),
-            event("c2_loss_after_rain", composite("AND", ["rain_threshold", "c2_loss_tick"]), [visual("set_x1_tower_c2_loss", tower, "link_lost"), move("move_x1_uav_degraded", uav, [start, p(ox + 9, oy + 4, 26)], 3.0)], 3, scenario_id, "Rain and C2 condition combine into C2 loss", "digital_layer", [uav, tower], "critical"),
-            event("forced_landing_descent", fired("c2_loss_after_rain"), [move("move_x1_forced_landing", uav, [p(ox + 9, oy + 4, 26), low, landing], 2.5)], 4, scenario_id, "C2 loss causes forced landing near crowd", "uav_mission", [uav, ped], "critical"),
+            event("c2_loss_after_rain", composite("AND", ["rain_threshold", "c2_loss_tick"]), [visual("set_x1_tower_c2_loss", tower, "link_lost"), move("move_x1_uav_degraded", uav, [start, p(ox + 9, oy + 4, 26)], 6.0)], 3, scenario_id, "Rain and C2 condition combine into C2 loss", "digital_layer", [uav, tower], "critical"),
+            event("forced_landing_descent", fired("c2_loss_after_rain"), [move("move_x1_forced_landing", uav, [p(ox + 9, oy + 4, 26), low, landing], 6.0)], 4, scenario_id, "C2 loss causes forced landing near crowd", "uav_mission", [uav, ped], "critical"),
             event("crowd_reacts_to_landing", prox(uav, ped, 5.0, 2), [move("move_x1_ped_evade", ped, [ped_start, ped_evade], 2.0), screenshot("capture_x1_forced_landing")], 5, scenario_id, "Crowd reacts to forced landing", "pedestrian", [uav, ped], "warning"),
             event("x1_recovery", fired("crowd_reacts_to_landing"), [visual("set_x1_tower_restored", tower, "online"), visual("set_x1_uav_landed", uav, "landed_safe")], 6, scenario_id, "Cross-layer chain recovers", "digital_layer", [uav, tower], "info"),
         ]
@@ -4014,6 +4414,11 @@ def event_from_dict(data: dict[str, Any]) -> EventStepSpec:
         log_severity=data.get("log_severity", "info"),
         log_overlay=data.get("log_overlay", ""),
         log_target_ids=data.get("log_target_ids", []),
+        intent=data.get("intent", ""),
+        intent_stage=data.get("intent_stage", ""),
+        causal_chain_id=data.get("causal_chain_id", ""),
+        causal_predecessor_intent=data.get("causal_predecessor_intent", ""),
+        target_roles=data.get("target_roles", []),
     )
 
 
@@ -4133,6 +4538,11 @@ def _event(data):
         log_severity=data.get("log_severity", "info"),
         log_overlay=data.get("log_overlay", ""),
         log_target_ids=data.get("log_target_ids", []),
+        intent=data.get("intent", ""),
+        intent_stage=data.get("intent_stage", ""),
+        causal_chain_id=data.get("causal_chain_id", ""),
+        causal_predecessor_intent=data.get("causal_predecessor_intent", ""),
+        target_roles=data.get("target_roles", []),
     )
 
 
@@ -4171,7 +4581,12 @@ if __name__ == "__main__":
 '''
 
 
-def collect_bundles() -> list[ScenarioBundle]:
+def collect_bundles(selected_scenarios: set[str] | None = None) -> list[ScenarioBundle]:
+    selected = set(selected_scenarios or set())
+
+    def include(scenario_id: str, *aliases: str) -> bool:
+        return not selected or scenario_id in selected or any(alias in selected for alias in aliases)
+
     ids_l1 = ["L1-1_v1", "L1-1_v2", "L1-2_v1", "L1-3_v1", "L1-3_v2", "L1-4_v1", "L1-4_v2"]
     ids_l2 = ["L2-1_v1", "L2-1_v2", "L2-2_v1", "L2-2_v2", "L2-3_v1", "L2-3_v2", "L2-4_v1", "L2-4_v2", "L2-5_v1"]
     ids_l3 = ["L3-1_v1", "L3-2_v1", "L3-2_v2", "L3-3_v1", "L3-3_v2"]
@@ -4213,19 +4628,26 @@ def collect_bundles() -> list[ScenarioBundle]:
     ]
     bundles: list[ScenarioBundle] = []
     for i, scenario_id in enumerate(ids_l1):
-        bundles.append(build_l1(scenario_id, i))
+        if include(scenario_id):
+            bundles.append(build_l1(scenario_id, i))
     for i, scenario_id in enumerate(ids_l2):
-        bundles.append(build_l2(scenario_id, i))
+        if include(scenario_id):
+            bundles.append(build_l2(scenario_id, i))
     for i, scenario_id in enumerate(ids_l3):
-        bundles.append(build_l3(scenario_id, i))
+        if include(scenario_id):
+            bundles.append(build_l3(scenario_id, i))
     for i, scenario_id in enumerate(ids_l4):
-        bundles.append(build_l4(scenario_id, i))
+        if include(scenario_id):
+            bundles.append(build_l4(scenario_id, i))
     for i, scenario_id in enumerate(ids_l5):
-        bundles.append(build_l5(scenario_id, i))
+        if include(scenario_id):
+            bundles.append(build_l5(scenario_id, i))
     for i, scenario_id in enumerate(ids_l6):
-        bundles.append(build_l6(scenario_id, i))
+        if include(scenario_id):
+            bundles.append(build_l6(scenario_id, i))
     for i, (short_id, dirname) in enumerate(x_ids):
-        bundles.append(build_x(short_id, dirname, i))
+        if include(dirname, short_id):
+            bundles.append(build_x(short_id, dirname, i))
     return bundles
 
 
@@ -4346,9 +4768,21 @@ def write_json(path: Path, data: Any) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Regenerate semantic boundary scenario specs")
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        nargs="+",
+        default=[],
+        help="Optional scenario ids to regenerate. May be repeated; X scenarios also accept their short id.",
+    )
+    args = parser.parse_args()
+    selected_scenarios = {item for group in args.scenario for item in group}
     with open(ASSET_CATALOG, "r", encoding="utf-8") as f:
         catalog_ids = {a["logical_asset_id"] for a in json.load(f)["assets"]}
-    bundles = collect_bundles()
+    bundles = collect_bundles(selected_scenarios or None)
+    if selected_scenarios and not bundles:
+        raise SystemExit(f"No matching scenarios for --scenario {sorted(selected_scenarios)}")
     errors: list[str] = []
     for bundle in bundles:
         compiled = compile_bundle(bundle)

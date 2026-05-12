@@ -24,29 +24,29 @@
         ],
         "boundary_role": "capture_boundary",
         "z_policy": "ground_to_event_altitude",
-        "source": "event_motion_bbox",
-        "source_entity_id": "",
+        "source": "event_entity_envelope",
+        "source_entity_id": "uav_weather_l5_1_v3",
         "center_enu_m": [
-          7439.451,
-          6943.886,
+          7055.576,
+          6341.242,
           0.0
         ],
         "polygon_enu_m": [
           [
-            7028.0,
-            6301.483
+            7032.0,
+            6305.483
           ],
           [
-            7850.902,
-            6301.483
+            7079.152,
+            6305.483
           ],
           [
-            7850.902,
-            7586.288
+            7079.152,
+            6377.0
           ],
           [
-            7028.0,
-            7586.288
+            7032.0,
+            6377.0
           ]
         ],
         "uav_boundary_crossing_required": true,
@@ -65,7 +65,10 @@
         "fov_coverage_required": true,
         "sensor_profile_required": true
       },
-      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": []
+      },
       "uav_boundary_crossing_required": true,
       "inspect_fov_coverage_required": true,
       "required_event": "heavy rain > safe land",
@@ -92,7 +95,7 @@
     "target_logical_count": 6,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 10,
+    "uav_corridor_segment_count": 17,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -117,13 +120,13 @@
       },
       {
         "entity_id": "u_inspect_l5_1_v3",
-        "point_count": 4,
+        "point_count": 11,
         "assigned_altitude_m": 22.0,
         "used_lateral_bypass": false
       },
       {
         "entity_id": "uav_observer_l5_1_v3_3",
-        "point_count": 2,
+        "point_count": 3,
         "assigned_altitude_m": 80.0,
         "used_lateral_bypass": false
       }
@@ -223,13 +226,13 @@
         "entity_id": "u_inspect_l5_1_v3",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7112.732,
-          6513.63,
+          7055.576,
+          6341.242,
           22.0
         ],
         "segment_end_enu_m": [
-          7158.145,
-          6442.634,
+          7032.0,
+          6305.483,
           22.0
         ],
         "assigned_altitude_m": 22.0
@@ -238,13 +241,13 @@
         "entity_id": "u_inspect_l5_1_v3",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7158.145,
-          6442.634,
+          7032.0,
+          6305.483,
           22.0
         ],
         "segment_end_enu_m": [
-          7112.732,
-          6513.63,
+          7055.576,
+          6305.483,
           22.0
         ],
         "assigned_altitude_m": 22.0
@@ -253,13 +256,103 @@
         "entity_id": "u_inspect_l5_1_v3",
         "segment_index": 2,
         "segment_start_enu_m": [
-          7112.732,
-          6513.63,
+          7055.576,
+          6305.483,
           22.0
         ],
         "segment_end_enu_m": [
-          7158.145,
-          6442.634,
+          7079.152,
+          6305.483,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_l5_1_v3",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7079.152,
+          6305.483,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7079.152,
+          6341.242,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_l5_1_v3",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7079.152,
+          6341.242,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7079.152,
+          6377.0,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_l5_1_v3",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7079.152,
+          6377.0,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7055.576,
+          6377.0,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_l5_1_v3",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7055.576,
+          6377.0,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7032.0,
+          6377.0,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_l5_1_v3",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7032.0,
+          6377.0,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7032.0,
+          6341.242,
+          22.0
+        ],
+        "assigned_altitude_m": 22.0
+      },
+      {
+        "entity_id": "u_inspect_l5_1_v3",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7032.0,
+          6341.242,
+          22.0
+        ],
+        "segment_end_enu_m": [
+          7055.576,
+          6341.242,
           22.0
         ],
         "assigned_altitude_m": 22.0
@@ -268,13 +361,28 @@
         "entity_id": "uav_observer_l5_1_v3_3",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7105.491,
-          6521.86,
+          7166.952,
+          6430.929,
           80.0
         ],
         "segment_end_enu_m": [
-          7158.145,
-          6442.634,
+          7117.119,
+          6427.869,
+          80.0
+        ],
+        "assigned_altitude_m": 80.0
+      },
+      {
+        "entity_id": "uav_observer_l5_1_v3_3",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7117.119,
+          6427.869,
+          80.0
+        ],
+        "segment_end_enu_m": [
+          7055.576,
+          6341.242,
           80.0
         ],
         "assigned_altitude_m": 80.0
@@ -282,29 +390,29 @@
     ],
     "capture_boundary": {
       "boundary_id": "capture_boundary_l5_1_v3",
-      "source": "event_motion_bbox",
-      "source_entity_id": "",
+      "source": "event_entity_envelope",
+      "source_entity_id": "uav_weather_l5_1_v3",
       "center_enu_m": [
-        7439.451,
-        6943.886,
+        7055.576,
+        6341.242,
         0.0
       ],
       "polygon_enu_m": [
         [
-          7028.0,
-          6301.483
+          7032.0,
+          6305.483
         ],
         [
-          7850.902,
-          6301.483
+          7079.152,
+          6305.483
         ],
         [
-          7850.902,
-          7586.288
+          7079.152,
+          6377.0
         ],
         [
-          7028.0,
-          7586.288
+          7032.0,
+          6377.0
         ]
       ],
       "uav_boundary_crossing_required": true,
@@ -405,6 +513,14 @@
           }
         }
       ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "L5-1_v3.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L5-1_v3_lifecycle_takeoff_uav_weather_l5_1_v3",
         "category": "uav_lifecycle",
@@ -414,6 +530,13 @@
         "target_ids": [
           "uav_weather_l5_1_v3",
           "pad_home_uav_weather_l5_1_v3"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "L5-1_v3.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -433,6 +556,14 @@
           }
         }
       ],
+      "intent": "weather_degradation",
+      "intent_stage": "01.weather_degradation",
+      "causal_chain_id": "L5-1_v3.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "mission_uav",
+        "semantic_context"
+      ],
       "log_event": {
         "topic": "evt_L5-1_v3_weather_onset",
         "category": "weather",
@@ -442,6 +573,14 @@
         "target_ids": [
           "uav_weather_l5_1_v3",
           "weather_car_l5_1_v3"
+        ],
+        "intent": "weather_degradation",
+        "intent_stage": "01.weather_degradation",
+        "causal_chain_id": "L5-1_v3.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "mission_uav",
+          "semantic_context"
         ]
       }
     },
@@ -461,6 +600,14 @@
           }
         }
       ],
+      "intent": "weather_degradation",
+      "intent_stage": "01.weather_degradation",
+      "causal_chain_id": "L5-1_v3.semantic_event_chain",
+      "causal_predecessor_intent": "weather_degradation",
+      "target_roles": [
+        "mission_uav",
+        "semantic_context"
+      ],
       "log_event": {
         "topic": "evt_L5-1_v3_rain_condition_met",
         "category": "weather",
@@ -470,6 +617,14 @@
         "target_ids": [
           "uav_weather_l5_1_v3",
           "weather_car_l5_1_v3"
+        ],
+        "intent": "weather_degradation",
+        "intent_stage": "01.weather_degradation",
+        "causal_chain_id": "L5-1_v3.semantic_event_chain",
+        "causal_predecessor_intent": "weather_degradation",
+        "target_roles": [
+          "mission_uav",
+          "semantic_context"
         ]
       }
     },
@@ -533,6 +688,14 @@
           "velocity_mps": 3.0
         }
       ],
+      "intent": "slowdown",
+      "intent_stage": "02.slowdown",
+      "causal_chain_id": "L5-1_v3.semantic_event_chain",
+      "causal_predecessor_intent": "weather_degradation",
+      "target_roles": [
+        "mission_uav",
+        "semantic_context"
+      ],
       "log_event": {
         "topic": "evt_L5-1_v3_rain_speed_reduction",
         "category": "uav_mission",
@@ -542,6 +705,14 @@
         "target_ids": [
           "uav_weather_l5_1_v3",
           "weather_car_l5_1_v3"
+        ],
+        "intent": "slowdown",
+        "intent_stage": "02.slowdown",
+        "causal_chain_id": "L5-1_v3.semantic_event_chain",
+        "causal_predecessor_intent": "weather_degradation",
+        "target_roles": [
+          "mission_uav",
+          "semantic_context"
         ]
       }
     },
@@ -561,6 +732,14 @@
           }
         }
       ],
+      "intent": "degraded_route",
+      "intent_stage": "03.degraded_route",
+      "causal_chain_id": "L5-1_v3.semantic_event_chain",
+      "causal_predecessor_intent": "slowdown",
+      "target_roles": [
+        "mission_uav",
+        "semantic_context"
+      ],
       "log_event": {
         "topic": "evt_L5-1_v3_rain_intensifies",
         "category": "weather",
@@ -570,6 +749,14 @@
         "target_ids": [
           "uav_weather_l5_1_v3",
           "weather_car_l5_1_v3"
+        ],
+        "intent": "degraded_route",
+        "intent_stage": "03.degraded_route",
+        "causal_chain_id": "L5-1_v3.semantic_event_chain",
+        "causal_predecessor_intent": "slowdown",
+        "target_roles": [
+          "mission_uav",
+          "semantic_context"
         ]
       }
     },
@@ -624,6 +811,13 @@
           }
         }
       ],
+      "intent": "recovery_or_restore",
+      "intent_stage": "04.recovery_or_restore",
+      "causal_chain_id": "L5-1_v3.semantic_event_chain",
+      "causal_predecessor_intent": "degraded_route",
+      "target_roles": [
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L5-1_v3_rain_recovery",
         "category": "weather",
@@ -632,6 +826,13 @@
         "overlay": "weather",
         "target_ids": [
           "uav_weather_l5_1_v3"
+        ],
+        "intent": "recovery_or_restore",
+        "intent_stage": "04.recovery_or_restore",
+        "causal_chain_id": "L5-1_v3.semantic_event_chain",
+        "causal_predecessor_intent": "degraded_route",
+        "target_roles": [
+          "mission_uav"
         ]
       }
     },
@@ -697,6 +898,14 @@
           }
         }
       ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "L5-1_v3.semantic_event_chain",
+      "causal_predecessor_intent": "recovery_or_restore",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
       "log_event": {
         "topic": "evt_L5-1_v3_lifecycle_landing_uav_weather_l5_1_v3",
         "category": "uav_lifecycle",
@@ -706,6 +915,14 @@
         "target_ids": [
           "uav_weather_l5_1_v3",
           "pad_home_uav_weather_l5_1_v3"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "L5-1_v3.semantic_event_chain",
+        "causal_predecessor_intent": "recovery_or_restore",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     }
