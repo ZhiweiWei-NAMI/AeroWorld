@@ -204,6 +204,7 @@ PRESERVED_ENTITY_FIELDS = (
     "capture_contract",
     "background_vehicle",
     "background_pedestrian",
+    "ground_flow_contract",
     "contract_facility",
     "contract_logical_sidecar",
     "motion_contract",

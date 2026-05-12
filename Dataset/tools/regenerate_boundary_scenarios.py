@@ -28,7 +28,7 @@ from spec_compiler import (  # noqa: E402
     TriggerSpec,
     WaypointSpec,
 )
-from map_spatial_index import MapSpatialIndex, SpatialValidationError  # noqa: E402
+from map_spatial_index import MapSpatialIndex, PlannedSidewalkAnchor, SpatialValidationError  # noqa: E402
 from pedestrian_activity_catalog import get_activity, normalize_activity_type  # noqa: E402
 from uav_corridor_planner import (  # noqa: E402
     HighAltitudeCorridorPlanner,
@@ -41,6 +41,7 @@ from semantic_event_contract import (  # noqa: E402
     contract_payload,
     get_contract,
 )
+from sumo_ground_flow import SumoGroundFlowPlanner, SumoRouteError  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -56,6 +57,7 @@ LANE_SAMPLES_CSV = (
     / "traffic_bundle"
     / "lane_center_samples.csv"
 )
+SUMO_NET_XML = ROOT / "Plugins" / "SumoImporter" / "Maps" / "donghu_road_topo" / "source" / "map.net.xml"
 BUILDING_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "building" / "building.geojson"
 CAPTURE_PRESETS = ROOT / "Plugins" / "SumoImporter" / "Scripts" / "episode_capture_presets.json"
 WORLD_OFFSET_X_M = 7000.0
@@ -121,6 +123,13 @@ BACKGROUND_VEHICLE_ASSETS = (
     "vehicle.emergency.suv.v1",
     "vehicle.service.box.v1",
 )
+BACKGROUND_VEHICLE_FLOW_SPEED_MPS = 6.0
+BACKGROUND_PEDESTRIAN_FLOW_SPEED_MPS = 1.25
+GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO = 0.85
+GROUND_FLOW_ROUTE_DURATION_TICKS = 900
+BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M = 24.0
+BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M = 9.0
+SUMO_TO_TRAFFIC_BUNDLE_MAX_SNAP_M = 15.0
 
 
 def default_uav_sensor_fov_deg() -> float:
@@ -292,6 +301,10 @@ class BuildingCatalog:
 
 SPATIAL = MapSpatialIndex.default(ROOT)
 LANES = SPATIAL.lanes
+SUMO_GROUND_FLOW = SumoGroundFlowPlanner(
+    SUMO_NET_XML,
+    max_start_snap_m=SUMO_TO_TRAFFIC_BUNDLE_MAX_SNAP_M,
+)
 BUILDINGS = BuildingCatalog(BUILDING_GEOJSON)
 UAV_CORRIDORS = HighAltitudeCorridorPlanner(SPATIAL)
 
@@ -877,6 +890,13 @@ def sidewalk_entity(
         allow_green=False,
         placement_semantics="sidewalk",
     )
+    if dist_xy(anchor.position_enu_m, pos_enu) > 80.0:
+        anchor = SPATIAL.plan_sidewalk_anchor(
+            pos_enu,
+            offset_from_curb_m=offset,
+            allow_green=False,
+            placement_semantics="sidewalk",
+        )
     sample = anchor.sample
     offset_from_curb = anchor.offset_from_curb_m
     resolved_lateral = anchor.resolved_lateral_from_center_m
@@ -1268,33 +1288,80 @@ def _find_free_sidewalk_anchor(
     semantic: str,
     allow_green: bool = True,
 ) -> Any:
+    for anchor in _iter_free_sidewalk_anchors(origin, occupied, semantic=semantic, allow_green=allow_green):
+        occupied.append(anchor.position_enu_m)
+        return anchor
+    raise RuntimeError(f"Unable to place sidewalk semantic actor near {origin}")
+
+
+def _iter_free_sidewalk_anchors(
+    origin: list[float],
+    occupied: list[list[float]],
+    *,
+    semantic: str,
+    allow_green: bool = True,
+):
     base = LANES.nearest_to_xy(float(origin[0]), float(origin[1]))
-    min_s, max_s = LANES.edge_s_bounds(base.edge_id)
-    errors: list[str] = []
-    for offset_from_curb in (SIDEWALK_MIN_OFFSET_FROM_CURB_M, 2.4, 3.6, 4.8, 6.2, 8.0, 10.0, 12.0):
-        for s_offset in (0.0, 6.0, -6.0, 12.0, -12.0, 18.0, -18.0, 28.0, -28.0, 42.0, -42.0):
-            try:
-                anchor = SPATIAL.plan_sidewalk_anchor(
-                    [origin[0], origin[1], GROUND_Z_M],
-                    edge_id_hint=base.edge_id,
-                    s_hint=max(min_s, min(max_s, base.s_m + s_offset)),
-                    offset_from_curb_m=offset_from_curb,
-                    allow_green=allow_green,
-                    placement_semantics=semantic,
-                )
-            except SpatialValidationError as exc:
-                errors.append(str(exc))
-                continue
-            if all(dist_xy(anchor.position_enu_m, other) >= 1.0 for other in occupied):
-                occupied.append(anchor.position_enu_m)
-                return anchor
-    raise RuntimeError(f"Unable to place sidewalk semantic actor near {origin}: {errors[:6]}")
+    nearby_bases: list[LaneSample] = [base]
+    seen_edges = {base.edge_id}
+    for sample in sorted(LANES.samples, key=lambda item: (item.x_m - float(origin[0])) ** 2 + (item.y_m - float(origin[1])) ** 2):
+        if sample.edge_id in seen_edges:
+            continue
+        min_edge_s, max_edge_s = LANES.edge_s_bounds(sample.edge_id)
+        if max_edge_s - min_edge_s < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
+            continue
+        seen_edges.add(sample.edge_id)
+        nearby_bases.append(sample)
+        if len(nearby_bases) >= 24:
+            break
+    def point_errors(point: list[float]) -> list[str]:
+        probe = SPATIAL._point_geometry(point)
+        local_errors: list[str] = []
+        if not SPATIAL.bounds_prepared.covers(probe):
+            local_errors.append(f"{semantic} candidate outside bounds.geojson: {point}")
+        if SPATIAL.water_prepared.covers(probe):
+            local_errors.append(f"{semantic} candidate inside water.geojson: {point}")
+        if SPATIAL.building_prepared.covers(probe):
+            local_errors.append(f"{semantic} candidate inside building.geojson: {point}")
+        if not allow_green and SPATIAL.green_prepared.covers(probe):
+            local_errors.append(f"{semantic} candidate inside green.geojson without explicit green allowance: {point}")
+        return local_errors
+
+    for base_sample in nearby_bases:
+        min_s, max_s = LANES.edge_s_bounds(base_sample.edge_id)
+        preferred_sign = _side_sign_for_desired(base_sample, origin)
+        for s_offset in (0.0, 6.0, -6.0, 12.0, -12.0, 18.0, -18.0, 28.0, -28.0, 42.0, -42.0, 60.0, -60.0):
+            sample = LANES.resolve_edge_s(base_sample.edge_id, max(min_s, min(max_s, base_sample.s_m + s_offset)))
+            for sign in (preferred_sign, -preferred_sign):
+                for offset_from_curb in (SIDEWALK_MIN_OFFSET_FROM_CURB_M, 2.4, 3.6, 4.8, 6.2, 8.0, 10.0, 12.0):
+                    lateral = sign * (LANE_HALF_WIDTH_M + offset_from_curb)
+                    point = _offset_from_lane(sample, lateral, GROUND_Z_M)
+                    current_errors = point_errors(point)
+                    if current_errors:
+                        continue
+                    if all(dist_xy(point, other) >= 1.0 for other in occupied):
+                        yield PlannedSidewalkAnchor(
+                            position_enu_m=point,
+                            sample=sample,
+                            offset_from_curb_m=offset_from_curb,
+                            resolved_lateral_from_center_m=lateral,
+                            placement_semantics=semantic,
+                        )
 
 
-def _find_free_lane_sample(scenes: list[dict[str, Any]], events: list[dict[str, Any]], occupied: list[list[float]]) -> LaneSample:
+def _find_free_lane_sample(
+    scenes: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    occupied: list[list[float]],
+    *,
+    mode: str = "traffic_flow",
+    index: int = 0,
+) -> LaneSample:
     blockers = _background_vehicle_blockers(scenes, events)
     for min_s_gap_m, occupied_gap_m, blocker_scale in ((6.0, 7.0, 1.0), (4.5, 5.5, 0.85), (3.5, 4.5, 0.72)):
         for sample in _background_vehicle_candidate_samples(scenes, events):
+            if not _lane_has_route_span(sample, BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M):
+                continue
             candidate_pos = _offset_from_lane(sample, 0.0, GROUND_Z_M)
             if SPATIAL.validation_errors_for_point(
                 candidate_pos,
@@ -1308,6 +1375,8 @@ def _find_free_lane_sample(scenes: list[dict[str, Any]], events: list[dict[str, 
             if any(dist_xy(candidate_pos, point) < clearance_m * blocker_scale for _label, point, clearance_m in blockers):
                 continue
             if any(dist_xy(candidate_pos, other) < occupied_gap_m for other in occupied):
+                continue
+            if not _semantic_vehicle_route(sample, mode, index):
                 continue
             occupied.append(candidate_pos)
             return sample
@@ -1350,45 +1419,178 @@ def _pedestrian_mode_from_role(role: str) -> str:
     return "walking"
 
 
-def _semantic_vehicle_route(sample: LaneSample, mode: str, index: int) -> list[list[float]]:
+def _moving_background_vehicle_mode(mode: str) -> str:
+    if mode in {"queued", "braking", "yielding", "blocked_by_barrier", "blocked", "held", "stopped"}:
+        return "traffic_slow"
+    return mode or "traffic_flow"
+
+
+def _dedupe_route_points(points: list[list[float]]) -> list[list[float]]:
+    deduped: list[list[float]] = []
+    for point in points:
+        if not point:
+            continue
+        current = q(float(point[0]), float(point[1]), float(point[2] if len(point) > 2 else GROUND_Z_M))
+        if deduped and dist_xy(deduped[-1], current) < 0.05 and abs(float(deduped[-1][2]) - float(current[2])) < 0.05:
+            continue
+        deduped.append(current)
+    return deduped
+
+
+def _route_xy_span(start: list[float], route: list[list[float]]) -> float:
+    points = [start, *route]
+    if len(points) < 2:
+        return 0.0
+    xs = [float(point[0]) for point in points]
+    ys = [float(point[1]) for point in points]
+    return math.hypot(max(xs) - min(xs), max(ys) - min(ys))
+
+
+def _lane_has_route_span(sample: LaneSample, min_span_m: float) -> bool:
     min_s, max_s = LANES.edge_s_bounds(sample.edge_id)
-    if mode in {"queued", "braking", "yielding", "blocked_by_barrier"}:
-        travel_m = 8.0 + index * 1.5
-    elif mode == "responder":
-        travel_m = 34.0
-    elif mode == "detour":
-        travel_m = 22.0
-    else:
-        travel_m = 18.0 + index * 4.0
-    target = LANES.resolve_edge_s(sample.edge_id, max(min_s, min(max_s, sample.s_m + travel_m)))
-    return [_offset_from_lane(target, 0.0, GROUND_Z_M)]
+    return (max_s - sample.s_m) >= min_span_m or (sample.s_m - min_s) >= min_span_m
+
+
+def _snap_sumo_route_to_traffic_bundle(route: list[list[float]], *, lateral_m: float = 0.0) -> list[list[float]]:
+    snapped: list[list[float]] = []
+    for point in route:
+        sample = LANES.nearest_to_xy(float(point[0]), float(point[1]))
+        lane_point = _offset_from_lane(sample, lateral_m, float(point[2] if len(point) > 2 else GROUND_Z_M))
+        if dist_xy(point, lane_point) > SUMO_TO_TRAFFIC_BUNDLE_MAX_SNAP_M:
+            return []
+        if SPATIAL.validation_errors_for_point(
+            lane_point,
+            context="SUMO ground-flow traffic-bundle snap",
+            allow_road=True,
+            allow_green=False,
+        ):
+            return []
+        snapped.append(lane_point)
+    return _dedupe_route_points(snapped)
+
+
+def _sumo_vehicle_route(start: list[float], index: int) -> list[list[float]]:
+    min_span = BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M + index * 2.0
+    try:
+        route = SUMO_GROUND_FLOW.plan_vehicle_route_enu(
+            start,
+            min_xy_span_m=min_span,
+            min_path_length_m=max(32.0, min_span + 8.0),
+            max_edges=24,
+        )
+    except SumoRouteError:
+        return []
+    snapped = _snap_sumo_route_to_traffic_bundle(route)
+    if not snapped or _route_xy_span(start, snapped) < min_span:
+        return []
+    return snapped
+
+
+def _extend_ground_flow_route(
+    start: list[float],
+    route: list[list[float]],
+    *,
+    velocity_mps: float,
+    duration_ticks: int = GROUND_FLOW_ROUTE_DURATION_TICKS,
+) -> list[list[float]]:
+    base = _dedupe_route_points([start, *route])
+    if len(base) < 2:
+        return []
+    target_length_m = (
+        float(velocity_mps)
+        * (float(duration_ticks) / 10.0)
+        * (GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO + 0.08)
+    )
+    result: list[list[float]] = [list(point) for point in base[1:]]
+    cycle = [*base[-2::-1], *base[1:]]
+    current = list(result[-1])
+    current_length_m = path_length_m([start, *result])
+    while current_length_m < target_length_m:
+        progressed = False
+        for point in cycle:
+            if dist_xy(current, point) < 0.05 and abs(float(current[2]) - float(point[2])) < 0.05:
+                continue
+            result.append(list(point))
+            current_length_m += math.hypot(
+                float(current[0]) - float(point[0]),
+                float(current[1]) - float(point[1]),
+            )
+            current = list(point)
+            progressed = True
+            if current_length_m >= target_length_m:
+                break
+        if not progressed:
+            break
+    return result
+
+
+def _ground_flow_contract(
+    kind: str,
+    velocity_mps: float,
+    route: list[list[float]],
+    *,
+    route_source: str,
+) -> dict[str, Any]:
+    planned_route = _extend_ground_flow_route(
+        list(route[0]),
+        [list(point) for point in route[1:]],
+        velocity_mps=velocity_mps,
+    ) if len(route) >= 2 else []
+    min_xy_span_m = (
+        BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M
+        if kind == "vehicle"
+        else BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M
+    )
+    return {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": kind,
+        "required": True,
+        "min_visible_motion_ratio": GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO,
+        "min_xy_span_m": min_xy_span_m,
+        "speed_mps": float(velocity_mps),
+        "route_duration_ticks": GROUND_FLOW_ROUTE_DURATION_TICKS,
+        "loop_policy": "bounce_between_route_waypoints",
+        "route_source": route_source,
+        "planned_path_length_m": round(path_length_m([list(route[0]), *planned_route]), 3) if planned_route else 0.0,
+    }
+
+
+def _semantic_vehicle_route(sample: LaneSample, _mode: str, index: int) -> list[list[float]]:
+    start = _offset_from_lane(sample, 0.0, GROUND_Z_M)
+    return _sumo_vehicle_route(start, index)
 
 
 def _semantic_ped_route(anchor: Any, mode: str, index: int) -> list[list[float]]:
-    if mode in SEMANTIC_STATIC_STATES or mode == "medical_incident":
-        return []
     min_s, max_s = LANES.edge_s_bounds(anchor.sample.edge_id)
     travel_m = 5.5 + index * 1.4
     if mode in {"evacuating"}:
         travel_m = 12.0 + index * 1.2
-    target_sample = LANES.resolve_edge_s(anchor.sample.edge_id, max(min_s, min(max_s, anchor.sample.s_m + travel_m)))
+    travel_m = max(travel_m, BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M + 1.5 + index * 1.0)
     side_sign = _side_sign_for_desired(anchor.sample, anchor.position_enu_m)
-    target = _offset_from_lane(
-        target_sample,
-        side_sign * (LANE_HALF_WIDTH_M + anchor.offset_from_curb_m),
-        GROUND_Z_M,
-    )
-    try:
-        SPATIAL.validate_segment(
-            anchor.position_enu_m,
-            target,
-            context="semantic contract pedestrian route",
-            allow_road=False,
-            allow_green=True,
+    for signed_travel_m in (travel_m, -travel_m, travel_m * 0.75, -travel_m * 0.75):
+        target_sample = LANES.resolve_edge_s(
+            anchor.sample.edge_id,
+            max(min_s, min(max_s, anchor.sample.s_m + signed_travel_m)),
         )
-        return [target]
-    except SpatialValidationError:
-        return []
+        target = _offset_from_lane(
+            target_sample,
+            side_sign * (LANE_HALF_WIDTH_M + anchor.offset_from_curb_m),
+            GROUND_Z_M,
+        )
+        if dist_xy(anchor.position_enu_m, target) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
+            continue
+        try:
+            SPATIAL.validate_segment(
+                anchor.position_enu_m,
+                target,
+                context="semantic contract pedestrian route",
+                allow_road=False,
+                allow_green=True,
+            )
+            return [target]
+        except SpatialValidationError:
+            continue
+    return []
 
 
 def _add_contract_vehicle(
@@ -1400,12 +1602,15 @@ def _add_contract_vehicle(
     index: int,
     occupied: list[list[float]],
 ) -> str:
-    sample = _find_free_lane_sample(scenes, events, occupied)
     mode = _vehicle_mode_from_role(contract.vehicle_role)
+    moving_mode = _moving_background_vehicle_mode(mode)
+    sample = _find_free_lane_sample(scenes, events, occupied, mode=moving_mode, index=index)
     entity_id = f"bg_vehicle_{safe_id(scenario_id)}_{index + 1:02d}"
     asset = BACKGROUND_VEHICLE_ASSETS[index % len(BACKGROUND_VEHICLE_ASSETS)]
     start = _offset_from_lane(sample, 0.0, GROUND_Z_M)
-    route = _semantic_vehicle_route(sample, mode, index)
+    route = _semantic_vehicle_route(sample, moving_mode, index)
+    if not route:
+        raise RuntimeError(f"{scenario_id}: background vehicle {entity_id} lacks a valid continuous flow route")
     spec, scene = lane_entity(
         entity_id,
         asset,
@@ -1415,14 +1620,14 @@ def _add_contract_vehicle(
         0.0,
         start,
         sample.yaw_deg,
-        mode,
-        route=[start, *route],
+        moving_mode,
+        route=route,
         visual_state=semantic_state(
             task_id=f"{scenario_id}.vehicle_background.{index + 1:02d}",
             role="semantic_background_vehicle",
-            state_sequence=[mode, "traffic_flow" if mode != "traffic_flow" else "traffic_flow"],
+            state_sequence=[moving_mode, moving_mode],
             semantic_role=contract.vehicle_role,
-            mode=mode,
+            mode=moving_mode,
             background_role="semantic_context",
         ),
         prefer_edge_hint=True,
@@ -1432,6 +1637,12 @@ def _add_contract_vehicle(
         "semantic_role": contract.vehicle_role,
         "contract_scenario_id": scenario_id,
     }
+    scene["ground_flow_contract"] = _ground_flow_contract(
+        "vehicle",
+        BACKGROUND_VEHICLE_FLOW_SPEED_MPS,
+        [start, *route],
+        route_source="sumo_net_projected_to_traffic_bundle",
+    )
     add(specs, scenes, (spec, scene))
     return entity_id
 
@@ -1446,16 +1657,32 @@ def _add_contract_pedestrian(
     occupied: list[list[float]],
 ) -> str:
     origin = _contract_center(scenes, events)
-    anchor = _find_free_sidewalk_anchor(
+    mode = _pedestrian_mode_from_role(contract.pedestrian_role)
+    entity_id = f"bg_ped_{safe_id(scenario_id)}_{index + 1:02d}"
+    anchor = None
+    route: list[list[float]] = []
+    checked = 0
+    for candidate in _iter_free_sidewalk_anchors(
         origin,
         occupied,
         semantic="semantic_event_background_pedestrian",
         allow_green=True,
-    )
-    mode = _pedestrian_mode_from_role(contract.pedestrian_role)
-    entity_id = f"bg_ped_{safe_id(scenario_id)}_{index + 1:02d}"
-    route = _semantic_ped_route(anchor, mode, index)
-    moving_mode = "walking" if route and mode in {"waiting", "observing"} else mode
+    ):
+        checked += 1
+        candidate_route = _semantic_ped_route(candidate, mode, index)
+        if candidate_route:
+            anchor = candidate
+            route = candidate_route
+            occupied.append(anchor.position_enu_m)
+            break
+        if checked >= 512:
+            break
+    if anchor is None or not route:
+        raise RuntimeError(
+            f"{scenario_id}: background pedestrian {entity_id} lacks a valid continuous sidewalk flow route "
+            f"(checked {checked} anchors)"
+        )
+    moving_mode = "walking"
     spec, scene = world_entity(
         entity_id,
         "pedestrian.cityops.basic.v1",
@@ -1467,7 +1694,7 @@ def _add_contract_pedestrian(
         visual_state=semantic_state(
             task_id=f"{scenario_id}.pedestrian_background.{index + 1:02d}",
             role="semantic_background_pedestrian",
-            state_sequence=[moving_mode, mode if mode in SEMANTIC_STATIC_STATES else "walking"],
+            state_sequence=[moving_mode, moving_mode],
             semantic_role=contract.pedestrian_role,
             mode=moving_mode,
             background_role="semantic_context",
@@ -1491,6 +1718,12 @@ def _add_contract_pedestrian(
         "semantic_role": contract.pedestrian_role,
         "contract_scenario_id": scenario_id,
     }
+    scene["ground_flow_contract"] = _ground_flow_contract(
+        "pedestrian",
+        BACKGROUND_PEDESTRIAN_FLOW_SPEED_MPS,
+        [anchor.position_enu_m, *route],
+        route_source="traffic_bundle_sidewalk",
+    )
     add(specs, scenes, (spec, scene))
     return entity_id
 
@@ -1523,12 +1756,26 @@ def _inspect_boundary_sample_loop(scenes: list[dict[str, Any]], events: list[dic
             sum(point[0] for point in polygon) / len(polygon),
             sum(point[1] for point in polygon) / len(polygon),
         ]
+    hfov = float(DEFAULT_UAV_SENSOR_PROFILE.get("hfov_deg") or DEFAULT_UAV_SENSOR_FOV_DEG)
+    width = float(DEFAULT_UAV_SENSOR_PROFILE.get("width") or 1.0)
+    height = float(DEFAULT_UAV_SENSOR_PROFILE.get("height") or 1.0)
+    half_width_m = math.tan(math.radians(hfov / 2.0)) * float(altitude_m)
+    vfov = math.degrees(2.0 * math.atan(math.tan(math.radians(hfov / 2.0)) * (height / width)))
+    half_height_m = math.tan(math.radians(vfov / 2.0)) * float(altitude_m)
+    inset_margin_m = max(2.0, min(half_width_m, half_height_m) * 0.35)
     start = q(float(center[0]), float(center[1]), altitude_m)
     samples: list[list[float]] = []
     for index, point in enumerate(polygon):
         nxt = polygon[(index + 1) % len(polygon)]
-        samples.append(q(point[0], point[1], altitude_m))
-        samples.append(q((point[0] + nxt[0]) * 0.5, (point[1] + nxt[1]) * 0.5, altitude_m))
+        for sample in (point, [(point[0] + nxt[0]) * 0.5, (point[1] + nxt[1]) * 0.5]):
+            dx = float(sample[0]) - float(center[0])
+            dy = float(sample[1]) - float(center[1])
+            length = math.hypot(dx, dy)
+            if length > inset_margin_m:
+                scale = (length - inset_margin_m) / length
+                samples.append(q(float(center[0]) + dx * scale, float(center[1]) + dy * scale, altitude_m))
+            else:
+                samples.append(q(float(sample[0]), float(sample[1]), altitude_m))
     samples.append(start)
     route = samples + [start]
     if _route_length_m([start, *route]) < 80.0:
@@ -1840,10 +2087,15 @@ def ensure_uav_routes_cross_capture_boundary(
     spec_by_id = {str(spec.get("entity_id") or ""): spec for spec in specs}
     crossing_z = max(float(contract.inspect_altitude_m), 22.0)
     crossing_waypoint = q(float(center[0]), float(center[1]), crossing_z)
+    xs = [point[0] for point in polygon]
+    ys = [point[1] for point in polygon]
+    half_x = max(1.0, 0.5 * (max(xs) - min(xs)))
+    half_y = max(1.0, 0.5 * (max(ys) - min(ys)))
     for scene in scenes:
         if not str(scene.get("logical_asset_id") or "").startswith("uav."):
             continue
-        if str((scene.get("initial_state") or {}).get("role") or "") == "U_inspect":
+        initial_state = dict(scene.get("initial_state") or {})
+        if str(initial_state.get("role") or "") == "U_inspect":
             continue
         route_points = _motion_points_for_entity(scene, events)
         if _route_crosses_polygon_xy(route_points, polygon):
@@ -1854,6 +2106,26 @@ def ensure_uav_routes_cross_capture_boundary(
             if isinstance(point, list) and len(point) >= 3
         ]
         route = [crossing_waypoint, *route]
+        corridor_role = str(scene.get("uav_corridor_role") or initial_state.get("uav_corridor_role") or "")
+        if corridor_role == "observer":
+            current = scene_pos(scene) or crossing_waypoint
+            dx = float(current[0]) - float(center[0])
+            dy = float(current[1]) - float(center[1])
+            length = math.hypot(dx, dy)
+            if length <= 1e-6:
+                dx, dy, length = 1.0, 0.0, 1.0
+            ux = dx / length
+            uy = dy / length
+            edge_scale = min(
+                half_x / max(abs(ux), 1e-6),
+                half_y / max(abs(uy), 1e-6),
+            )
+            approach = q(
+                float(center[0]) + ux * (edge_scale + 18.0),
+                float(center[1]) + uy * (edge_scale + 18.0),
+                crossing_z,
+            )
+            update_world_entity_position(spec_by_id.get(str(scene.get("entity_id") or ""), {}), scene, approach)
         scene["route_waypoints_enu_m"] = route
         scene["boundary_crossing_injected"] = {
             "policy": "semantic_event_contract_v1",
@@ -2120,6 +2392,7 @@ def apply_semantic_event_contract(
         )
         counts = _scene_counts(scenes)
     ensure_contract_background_roles(scenario_id, specs, scenes, contract)
+    ensure_background_ground_flow_routes(scenario_id, specs, scenes)
     return contract
 
 
@@ -2187,6 +2460,108 @@ def ensure_contract_background_roles(
         }
         spec = spec_by_id.get(str(selected.get("entity_id") or ""))
         if spec is not None:
+            spec["visual_state"] = {**(spec.get("visual_state") or {}), **state}
+
+
+def _pedestrian_flow_seed_route(scene: dict[str, Any], index: int) -> list[list[float]]:
+    start = scene_pos(scene)
+    if not start:
+        return []
+    placement = dict(scene.get("placement") or {})
+    edge_id = str(placement.get("lane_edge_id") or "")
+    if edge_id and edge_id in LANES.by_edge:
+        s_m = float(placement.get("longitudinal_s") or LANES.nearest_to_xy(start[0], start[1]).s_m)
+        sample = LANES.resolve_edge_s(edge_id, s_m)
+    else:
+        sample = LANES.nearest_to_xy(start[0], start[1])
+    lateral = float(placement.get("resolved_lateral_from_center_m") or 0.0)
+    side_sign = 1.0 if lateral >= 0.0 else -1.0
+    offset_from_curb = max(float(placement.get("offset_from_curb_m") or SIDEWALK_MIN_OFFSET_FROM_CURB_M), SIDEWALK_MIN_OFFSET_FROM_CURB_M)
+    min_s, max_s = LANES.edge_s_bounds(sample.edge_id)
+    travel_m = max(7.0 + index * 1.5, BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M + 1.5 + index * 1.0)
+    for signed_travel_m in (travel_m, -travel_m, travel_m * 0.75, -travel_m * 0.75):
+        target_sample = LANES.resolve_edge_s(sample.edge_id, max(min_s, min(max_s, sample.s_m + signed_travel_m)))
+        target = _offset_from_lane(
+            target_sample,
+            side_sign * (LANE_HALF_WIDTH_M + offset_from_curb),
+            GROUND_Z_M,
+        )
+        if dist_xy(start, target) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
+            continue
+        try:
+            SPATIAL.validate_segment(
+                start,
+                target,
+                context="background pedestrian continuous flow route",
+                allow_road=False,
+                allow_green=bool(placement.get("allow_green", True)),
+            )
+            return [target]
+        except SpatialValidationError:
+            continue
+    return []
+
+
+def ensure_background_ground_flow_routes(
+    scenario_id: str,
+    specs: list[dict[str, Any]],
+    scenes: list[dict[str, Any]],
+) -> None:
+    spec_by_id = {str(spec.get("entity_id") or ""): spec for spec in specs}
+    for index, scene in enumerate(scenes):
+        entity_id = str(scene.get("entity_id") or "")
+        state = dict(scene.get("initial_state") or {})
+        role = str(state.get("role") or "")
+        if role not in {"semantic_background_vehicle", "semantic_background_pedestrian"}:
+            continue
+        start = scene_pos(scene)
+        if not start:
+            raise RuntimeError(f"{scenario_id}: background ground-flow actor lacks start position: {entity_id}")
+        current_route = [
+            q(float(item[0]), float(item[1]), float(item[2] if len(item) > 2 else GROUND_Z_M))
+            for item in scene.get("route_waypoints_enu_m") or []
+            if isinstance(item, list) and len(item) >= 2
+        ]
+        if role == "semantic_background_vehicle":
+            mode = _moving_background_vehicle_mode(str(state.get("mode") or "traffic_flow"))
+            if not current_route or _route_xy_span(start, current_route) < BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M:
+                placement = dict(scene.get("placement") or {})
+                edge_id = str(placement.get("edge_id") or "")
+                sample = (
+                    LANES.resolve_edge_s(edge_id, float(placement.get("longitudinal_s") or 0.0))
+                    if edge_id in LANES.by_edge
+                    else LANES.nearest_to_xy(start[0], start[1])
+                )
+                current_route = _semantic_vehicle_route(sample, mode, index)
+            route = current_route
+            if not route or _route_xy_span(start, route) < BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M:
+                raise RuntimeError(f"{scenario_id}: background vehicle {entity_id} lacks continuous flow route")
+            state.update({"mode": mode, "state_sequence": [mode, mode]})
+            scene["ground_flow_contract"] = _ground_flow_contract(
+                "vehicle",
+                BACKGROUND_VEHICLE_FLOW_SPEED_MPS,
+                [start, *route],
+                route_source="sumo_net_projected_to_traffic_bundle",
+            )
+        else:
+            mode = "walking"
+            if not current_route or _route_xy_span(start, current_route) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
+                current_route = _pedestrian_flow_seed_route(scene, index)
+            route = current_route
+            if not route or _route_xy_span(start, route) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
+                raise RuntimeError(f"{scenario_id}: background pedestrian {entity_id} lacks continuous sidewalk flow route")
+            state.update({"mode": mode, "activity_type": mode, "state_sequence": [mode, mode]})
+            scene["ground_flow_contract"] = _ground_flow_contract(
+                "pedestrian",
+                BACKGROUND_PEDESTRIAN_FLOW_SPEED_MPS,
+                [start, *route],
+                route_source="traffic_bundle_sidewalk",
+            )
+        scene["initial_state"] = state
+        scene["route_waypoints_enu_m"] = route
+        spec = spec_by_id.get(entity_id)
+        if spec is not None:
+            spec["movement_waypoints"] = route
             spec["visual_state"] = {**(spec.get("visual_state") or {}), **state}
 
 
@@ -2327,10 +2702,12 @@ def add_background_vehicles(
         return
 
     blockers = _background_vehicle_blockers(scenes, events)
-    selected: list[LaneSample] = []
+    selected: list[tuple[LaneSample, list[list[float]]]] = []
     attempts = 0
     for sample in _background_vehicle_candidate_samples(scenes, events):
         attempts += 1
+        if not _lane_has_route_span(sample, BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M):
+            continue
         candidate_pos = _offset_from_lane(sample, 0.0, GROUND_Z_M)
         if SPATIAL.validation_errors_for_point(
             candidate_pos,
@@ -2343,9 +2720,12 @@ def add_background_vehicles(
             continue
         if any(dist_xy(candidate_pos, point) < clearance_m for _label, point, clearance_m in blockers):
             continue
-        if any(dist_xy(candidate_pos, _offset_from_lane(other, 0.0, GROUND_Z_M)) < 8.0 for other in selected):
+        if any(dist_xy(candidate_pos, _offset_from_lane(other, 0.0, GROUND_Z_M)) < 8.0 for other, _route in selected):
             continue
-        selected.append(sample)
+        route = _semantic_vehicle_route(sample, "traffic_flow", len(selected))
+        if not route:
+            continue
+        selected.append((sample, route))
         if len(selected) >= policy.add_count:
             break
     if len(selected) < policy.add_count:
@@ -2355,7 +2735,7 @@ def add_background_vehicles(
         )
 
     added_ids: list[str] = []
-    for index, sample in enumerate(selected):
+    for index, (sample, route) in enumerate(selected):
         entity_id = f"bg_vehicle_{safe_id(scenario_id)}_{index + 1:02d}"
         asset = BACKGROUND_VEHICLE_ASSETS[index % len(BACKGROUND_VEHICLE_ASSETS)]
         spec, scene = lane_entity(
@@ -2367,8 +2747,13 @@ def add_background_vehicles(
             0.0,
             _offset_from_lane(sample, 0.0, GROUND_Z_M),
             sample.yaw_deg,
-            "background_parked",
-            visual_state={"mode": "background_parked", "background_role": "road_context"},
+            "traffic_flow",
+            route=route,
+            visual_state={
+                "mode": "traffic_flow",
+                "state_sequence": ["traffic_flow", "traffic_flow"],
+                "background_role": "road_context",
+            },
             prefer_edge_hint=True,
         )
         scene["background_vehicle"] = {
@@ -2376,6 +2761,13 @@ def add_background_vehicles(
             "reason": policy.reason,
             "min_clearance_rule": "background_vehicle_clearance",
         }
+        start = _offset_from_lane(sample, 0.0, GROUND_Z_M)
+        scene["ground_flow_contract"] = _ground_flow_contract(
+            "vehicle",
+            BACKGROUND_VEHICLE_FLOW_SPEED_MPS,
+            [start, *route],
+            route_source="sumo_net_projected_to_traffic_bundle",
+        )
         add(specs, scenes, (spec, scene))
         added_ids.append(entity_id)
 
@@ -3365,13 +3757,19 @@ def apply_uav_corridor_contract(
                     if not repaired_route or dist_xy(repaired_route[-1], point) > 0.05 or abs(repaired_route[-1][2] - point[2]) > 0.05:
                         repaired_route.append(point)
         if str(initial_state.get("role") or "") == "U_inspect":
-            planned_route = [
-                [float(point[0]), float(point[1]), float(point[2])]
-                for point in (scene.get("contract_inspect_uav") or {}).get("planned_route_enu_m", [])
-                if isinstance(point, list) and len(point) >= 3
-            ]
-            if not planned_route:
-                planned_route = original_routes_by_entity.get(entity_id, [])
+            refreshed_loop = _inspect_boundary_sample_loop(scenes, events, altitude_m)
+            if refreshed_loop is not None:
+                refreshed_start, refreshed_route = refreshed_loop
+                planned_route = [refreshed_start, *refreshed_route]
+                update_world_entity_position(spec, scene, refreshed_start)
+            else:
+                planned_route = [
+                    [float(point[0]), float(point[1]), float(point[2])]
+                    for point in (scene.get("contract_inspect_uav") or {}).get("planned_route_enu_m", [])
+                    if isinstance(point, list) and len(point) >= 3
+                ]
+                if not planned_route:
+                    planned_route = original_routes_by_entity.get(entity_id, [])
             if _route_length_m(planned_route) < 80.0:
                 raise RuntimeError(
                     f"{scenario_id}: U_inspect planned route is shorter than the deterministic contract minimum: "
@@ -3876,7 +4274,7 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
             event("crowd_present", tick(0), [ped_activity(f"set_{ped_id}_crowd_chatting", ped_id, "chatting") for ped_id in crowd_ids], 0, scenario_id, "Ground crowd is visible before the UAV fault begins", "pedestrian", crowd_ids, "info"),
             event("forced_landing_fault", tick(230), [visual("set_uav_forced_landing_fault", uav, "propulsion_fault")], 1, scenario_id, "UAV fault appears near a ground crowd", "uav_mission", [uav, ped_a, ped_b], "critical"),
             event("descent_to_low_altitude", fired("forced_landing_fault"), [move("move_uav_forced_descent", uav, [start, descent_mid, low, land], 3.0)], 2, scenario_id, "UAV descends from 30m to low height", "uav_mission", [uav], "critical"),
-            event("crowd_proximity_response", prox(uav, ped_a, 5.0, 2), [move("move_ped_a_evade_landing", ped_a, [ped_a_start, ped_a_evade], 2.0, post_activity_type="quarrel"), move("move_ped_b_evade_landing", ped_b, [ped_b_start, ped_b_evade], 2.0, post_activity_type="quarrel"), screenshot("capture_forced_landing")], 3, scenario_id, "Crowd evades forced landing zone and yells at the forced landing site", "pedestrian", [ped_a, ped_b, uav], "warning"),
+            event("crowd_proximity_response", prox(uav, ped_a, 7.5, 2, metric="xy_plus_z", horizontal_distance_m=7.5, vertical_distance_m=10.0), [move("move_ped_a_evade_landing", ped_a, [ped_a_start, ped_a_evade], 2.0, post_activity_type="quarrel"), move("move_ped_b_evade_landing", ped_b, [ped_b_start, ped_b_evade], 2.0, post_activity_type="quarrel"), screenshot("capture_forced_landing")], 3, scenario_id, "Crowd evades forced landing zone and yells at the forced landing site", "pedestrian", [ped_a, ped_b, uav], "warning"),
             event("safe_landing", fired("crowd_proximity_response"), [move("move_uav_safe_touchdown", uav, [land, q(land[0] + 1, land[1] + 1, 0.8)], 1.0)], 4, scenario_id, "UAV completes safe landing", "uav_mission", [uav], "info"),
         ]
         desc = "UAV forced landing near crowd"
@@ -3967,7 +4365,7 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         events = [
             event("pedestrian_fall", tick(230), [play("play_pedestrian_fall", ped)], 1, scenario_id, "Pedestrian fall animation starts", "pedestrian", [ped], "critical"),
             event("uav_detects_fall", fired("pedestrian_fall"), [move("move_uav_detect_fall", uav, [uav_start, uav_observe], 5.0), screenshot("capture_fall_detection")], 2, scenario_id, "UAV detects fallen pedestrian", "uav_mission", [uav, ped], "warning"),
-            event("ambulance_response", fired("uav_detects_fall"), [move("move_ambulance_to_fall", ambulance, [ambulance_start, ambulance_arrival], 12.0)], 3, scenario_id, "Ambulance responds to detected fall", "vehicle", [ambulance, ped], "warning"),
+            event("ambulance_response", fired("uav_detects_fall"), [move("move_ambulance_to_fall", ambulance, [ambulance_start, ambulance_arrival], 12.0)], 3, scenario_id, "Ambulance responds to detected fall", "vehicle", [ambulance, ped], "warning", intent="ambulance"),
             event("incident_documented", fired("ambulance_response"), [screenshot("capture_fall_response")], 4, scenario_id, "UAV documents emergency response", "uav_mission", [uav, ambulance, ped], "info"),
         ]
         desc = "Pedestrian fall detected by UAV and response chain"

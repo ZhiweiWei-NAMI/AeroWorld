@@ -92,6 +92,12 @@ INITIAL_OVERLAP_MIN_M = {
     ("vehicle", "vehicle"): 2.2,
     ("pedestrian", "vehicle"): 1.5,
 }
+GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO = 0.85
+GROUND_FLOW_SPEED_EPS_MPS = 0.05
+GROUND_FLOW_MIN_XY_SPAN_M = {
+    "pedestrian": 8.0,
+    "vehicle": 18.0,
+}
 ROI_MARGIN_M = 1000.0
 SCRIPT_TICK_HZ = 10.0
 DELAY_SAFETY_FACTOR = 1.1
@@ -2081,6 +2087,72 @@ def _render_ready_entity_counts(episode_dir: Path) -> dict[str, int]:
     return counts
 
 
+def check_render_ready_ground_flow(episode_name: str, truths: list[dict[str, Any]], issues: list[str]) -> None:
+    stats: dict[str, dict[str, Any]] = {}
+    for frame in truths:
+        for entity in frame.get("entities") or []:
+            category = str(entity.get("entity_category") or "")
+            if category not in {"pedestrian", "vehicle"}:
+                continue
+            role = str(entity.get("role") or "")
+            if role not in {"semantic_background_pedestrian", "semantic_background_vehicle"}:
+                continue
+            entity_id = str(entity.get("entity_id") or "")
+            if not entity_id:
+                continue
+            render_presence = dict(entity.get("render_presence") or {})
+            visible = render_presence.get("visibility_state") == "visible" and render_presence.get("offstage") is not True
+            row = stats.setdefault(
+                entity_id,
+                {
+                    "category": category,
+                    "visible": 0,
+                    "moving": 0,
+                    "tick0_moving": False,
+                    "xs": [],
+                    "ys": [],
+                },
+            )
+            if not visible:
+                continue
+            row["visible"] += 1
+            velocity = ((entity.get("truth_pose") or {}).get("velocity_enu_mps") or [0.0, 0.0, 0.0])
+            speed = math.hypot(
+                float(velocity[0] if len(velocity) > 0 else 0.0),
+                float(velocity[1] if len(velocity) > 1 else 0.0),
+            )
+            if speed > GROUND_FLOW_SPEED_EPS_MPS:
+                row["moving"] += 1
+                if int(frame.get("tick") or frame.get("frame_seq") or 0) == 0:
+                    row["tick0_moving"] = True
+            position = ((entity.get("truth_pose") or {}).get("position_enu_m") or [])
+            if len(position) >= 2:
+                row["xs"].append(float(position[0]))
+                row["ys"].append(float(position[1]))
+    for entity_id, row in sorted(stats.items()):
+        visible = int(row["visible"])
+        if visible <= 0:
+            issues.append(f"{episode_name}: background ground-flow actor is never visible: {entity_id}")
+            continue
+        moving_ratio = float(row["moving"]) / float(visible)
+        if moving_ratio < GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO:
+            issues.append(
+                f"{episode_name}: background {row['category']} {entity_id} visible motion ratio too low: "
+                f"{moving_ratio:.3f} < {GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO:.3f}"
+            )
+        if not bool(row["tick0_moving"]):
+            issues.append(f"{episode_name}: background {row['category']} {entity_id} is not moving at tick 0")
+        xs = list(row["xs"])
+        ys = list(row["ys"])
+        xy_span = math.hypot(max(xs) - min(xs), max(ys) - min(ys)) if xs and ys else 0.0
+        min_xy_span = GROUND_FLOW_MIN_XY_SPAN_M[str(row["category"])]
+        if xy_span < min_xy_span:
+            issues.append(
+                f"{episode_name}: background {row['category']} {entity_id} XY motion span too small: "
+                f"{xy_span:.3f}m < {min_xy_span:.3f}m"
+            )
+
+
 def check_render_ready_contract(render_ready_root: Path, issues: list[str]) -> None:
     if not render_ready_root.exists():
         return
@@ -2131,6 +2203,7 @@ def check_render_ready_contract(render_ready_root: Path, issues: list[str]) -> N
         if not truths:
             issues.append(f"{episode_dir.name}: empty truth_frames")
         else:
+            check_render_ready_ground_flow(episode_dir.name, truths, issues)
             for frame in truths[:3]:
                 for key in ("capture_boundary_id", "uav_crosses_boundary", "inspect_observes_boundary", "pad_boundary_policy"):
                     if key not in frame:

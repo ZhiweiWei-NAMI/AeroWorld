@@ -13,11 +13,11 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7145.049,
-      6348.086,
+      7147.052,
+      6348.754,
       0.0
     ],
-    "radius_m": 221.797,
+    "radius_m": 220.892,
     "source": "export_envelope_only"
   },
   "entities": [
@@ -583,19 +583,24 @@
           0.0
         ],
         [
-          7169.791,
-          6359.213,
+          7144.531,
+          6347.15,
+          0.0
+        ],
+        [
+          7193.213,
+          6370.443,
           0.0
         ]
       ],
       "initial_state": {
-        "mode": "yielding",
+        "mode": "traffic_slow",
         "task_id": "L4-10_v1.vehicle_background.03",
         "role": "semantic_background_vehicle",
         "semantic_role": "ambulance priority + civilian yield",
         "state_sequence": [
-          "yielding",
-          "traffic_flow"
+          "traffic_slow",
+          "traffic_slow"
         ],
         "background_role": "semantic_context"
       },
@@ -604,6 +609,18 @@
         "policy": "semantic_event_contract_v1",
         "semantic_role": "ambulance priority + civilian yield",
         "contract_scenario_id": "L4-10_v1"
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "vehicle",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 24.0,
+        "speed_mps": 6.0,
+        "route_duration_ticks": 900,
+        "loop_policy": "bounce_between_route_waypoints",
+        "route_source": "sumo_net_projected_to_traffic_bundle",
+        "planned_path_length_m": 550.665
       },
       "motion_contract": {
         "schema": "semantic_motion_contract_v1",
@@ -615,7 +632,7 @@
           "yield"
         ],
         "min_displacement_m": 0.5,
-        "planned_displacement_m": 11.004
+        "planned_displacement_m": 70.957
       }
     },
     {
@@ -626,42 +643,52 @@
       "placement": {
         "edge_id": "cg_edge_122",
         "lane_index": 0,
-        "longitudinal_s": 233.0,
+        "longitudinal_s": 234.0,
         "lateral_offset_m": 0.0,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": 0.0,
         "placement_semantics": "lane_center",
         "resolved_position_enu_m": [
-          7116.168,
-          6334.493,
+          7117.09,
+          6334.89,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 23.364
+          "yaw_deg": 23.233
         },
         "source_edge_id_hint": "cg_edge_122",
-        "source_longitudinal_s_hint": 233.0
+        "source_longitudinal_s_hint": 234.0
       },
       "route_waypoints_enu_m": [
         [
-          7116.168,
-          6334.493,
+          7117.09,
+          6334.89,
           0.0
         ],
         [
-          7127.256,
-          6339.264,
+          7122.599,
+          6337.233,
+          0.0
+        ],
+        [
+          7144.531,
+          6347.15,
+          0.0
+        ],
+        [
+          7193.213,
+          6370.443,
           0.0
         ]
       ],
       "initial_state": {
-        "mode": "yielding",
+        "mode": "traffic_slow",
         "task_id": "L4-10_v1.vehicle_background.04",
         "role": "semantic_background_vehicle",
         "semantic_role": "ambulance priority + civilian yield",
         "state_sequence": [
-          "yielding",
-          "traffic_flow"
+          "traffic_slow",
+          "traffic_slow"
         ],
         "background_role": "semantic_context"
       },
@@ -670,6 +697,18 @@
         "policy": "semantic_event_contract_v1",
         "semantic_role": "ambulance priority + civilian yield",
         "contract_scenario_id": "L4-10_v1"
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "vehicle",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 24.0,
+        "speed_mps": 6.0,
+        "route_duration_ticks": 900,
+        "loop_policy": "bounce_between_route_waypoints",
+        "route_source": "sumo_net_projected_to_traffic_bundle",
+        "planned_path_length_m": 504.144
       },
       "motion_contract": {
         "schema": "semantic_motion_contract_v1",
@@ -681,7 +720,7 @@
           "yield"
         ],
         "min_displacement_m": 0.5,
-        "planned_displacement_m": 12.071
+        "planned_displacement_m": 84.024
       }
     },
     {
@@ -691,35 +730,41 @@
       "placement_mode": "sidewalk_anchor",
       "placement": {
         "lane_edge_id": "cg_edge_122",
-        "longitudinal_s": 262.0,
+        "longitudinal_s": 265.0,
         "offset_from_curb_m": 1.2,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": -3.1,
         "placement_semantics": "semantic_event_background_pedestrian",
         "allow_green": true,
         "resolved_position_enu_m": [
-          7144.02,
-          6343.489,
+          7146.75,
+          6344.766,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 24.992
+          "yaw_deg": 25.129
         },
         "contract_scenario_id": "L4-10_v1"
       },
-      "route_waypoints_enu_m": [],
+      "route_waypoints_enu_m": [
+        [
+          7155.815,
+          6349.055,
+          0.0
+        ]
+      ],
       "initial_state": {
-        "mode": "waiting",
+        "mode": "walking",
         "task_id": "L4-10_v1.pedestrian_background.01",
         "role": "semantic_background_pedestrian",
         "semantic_role": "crosswalk wait",
         "state_sequence": [
-          "waiting",
-          "waiting"
+          "walking",
+          "walking"
         ],
         "background_role": "semantic_context",
-        "activity_type": "waiting",
-        "animation_hint": "pedestrian_idle",
+        "activity_type": "walking",
+        "animation_hint": "pedestrian_walk",
         "posture": "standing",
         "social_state": "solo"
       },
@@ -729,17 +774,29 @@
         "semantic_role": "crosswalk wait",
         "contract_scenario_id": "L4-10_v1"
       },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "pedestrian",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 9.0,
+        "speed_mps": 1.25,
+        "route_duration_ticks": 900,
+        "loop_policy": "bounce_between_route_waypoints",
+        "route_source": "traffic_bundle_sidewalk",
+        "planned_path_length_m": 110.313
+      },
       "motion_contract": {
         "schema": "semantic_motion_contract_v1",
         "required": true,
-        "motion_kind": "state_animation",
+        "motion_kind": "kinematic_path",
         "semantic_link_required": true,
         "linked_intents": [
           "ambulance",
           "yield"
         ],
-        "min_displacement_m": 0.0,
-        "planned_displacement_m": 0.0
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 10.028
       }
     },
     {
@@ -749,35 +806,41 @@
       "placement_mode": "sidewalk_anchor",
       "placement": {
         "lane_edge_id": "cg_edge_122",
-        "longitudinal_s": 268.0,
-        "offset_from_curb_m": 1.2,
+        "longitudinal_s": 265.0,
+        "offset_from_curb_m": 2.4,
         "lane_half_width_m": 1.9,
-        "resolved_lateral_from_center_m": -3.1,
+        "resolved_lateral_from_center_m": -4.3,
         "placement_semantics": "semantic_event_background_pedestrian",
         "allow_green": true,
         "resolved_position_enu_m": [
-          7149.468,
-          6346.045,
+          7147.26,
+          6343.68,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 25.25
+          "yaw_deg": 25.129
         },
         "contract_scenario_id": "L4-10_v1"
       },
-      "route_waypoints_enu_m": [],
+      "route_waypoints_enu_m": [
+        [
+          7157.239,
+          6348.404,
+          0.0
+        ]
+      ],
       "initial_state": {
-        "mode": "waiting",
+        "mode": "walking",
         "task_id": "L4-10_v1.pedestrian_background.02",
         "role": "semantic_background_pedestrian",
         "semantic_role": "crosswalk wait",
         "state_sequence": [
-          "waiting",
-          "waiting"
+          "walking",
+          "walking"
         ],
         "background_role": "semantic_context",
-        "activity_type": "waiting",
-        "animation_hint": "pedestrian_idle",
+        "activity_type": "walking",
+        "animation_hint": "pedestrian_walk",
         "posture": "standing",
         "social_state": "solo"
       },
@@ -787,17 +850,29 @@
         "semantic_role": "crosswalk wait",
         "contract_scenario_id": "L4-10_v1"
       },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "pedestrian",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 9.0,
+        "speed_mps": 1.25,
+        "route_duration_ticks": 900,
+        "loop_policy": "bounce_between_route_waypoints",
+        "route_source": "traffic_bundle_sidewalk",
+        "planned_path_length_m": 110.407
+      },
       "motion_contract": {
         "schema": "semantic_motion_contract_v1",
         "required": true,
-        "motion_kind": "state_animation",
+        "motion_kind": "kinematic_path",
         "semantic_link_required": true,
         "linked_intents": [
           "ambulance",
           "yield"
         ],
-        "min_displacement_m": 0.0,
-        "planned_displacement_m": 0.0
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 11.041
       }
     },
     {
@@ -807,35 +882,41 @@
       "placement_mode": "sidewalk_anchor",
       "placement": {
         "lane_edge_id": "cg_edge_122",
-        "longitudinal_s": 256.0,
+        "longitudinal_s": 266.0,
         "offset_from_curb_m": 1.2,
         "lane_half_width_m": 1.9,
         "resolved_lateral_from_center_m": -3.1,
         "placement_semantics": "semantic_event_background_pedestrian",
         "allow_green": true,
         "resolved_position_enu_m": [
-          7138.555,
-          6340.96,
+          7147.656,
+          6345.192,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 24.669
+          "yaw_deg": 25.171
         },
         "contract_scenario_id": "L4-10_v1"
       },
-      "route_waypoints_enu_m": [],
+      "route_waypoints_enu_m": [
+        [
+          7158.53,
+          6350.352,
+          0.0
+        ]
+      ],
       "initial_state": {
-        "mode": "waiting",
+        "mode": "walking",
         "task_id": "L4-10_v1.pedestrian_background.03",
         "role": "semantic_background_pedestrian",
         "semantic_role": "crosswalk wait",
         "state_sequence": [
-          "waiting",
-          "waiting"
+          "walking",
+          "walking"
         ],
         "background_role": "semantic_context",
-        "activity_type": "waiting",
-        "animation_hint": "pedestrian_idle",
+        "activity_type": "walking",
+        "animation_hint": "pedestrian_walk",
         "posture": "standing",
         "social_state": "solo"
       },
@@ -845,17 +926,29 @@
         "semantic_role": "crosswalk wait",
         "contract_scenario_id": "L4-10_v1"
       },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "pedestrian",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 9.0,
+        "speed_mps": 1.25,
+        "route_duration_ticks": 900,
+        "loop_policy": "bounce_between_route_waypoints",
+        "route_source": "traffic_bundle_sidewalk",
+        "planned_path_length_m": 108.326
+      },
       "motion_contract": {
         "schema": "semantic_motion_contract_v1",
         "required": true,
-        "motion_kind": "state_animation",
+        "motion_kind": "kinematic_path",
         "semantic_link_required": true,
         "linked_intents": [
           "ambulance",
           "yield"
         ],
-        "min_displacement_m": 0.0,
-        "planned_displacement_m": 0.0
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 12.036
       }
     },
     {
@@ -865,13 +958,13 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7150.857,
-          6350.131,
+          7154.481,
+          6351.853,
           0.0
         ],
         "resolved_position_enu_m": [
-          7150.857,
-          6350.131,
+          7154.481,
+          6351.853,
           0.0
         ],
         "rotation_deg": {
@@ -913,17 +1006,17 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7088.846,
-          6322.394,
+          7091.615,
+          6323.563,
           80.0
         ],
         "resolved_position_enu_m": [
-          7088.846,
-          6322.394,
+          7091.615,
+          6323.563,
           80.0
         ],
         "rotation_deg": {
-          "yaw_deg": 24.709
+          "yaw_deg": 24.757
         }
       },
       "route_waypoints_enu_m": [
@@ -968,7 +1061,7 @@
           "yield"
         ],
         "min_displacement_m": 0.5,
-        "planned_displacement_m": 118.862
+        "planned_displacement_m": 115.858
       }
     },
     {
@@ -1276,9 +1369,9 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7145.049,
-          6348.086,
-          134.606
+          7147.052,
+          6348.754,
+          133.294
         ],
         "rotation_deg": {
           "pitch_deg": -70.0,

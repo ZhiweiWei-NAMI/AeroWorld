@@ -23,6 +23,18 @@ from pedestrian_activity_catalog import get_activity, normalize_activity_type
 
 TICK_HZ = 10
 DEFAULT_DURATION_TICKS = 900
+AMBIENT_GROUND_MOTION_MIN_PREFIX_TICKS = 50
+AMBIENT_GROUND_MOTION_SPAN_M = {
+    "pedestrian": 10.5,
+    "vehicle": 26.0,
+}
+AMBIENT_GROUND_MOTION_SPEED_MPS = {
+    "pedestrian": 1.25,
+    "vehicle": 5.0,
+}
+INSPECT_UAV_LOOP_SPEED_MPS = 5.0
+INSPECT_UAV_MIN_MOTION_RATIO = 1.05
+GROUND_MOTION_SPEED_EPS_MPS = 0.05
 WEATHER_PROFILES: dict[str, dict[str, Any]] = {
     "clear": {"condition": "clear", "rain": 0.0, "fog": 0.0, "fog_density": 0.0, "wind_speed": 2.0, "visibility_m": 20000.0, "visibility": 20000.0},
     "rain": {"condition": "rain", "rain": 0.55, "fog": 0.0, "fog_density": 0.0, "wind_speed": 4.0, "visibility_m": 2200.0, "visibility": 2200.0, "wetness": 0.75},
@@ -42,6 +54,7 @@ PRESERVED_ENTITY_FIELDS = (
     "contract_inspect_uav",
     "background_vehicle",
     "background_pedestrian",
+    "ground_flow_contract",
     "contract_facility",
     "contract_logical_sidecar",
     "uav_corridor_role",
@@ -117,6 +130,85 @@ def distance3(a: Sequence[float], b: Sequence[float]) -> float:
 
 def path_length_m(points: Sequence[Sequence[float]]) -> float:
     return sum(distance3(a, b) for a, b in zip(points, points[1:]))
+
+
+def extend_ground_flow_route(
+    start: list[float],
+    route: list[list[float]],
+    *,
+    velocity_mps: float,
+    duration_ticks: int,
+    min_visible_motion_ratio: float,
+) -> list[list[float]]:
+    base: list[list[float]] = []
+    for point in [start, *route]:
+        candidate = vector3(point)
+        if base and distance3(base[-1], candidate) < 0.05:
+            continue
+        base.append(candidate)
+    if len(base) < 2:
+        return [vector3(point) for point in route]
+    target_length_m = float(velocity_mps) * (float(duration_ticks) / float(TICK_HZ)) * max(
+        1.05,
+        float(min_visible_motion_ratio) + 0.08,
+    )
+    result = [list(point) for point in base[1:]]
+    cycle = [*base[-2::-1], *base[1:]]
+    current = list(result[-1])
+    current_length_m = path_length_m([start, *result])
+    while current_length_m < target_length_m:
+        progressed = False
+        for point in cycle:
+            if distance3(current, point) < 0.05:
+                continue
+            result.append(list(point))
+            current_length_m += distance3(current, point)
+            current = list(point)
+            progressed = True
+            if current_length_m >= target_length_m:
+                break
+        if not progressed:
+            break
+    return result
+
+
+def extend_loop_route(
+    start: list[float],
+    route: list[list[float]],
+    *,
+    velocity_mps: float,
+    duration_ticks: int,
+    min_motion_ratio: float,
+) -> list[list[float]]:
+    base: list[list[float]] = []
+    for point in [start, *route]:
+        candidate = vector3(point)
+        if base and distance3(base[-1], candidate) < 0.05:
+            continue
+        base.append(candidate)
+    if len(base) < 2:
+        return [vector3(point) for point in route]
+    if distance3(base[0], base[-1]) >= 0.05:
+        base.append(list(base[0]))
+    result = [list(point) for point in base[1:]]
+    cycle = [list(point) for point in base[1:]]
+    current = list(result[-1])
+    current_length_m = path_length_m([start, *result])
+    target_length_m = float(velocity_mps) * (float(duration_ticks) / float(TICK_HZ)) * float(min_motion_ratio)
+    while current_length_m < target_length_m:
+        progressed = False
+        for point in cycle:
+            if distance3(current, point) < 0.05:
+                continue
+            result.append(list(point))
+            current_length_m += distance3(current, point)
+            current = list(point)
+            progressed = True
+            if current_length_m >= target_length_m:
+                break
+        if not progressed:
+            break
+    return result
 
 
 def stable_unit_interval(seed_text: str) -> float:
@@ -565,6 +657,446 @@ def sample_keyframes(frames: list[tuple[int, list[float], str]], tick: int) -> t
     return list(frames[-1][1]), [0.0, 0.0, 0.0], frames[-1][2]
 
 
+def _row_xy_distance_from(row: dict[str, Any], start: Sequence[float]) -> float:
+    pos = row.get("pos_enu")
+    if not isinstance(pos, list) or len(pos) < 2:
+        return 0.0
+    return math.hypot(float(pos[0]) - float(start[0]), float(pos[1]) - float(start[1]))
+
+
+def _entity_yaw_deg(entity: dict[str, Any]) -> float:
+    scene_setup = dict(entity.get("scene_setup") or {})
+    placement = dict(scene_setup.get("placement") or {})
+    rotation = dict(placement.get("rotation_deg") or {})
+    try:
+        return float(rotation.get("yaw_deg") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _ambient_ground_target(entity_id: str, entity: dict[str, Any], start: Sequence[float], label_class: str) -> list[float]:
+    yaw_rad = math.radians(_entity_yaw_deg(entity))
+    direction = 1.0 if int(hashlib.sha256(entity_id.encode("utf-8")).hexdigest()[:2], 16) % 2 == 0 else -1.0
+    span_m = AMBIENT_GROUND_MOTION_SPAN_M[label_class]
+    return [
+        float(start[0]) + direction * span_m * math.cos(yaw_rad),
+        float(start[1]) + direction * span_m * math.sin(yaw_rad),
+        float(start[2] if len(start) > 2 else 0.0),
+    ]
+
+
+def _ambient_position(
+    tick: int,
+    end_tick: int,
+    start: Sequence[float],
+    target: Sequence[float],
+    *,
+    return_to_start: bool,
+    label_class: str,
+) -> tuple[list[float], list[float]]:
+    if end_tick <= 0:
+        return vector3(start), [0.0, 0.0, 0.0]
+    if return_to_start:
+        half = max(1.0, float(end_tick) / 2.0)
+        if tick <= half:
+            alpha = float(tick) / half
+            sign = 1.0
+            speed = distance3(start, target) / (half / float(TICK_HZ))
+        else:
+            alpha = 1.0 - (float(tick) - half) / half
+            sign = -1.0
+            speed = distance3(start, target) / (half / float(TICK_HZ))
+        alpha = max(0.0, min(1.0, alpha))
+    else:
+        span = max(1e-6, distance3(start, target))
+        speed = AMBIENT_GROUND_MOTION_SPEED_MPS[label_class]
+        period = max(2.0, 2.0 * span / speed * float(TICK_HZ))
+        phase = float(tick % int(math.ceil(period))) / period
+        if phase <= 0.5:
+            alpha = phase * 2.0
+            sign = 1.0
+        else:
+            alpha = (1.0 - phase) * 2.0
+            sign = -1.0
+    pos = [float(start[i]) + (float(target[i]) - float(start[i])) * alpha for i in range(3)]
+    norm = max(1e-6, distance3(start, target))
+    vel = [(float(target[i]) - float(start[i])) / norm * speed * sign for i in range(3)]
+    if return_to_start and tick >= end_tick:
+        vel = [0.0, 0.0, 0.0]
+    return pos, vel
+
+
+def _row_xy_speed(row: dict[str, Any]) -> float:
+    velocity = row.get("vel_mps")
+    if not isinstance(velocity, list):
+        return 0.0
+    return math.hypot(
+        float(velocity[0] if len(velocity) > 0 else 0.0),
+        float(velocity[1] if len(velocity) > 1 else 0.0),
+    )
+
+
+def _motion_periods(entity_rows: list[dict[str, Any]]) -> list[tuple[int, int]]:
+    periods: list[tuple[int, int]] = []
+    start: int | None = None
+    previous_tick: int | None = None
+    for row in entity_rows:
+        tick = int(row.get("tick", 0))
+        moving = _row_xy_speed(row) > GROUND_MOTION_SPEED_EPS_MPS
+        if moving and start is None:
+            start = tick
+        elif not moving and start is not None:
+            periods.append((start, int(previous_tick if previous_tick is not None else tick)))
+            start = None
+        previous_tick = tick
+    if start is not None:
+        periods.append((start, int(previous_tick if previous_tick is not None else start)))
+    return periods
+
+
+def _last_motion_state(entity_rows: list[dict[str, Any]]) -> tuple[list[float], list[float], int] | None:
+    for row in reversed(entity_rows):
+        if _row_xy_speed(row) > GROUND_MOTION_SPEED_EPS_MPS:
+            return (
+                vector3(row.get("pos_enu") or [0.0, 0.0, 0.0]),
+                vector3(row.get("vel_mps") or [0.0, 0.0, 0.0]),
+                int(row.get("tick", 0)),
+            )
+    return None
+
+
+def _continuous_activity_state(label_class: str) -> str:
+    if label_class == "pedestrian":
+        return normalize_activity_type("walking", moving=True)
+    return "moving"
+
+
+def _write_continuous_ground_row(
+    row: dict[str, Any],
+    *,
+    label_class: str,
+    pos: Sequence[float],
+    vel: Sequence[float],
+) -> None:
+    row["pos_enu"] = [round(float(value), 6) for value in pos]
+    row["vel_mps"] = [round(float(value), 6) for value in vel]
+    state = _continuous_activity_state(label_class)
+    row["state"] = state
+    row.update(row_activity_payload(label_class, state))
+
+
+def _ground_flow_point(
+    *,
+    tick: int,
+    label_class: str,
+    anchor_tick: int,
+    anchor_pos: Sequence[float],
+    unit: Sequence[float],
+    span_m: float,
+    speed_mps: float,
+) -> tuple[list[float], list[float]]:
+    period_ticks = max(2, int(round((2.0 * span_m / max(0.1, speed_mps)) * TICK_HZ)))
+    phase = ((int(tick) - int(anchor_tick)) % period_ticks) / float(period_ticks)
+    if phase <= 0.5:
+        offset = phase * 2.0 * span_m
+        sign = 1.0
+    else:
+        offset = (1.0 - phase) * 2.0 * span_m
+        sign = -1.0
+    pos = [
+        float(anchor_pos[0]) + float(unit[0]) * offset,
+        float(anchor_pos[1]) + float(unit[1]) * offset,
+        float(anchor_pos[2] if len(anchor_pos) > 2 else 0.0),
+    ]
+    vel = [float(unit[0]) * speed_mps * sign, float(unit[1]) * speed_mps * sign, 0.0]
+    return pos, vel
+
+
+def _unit_from_motion_or_entity(
+    *,
+    entity_id: str,
+    entity: dict[str, Any],
+    anchor_pos: Sequence[float],
+    preferred_vel: Sequence[float] | None,
+    label_class: str,
+) -> list[float]:
+    if preferred_vel is not None:
+        norm = math.hypot(float(preferred_vel[0]), float(preferred_vel[1]))
+        if norm > GROUND_MOTION_SPEED_EPS_MPS:
+            return [float(preferred_vel[0]) / norm, float(preferred_vel[1]) / norm, 0.0]
+    target = _ambient_ground_target(entity_id, entity, anchor_pos, label_class)
+    dx = float(target[0]) - float(anchor_pos[0])
+    dy = float(target[1]) - float(anchor_pos[1])
+    norm = max(1e-6, math.hypot(dx, dy))
+    return [dx / norm, dy / norm, 0.0]
+
+
+def _smooth_ground_jumps(
+    entity_rows: list[dict[str, Any]],
+    *,
+    label_class: str,
+    max_step_m: float,
+) -> None:
+    for index in range(1, len(entity_rows)):
+        previous = entity_rows[index - 1]
+        current = entity_rows[index]
+        previous_pos = vector3(previous.get("pos_enu") or [0.0, 0.0, 0.0])
+        current_pos = vector3(current.get("pos_enu") or previous_pos)
+        step = distance3(previous_pos, current_pos)
+        if step <= max_step_m:
+            continue
+        dx = current_pos[0] - previous_pos[0]
+        dy = current_pos[1] - previous_pos[1]
+        norm = max(1e-6, math.hypot(dx, dy))
+        current_pos = [
+            previous_pos[0] + dx / norm * max_step_m,
+            previous_pos[1] + dy / norm * max_step_m,
+            previous_pos[2],
+        ]
+        tick_delta = max(1, int(current.get("tick", index)) - int(previous.get("tick", index - 1)))
+        vel = [
+            (current_pos[0] - previous_pos[0]) / (tick_delta / float(TICK_HZ)),
+            (current_pos[1] - previous_pos[1]) / (tick_delta / float(TICK_HZ)),
+            0.0,
+        ]
+        _write_continuous_ground_row(current, label_class=label_class, pos=current_pos, vel=vel)
+
+
+def apply_ambient_ground_motion(
+    rows: list[dict[str, Any]],
+    entities: dict[str, dict[str, Any]],
+    duration_ticks: int,
+) -> None:
+    rows_by_entity: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        entity_id = str(row.get("entity_id") or "")
+        if entity_id:
+            rows_by_entity.setdefault(entity_id, []).append(row)
+    for entity_id, entity_rows in rows_by_entity.items():
+        entity_rows.sort(key=lambda item: int(item.get("tick", 0)))
+        if not entity_rows:
+            continue
+        label_class = str(entity_rows[0].get("label_class") or "")
+        if label_class not in AMBIENT_GROUND_MOTION_SPAN_M:
+            continue
+        entity = entities.get(entity_id)
+        if not entity:
+            continue
+        if not (
+            bool(entity.get("background_vehicle"))
+            or bool(entity.get("background_pedestrian"))
+            or str(entity.get("role") or "") in {"semantic_background_vehicle", "semantic_background_pedestrian"}
+        ):
+            continue
+        start = vector3(entity_rows[0].get("pos_enu") or entity.get("pos") or [0.0, 0.0, 0.0])
+        target = _ambient_ground_target(entity_id, entity, start, label_class)
+        for row in entity_rows:
+            tick = int(row.get("tick", 0))
+            pos, vel = _ambient_position(
+                tick,
+                int(duration_ticks),
+                start,
+                target,
+                return_to_start=False,
+                label_class=label_class,
+            )
+            _write_continuous_ground_row(row, label_class=label_class, pos=pos, vel=vel)
+
+
+def keep_ground_entities_moving(
+    rows: list[dict[str, Any]],
+    entities: dict[str, dict[str, Any]],
+    duration_ticks: int,
+) -> None:
+    rows_by_entity: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        entity_id = str(row.get("entity_id") or "")
+        if entity_id:
+            rows_by_entity.setdefault(entity_id, []).append(row)
+    for entity_id, entity_rows in rows_by_entity.items():
+        entity_rows.sort(key=lambda item: int(item.get("tick", 0)))
+        if not entity_rows:
+            continue
+        label_class = str(entity_rows[0].get("label_class") or "")
+        if label_class not in AMBIENT_GROUND_MOTION_SPAN_M:
+            continue
+        moving_flags = [_row_xy_speed(row) > GROUND_MOTION_SPEED_EPS_MPS for row in entity_rows]
+        moving_ratio = sum(1 for flag in moving_flags if flag) / float(len(entity_rows))
+        tick0_moving = _row_xy_speed(entity_rows[0]) > GROUND_MOTION_SPEED_EPS_MPS
+        if moving_ratio >= 0.85 and tick0_moving:
+            continue
+        entity = entities.get(entity_id) or {}
+        speed = AMBIENT_GROUND_MOTION_SPEED_MPS[label_class]
+        span = AMBIENT_GROUND_MOTION_SPAN_M[label_class]
+        first_moving_index = next((idx for idx, flag in enumerate(moving_flags) if flag), None)
+        if first_moving_index is None:
+            anchor_pos = vector3(entity_rows[0].get("pos_enu") or entity.get("pos") or [0.0, 0.0, 0.0])
+            unit = _unit_from_motion_or_entity(
+                entity_id=entity_id,
+                entity=entity,
+                anchor_pos=anchor_pos,
+                preferred_vel=None,
+                label_class=label_class,
+            )
+            for row in entity_rows:
+                pos, vel = _ground_flow_point(
+                    tick=int(row.get("tick", 0)),
+                    label_class=label_class,
+                    anchor_tick=0,
+                    anchor_pos=anchor_pos,
+                    unit=unit,
+                    span_m=span,
+                    speed_mps=speed,
+                )
+                _write_continuous_ground_row(row, label_class=label_class, pos=pos, vel=vel)
+            continue
+
+        first_moving = entity_rows[first_moving_index]
+        first_tick = int(first_moving.get("tick", 0))
+        first_pos = vector3(first_moving.get("pos_enu") or [0.0, 0.0, 0.0])
+        first_vel = vector3(first_moving.get("vel_mps") or [0.0, 0.0, 0.0])
+        prefix_unit = _unit_from_motion_or_entity(
+            entity_id=entity_id,
+            entity=entity,
+            anchor_pos=first_pos,
+            preferred_vel=first_vel,
+            label_class=label_class,
+        )
+        for row in entity_rows[:first_moving_index]:
+            tick = int(row.get("tick", 0))
+            dt = float(first_tick - tick) / float(TICK_HZ)
+            pos = [
+                first_pos[0] - prefix_unit[0] * speed * dt,
+                first_pos[1] - prefix_unit[1] * speed * dt,
+                first_pos[2],
+            ]
+            vel = [prefix_unit[0] * speed, prefix_unit[1] * speed, 0.0]
+            _write_continuous_ground_row(row, label_class=label_class, pos=pos, vel=vel)
+
+        previous_moving_pos = first_pos
+        previous_moving_vel = first_vel
+        previous_moving_tick = first_tick
+        silent_run: list[dict[str, Any]] = []
+        for row, moving in zip(entity_rows[first_moving_index + 1 :], moving_flags[first_moving_index + 1 :]):
+            if moving:
+                if silent_run:
+                    next_tick = int(row.get("tick", 0))
+                    next_pos = vector3(row.get("pos_enu") or previous_moving_pos)
+                    next_vel = vector3(row.get("vel_mps") or previous_moving_vel)
+                    gap = max(1, next_tick - previous_moving_tick)
+                    gap_speed_mps = distance3(previous_moving_pos, next_pos) / (gap / float(TICK_HZ))
+                    for silent in silent_run:
+                        alpha = (int(silent.get("tick", 0)) - previous_moving_tick) / float(gap)
+                        if distance3(previous_moving_pos, next_pos) > 0.05 and gap_speed_mps <= speed * 1.6:
+                            pos = [
+                                previous_moving_pos[i] + (next_pos[i] - previous_moving_pos[i]) * alpha
+                                for i in range(3)
+                            ]
+                            vel = [(next_pos[i] - previous_moving_pos[i]) / (gap / float(TICK_HZ)) for i in range(3)]
+                        else:
+                            unit = _unit_from_motion_or_entity(
+                                entity_id=entity_id,
+                                entity=entity,
+                                anchor_pos=previous_moving_pos,
+                                preferred_vel=previous_moving_vel,
+                                label_class=label_class,
+                            )
+                            pos, vel = _ground_flow_point(
+                                tick=int(silent.get("tick", 0)),
+                                label_class=label_class,
+                                anchor_tick=previous_moving_tick,
+                                anchor_pos=previous_moving_pos,
+                                unit=unit,
+                                span_m=span,
+                                speed_mps=speed,
+                            )
+                        _write_continuous_ground_row(silent, label_class=label_class, pos=pos, vel=vel)
+                    silent_run = []
+                previous_moving_pos = vector3(row.get("pos_enu") or previous_moving_pos)
+                previous_moving_vel = vector3(row.get("vel_mps") or previous_moving_vel)
+                previous_moving_tick = int(row.get("tick", 0))
+            else:
+                silent_run.append(row)
+        if silent_run:
+            unit = _unit_from_motion_or_entity(
+                entity_id=entity_id,
+                entity=entity,
+                anchor_pos=previous_moving_pos,
+                preferred_vel=previous_moving_vel,
+                label_class=label_class,
+            )
+            for silent in silent_run:
+                pos, vel = _ground_flow_point(
+                    tick=int(silent.get("tick", 0)),
+                    label_class=label_class,
+                    anchor_tick=previous_moving_tick,
+                    anchor_pos=previous_moving_pos,
+                    unit=unit,
+                    span_m=span,
+                    speed_mps=speed,
+                )
+                _write_continuous_ground_row(silent, label_class=label_class, pos=pos, vel=vel)
+        _smooth_ground_jumps(
+            entity_rows,
+            label_class=label_class,
+            max_step_m=0.4 if label_class == "pedestrian" else 1.0,
+        )
+
+
+def keep_inspect_uavs_looping(
+    rows: list[dict[str, Any]],
+    entities: dict[str, dict[str, Any]],
+    duration_ticks: int,
+) -> None:
+    rows_by_entity: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        entity_id = str(row.get("entity_id") or "")
+        if entity_id:
+            rows_by_entity.setdefault(entity_id, []).append(row)
+    for entity_id, entity in entities.items():
+        if not bool(entity.get("contract_inspect_uav")) and str(entity.get("role") or "") != "U_inspect":
+            continue
+        entity_rows = rows_by_entity.get(entity_id)
+        if not entity_rows:
+            continue
+        entity_rows.sort(key=lambda item: int(item.get("tick", 0)))
+        route = [vector3(point) for point in (entity.get("route_waypoints_enu_m") or [])]
+        if len(route) < 2:
+            continue
+        start = vector3(route[0])
+        full_route = extend_loop_route(
+            start,
+            route[1:],
+            velocity_mps=INSPECT_UAV_LOOP_SPEED_MPS,
+            duration_ticks=duration_ticks,
+            min_motion_ratio=INSPECT_UAV_MIN_MOTION_RATIO,
+        )
+        frames = keyframes_for(
+            start,
+            [
+                {
+                    "type": "move",
+                    "tick": 0,
+                    "waypoints_enu_m": full_route,
+                    "velocity_mps": INSPECT_UAV_LOOP_SPEED_MPS,
+                    "activity_type": "inspect_racetrack",
+                    "post_activity_type": "inspect_racetrack",
+                    "source": "contract_inspect_uav.loop_route_enu_m",
+                    "start_pos_enu": start,
+                }
+            ],
+            "inspect_racetrack",
+            pedestrian=False,
+        )
+        for row in entity_rows:
+            tick = int(row.get("tick", 0))
+            pos, vel, state = sample_keyframes(frames, tick)
+            row["pos_enu"] = [round(float(value), 6) for value in pos]
+            row["vel_mps"] = [round(float(value), 6) for value in vel]
+            row["state"] = state
+            row.update(row_activity_payload("uav", state))
+
+
 def preserved_fields_from(*sources: dict[str, Any]) -> dict[str, Any]:
     preserved: dict[str, Any] = {}
     for field in PRESERVED_ENTITY_FIELDS:
@@ -651,6 +1183,7 @@ def route_motion_schedule(
     initial_pos: Sequence[float],
     route_waypoints: list[Any],
     initial_state: str,
+    ground_flow_contract: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     if not route_waypoints:
         return []
@@ -661,11 +1194,25 @@ def route_motion_schedule(
         velocity = 6.0
     elif label_class == "pedestrian":
         velocity = 1.25
+    ground_flow = dict(ground_flow_contract or {})
+    if str(ground_flow.get("policy") or "") == "continuous_capture_ground_flow_v1":
+        velocity = max(0.1, _to_float(ground_flow.get("speed_mps", velocity), velocity))
+        route_waypoints = extend_ground_flow_route(
+            vector3(initial_pos),
+            [vector3(waypoint) for waypoint in route_waypoints],
+            velocity_mps=velocity,
+            duration_ticks=max(1, _to_int(ground_flow.get("route_duration_ticks"), DEFAULT_DURATION_TICKS)),
+            min_visible_motion_ratio=max(0.0, _to_float(ground_flow.get("min_visible_motion_ratio", 0.85), 0.85)),
+        )
     activity_type = initial_state
     post_activity_type = initial_state
     if label_class == "pedestrian":
         activity_type = normalize_activity_type("walking", moving=True)
         post_activity_type = normalize_activity_type(initial_state or "waiting")
+        if str(ground_flow.get("policy") or "") == "continuous_capture_ground_flow_v1":
+            post_activity_type = activity_type
+    elif str(ground_flow.get("policy") or "") == "continuous_capture_ground_flow_v1":
+        post_activity_type = activity_type
     return [
         {
             "type": "move",
@@ -735,6 +1282,7 @@ def build_entities(scene_setup: dict[str, Any], script: dict[str, Any]) -> dict[
                     initial_pos=position,
                     route_waypoints=list(scene_entity.get("route_waypoints_enu_m") or []),
                     initial_state=str(initial_activity or "idle"),
+                    ground_flow_contract=dict(scene_entity.get("ground_flow_contract") or {}),
                 )
                 if auto_route
                 else []
@@ -992,6 +1540,10 @@ class EpisodeStateEngine:
                 missing.append(event_id)
         if missing:
             raise RuntimeError(f"{self.scenario_id}: declared events did not fire in deterministic episode simulation: {missing}")
+
+        apply_ambient_ground_motion(self.trajectory_rows, self.entities, self.duration_ticks)
+        keep_ground_entities_moving(self.trajectory_rows, self.entities, self.duration_ticks)
+        keep_inspect_uavs_looping(self.trajectory_rows, self.entities, self.duration_ticks)
 
         roster: dict[str, dict[str, Any]] = {}
         for entity_id, entity in sorted(self.entities.items()):

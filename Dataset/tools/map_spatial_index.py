@@ -16,6 +16,7 @@ from typing import Any, Iterable, Sequence
 
 from shapely.geometry import LineString, Point, Polygon, box, shape
 from shapely.ops import unary_union
+from shapely.prepared import prep
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -368,6 +369,10 @@ class MapSpatialIndex:
         self.building_union = _load_geojson_union(self.source_geojson_paths["building"], self.geojson_center_xy_m, self.geojson_fit)
         self.green_union = _load_geojson_union(self.source_geojson_paths["green"], self.geojson_center_xy_m, self.geojson_fit)
         self.block_union = _load_geojson_union(self.source_geojson_paths["block"], self.geojson_center_xy_m, self.geojson_fit)
+        self.bounds_prepared = prep(self.bounds_union)
+        self.water_prepared = prep(self.water_union)
+        self.building_prepared = prep(self.building_union)
+        self.green_prepared = prep(self.green_union)
 
     @classmethod
     def default(cls, project_root: Path = ROOT) -> "MapSpatialIndex":
@@ -391,13 +396,13 @@ class MapSpatialIndex:
     ) -> list[str]:
         point = self._point_geometry(point_enu_m)
         errors: list[str] = []
-        if not self.bounds_union.covers(point):
+        if not self.bounds_prepared.covers(point):
             errors.append(f"{context} outside bounds.geojson: {list(point_enu_m)}")
-        if self.water_union.covers(point):
+        if self.water_prepared.covers(point):
             errors.append(f"{context} inside water.geojson: {list(point_enu_m)}")
-        if self.building_union.covers(point):
+        if self.building_prepared.covers(point):
             errors.append(f"{context} inside building.geojson: {list(point_enu_m)}")
-        if not allow_green and self.green_union.covers(point):
+        if not allow_green and self.green_prepared.covers(point):
             errors.append(f"{context} inside green.geojson without explicit green allowance: {list(point_enu_m)}")
         if not allow_road and self.nearest_lane_clearance(point_enu_m) < LANE_HALF_WIDTH_M + road_buffer_m:
             errors.append(f"{context} inside roadway clearance: {list(point_enu_m)}")
@@ -421,13 +426,13 @@ class MapSpatialIndex:
     ) -> list[str]:
         line = LineString([(float(a_enu_m[0]), float(a_enu_m[1])), (float(b_enu_m[0]), float(b_enu_m[1]))])
         errors: list[str] = []
-        if not self.bounds_union.covers(line):
+        if not self.bounds_prepared.covers(line):
             errors.append(f"{context} segment leaves bounds.geojson")
-        if line.intersects(self.water_union):
+        if self.water_prepared.intersects(line):
             errors.append(f"{context} segment intersects water.geojson")
-        if line.intersects(self.building_union):
+        if self.building_prepared.intersects(line):
             errors.append(f"{context} segment intersects building.geojson")
-        if not allow_green and line.intersects(self.green_union):
+        if not allow_green and self.green_prepared.intersects(line):
             errors.append(f"{context} segment intersects green.geojson without explicit green allowance")
         for point in _densify_segment(a_enu_m, b_enu_m, max(sample_step_m, 0.5)):
             for error in self.validation_errors_for_point(
@@ -463,13 +468,13 @@ class MapSpatialIndex:
     ) -> list[str]:
         envelope = self.spawn_envelope_polygon(origin_enu_m, extent_cm)
         errors: list[str] = []
-        if not self.bounds_union.covers(envelope):
+        if not self.bounds_prepared.covers(envelope):
             errors.append(f"{context} spawn envelope leaves bounds.geojson")
-        if envelope.intersects(self.water_union):
+        if self.water_prepared.intersects(envelope):
             errors.append(f"{context} spawn envelope intersects water.geojson")
-        if envelope.intersects(self.building_union):
+        if self.building_prepared.intersects(envelope):
             errors.append(f"{context} spawn envelope intersects building.geojson")
-        if not allow_green and envelope.intersects(self.green_union):
+        if not allow_green and self.green_prepared.intersects(envelope):
             errors.append(f"{context} spawn envelope intersects green.geojson without explicit green allowance")
         half_extent_m = max(float(extent_cm[0] if len(extent_cm) > 0 else 0.0), float(extent_cm[1] if len(extent_cm) > 1 else 0.0)) / 200.0
         required = LANE_HALF_WIDTH_M + half_extent_m + CROWD_ROAD_BUFFER_M
@@ -492,6 +497,19 @@ class MapSpatialIndex:
             for delta_s in s_deltas:
                 samples.append(self.lanes.resolve_edge_s(edge_id_hint, max(min_s, min(max_s, base_s + delta_s))))
         nearest = self.lanes.nearest(hint_pos_enu_m)
+        if edge_id_hint:
+            if nearest.edge_id != edge_id_hint:
+                min_s, max_s = self.lanes.edge_s_bounds(nearest.edge_id)
+                for delta_s in s_deltas[:9]:
+                    samples.append(self.lanes.resolve_edge_s(nearest.edge_id, max(min_s, min(max_s, nearest.s_m + delta_s))))
+            deduped: list[LaneSample] = []
+            seen: set[tuple[str, float]] = set()
+            for sample in samples:
+                key = (sample.edge_id, round(sample.s_m, 3))
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(sample)
+            return deduped
         nearby_base_samples: list[LaneSample] = [nearest]
         seen_edges = {nearest.edge_id}
         for sample in sorted(
