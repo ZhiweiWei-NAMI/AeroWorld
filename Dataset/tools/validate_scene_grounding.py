@@ -608,8 +608,13 @@ def check_contract_payload(scene: dict[str, Any], script: dict[str, Any], issues
         issues.append(f"{script['scenario_id']}: semantic_event_contract missing capture_boundary")
     else:
         expected_boundary = contract.capture_boundary
-        if str(capture_boundary.get("boundary_id") or "") != expected_boundary.boundary_id:
-            issues.append(f"{script['scenario_id']}: capture_boundary.boundary_id does not match contract")
+        boundary_id = str(capture_boundary.get("boundary_id") or "")
+        source_entity_id = str(capture_boundary.get("source_entity_id") or "")
+        scene_ids = declared_ids(scene)
+        if not boundary_id:
+            issues.append(f"{script['scenario_id']}: capture_boundary.boundary_id missing")
+        elif boundary_id not in scene_ids and source_entity_id not in scene_ids:
+            issues.append(f"{script['scenario_id']}: capture_boundary must resolve to a declared scene entity")
         if str(capture_boundary.get("geometry_source") or "") != expected_boundary.geometry_source:
             issues.append(f"{script['scenario_id']}: capture_boundary.geometry_source does not match contract")
         if as_tuple_str(capture_boundary.get("anchor_entity_roles")) != expected_boundary.anchor_entity_roles:
@@ -1957,14 +1962,28 @@ def check_render_ready_contract(render_ready_root: Path, issues: list[str]) -> N
         event_trace_path = episode_dir / "event_trace.jsonl"
         dynamic_labels_path = episode_dir / "dynamic_labels.jsonl"
         roster_path = episode_dir / "global_entity_roster.json"
-        if not scenario_plan_path.exists() or not truth_frames_path.exists() or not event_trace_path.exists() or not dynamic_labels_path.exists() or not roster_path.exists():
+        manifest_path = episode_dir / "episode_manifest.json"
+        if not scenario_plan_path.exists() or not truth_frames_path.exists() or not event_trace_path.exists() or not dynamic_labels_path.exists() or not roster_path.exists() or not manifest_path.exists():
             issues.append(f"{episode_dir}: missing render-ready artifacts")
             continue
         scenario_plan = load_json(scenario_plan_path)
+        manifest = load_json(manifest_path)
         scenario_id = str(scenario_plan.get("scenario_id") or scenario_plan.get("episode_id") or episode_dir.name)
         if "__seed" in scenario_id:
             scenario_id = scenario_id.split("__seed", 1)[0]
         contract = get_contract(scenario_id)
+        generation = dict(manifest.get("generation") or {})
+        if "generated_at" in manifest or "generated_at" in generation:
+            issues.append(f"{episode_dir.name}: render-ready manifest must not contain generated_at")
+        if not generation.get("source_contract_hash"):
+            issues.append(f"{episode_dir.name}: render-ready manifest missing generation.source_contract_hash")
+        for key in ("capture_boundary_id", "uav_crosses_boundary", "inspect_observes_boundary", "pad_boundary_policy"):
+            if key not in scenario_plan:
+                issues.append(f"{episode_dir.name}: scenario_plan missing {key}")
+        if scenario_plan.get("uav_crosses_boundary") is not True:
+            issues.append(f"{episode_dir.name}: scenario_plan.uav_crosses_boundary must be true")
+        if scenario_plan.get("inspect_observes_boundary") is not True:
+            issues.append(f"{episode_dir.name}: scenario_plan.inspect_observes_boundary must be true")
         roster = load_json(roster_path).get("entities") or []
         counts = _render_ready_entity_counts(episode_dir)
         for key, expected in contract.counts.items():
@@ -1985,6 +2004,17 @@ def check_render_ready_contract(render_ready_root: Path, issues: list[str]) -> N
             issues.append(f"{episode_dir.name}: empty truth_frames")
         else:
             for frame in truths[:3]:
+                for key in ("capture_boundary_id", "uav_crosses_boundary", "inspect_observes_boundary", "pad_boundary_policy"):
+                    if key not in frame:
+                        issues.append(f"{episode_dir.name}: truth_frame missing {key}")
+                if frame.get("capture_boundary_id") != scenario_plan.get("capture_boundary_id"):
+                    issues.append(f"{episode_dir.name}: truth_frame capture_boundary_id mismatch")
+                if frame.get("uav_crosses_boundary") is not True:
+                    issues.append(f"{episode_dir.name}: truth_frame.uav_crosses_boundary must be true")
+                if frame.get("inspect_observes_boundary") is not True:
+                    issues.append(f"{episode_dir.name}: truth_frame.inspect_observes_boundary must be true")
+                if frame.get("pad_boundary_policy") != scenario_plan.get("pad_boundary_policy"):
+                    issues.append(f"{episode_dir.name}: truth_frame pad_boundary_policy mismatch")
                 frame_counts = dict((frame.get("roster_summary") or {}).get("by_category") or {})
                 for key, expected in contract.counts.items():
                     if int(frame_counts.get(key, 0) or 0) < 0:

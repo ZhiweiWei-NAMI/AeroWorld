@@ -493,53 +493,6 @@ def target_ids_from_event(row: dict[str, Any]) -> list[str]:
     return [str(target)] if target else []
 
 
-def truth_boundary_summary(entities: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    boundary_ids = sorted(
-        {
-            str(entity.get("capture_boundary_id"))
-            for entity in entities
-            if value_is_present(entity.get("capture_boundary_id"))
-        }
-    )
-    pad_policies = sorted(
-        {
-            json.dumps(entity.get("pad_boundary_policy"), ensure_ascii=False, sort_keys=True)
-            for entity in entities
-            if value_is_present(entity.get("pad_boundary_policy"))
-        }
-    )
-    motion_state: dict[str, str] = {}
-    for entity in sorted(entities, key=lambda item: str(item.get("entity_id") or "")):
-        entity_id = str(entity.get("entity_id") or "")
-        if not entity_id:
-            continue
-        state = (
-            entity.get("motion_state")
-            or entity.get("animation_hint")
-            or entity.get("activity_type")
-            or entity.get("state")
-        )
-        annotations = entity.get("annotations")
-        if not value_is_present(state) and isinstance(annotations, dict):
-            state = annotations.get("activity_type")
-        motion_contract = entity.get("motion_contract")
-        if not value_is_present(state) and isinstance(motion_contract, dict):
-            state = motion_contract.get("motion_kind")
-        if value_is_present(state):
-            motion_state[entity_id] = str(state)
-    return {
-        "capture_boundary_id": boundary_ids[0] if len(boundary_ids) == 1 else boundary_ids,
-        "uav_crosses_boundary": any(bool(entity.get("uav_crosses_boundary")) for entity in entities),
-        "inspect_observes_boundary": any(bool(entity.get("inspect_observes_boundary")) for entity in entities),
-        "pad_boundary_policy": (
-            json.loads(pad_policies[0])
-            if len(pad_policies) == 1
-            else [json.loads(policy) for policy in pad_policies]
-        ),
-        "entity_motion_state": motion_state,
-    }
-
-
 def build_activity_overrides(event_rows: Sequence[dict[str, Any]], roster: dict[str, dict[str, Any]]) -> dict[str, list[tuple[int, str]]]:
     overrides: dict[str, list[tuple[int, str]]] = defaultdict(list)
     for row in event_rows:
@@ -757,13 +710,56 @@ def scene_setup_entities(scene_setup: dict[str, Any]) -> dict[str, dict[str, Any
 
 
 def inspect_route_from_source(inspect_entity: dict[str, Any], inspect_contract: dict[str, Any]) -> list[list[float]]:
-    route = inspect_contract.get("planned_route_enu_m")
+    route = None
+    for key in ("loop_route_enu_m", "repaired_route_enu_m", "planned_route_enu_m"):
+        candidate = inspect_contract.get(key)
+        if isinstance(candidate, list):
+            route = candidate
+            break
     if not isinstance(route, list):
-        raise RuntimeError(f"Missing planned_route_enu_m on inspect contract {inspect_entity.get('entity_id')!r}")
+        raise RuntimeError(f"Missing inspect loop route on contract {inspect_entity.get('entity_id')!r}")
     route_points = [point for point in route if isinstance(point, Sequence) and not isinstance(point, (str, bytes))]
     if len(route_points) < 2:
-        raise RuntimeError(f"Inspect planned route is too short on entity {inspect_entity.get('entity_id')!r}")
+        raise RuntimeError(f"Inspect route is too short on entity {inspect_entity.get('entity_id')!r}")
     return [[float(value) for value in point[:3]] for point in route_points]
+
+
+def inspect_entity_from_source(entities: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    inspect_entities = [
+        entity
+        for entity in entities.values()
+        if str((entity.get("initial_state") or {}).get("role") or "") == "U_inspect"
+        or str(entity.get("uav_corridor_role") or "") == "inspect_observer"
+        or isinstance(entity.get("contract_inspect_uav"), dict)
+    ]
+    if len(inspect_entities) != 1:
+        raise RuntimeError(f"Expected exactly one inspect entity, found {len(inspect_entities)}")
+    return inspect_entities[0]
+
+
+def source_capture_boundary_id(event_script: dict[str, Any]) -> str:
+    params = dict(event_script.get("parameters") or {})
+    boundary = dict(params.get("capture_boundary") or {})
+    contract = dict(params.get("semantic_event_contract") or {})
+    if not boundary:
+        boundary = dict(contract.get("capture_boundary") or {})
+    boundary_id = str(boundary.get("boundary_id") or boundary.get("source_entity_id") or "").strip()
+    if not boundary_id:
+        raise RuntimeError("Missing capture_boundary.boundary_id in source event_script.json")
+    return boundary_id
+
+
+def source_pad_boundary_policy(event_script: dict[str, Any]) -> Any:
+    params = dict(event_script.get("parameters") or {})
+    contract = dict(params.get("semantic_event_contract") or {})
+    policy = contract.get("pad_boundary_policy")
+    if policy not in (None, ""):
+        return policy
+    boundary = dict(params.get("capture_boundary") or contract.get("capture_boundary") or {})
+    policy = boundary.get("pad_boundary_policy")
+    if policy in (None, ""):
+        raise RuntimeError("Missing pad_boundary_policy in source event_script.json")
+    return policy
 
 
 def capture_contract_from_source(
@@ -783,46 +779,20 @@ def capture_contract_from_source(
         raise RuntimeError(f"Missing event_script.json for source episode {source_episode_dir}")
 
     entities = scene_setup_entities(scene_setup)
-    inspect_entities = [entity for entity in entities.values() if isinstance(entity.get("contract_inspect_uav"), dict)]
-    if len(inspect_entities) != 1:
-        raise RuntimeError(f"Expected exactly one inspect entity with contract_inspect_uav, found {len(inspect_entities)}")
-    inspect_entity = inspect_entities[0]
-
+    inspect_entity = inspect_entity_from_source(entities)
     inspect_contract = dict(inspect_entity.get("contract_inspect_uav") or {})
-    lifecycle = dict(inspect_entity.get("lifecycle") or {})
-    home_pad_id = str(lifecycle.get("home_pad_entity_id") or "").strip()
-    if not home_pad_id:
-        raise RuntimeError("Missing lifecycle.home_pad_entity_id on U_inspect entity")
-    home_pad = entities.get(home_pad_id)
-    if not isinstance(home_pad, dict):
-        raise RuntimeError(f"Missing home pad entity {home_pad_id!r}")
-
-    boundary_event = None
-    for event in event_script.get("events") or []:
-        if isinstance(event, dict) and str(event.get("event_id") or "").strip() == "boundary_conflict":
-            boundary_event = event
-            break
-    if not isinstance(boundary_event, dict):
-        raise RuntimeError("Missing boundary_conflict event in source event_script.json")
-    trigger_ref = str(boundary_event.get("trigger_ref") or "").strip()
-    if not trigger_ref:
-        raise RuntimeError("Missing trigger_ref on boundary_conflict event")
-    trigger = None
-    for candidate in event_script.get("triggers") or []:
-        if isinstance(candidate, dict) and str(candidate.get("trigger_id") or "").strip() == trigger_ref:
-            trigger = candidate
-            break
-    if not isinstance(trigger, dict):
-        raise RuntimeError(f"Missing trigger {trigger_ref!r} for boundary_conflict event")
-    capture_boundary_id = str(trigger.get("entity_b") or "").strip()
-    if not capture_boundary_id:
-        raise RuntimeError("Missing capture boundary entity id on boundary_conflict trigger")
+    params = dict(event_script.get("parameters") or {})
+    semantic_contract = dict(params.get("semantic_event_contract") or {})
+    if semantic_contract.get("uav_boundary_crossing_required") is not True:
+        raise RuntimeError("Source semantic_event_contract must require UAV boundary crossing")
+    if semantic_contract.get("inspect_fov_coverage_required") is not True:
+        raise RuntimeError("Source semantic_event_contract must require inspect FoV coverage")
 
     return {
-        "capture_boundary_id": capture_boundary_id,
+        "capture_boundary_id": source_capture_boundary_id(event_script),
         "uav_crosses_boundary": True,
         "inspect_observes_boundary": True,
-        "pad_boundary_policy": str((home_pad.get("placement") or {}).get("approach_side") or "").strip(),
+        "pad_boundary_policy": source_pad_boundary_policy(event_script),
         "inspect_entity_id": str(inspect_entity.get("entity_id") or "").strip(),
         "inspect_route_enu_m": inspect_route_from_source(inspect_entity, inspect_contract),
         "inspect_contract": inspect_contract,
@@ -835,7 +805,7 @@ def truth_boundary_summary(
     capture_boundary_id: str,
     uav_crosses_boundary: bool,
     inspect_observes_boundary: bool,
-    pad_boundary_policy: str,
+    pad_boundary_policy: Any,
 ) -> dict[str, Any]:
     motion_state: dict[str, str] = {}
     for entity in sorted(entities, key=lambda item: str(item.get("entity_id") or "")):

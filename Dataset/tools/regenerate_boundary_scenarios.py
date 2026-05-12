@@ -1621,6 +1621,7 @@ def _add_contract_inspect_uav(
     scene["contract_inspect_uav"] = {
         "policy": "semantic_event_contract_v1",
         "corridor_role": "inspect_observer",
+        "corridor_policy": contract.inspect.corridor_policy,
         "motion_policy": "fixed_altitude_loop_observes_capture_boundary",
         "inspect_altitude_m": contract.inspect_altitude_m,
         "inspect_altitude_code": contract.inspect_code,
@@ -1629,7 +1630,7 @@ def _add_contract_inspect_uav(
         "min_path_length_m": 80.0,
         "fixed_altitude_loop": True,
         "planned_route_enu_m": [start, *route],
-        "loop_route_enu_m": [start, *route],
+        "loop_route_enu_m": route,
     }
     add(specs, scenes, (spec, scene))
     return entity_id
@@ -2413,10 +2414,11 @@ def make_bundle(
     add_uav_lifecycle(scenario_id, spec_entities, scene_entities, events)
     apply_uav_corridor_contract(scenario_id, spec_entities, scene_entities, events, parameters)
     normalize_proximity_trigger_reachability(scenario_id, scene_entities, events, parameters)
+    capture_boundary_policy = _scenario_pad_boundary_policy(scenario_id)
     capture_boundary = {
         **_capture_boundary_from_points(scenario_id, scene_entities, events),
         "uav_boundary_crossing_required": True,
-        "pad_boundary_policy": _scenario_pad_boundary_policy(scenario_id),
+        "pad_boundary_policy": capture_boundary_policy,
         "inspect_fov_coverage_required": True,
         "inspect_entity_role": "U_inspect",
     }
@@ -2429,7 +2431,10 @@ def make_bundle(
                 **capture_boundary,
             },
             "uav_boundary_crossing_required": True,
-            "pad_boundary_policy": capture_boundary["pad_boundary_policy"],
+            "pad_boundary_policy": {
+                "default": contract.pad_policy.default,
+                "inside_required_for": list(contract.pad_policy.inside_required_for),
+            },
             "inspect_fov_coverage_required": True,
         }
     for scene in scene_entities:
@@ -2440,7 +2445,13 @@ def make_bundle(
                 "inspect_fov_coverage_required": True,
             }
     ensure_contract_logical_count(scenario_id, spec_entities, scene_entities, events, parameters)
-    pending_validation_rules = list(parameters.pop("_pending_validation_rules", []))
+    final_contract_payload = dict(parameters.get("semantic_event_contract") or {})
+    pending_validation_rules = []
+    for rule in list(parameters.pop("_pending_validation_rules", [])):
+        if rule.get("rule") == "semantic_event_contract":
+            pending_validation_rules.append({**rule, "contract": final_contract_payload})
+        else:
+            pending_validation_rules.append(rule)
     ids = [e["entity_id"] for e in scene_entities]
     rules = base_rules(ids, scenario_id) + asset_rules(scene_entities)
     rules.extend(pending_validation_rules)
@@ -2451,7 +2462,7 @@ def make_bundle(
             "description": "Mission/observer UAV routes must pass through the semantic capture boundary; pads may remain outside unless the pad policy says otherwise",
         }
     )
-    if capture_boundary["pad_boundary_policy"] == "event_pads_inside_capture_boundary":
+    if capture_boundary_policy == "event_pads_inside_capture_boundary":
         rules.append(
             {
                 "rule": "pad_inside_boundary_required",
@@ -2972,10 +2983,11 @@ def apply_uav_corridor_contract(
                     f"{scenario_id}: U_inspect repaired route is shorter than the deterministic contract minimum: "
                     f"{entity_id} length={_route_length_m(inspect_route):.3f}m"
                 )
+            inspect_loop_route = list(inspect_route[1:] or inspect_route)
             scene["contract_inspect_uav"] = {
                 **(scene.get("contract_inspect_uav") or {}),
                 "repaired_route_enu_m": inspect_route,
-                "loop_route_enu_m": inspect_route,
+                "loop_route_enu_m": inspect_loop_route,
                 "repaired_path_length_m": round(_route_length_m(inspect_route), 3),
                 "fixed_altitude_loop": True,
             }
