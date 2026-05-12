@@ -1,26 +1,20 @@
-# L4-6_v2: Vehicle runs red light, pedestrian jumps back
+﻿# L4-6_v2: physically animated semantic chain with a clear key event and continuous interaction
 
-- **Event Type**: L4-6 — Pedestrian-Vehicle Conflict
-- **ODD Layer**: L4 (L4)
-- **Mechanism**: collision
-- **SORA SAIL**: I-II
-- **CAAC Reference**: CAAC-14 related (injury from vehicle)
-- **Severity**: critical
-- **Belcastro Domain**: Ground domain (beyond Belcastro, CAAC-14 validated)
+- **Layer**: L4
+- **Contract**: U/V/P/F/L = 3/2/3/1/2
+- **Inspect**: I10, long-lived U_inspect, moving inspect-view substitute, not static hover
+- **Weather**: clear
 
-## Causal Chain
-pedestrian enters roadway → vehicle approaches → conflict detection → emergency brake → near-miss / minor impact
+## Chain
+alternate jaywalk conflict
 
-## Entities
-pedestrian, vehicle, traffic_light
+## Actors
+Entities: semantic UAVs, background vehicles/pedestrians where present, and scenario-specific facilities/logical actors.
+- Background vehicle semantics: brake/recover traffic
+- Background pedestrian semantics: retreat/wait
+- Every episode is a physically animated semantic chain with continuous interaction from the first key event through recovery/landing/resolution.
 
 ## Files
-- `event_script.json` — Compiled event script (loadable by EventScriptInterpreter)
-- `spec.py` — ScenarioSpec definition (auto-generated, customize for manual tuning)
-
-## Usage
-```python
-from donghu_core.event_script_interpreter import EventScriptInterpreter
-from pathlib import Path
-interpreter = EventScriptInterpreter(Path('event_script.json'))
-```
+- `event_script.json`
+- `scene_setup.json`
+- `spec.py`

@@ -1,26 +1,20 @@
-# L5-1_v2: Sudden heavy downpour, immediate UAV grounding
+﻿# L5-1_v2: physically animated semantic chain with weather-linked continuous interaction
 
-- **Event Type**: L5-1 — Rain Transition (Gradual / Sudden)
-- **ODD Layer**: L5 (L5)
-- **Mechanism**: environmental
-- **SORA SAIL**: II-IV
-- **CAAC Reference**: CAAC-4 related (weather-induced obstacle strike)
-- **Severity**: major
-- **Belcastro Domain**: Operations:Environmental/Weather Hazards
+- **Layer**: L5
+- **Contract**: U/V/P/F/L = 3/4/6/2/6
+- **Inspect**: I22, long-lived U_inspect, moving inspect-view substitute, not static hover
+- **Weather**: rain
 
-## Causal Chain
-rain onset → visibility decrease → UAV divert/RTH → ground wetness → pedestrian slip risk → traffic slowdown
+## Chain
+rain variant > degraded route
 
-## Entities
-uav, pedestrian, vehicle
+## Actors
+Entities: semantic UAVs, semantic background vehicles/pedestrians, and weather-visible facilities/logical actors.
+- Background vehicle semantics: cautious traffic
+- Background pedestrian semantics: shelter/wait states
+- Every episode is a physically animated semantic chain with continuous interaction from the first key event through recovery/landing/resolution.
 
 ## Files
-- `event_script.json` — Compiled event script (loadable by EventScriptInterpreter)
-- `spec.py` — ScenarioSpec definition (auto-generated, customize for manual tuning)
-
-## Usage
-```python
-from donghu_core.event_script_interpreter import EventScriptInterpreter
-from pathlib import Path
-interpreter = EventScriptInterpreter(Path('event_script.json'))
-```
+- `event_script.json`
+- `scene_setup.json`
+- `spec.py`

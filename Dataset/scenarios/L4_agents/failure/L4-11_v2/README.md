@@ -1,26 +1,20 @@
-# L4-11_v2: Vehicle out of fuel, blocks arterial road
+﻿# L4-11_v2: physically animated semantic chain with a clear key event and continuous interaction
 
-- **Event Type**: L4-11 — Vehicle Breakdown Blocking Road
-- **ODD Layer**: L4 (L4)
-- **Mechanism**: failure
-- **SORA SAIL**: I
-- **CAAC Reference**: Non-emergency (vehicle failure)
-- **Severity**: major
-- **Belcastro Domain**: Ground domain (beyond Belcastro, CAAC cross-validated)
+- **Layer**: L4
+- **Contract**: U/V/P/F/L = 3/3/2/1/3
+- **Inspect**: I18, long-lived U_inspect, moving inspect-view substitute, not static hover
+- **Weather**: clear
 
-## Causal Chain
-sensor fault / fuel exhaustion → vehicle stops → lane blocked → following vehicles brake → traffic wave → UAV detects and reports
+## Chain
+AV failure > hazard hold
 
-## Entities
-disabled_vehicle, following_vehicle, uav
+## Actors
+Entities: semantic UAVs, background vehicles/pedestrians where present, and scenario-specific facilities/logical actors.
+- Background vehicle semantics: stopped AV and following traffic
+- Background pedestrian semantics: non-event background
+- Every episode is a physically animated semantic chain with continuous interaction from the first key event through recovery/landing/resolution.
 
 ## Files
-- `event_script.json` — Compiled event script (loadable by EventScriptInterpreter)
-- `spec.py` — ScenarioSpec definition (auto-generated, customize for manual tuning)
-
-## Usage
-```python
-from donghu_core.event_script_interpreter import EventScriptInterpreter
-from pathlib import Path
-interpreter = EventScriptInterpreter(Path('event_script.json'))
-```
+- `event_script.json`
+- `scene_setup.json`
+- `spec.py`

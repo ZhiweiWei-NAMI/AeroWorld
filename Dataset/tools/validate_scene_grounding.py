@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from map_spatial_index import MapSpatialIndex  # noqa: E402
 from pedestrian_activity_catalog import get_activity, normalize_activity_type, validate_local_animation_assets  # noqa: E402
 from uav_corridor_planner import BuildingObstacleIndex, UAV_CORRIDOR_LOGICAL_ASSET_ID  # noqa: E402
-from semantic_event_contract import all_contracts, get_contract, required_event_sequence_matches  # noqa: E402
+from semantic_event_contract import all_contracts, get_contract, normalize_semantic_text, required_event_sequence_matches, required_event_stages  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -63,6 +63,29 @@ SEMANTIC_ALLOWED_STATIC_STATES = {
     "inspect_racetrack",
     "orbit",
     "patrol",
+}
+BACKGROUND_VEHICLE_ALLOWED_STATES = {
+    "blocked",
+    "blocked_by_barrier",
+    "braking",
+    "cautious_flow",
+    "detour",
+    "held",
+    "queued",
+    "responder",
+    "stopped",
+    "traffic_flow",
+    "traffic_slow",
+    "yielding",
+}
+BACKGROUND_PEDESTRIAN_ALLOWED_STATES = {
+    "chatting",
+    "evacuating",
+    "medical_incident",
+    "observing",
+    "retreat",
+    "waiting",
+    "walking",
 }
 INITIAL_OVERLAP_MIN_M = {
     ("pedestrian", "pedestrian"): 0.75,
@@ -380,10 +403,60 @@ def sequence_contains_terms(sequence: Any, terms: list[str]) -> bool:
     return all(term in hay for term in terms)
 
 
-def sequence_has_allowed_semantics(sequence: Any) -> bool:
+def sequence_matches_allowed_states(sequence: Any, allowed_states: set[str]) -> bool:
     if not isinstance(sequence, list) or not sequence:
         return False
-    return any(str(item).lower() in SEMANTIC_ALLOWED_STATIC_STATES for item in sequence)
+    normalized = [str(item).strip().lower() for item in sequence if str(item).strip()]
+    return bool(normalized) and all(item in allowed_states for item in normalized)
+
+
+def event_text_haystack_exact(event: dict[str, Any]) -> str:
+    payload = dict(event.get("payload") or {})
+    parts = [
+        event.get("event_id"),
+        event.get("topic"),
+        event.get("source_event_id"),
+        event.get("source_topic"),
+        event.get("title"),
+        payload.get("event_id"),
+        payload.get("source_event_id"),
+        payload.get("source_topic"),
+        payload.get("title"),
+    ]
+    return normalize_semantic_text(" ".join(str(part or "") for part in parts))
+
+
+def required_event_sequence_matches_exact(required_event: str, events: list[dict[str, Any]]) -> tuple[bool, list[str]]:
+    stages = required_event_stages(required_event)
+    if not stages:
+        return True, []
+    matches: list[str] = []
+    start_index = 0
+    for stage in stages:
+        found_index = -1
+        for index in range(start_index, len(events)):
+            haystack = event_text_haystack_exact(events[index])
+            if any(all(token in haystack for token in option) for option in stage):
+                found_index = index
+                break
+        if found_index < 0:
+            return False, matches
+        matches.append(
+            str(
+                events[found_index].get("topic")
+                or events[found_index].get("source_event_id")
+                or events[found_index].get("event_id")
+                or ""
+            )
+        )
+        start_index = found_index + 1
+    return True, matches
+
+
+def l3_l4_exact_event_sequence_match(scenario_id: str, required_event: str, events: list[dict[str, Any]]) -> tuple[bool, list[str]]:
+    if str(scenario_id).startswith(("L3-", "L4-")):
+        return required_event_sequence_matches_exact(required_event, events)
+    return required_event_sequence_matches(required_event, events)
 
 
 def event_field_haystack(event: dict[str, Any]) -> str:
@@ -439,6 +512,15 @@ def check_entity_references(scene: dict[str, Any], script: dict[str, Any], issue
 
 def check_contract_payload(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
     contract = get_contract(scene.get("scenario_id") or script.get("scenario_id") or scene.get("episode_id") or script.get("episode_id") or "")
+    scene_rule_payloads = [
+        dict(rule.get("contract") or {})
+        for rule in scene.get("validation_rules", [])
+        if rule.get("rule") == "semantic_event_contract"
+    ]
+    if len(scene_rule_payloads) != 1:
+        issues.append(f"{script['scenario_id']}: scene validation_rules must contain exactly one semantic_event_contract rule")
+    elif scene_rule_payloads[0] != script.get("parameters", {}).get("semantic_event_contract"):
+        issues.append(f"{script['scenario_id']}: semantic_event_contract rule does not match event_script parameters")
     payload = dict(script.get("parameters", {}).get("semantic_event_contract") or {})
     if str(payload.get("schema") or "") != "low_altitude_event_chain_contract_v1":
         issues.append(f"{script['scenario_id']}: missing semantic_event_contract schema")
@@ -454,6 +536,10 @@ def check_contract_payload(scene: dict[str, Any], script: dict[str, Any], issues
         issues.append(f"{script['scenario_id']}: background pedestrian_role does not match contract")
     if str(payload.get("weather") or "") != contract.weather:
         issues.append(f"{script['scenario_id']}: weather does not match contract")
+    determinism = dict(payload.get("determinism") or {})
+    for key in ("fallback", "guessing", "compatibility_paths"):
+        if str(determinism.get(key) or "") != "forbidden":
+            issues.append(f"{script['scenario_id']}: deterministic contract must mark {key}=forbidden")
 
 
 def check_scene_contract_counts(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
@@ -491,14 +577,24 @@ def check_scene_contract_counts(scene: dict[str, Any], script: dict[str, Any], i
         semantic_role = str(initial_state.get("semantic_role") or "")
         if role == "U_inspect":
             inspect_entities.append(entity)
-        if role == "semantic_background_vehicle":
+        is_background_vehicle = role == "semantic_background_vehicle" or entity_id.startswith("bg_vehicle_")
+        is_background_pedestrian = role == "semantic_background_pedestrian" or entity_id.startswith("bg_ped_")
+        if is_background_vehicle:
+            if role != "semantic_background_vehicle":
+                issues.append(f"{script['scenario_id']}: background vehicle {entity_id} role must be semantic_background_vehicle")
             background_vehicle_semantics.append(semantic_role)
-            if not sequence_has_allowed_semantics(state_sequence):
-                issues.append(f"{script['scenario_id']}: background vehicle {entity_id} lacks traffic-oriented state sequence")
-        if role == "semantic_background_pedestrian":
+            if not sequence_matches_allowed_states(state_sequence, BACKGROUND_VEHICLE_ALLOWED_STATES):
+                issues.append(f"{script['scenario_id']}: background vehicle {entity_id} lacks exact semantic traffic state sequence")
+            if semantic_role != contract.vehicle_role:
+                issues.append(f"{script['scenario_id']}: background vehicle {entity_id} semantic_role must match contract vehicle_role")
+        if is_background_pedestrian:
+            if role != "semantic_background_pedestrian":
+                issues.append(f"{script['scenario_id']}: background pedestrian {entity_id} role must be semantic_background_pedestrian")
             background_pedestrian_semantics.append(semantic_role)
-            if not sequence_has_allowed_semantics(state_sequence):
-                issues.append(f"{script['scenario_id']}: background pedestrian {entity_id} lacks semantic state sequence")
+            if not sequence_matches_allowed_states(state_sequence, BACKGROUND_PEDESTRIAN_ALLOWED_STATES):
+                issues.append(f"{script['scenario_id']}: background pedestrian {entity_id} lacks exact semantic pedestrian state sequence")
+            if semantic_role != contract.pedestrian_role:
+                issues.append(f"{script['scenario_id']}: background pedestrian {entity_id} semantic_role must match contract pedestrian_role")
     for key, expected in contract.counts.items():
         actual = counts[key]
         if actual != expected:
@@ -519,6 +615,15 @@ def check_scene_contract_counts(scene: dict[str, Any], script: dict[str, Any], i
                 issues.append(f"{script['scenario_id']}: U_inspect route is too short")
         else:
             issues.append(f"{script['scenario_id']}: U_inspect route missing")
+        contract_route = [
+            pos3(point)
+            for point in dict(inspect.get("contract_inspect_uav") or {}).get("repaired_route_enu_m")
+            or dict(inspect.get("contract_inspect_uav") or {}).get("planned_route_enu_m")
+            or []
+        ]
+        contract_route = [point for point in contract_route if point]
+        if len(contract_route) < 2 or path_length_m(contract_route) < 80.0:
+            issues.append(f"{script['scenario_id']}: U_inspect contract route is missing or too short")
     if background_vehicle_semantics and any(not item for item in background_vehicle_semantics):
         issues.append(f"{script['scenario_id']}: background vehicle semantic_role missing")
     if background_pedestrian_semantics and any(not item for item in background_pedestrian_semantics):
@@ -1360,6 +1465,8 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             ok = any(action.get("type") == "move_entity" and str(action.get("entity_id", "")).startswith("uav_") for action in actions)
         elif name == "uav_corridor_contract":
             ok = True
+        elif name == "semantic_event_contract":
+            ok = True
         elif name == "background_vehicle_clearance":
             ok = check_background_vehicle_clearance_rule(scene, script, rule, issues)
         else:
@@ -1449,7 +1556,7 @@ def check_render_ready_contract(render_ready_root: Path, issues: list[str]) -> N
         label_pairs = [(str(row.get("topic") or row.get("source_event_id") or row.get("event_id") or ""), int(row.get("tick", 0) or 0)) for row in labels]
         if event_pairs != label_pairs:
             issues.append(f"{episode_dir.name}: event_trace/dynamic_labels mismatch")
-        ok, matched = required_event_sequence_matches(contract.required_event, events)
+        ok, matched = l3_l4_exact_event_sequence_match(scenario_id, contract.required_event, events)
         if not ok:
             issues.append(f"{episode_dir.name}: render-ready required_event order mismatch: {contract.required_event} (matched={matched})")
 

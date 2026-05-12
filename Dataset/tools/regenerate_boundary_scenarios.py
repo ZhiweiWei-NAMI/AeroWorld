@@ -1538,6 +1538,7 @@ def _add_contract_inspect_uav(
         "inspect_altitude_m": contract.inspect_altitude_m,
         "inspect_altitude_code": contract.inspect_code,
         "min_path_length_m": 80.0,
+        "planned_route_enu_m": [start, *route],
     }
     add(specs, scenes, (spec, scene))
     return entity_id
@@ -1645,7 +1646,75 @@ def apply_semantic_event_contract(
             counts["facility"],
         )
         counts = _scene_counts(scenes)
+    ensure_contract_background_roles(scenario_id, specs, scenes, contract)
     return contract
+
+
+def ensure_contract_background_roles(
+    scenario_id: str,
+    specs: list[dict[str, Any]],
+    scenes: list[dict[str, Any]],
+    contract: EpisodeContract,
+) -> None:
+    spec_by_id = {str(spec.get("entity_id") or ""): spec for spec in specs}
+    missing = {
+        "vehicle": not any(
+            str((scene.get("initial_state") or {}).get("role") or "") == "semantic_background_vehicle"
+            for scene in scenes
+        ),
+        "pedestrian": not any(
+            str((scene.get("initial_state") or {}).get("role") or "") == "semantic_background_pedestrian"
+            for scene in scenes
+        ),
+    }
+    role_payload = {
+        "vehicle": {
+            "role": "semantic_background_vehicle",
+            "semantic_role": contract.vehicle_role,
+            "state_sequence": [_vehicle_mode_from_role(contract.vehicle_role), "traffic_flow"],
+            "background_key": "background_vehicle",
+            "task_suffix": "vehicle_background.01",
+        },
+        "pedestrian": {
+            "role": "semantic_background_pedestrian",
+            "semantic_role": contract.pedestrian_role,
+            "state_sequence": [_pedestrian_mode_from_role(contract.pedestrian_role), _pedestrian_mode_from_role(contract.pedestrian_role)],
+            "background_key": "background_pedestrian",
+            "task_suffix": "pedestrian_background.01",
+        },
+    }
+    for kind, is_missing in missing.items():
+        if not is_missing:
+            continue
+        candidates = [
+            scene
+            for scene in scenes
+            if str(scene.get("category") or "") == kind
+            or str(scene.get("logical_asset_id") or "").startswith(f"{kind}.")
+        ]
+        if not candidates:
+            raise RuntimeError(f"{scenario_id}: contract requires background {kind}, but no {kind} scene exists")
+        selected = sorted(candidates, key=lambda item: str(item.get("entity_id") or ""))[0]
+        payload = role_payload[kind]
+        state = dict(selected.get("initial_state") or {})
+        state.update(
+            {
+                "task_id": f"{scenario_id}.{payload['task_suffix']}",
+                "role": payload["role"],
+                "semantic_role": payload["semantic_role"],
+                "state_sequence": payload["state_sequence"],
+                "mode": payload["state_sequence"][0],
+            }
+        )
+        selected["initial_state"] = state
+        selected[payload["background_key"]] = {
+            "policy": "semantic_event_contract_v1",
+            "semantic_role": payload["semantic_role"],
+            "contract_scenario_id": scenario_id,
+        }
+        spec = spec_by_id.get(str(selected.get("entity_id") or ""))
+        if spec is not None:
+            spec["visual_state"] = {**(spec.get("visual_state") or {}), **state}
 
 
 def _scene_extent_radius_m(scene: dict[str, Any]) -> float:
@@ -2739,9 +2808,37 @@ def apply_uav_corridor_contract(
                     if not repaired_route or dist_xy(repaired_route[-1], point) > 0.05 or abs(repaired_route[-1][2] - point[2]) > 0.05:
                         repaired_route.append(point)
         if str(initial_state.get("role") or "") == "U_inspect":
-            for point in original_routes_by_entity.get(entity_id, [])[1:]:
+            planned_route = [
+                [float(point[0]), float(point[1]), float(point[2])]
+                for point in (scene.get("contract_inspect_uav") or {}).get("planned_route_enu_m", [])
+                if isinstance(point, list) and len(point) >= 3
+            ]
+            if not planned_route:
+                planned_route = original_routes_by_entity.get(entity_id, [])
+            if _route_length_m(planned_route) < 80.0:
+                raise RuntimeError(
+                    f"{scenario_id}: U_inspect planned route is shorter than the deterministic contract minimum: "
+                    f"{entity_id} length={_route_length_m(planned_route):.3f}m"
+                )
+            inspect_route = _repair_uav_waypoints(planned_route, altitude_m)
+            if _route_length_m(inspect_route) < 80.0:
+                raise RuntimeError(
+                    f"{scenario_id}: U_inspect repaired route is shorter than the deterministic contract minimum: "
+                    f"{entity_id} length={_route_length_m(inspect_route):.3f}m"
+                )
+            scene["contract_inspect_uav"] = {
+                **(scene.get("contract_inspect_uav") or {}),
+                "repaired_route_enu_m": inspect_route,
+                "repaired_path_length_m": round(_route_length_m(inspect_route), 3),
+            }
+            for point in inspect_route:
                 if not repaired_route or dist_xy(repaired_route[-1], point) > 0.05 or abs(repaired_route[-1][2] - point[2]) > 0.05:
                     repaired_route.append(point)
+            if _route_length_m(repaired_route) < 80.0:
+                raise RuntimeError(
+                    f"{scenario_id}: U_inspect final generated route is shorter than the deterministic contract minimum: "
+                    f"{entity_id} length={_route_length_m(repaired_route):.3f}m"
+                )
         if len(repaired_route) == 1 and scene.get("route_waypoints_enu_m"):
             extra = _repair_uav_waypoints(scene.get("route_waypoints_enu_m") or [], altitude_m)
             repaired_route.extend(extra)
@@ -3726,7 +3823,15 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
 
 
 def trigger_from_dict(data: dict[str, Any]) -> TriggerSpec:
-    return TriggerSpec(**data)
+    allowed = set(TriggerSpec.__dataclass_fields__)
+    cleaned = {key: value for key, value in data.items() if key in allowed}
+    if "distance_m" not in cleaned and "original_distance_m" in data:
+        cleaned["distance_m"] = data["original_distance_m"]
+    if "horizontal_distance_m" not in cleaned and "original_horizontal_distance_m" in data:
+        cleaned["horizontal_distance_m"] = data["original_horizontal_distance_m"]
+    if "vertical_distance_m" not in cleaned and "original_vertical_distance_m" in data:
+        cleaned["vertical_distance_m"] = data["original_vertical_distance_m"]
+    return TriggerSpec(**cleaned)
 
 
 def action_from_dict(data: dict[str, Any]) -> ActionSpec:

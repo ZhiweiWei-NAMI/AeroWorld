@@ -1,26 +1,20 @@
-# L4-3_v3: Descent into crowd, mass evacuation
+﻿# L4-3_v3: physically animated semantic chain with a clear key event and continuous interaction
 
-- **Event Type**: L4-3 — UAV Forced Landing in Populated Area
-- **ODD Layer**: L4 (L4)
-- **Mechanism**: failure
-- **SORA SAIL**: VI
-- **CAAC Reference**: CAAC-2 (crash or forced landing), CAAC-14 (death or serious injury)
-- **Severity**: critical
-- **Belcastro Domain**: Vehicle:Propulsion System Failures + Vehicle:Power System Failures
+- **Layer**: L4
+- **Contract**: U/V/P/F/L = 3/2/8/2/4
+- **Inspect**: I10, long-lived U_inspect, moving inspect-view substitute, not static hover
+- **Weather**: clear
 
-## Causal Chain
-motor failure → altitude loss → forced landing site selection → descent → ground impact → pedestrian avoidance
+## Chain
+forced landing variant > touchdown
 
-## Entities
-uav, pedestrian, landing_zone
+## Actors
+Entities: semantic UAVs, background vehicles/pedestrians where present, and scenario-specific facilities/logical actors.
+- Background vehicle semantics: stopped/slow response
+- Background pedestrian semantics: bystanders retreat
+- Every episode is a physically animated semantic chain with continuous interaction from the first key event through recovery/landing/resolution.
 
 ## Files
-- `event_script.json` — Compiled event script (loadable by EventScriptInterpreter)
-- `spec.py` — ScenarioSpec definition (auto-generated, customize for manual tuning)
-
-## Usage
-```python
-from donghu_core.event_script_interpreter import EventScriptInterpreter
-from pathlib import Path
-interpreter = EventScriptInterpreter(Path('event_script.json'))
-```
+- `event_script.json`
+- `scene_setup.json`
+- `spec.py`

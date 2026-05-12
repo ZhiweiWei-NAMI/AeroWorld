@@ -7,4 +7,7 @@ Use it for:
 - review notes
 - scenario assumptions
 - operator run notes
+- deterministic event, count, task, and state notes
+- facility placement and visual-feasibility notes
+- capture entity/view-id notes
 - migration notes specific to this scenario

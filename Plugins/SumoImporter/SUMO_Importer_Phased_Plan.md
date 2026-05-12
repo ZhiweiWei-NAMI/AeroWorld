@@ -2,6 +2,7 @@
 
 ## 1) Intent Lock
 - Primary goal: implement the shortest usable chain in UE Editor.
+- Upstream import work feeds the canonical low-altitude semantic event-chain pipeline.
 - Chain: `net.xml -> parse -> SUMO->UE transform -> spawn lane splines/junction debug -> lane query API`.
 - Current non-goals: `UFactory`, `Interchange`, mesh beautification, terrain fitting, OSM/SUMO dual-source alignment.
 

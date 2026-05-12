@@ -1,26 +1,20 @@
-# L4-2_v1: Near-miss with building, last-second avoidance
+﻿# L4-2_v1: physically animated semantic chain with a clear key event and continuous interaction
 
-- **Event Type**: L4-2 — UAV Building/Structure Strike
-- **ODD Layer**: L4 (L4)
-- **Mechanism**: collision
-- **SORA SAIL**: V-VI
-- **CAAC Reference**: CAAC-4 (striking obstacles), CAAC-13 (collision with facilities)
-- **Severity**: major
-- **Belcastro Domain**: Vehicle:Loss of Control + Operations:Terrain/Obstacle Collision
+- **Layer**: L4
+- **Contract**: U/V/P/F/L = 3/2/2/2/6
+- **Inspect**: I18, long-lived U_inspect, moving inspect-view substitute, not static hover
+- **Weather**: clear
 
-## Causal Chain
-navigation error / control failure → trajectory toward building → last-moment avoidance fails → impact → debris
+## Chain
+facade proximity > evade
 
-## Entities
-uav, building_structure
+## Actors
+Entities: semantic UAVs, background vehicles/pedestrians where present, and scenario-specific facilities/logical actors.
+- Background vehicle semantics: road context near facade
+- Background pedestrian semantics: building-side pedestrians
+- Every episode is a physically animated semantic chain with continuous interaction from the first key event through recovery/landing/resolution.
 
 ## Files
-- `event_script.json` — Compiled event script (loadable by EventScriptInterpreter)
-- `spec.py` — ScenarioSpec definition (auto-generated, customize for manual tuning)
-
-## Usage
-```python
-from donghu_core.event_script_interpreter import EventScriptInterpreter
-from pathlib import Path
-interpreter = EventScriptInterpreter(Path('event_script.json'))
-```
+- `event_script.json`
+- `scene_setup.json`
+- `spec.py`

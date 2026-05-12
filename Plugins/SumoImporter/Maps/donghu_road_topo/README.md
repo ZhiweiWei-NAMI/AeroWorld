@@ -19,7 +19,7 @@ These are upstream map-build inputs and temporary conversion artifacts used by P
   `ped_nav_semantic.source.json`
   `scenario_objects.json`
   `traffic_bundle/*`
-  still stay in `Config` for runtime compatibility.
+  stay in `Config` because the runtime loader resolves them there today.
 
 ## Rule
 

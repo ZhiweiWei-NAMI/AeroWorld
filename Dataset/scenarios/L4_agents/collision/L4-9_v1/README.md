@@ -1,26 +1,20 @@
-# L4-9_v1: Minor rear-end collision, partial blockage
+﻿# L4-9_v1: physically animated semantic chain with a clear key event and continuous interaction
 
-- **Event Type**: L4-9 — Ground Vehicle Collision
-- **ODD Layer**: L4 (L4)
-- **Mechanism**: collision
-- **SORA SAIL**: I
-- **CAAC Reference**: Non-emergency (traffic accident)
-- **Severity**: minor
-- **Belcastro Domain**: Ground domain (beyond Belcastro, CAAC cross-validated)
+- **Layer**: L4
+- **Contract**: U/V/P/F/L = 3/3/3/1/2
+- **Inspect**: I18, long-lived U_inspect, moving inspect-view substitute, not static hover
+- **Weather**: clear
 
-## Causal Chain
-signal violation / brake failure → collision → road blockage → traffic buildup → emergency dispatch → UAV overhead assessment
+## Chain
+vehicle conflict > warning/brake
 
-## Entities
-vehicle_1, vehicle_2, uav, ambulance
+## Actors
+Entities: semantic UAVs, background vehicles/pedestrians where present, and scenario-specific facilities/logical actors.
+- Background vehicle semantics: conflict/brake/yield chain
+- Background pedestrian semantics: waiting at roadside
+- Every episode is a physically animated semantic chain with continuous interaction from the first key event through recovery/landing/resolution.
 
 ## Files
-- `event_script.json` — Compiled event script (loadable by EventScriptInterpreter)
-- `spec.py` — ScenarioSpec definition (auto-generated, customize for manual tuning)
-
-## Usage
-```python
-from donghu_core.event_script_interpreter import EventScriptInterpreter
-from pathlib import Path
-interpreter = EventScriptInterpreter(Path('event_script.json'))
-```
+- `event_script.json`
+- `scene_setup.json`
+- `spec.py`

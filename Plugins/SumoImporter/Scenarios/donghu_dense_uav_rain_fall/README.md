@@ -1,6 +1,7 @@
 # Donghu Dense UAV Rain Fall
 
 This is the canonical scenario directory for the current Donghu fall workflow.
+It participates in the canonical low-altitude semantic event-chain pipeline and the render-ready capture host.
 
 ## Layout
 
@@ -9,7 +10,7 @@ This is the canonical scenario directory for the current Donghu fall workflow.
 - `scripts/`
   Scenario-local build entrypoints
 - `artifacts/`
-  Generated `ScenarioPackage` outputs
+  Generated `ScenarioPackage` outputs, including truth frames, render-ready rosters, dynamic labels, capture plans, and manifests
 - `notes/`
   Scenario-local notes and migration details
 
@@ -28,3 +29,6 @@ This is the canonical scenario directory for the current Donghu fall workflow.
 
 This directory owns the scenario package and scenario-local build logic.
 Reusable Python services stay in `Plugins/SumoImporter/Scripts/donghu_core/`.
+Render-ready outputs preserve engine-emitted task metadata such as `task_id`, `role`, and `state_sequence` when present.
+Capture tasks must provide stable `--airsim-capture-entity` and `--capture-view-id`.
+Background vehicles and pedestrians are semantic actors, not decoration; relevant entities must have physical motion.

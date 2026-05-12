@@ -1339,7 +1339,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--segmentation-backend", default="ue_custom_stencil")
     parser.add_argument("--uav-control-backend", choices=["pose_sync", "airsim_move"], default="pose_sync")
     parser.add_argument("--airsim-capture-vehicle", default="CaptureUAV_0")
-    parser.add_argument("--airsim-capture-entity", default="", help="Optional explicit UAV entity for targeted capture.")
+    parser.add_argument("--airsim-capture-entity", default="", help="Required explicit UAV entity for canonical targeted capture.")
     parser.add_argument("--skip-high-overview", action="store_true")
     parser.add_argument("--skip-uav", action="store_true")
     parser.add_argument("--append-summary", action="store_true")

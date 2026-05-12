@@ -1,26 +1,20 @@
-# L6-2_v1: Moderate degradation, operator compensates
+﻿# L6-2_v1: physically animated semantic chain with digital-fault continuous interaction
 
-- **Event Type**: L6-2 — C2 Link Intermittent Degradation
-- **ODD Layer**: L6 (L6)
-- **Mechanism**: failure
-- **SORA SAIL**: III-IV
-- **CAAC Reference**: Non-emergency (link quality degradation)
-- **Severity**: minor
-- **Belcastro Domain**: Vehicle:Communication System Failures
+- **Layer**: L6
+- **Contract**: U/V/P/F/L = 3/3/4/3/8
+- **Inspect**: I22, long-lived U_inspect, moving inspect-view substitute, not static hover
+- **Weather**: clear
 
-## Causal Chain
-signal interference → increased latency → control lag → trajectory oscillation → operator switches to higher power mode
+## Chain
+latency > backup link
 
-## Entities
-uav, radio_tower
+## Actors
+Entities: semantic UAVs, semantic background vehicles/pedestrians, and digital/facility actors that remain visibly active.
+- Background vehicle semantics: traffic continues
+- Background pedestrian semantics: passive background near facility
+- Every episode is a physically animated semantic chain with continuous interaction from the first key event through recovery/landing/resolution.
 
 ## Files
-- `event_script.json` — Compiled event script (loadable by EventScriptInterpreter)
-- `spec.py` — ScenarioSpec definition (auto-generated, customize for manual tuning)
-
-## Usage
-```python
-from donghu_core.event_script_interpreter import EventScriptInterpreter
-from pathlib import Path
-interpreter = EventScriptInterpreter(Path('event_script.json'))
-```
+- `event_script.json`
+- `scene_setup.json`
+- `spec.py`

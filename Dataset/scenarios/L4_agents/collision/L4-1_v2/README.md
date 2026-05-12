@@ -1,26 +1,20 @@
-# L4-1_v2: Actual mid-air collision, debris fall
+﻿# L4-1_v2: physically animated semantic chain with a clear key event and continuous interaction
 
-- **Event Type**: L4-1 — UAV-UAV Airspace Conflict
-- **ODD Layer**: L4 (L4)
-- **Mechanism**: collision
-- **SORA SAIL**: V-VI
-- **CAAC Reference**: CAAC-2 (mid-air collision or near-miss)
-- **Severity**: critical
-- **Belcastro Domain**: Vehicle:Loss of Control + UTM:Traffic Management Coordination Failures
+- **Layer**: L4
+- **Contract**: U/V/P/F/L = 3/2/2/2/12
+- **Inspect**: I28, long-lived U_inspect, moving inspect-view substitute, not static hover
+- **Weather**: clear
 
-## Causal Chain
-trajectory prediction → conflict detection → alert generation → evasive maneuver → separation restored
+## Chain
+alternate convergence > deconflict
 
-## Entities
-uav_1, uav_2
+## Actors
+Entities: semantic UAVs, background vehicles/pedestrians where present, and scenario-specific facilities/logical actors.
+- Background vehicle semantics: steady flow
+- Background pedestrian semantics: sidewalk walkers
+- Every episode is a physically animated semantic chain with continuous interaction from the first key event through recovery/landing/resolution.
 
 ## Files
-- `event_script.json` — Compiled event script (loadable by EventScriptInterpreter)
-- `spec.py` — ScenarioSpec definition (auto-generated, customize for manual tuning)
-
-## Usage
-```python
-from donghu_core.event_script_interpreter import EventScriptInterpreter
-from pathlib import Path
-interpreter = EventScriptInterpreter(Path('event_script.json'))
-```
+- `event_script.json`
+- `scene_setup.json`
+- `spec.py`

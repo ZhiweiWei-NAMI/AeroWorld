@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from semantic_event_contract import EPISODE_CONTRACTS, all_contracts, normalize_scenario_id
+from semantic_event_contract import EPISODE_CONTRACTS, all_contracts, contract_payload, normalize_scenario_id
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -55,19 +55,25 @@ def validate_contract_coverage(dataset_root: Path) -> list[str]:
             continue
         data = read_json(path)
         payload = dict(data.get("parameters", {}).get("semantic_event_contract") or {})
-        if str(payload.get("schema") or "") != "low_altitude_event_chain_contract_v1":
+        expected = contract_payload(contract)
+        if str(payload.get("schema") or "") != str(expected.get("schema") or ""):
             issues.append(f"{contract.scenario_id}: missing semantic_event_contract payload")
-        if dict(payload.get("exact_counts") or {}) != contract.counts:
+        if str(payload.get("scenario_id") or "") != contract.scenario_id:
+            issues.append(f"{contract.scenario_id}: semantic_event_contract scenario_id mismatch")
+        if set(payload) != set(expected):
+            issues.append(f"{contract.scenario_id}: semantic_event_contract keys mismatch")
+        if dict(payload.get("exact_counts") or {}) != dict(expected.get("exact_counts") or {}):
             issues.append(f"{contract.scenario_id}: exact_counts mismatch")
-        if str(payload.get("required_event") or "") != contract.required_event:
+        if dict(payload.get("inspect") or {}) != dict(expected.get("inspect") or {}):
+            issues.append(f"{contract.scenario_id}: inspect contract mismatch")
+        if str(payload.get("required_event") or "") != str(expected.get("required_event") or ""):
             issues.append(f"{contract.scenario_id}: required_event mismatch")
-        background = dict(payload.get("background_semantics") or {})
-        if str(background.get("vehicle_role") or "") != contract.vehicle_role:
-            issues.append(f"{contract.scenario_id}: background vehicle_role mismatch")
-        if str(background.get("pedestrian_role") or "") != contract.pedestrian_role:
-            issues.append(f"{contract.scenario_id}: background pedestrian_role mismatch")
-        if str(payload.get("weather") or "") != contract.weather:
+        if dict(payload.get("background_semantics") or {}) != dict(expected.get("background_semantics") or {}):
+            issues.append(f"{contract.scenario_id}: background semantics mismatch")
+        if str(payload.get("weather") or "") != str(expected.get("weather") or ""):
             issues.append(f"{contract.scenario_id}: weather mismatch")
+        if dict(payload.get("determinism") or {}) != dict(expected.get("determinism") or {}):
+            issues.append(f"{contract.scenario_id}: determinism mismatch")
     return issues
 
 

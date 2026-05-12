@@ -22,7 +22,7 @@ if str(SUMO_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SUMO_SCRIPTS_DIR))
 
 from donghu_core.event_script_interpreter import EventScriptInterpreter  # noqa: E402
-from semantic_event_contract import get_contract, required_event_sequence_matches  # noqa: E402
+from semantic_event_contract import get_contract, normalize_semantic_text, required_event_sequence_matches, required_event_stages  # noqa: E402
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -69,6 +69,55 @@ def weather_payload_from_profile(profile: str, overrides: dict[str, Any] | None 
         elif key == "visibility_m":
             payload["visibility"] = value
     return payload
+
+
+def event_text_haystack_exact(event: dict[str, Any]) -> str:
+    payload = dict(event.get("payload") or {})
+    parts = [
+        event.get("event_id"),
+        event.get("topic"),
+        event.get("source_event_id"),
+        event.get("source_topic"),
+        event.get("title"),
+        payload.get("event_id"),
+        payload.get("source_event_id"),
+        payload.get("source_topic"),
+        payload.get("title"),
+    ]
+    return normalize_semantic_text(" ".join(str(part or "") for part in parts))
+
+
+def required_event_sequence_matches_exact(required_event: str, events: list[dict[str, Any]]) -> tuple[bool, list[str]]:
+    stages = required_event_stages(required_event)
+    if not stages:
+        return True, []
+    matches: list[str] = []
+    start_index = 0
+    for stage in stages:
+        found_index = -1
+        for index in range(start_index, len(events)):
+            haystack = event_text_haystack_exact(events[index])
+            if any(all(token in haystack for token in option) for option in stage):
+                found_index = index
+                break
+        if found_index < 0:
+            return False, matches
+        matches.append(
+            str(
+                events[found_index].get("topic")
+                or events[found_index].get("source_event_id")
+                or events[found_index].get("event_id")
+                or ""
+            )
+        )
+        start_index = found_index + 1
+    return True, matches
+
+
+def l3_l4_exact_event_sequence_match(scenario_id: str, required_event: str, events: list[dict[str, Any]]) -> tuple[bool, list[str]]:
+    if str(scenario_id).startswith(("L3-", "L4-")):
+        return required_event_sequence_matches_exact(required_event, events)
+    return required_event_sequence_matches(required_event, events)
 
 
 def horizon_ticks(script: dict[str, Any]) -> int:
@@ -185,7 +234,7 @@ def validate_scene(scene_path: Path) -> list[str]:
             if row_topic == topic:
                 ordered_rows.append(dict(row))
                 break
-    ok, matched_topics = required_event_sequence_matches(contract.required_event, ordered_rows)
+    ok, matched_topics = l3_l4_exact_event_sequence_match(str(script["scenario_id"]), contract.required_event, ordered_rows)
     if not ok:
         issues.append(
             f"{script['scenario_id']}: required_event order mismatch: {contract.required_event} "

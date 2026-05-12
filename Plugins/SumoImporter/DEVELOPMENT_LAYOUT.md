@@ -13,7 +13,7 @@ This project now has a stricter ownership split.
   If a change affects managed pedestrian spawning, animation, grounding, or runtime behavior, it belongs here.
 
 - `Plugins/SumoImporter`
-  External Python entrypoints, scenario generation, map-source materials, and offline tooling.
+  External Python entrypoints, canonical low-altitude semantic event-chain generation, render-ready conversion, map-source materials, and offline tooling.
   If a change is driven from Python or needs to scale to many scenarios, it should usually start here.
 
 - `Plugins/AeroWorldContent`
@@ -52,9 +52,12 @@ This project now has a stricter ownership split.
   `scripts/`
   Scenario-specific generators or conversion helpers.
   `artifacts/`
-  Generated `ScenarioPackage` outputs such as `truth_frames.jsonl`, `weather_meta.jsonl`, `capture_plan.json`, and manifests.
+  Generated `ScenarioPackage` outputs such as `truth_frames.jsonl`, `render_ready_roster.jsonl`, `dynamic_labels.jsonl`, `weather_meta.jsonl`, `capture_plan.jsonl`, and manifests.
   `notes/`
-  Human-readable assumptions, contracts, and review notes.
+  Human-readable assumptions, contracts, review notes, and visual-feasibility notes.
+
+- Capture tasks in those artifacts must carry stable `--airsim-capture-entity` and `--capture-view-id` when applicable.
+- Background vehicles and pedestrians are semantic actors, not decoration; their motion and state belong in the generated data.
 
 - The current `donghu_dense_uav_rain_fall` directory under `Scenarios/` is the canonical reference scenario.
   New scenes should follow the same layout rather than creating new scenario roots under `Scripts/`.
@@ -66,4 +69,4 @@ This project now has a stricter ownership split.
 - Scene-specific assets that only make sense for one incident family belong in `Plugins/AeroWorldContent/Content/Props/ScenarioSpecific/<scenario_id>/`.
 
 - Pure data for those scenes does not go in `AeroWorldContent`.
-  JSON specs, placement data, event chains, capture plans, and Python-side materials belong in `SumoImporter`.
+  JSON specs, placement data, event chains, render-ready artifacts, capture plans, and Python-side materials belong in `SumoImporter`.

@@ -11,6 +11,11 @@
 ## Causal Chain
 NAV error → position drift → geofence boundary crossing → RTH activation → mission abort
 
+## Contract
+- Physically animated semantic chain with one clear key event and continuous interaction from start to terminal state.
+- Background vehicles and pedestrians are semantic actors, not decoration; their motion and roles remain part of the episode.
+- `U_inspect` is a long-lived moving inspect-view substitute, not a static hover, and must stay in motion across the episode.
+
 ## Entities
 uav, no_fly_zone, landing_pad
 

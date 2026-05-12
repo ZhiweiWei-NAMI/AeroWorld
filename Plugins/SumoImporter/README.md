@@ -2,7 +2,7 @@
 
 This is the main plugin root for external Python development.
 
-If the work starts from Python, scenario generation, map-source materials, capture orchestration, or postprocess, start here first.
+If the work starts from Python, scenario generation, map-source materials, the canonical low-altitude semantic event-chain, capture orchestration, or postprocess, start here first.
 
 ## Read Order
 
@@ -19,6 +19,12 @@ If the work starts from Python, scenario generation, map-source materials, captu
 6. `Scripts/donghu_core/`
    Shared Python service layer. Reusable logic should go here, not be duplicated in CLIs.
 
+The only supported low-altitude pipeline is:
+
+`spec_compiler.py -> regenerate_boundary_scenarios.py -> batch_generate.py -> convert_to_render_ready.py -> run_semantic_event_chain_every10.py -> episode_render_host.py -> validators`
+
+No alternate capture path is supported.
+
 ## Design Idea
 
 The intended architecture is split into four layers:
@@ -26,7 +32,7 @@ The intended architecture is split into four layers:
 - `Map Build`
   Upstream map-source materials and derived topology inputs.
 - `Scenario Package`
-  Per-scenario truth, weather, plans, and manifests.
+  Per-scenario truth, semantic actor rosters, weather, plans, render-ready sidecars, and manifests.
 - `Runtime Executor`
   UE/AirSim execution driven from package outputs.
 - `Postprocess`
@@ -41,27 +47,32 @@ Scenario generation should produce data packages, not directly mutate the world.
   Python wrapper around the UE bridge RPC surface.
 - `Scripts/episode_render_host_config.json`
   Main runtime config for package playback and capture.
+  Capture tasks still require explicit `--airsim-capture-entity` and `--capture-view-id` when applicable.
 - `Config/LowAltitude/Maps/<map_id>/map_package.json`
   Current summary of runtime map config and plugin-owned map-source inputs.
 - `Scripts/episode_template_resolver.json`
   Entity-mode resolution between truth entities and runtime behavior.
 - `Scripts/episode_capture_presets.json`
-  Camera and modality defaults.
+  Camera and modality defaults. These do not replace explicit capture entity/view ids.
 
 ## Main Runtime Flow
 
 1. Build or update a `ScenarioPackage`.
 2. Run `Scripts/episode_render_host.py`.
 3. The executor loads truth frames, weather, scenario plan, and capture plan.
+   The executor also loads semantic actor rosters and dynamic labels when they are present in the package.
 4. The executor loads UE runtime context for `map_id`.
 5. Per tick:
    apply weather
-   apply scene-sync ground actors
-   update truth-driven pedestrians
+   apply scene-sync semantic actors
+   update truth-driven semantic actors, including background vehicles and pedestrians
+   enforce physical motion for all relevant entities
    update runtime UAVs
-   trigger all cameras once for that tick
+   trigger all cameras once for that tick using the stable capture entity and capture view id for the task
    write sidecars and images
 6. Run `Demos/multiview/build_multiview_demo_assets.py` for GIF/timeline outputs.
+
+Capture tasks are valid only when they provide stable `--airsim-capture-entity` and `--capture-view-id`; missing values fail closed.
 
 ## APIs That Matter
 
@@ -79,6 +90,8 @@ For Python developers, the most important RPC families are:
 - runtime UAV RPCs such as `create_runtime_multirotor`, `move_runtime_multirotor`, `get_runtime_multirotor_status`
 - `apply_weather`
 - `capture_world_camera`
+
+Background vehicles and pedestrians are semantic actors, not decoration, and their motion and state belong in the generated package outputs.
 
 ## Directory Rules
 

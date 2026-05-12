@@ -56,6 +56,8 @@ PRESERVED_ENTITY_FIELDS = (
     "spawn_policy",
     "category",
     "route_waypoints_enu_m",
+    "task_kind",
+    "task_state",
     "inspect_altitude_code",
     "inspect_altitude_m",
     "min_path_length_m",
