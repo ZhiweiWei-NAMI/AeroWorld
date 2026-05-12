@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from map_spatial_index import MapSpatialIndex  # noqa: E402
 from pedestrian_activity_catalog import get_activity, normalize_activity_type, validate_local_animation_assets  # noqa: E402
 from uav_corridor_planner import BuildingObstacleIndex, UAV_CORRIDOR_LOGICAL_ASSET_ID  # noqa: E402
-from semantic_event_contract import all_contracts, get_contract, normalize_semantic_text, required_event_sequence_matches, required_event_stages  # noqa: E402
+from semantic_event_contract import all_contracts, get_contract, required_intent_sequence_matches  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -226,12 +226,115 @@ def entity_mission_start_pos(entity: dict[str, Any]) -> list[float] | None:
     return pos3(lifecycle.get("mission_start_enu_m")) or entity_pos(entity)
 
 
+def uav_role(entity: dict[str, Any]) -> str:
+    initial_state = dict(entity.get("initial_state") or {})
+    if str(initial_state.get("role") or "") == "U_inspect":
+        return "inspect"
+    corridor_role = str(entity.get("uav_corridor_role") or initial_state.get("uav_corridor_role") or "")
+    if corridor_role == "inspect_observer":
+        return "inspect"
+    if corridor_role == "observer" or "observer" in str(initial_state.get("semantic_role") or ""):
+        return "observer"
+    return "mission"
+
+
+def is_inspect_uav(entity: dict[str, Any]) -> bool:
+    return uav_role(entity) == "inspect"
+
+
+def is_observer_uav(entity: dict[str, Any]) -> bool:
+    return uav_role(entity) == "observer"
+
+
+def is_mission_uav(entity: dict[str, Any]) -> bool:
+    return uav_role(entity) == "mission"
+
+
+def uav_action_is_terminal_or_low_profile(action_id: Any) -> bool:
+    lowered = str(action_id or "").lower()
+    return any(
+        token in lowered
+        for token in (
+            "landing",
+            "touchdown",
+            "debris",
+            "crash",
+            "forced",
+            "falling",
+            "descent",
+            "to_pad",
+            "ped_descent",
+            "nearmiss",
+            "near_miss",
+            "pull_up",
+            "recovery",
+        )
+    )
+
+
 def dist_xy(a: list[float], b: list[float]) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
 
 
 def dist3(a: list[float], b: list[float]) -> float:
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
+
+
+def point_in_polygon_xy(point: list[float], polygon: list[list[float]]) -> bool:
+    if len(polygon) < 3:
+        return False
+    x, y = float(point[0]), float(point[1])
+    inside = False
+    j = len(polygon) - 1
+    for i, pi in enumerate(polygon):
+        pj = polygon[j]
+        yi, yj = float(pi[1]), float(pj[1])
+        xi, xj = float(pi[0]), float(pj[0])
+        crosses = (yi > y) != (yj > y)
+        if crosses:
+            x_intersect = (xj - xi) * (y - yi) / ((yj - yi) or 1e-9) + xi
+            if x < x_intersect:
+                inside = not inside
+        j = i
+    return inside
+
+
+def segment_intersects_polygon_xy(a: list[float], b: list[float], polygon: list[list[float]]) -> bool:
+    if point_in_polygon_xy(a, polygon) or point_in_polygon_xy(b, polygon):
+        return True
+    for edge_a, edge_b in zip(polygon, polygon[1:] + polygon[:1]):
+        if segments_intersect_xy(a, b, edge_a, edge_b):
+            return True
+    return False
+
+
+def _orientation(a: list[float], b: list[float], c: list[float]) -> float:
+    return (float(b[1]) - float(a[1])) * (float(c[0]) - float(b[0])) - (float(b[0]) - float(a[0])) * (float(c[1]) - float(b[1]))
+
+
+def _on_segment(a: list[float], b: list[float], c: list[float]) -> bool:
+    return (
+        min(float(a[0]), float(c[0])) - 1e-6 <= float(b[0]) <= max(float(a[0]), float(c[0])) + 1e-6
+        and min(float(a[1]), float(c[1])) - 1e-6 <= float(b[1]) <= max(float(a[1]), float(c[1])) + 1e-6
+    )
+
+
+def segments_intersect_xy(a: list[float], b: list[float], c: list[float], d: list[float]) -> bool:
+    o1 = _orientation(a, b, c)
+    o2 = _orientation(a, b, d)
+    o3 = _orientation(c, d, a)
+    o4 = _orientation(c, d, b)
+    if o1 * o2 < 0 and o3 * o4 < 0:
+        return True
+    if abs(o1) <= 1e-6 and _on_segment(a, c, b):
+        return True
+    if abs(o2) <= 1e-6 and _on_segment(a, d, b):
+        return True
+    if abs(o3) <= 1e-6 and _on_segment(c, a, d):
+        return True
+    if abs(o4) <= 1e-6 and _on_segment(c, b, d):
+        return True
+    return False
 
 
 def yaw_delta_deg(a: float, b: float) -> float:
@@ -410,53 +513,22 @@ def sequence_matches_allowed_states(sequence: Any, allowed_states: set[str]) -> 
     return bool(normalized) and all(item in allowed_states for item in normalized)
 
 
-def event_text_haystack_exact(event: dict[str, Any]) -> str:
-    payload = dict(event.get("payload") or {})
-    parts = [
-        event.get("event_id"),
-        event.get("topic"),
-        event.get("source_event_id"),
-        event.get("source_topic"),
-        event.get("title"),
-        payload.get("event_id"),
-        payload.get("source_event_id"),
-        payload.get("source_topic"),
-        payload.get("title"),
-    ]
-    return normalize_semantic_text(" ".join(str(part or "") for part in parts))
+def as_tuple_str(value: Any) -> tuple[str, ...]:
+    if isinstance(value, list) or isinstance(value, tuple):
+        return tuple(str(item) for item in value)
+    return ()
 
 
-def required_event_sequence_matches_exact(required_event: str, events: list[dict[str, Any]]) -> tuple[bool, list[str]]:
-    stages = required_event_stages(required_event)
-    if not stages:
-        return True, []
-    matches: list[str] = []
-    start_index = 0
-    for stage in stages:
-        found_index = -1
-        for index in range(start_index, len(events)):
-            haystack = event_text_haystack_exact(events[index])
-            if any(all(token in haystack for token in option) for option in stage):
-                found_index = index
-                break
-        if found_index < 0:
-            return False, matches
-        matches.append(
-            str(
-                events[found_index].get("topic")
-                or events[found_index].get("source_event_id")
-                or events[found_index].get("event_id")
-                or ""
-            )
-        )
-        start_index = found_index + 1
-    return True, matches
+def close_enough(a: float, b: float, tolerance: float = 0.001) -> bool:
+    return abs(float(a) - float(b)) <= tolerance
 
 
-def l3_l4_exact_event_sequence_match(scenario_id: str, required_event: str, events: list[dict[str, Any]]) -> tuple[bool, list[str]]:
-    if str(scenario_id).startswith(("L3-", "L4-")):
-        return required_event_sequence_matches_exact(required_event, events)
-    return required_event_sequence_matches(required_event, events)
+def route_is_closed(route: list[list[float]], tolerance_m: float = 1.0) -> bool:
+    return len(route) >= 4 and dist3(route[0], route[-1]) <= tolerance_m
+
+
+def route_fixed_altitude(route: list[list[float]], altitude_m: float, tolerance_m: float = 0.001) -> bool:
+    return bool(route) and all(close_enough(point[2], altitude_m, tolerance_m) for point in route)
 
 
 def event_field_haystack(event: dict[str, Any]) -> str:
@@ -529,6 +601,58 @@ def check_contract_payload(scene: dict[str, Any], script: dict[str, Any], issues
         issues.append(f"{script['scenario_id']}: exact_counts do not match contract")
     if str(payload.get("required_event") or "") != contract.required_event:
         issues.append(f"{script['scenario_id']}: required_event does not match contract")
+    if as_tuple_str(payload.get("required_intents")) != contract.required_intents:
+        issues.append(f"{script['scenario_id']}: required_intents do not match contract")
+    capture_boundary = dict(payload.get("capture_boundary") or {})
+    if not capture_boundary:
+        issues.append(f"{script['scenario_id']}: semantic_event_contract missing capture_boundary")
+    else:
+        expected_boundary = contract.capture_boundary
+        if str(capture_boundary.get("boundary_id") or "") != expected_boundary.boundary_id:
+            issues.append(f"{script['scenario_id']}: capture_boundary.boundary_id does not match contract")
+        if str(capture_boundary.get("geometry_source") or "") != expected_boundary.geometry_source:
+            issues.append(f"{script['scenario_id']}: capture_boundary.geometry_source does not match contract")
+        if as_tuple_str(capture_boundary.get("anchor_entity_roles")) != expected_boundary.anchor_entity_roles:
+            issues.append(f"{script['scenario_id']}: capture_boundary.anchor_entity_roles do not match contract")
+        if str(capture_boundary.get("boundary_role") or "") != expected_boundary.boundary_role:
+            issues.append(f"{script['scenario_id']}: capture_boundary.boundary_role does not match contract")
+        if str(capture_boundary.get("z_policy") or "") != expected_boundary.z_policy:
+            issues.append(f"{script['scenario_id']}: capture_boundary.z_policy does not match contract")
+    inspect = dict(payload.get("inspect") or {})
+    if not inspect:
+        issues.append(f"{script['scenario_id']}: semantic_event_contract missing inspect")
+    else:
+        if str(inspect.get("role") or "") != contract.inspect.role:
+            issues.append(f"{script['scenario_id']}: inspect.role does not match contract")
+        if str(inspect.get("altitude_code") or "") != contract.inspect.altitude_code:
+            issues.append(f"{script['scenario_id']}: inspect.altitude_code does not match contract")
+        if not close_enough(float(inspect.get("altitude_m") or -1.0), contract.inspect.altitude_m):
+            issues.append(f"{script['scenario_id']}: inspect.altitude_m does not match contract")
+        if float(inspect.get("min_path_length_m") or 0.0) != contract.inspect.min_path_length_m:
+            issues.append(f"{script['scenario_id']}: inspect.min_path_length_m does not match contract")
+        if str(inspect.get("required_presence") or "") != contract.inspect.required_presence:
+            issues.append(f"{script['scenario_id']}: inspect.required_presence does not match contract")
+        if str(inspect.get("motion_policy") or "") != contract.inspect.motion_policy:
+            issues.append(f"{script['scenario_id']}: inspect.motion_policy does not match contract")
+        if str(inspect.get("corridor_policy") or "") != contract.inspect.corridor_policy:
+            issues.append(f"{script['scenario_id']}: inspect.corridor_policy does not match contract")
+        if bool(inspect.get("fov_coverage_required")) != contract.inspect.fov_coverage_required:
+            issues.append(f"{script['scenario_id']}: inspect.fov_coverage_required does not match contract")
+        if bool(inspect.get("sensor_profile_required")) != contract.inspect.sensor_profile_required:
+            issues.append(f"{script['scenario_id']}: inspect.sensor_profile_required does not match contract")
+    pad_boundary_policy = payload.get("pad_boundary_policy")
+    if isinstance(pad_boundary_policy, str):
+        issues.append(f"{script['scenario_id']}: pad_boundary_policy must be explicit object, not legacy string")
+    else:
+        pad_boundary_policy = dict(pad_boundary_policy or {})
+        if str(pad_boundary_policy.get("default") or "") != contract.pad_policy.default:
+            issues.append(f"{script['scenario_id']}: pad_boundary_policy.default does not match contract")
+        if as_tuple_str(pad_boundary_policy.get("inside_required_for")) != contract.pad_policy.inside_required_for:
+            issues.append(f"{script['scenario_id']}: pad_boundary_policy.inside_required_for does not match contract")
+    if bool(payload.get("uav_boundary_crossing_required")) != contract.uav_boundary_crossing_required:
+        issues.append(f"{script['scenario_id']}: uav_boundary_crossing_required does not match contract")
+    if bool(payload.get("inspect_fov_coverage_required")) != contract.inspect.fov_coverage_required:
+        issues.append(f"{script['scenario_id']}: inspect_fov_coverage_required does not match contract")
     background = dict(payload.get("background_semantics") or {})
     if str(background.get("vehicle_role") or "") != contract.vehicle_role:
         issues.append(f"{script['scenario_id']}: background vehicle_role does not match contract")
@@ -540,6 +664,27 @@ def check_contract_payload(scene: dict[str, Any], script: dict[str, Any], issues
     for key in ("fallback", "guessing", "compatibility_paths"):
         if str(determinism.get(key) or "") != "forbidden":
             issues.append(f"{script['scenario_id']}: deterministic contract must mark {key}=forbidden")
+
+
+def check_event_intent_contract(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    contract = get_contract(scene.get("scenario_id") or script.get("scenario_id") or "")
+    events = [dict(event) for event in script.get("events", [])]
+    for index, event in enumerate(events):
+        event_id = str(event.get("event_id") or event.get("topic") or index)
+        payload = dict(event.get("payload") or {})
+        if not event.get("intent") and not payload.get("intent"):
+            issues.append(f"{script['scenario_id']}: every event must declare explicit intent: {event_id}")
+        if not event.get("intent_stage"):
+            issues.append(f"{script['scenario_id']}: event missing intent_stage: {event_id}")
+        if not event.get("causal_chain_id"):
+            issues.append(f"{script['scenario_id']}: event missing causal_chain_id: {event_id}")
+        if "causal_predecessor_intent" not in event:
+            issues.append(f"{script['scenario_id']}: event missing causal_predecessor_intent field: {event_id}")
+        if not isinstance(event.get("target_roles"), list) or not event.get("target_roles"):
+            issues.append(f"{script['scenario_id']}: event missing target_roles: {event_id}")
+    ok, matched = required_intent_sequence_matches(contract.required_intents, events)
+    if not ok:
+        issues.append(f"{script['scenario_id']}: required_intents declaration order mismatch: {contract.required_intents} (matched={matched})")
 
 
 def check_scene_contract_counts(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
@@ -604,26 +749,47 @@ def check_scene_contract_counts(scene: dict[str, Any], script: dict[str, Any], i
     else:
         inspect = inspect_entities[0]
         initial_state = dict(inspect.get("initial_state") or {})
+        inspect_contract = dict(inspect.get("contract_inspect_uav") or {})
+        initial_corridor_role = str(initial_state.get("uav_corridor_role") or "")
+        top_corridor_role = str(inspect.get("uav_corridor_role") or "")
+        if initial_corridor_role != top_corridor_role:
+            issues.append(f"{script['scenario_id']}: U_inspect initial_state.uav_corridor_role must equal top-level uav_corridor_role")
+        if top_corridor_role != "inspect_observer":
+            issues.append(f"{script['scenario_id']}: U_inspect uav_corridor_role must be inspect_observer")
         if float(initial_state.get("assigned_altitude_m") or initial_state.get("inspect_altitude_m") or initial_state.get("altitude_m") or 0.0) != float(contract.inspect_altitude_m):
             issues.append(f"{script['scenario_id']}: U_inspect altitude mismatch")
+        if str(initial_state.get("inspect_altitude_code") or "") != contract.inspect_code:
+            issues.append(f"{script['scenario_id']}: U_inspect inspect_altitude_code mismatch")
+        if str(inspect_contract.get("corridor_policy") or "") != contract.inspect.corridor_policy:
+            issues.append(f"{script['scenario_id']}: U_inspect contract_inspect_uav.corridor_policy must be {contract.inspect.corridor_policy}")
+        fixed_altitude = float(inspect_contract.get("fixed_altitude_m") or inspect_contract.get("inspect_altitude_m") or -1.0)
+        if not close_enough(fixed_altitude, contract.inspect.altitude_m):
+            issues.append(f"{script['scenario_id']}: U_inspect contract fixed altitude must equal contract.inspect.altitude_m")
         if not sequence_contains_terms(initial_state.get("state_sequence"), ["inspect", "orbit"]) and not sequence_contains_terms(initial_state.get("state_sequence"), ["inspect", "racetrack"]):
             issues.append(f"{script['scenario_id']}: U_inspect state sequence must include inspect/orbit or inspect/racetrack")
         route = [pos3(point) for point in inspect.get("route_waypoints_enu_m") or []]
         route = [point for point in route if point]
         if len(route) >= 2:
+            if not route_fixed_altitude(route, contract.inspect_altitude_m):
+                issues.append(f"{script['scenario_id']}: U_inspect.route_waypoints_enu_m must contain only fixed inspect altitude points")
+            if not route_is_closed(route):
+                issues.append(f"{script['scenario_id']}: U_inspect.route_waypoints_enu_m must be a closed loop")
             if path_length_m(route) < 80.0:
                 issues.append(f"{script['scenario_id']}: U_inspect route is too short")
         else:
             issues.append(f"{script['scenario_id']}: U_inspect route missing")
         contract_route = [
             pos3(point)
-            for point in dict(inspect.get("contract_inspect_uav") or {}).get("repaired_route_enu_m")
-            or dict(inspect.get("contract_inspect_uav") or {}).get("planned_route_enu_m")
+            for point in inspect_contract.get("loop_route_enu_m")
+            or inspect_contract.get("repaired_route_enu_m")
+            or inspect_contract.get("planned_route_enu_m")
             or []
         ]
         contract_route = [point for point in contract_route if point]
         if len(contract_route) < 2 or path_length_m(contract_route) < 80.0:
             issues.append(f"{script['scenario_id']}: U_inspect contract route is missing or too short")
+        elif not route_fixed_altitude(contract_route, contract.inspect_altitude_m):
+            issues.append(f"{script['scenario_id']}: U_inspect contract route must contain only fixed inspect altitude points")
     if background_vehicle_semantics and any(not item for item in background_vehicle_semantics):
         issues.append(f"{script['scenario_id']}: background vehicle semantic_role missing")
     if background_pedestrian_semantics and any(not item for item in background_pedestrian_semantics):
@@ -735,6 +901,8 @@ def check_placements(
                 ):
                     issues.append(error)
         if asset_id.startswith("uav."):
+            if is_inspect_uav(entity) or is_observer_uav(entity):
+                continue
             lifecycle = entity.get("lifecycle") or {}
             mission_start = pos3(lifecycle.get("mission_start_enu_m"))
             corridor_lifecycle = bool(lifecycle.get("corridor_lifecycle") or entity.get("uav_corridor"))
@@ -1027,6 +1195,19 @@ def collect_scene_points(scene: dict[str, Any], script: dict[str, Any]) -> list[
 
 def check_local_bounds(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
     bounds = scene.get("local_bounds") or {}
+    if bounds:
+        source = str(bounds.get("source") or bounds.get("semantic_role") or bounds.get("boundary_role") or "").lower()
+        if source and source != "export_envelope_only":
+            issues.append(f"{scene['scenario_id']}: local_bounds must be export_bounds/export_envelope_only, not semantic boundary source={source}")
+        for forbidden_key in ("capture_boundary_id", "uav_boundary_crossing_required", "pad_boundary_policy", "inspect_fov_coverage_required"):
+            if forbidden_key in bounds:
+                issues.append(f"{scene['scenario_id']}: local_bounds must not carry semantic boundary field {forbidden_key}")
+    if "local_bounds" in dict(script.get("parameters") or {}):
+        issues.append(f"{scene['scenario_id']}: event_script parameters must not use local_bounds as semantic boundary")
+    contract_payload = dict(dict(script.get("parameters") or {}).get("semantic_event_contract") or {})
+    contract_boundary = dict(contract_payload.get("capture_boundary") or {})
+    if str(contract_boundary.get("geometry_source") or "") == "local_bounds":
+        issues.append(f"{scene['scenario_id']}: capture_boundary.geometry_source must not be local_bounds")
     center = pos3(bounds.get("center_enu_m"))
     radius = float(bounds.get("radius_m", 0.0) or 0.0)
     if not center or radius <= 0.0:
@@ -1264,6 +1445,255 @@ def check_background_vehicle_clearance_rule(
     return ok
 
 
+def capture_boundary_payload(scene: dict[str, Any], script: dict[str, Any]) -> dict[str, Any]:
+    params = dict(script.get("parameters") or {})
+    boundary = dict(params.get("capture_boundary") or {})
+    if boundary:
+        return boundary
+    contract = dict(params.get("semantic_event_contract") or {})
+    return dict(contract.get("capture_boundary") or {})
+
+
+def boundary_polygon(scene: dict[str, Any], script: dict[str, Any]) -> list[list[float]]:
+    boundary = capture_boundary_payload(scene, script)
+    polygon = boundary.get("polygon_enu_m") or []
+    result: list[list[float]] = []
+    for point in polygon:
+        if isinstance(point, list) and len(point) >= 2:
+            result.append([float(point[0]), float(point[1])])
+    if result:
+        return result
+    source_id = str(boundary.get("source_entity_id") or "")
+    entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
+    source = entities.get(source_id)
+    if source:
+        placement = dict(source.get("placement") or {})
+        for point in placement.get("polygon_enu_m") or []:
+            if isinstance(point, list) and len(point) >= 2:
+                result.append([float(point[0]), float(point[1])])
+        if result:
+            return result
+        center = entity_pos(source)
+        extent = placement.get("extent_m") or placement.get("size_m")
+        if center and isinstance(extent, list) and len(extent) >= 2:
+            half_x = float(extent[0]) * (0.5 if "size_m" in placement and "extent_m" not in placement else 1.0)
+            half_y = float(extent[1]) * (0.5 if "size_m" in placement and "extent_m" not in placement else 1.0)
+            return [
+                [center[0] - half_x, center[1] - half_y],
+                [center[0] + half_x, center[1] - half_y],
+                [center[0] + half_x, center[1] + half_y],
+                [center[0] - half_x, center[1] + half_y],
+            ]
+    return []
+
+
+def boundary_center(boundary: dict[str, Any], polygon: list[list[float]]) -> list[float] | None:
+    center = pos3(boundary.get("center_enu_m"))
+    if center:
+        return center
+    if polygon:
+        return [sum(point[0] for point in polygon) / len(polygon), sum(point[1] for point in polygon) / len(polygon), 0.0]
+    return None
+
+
+def boundary_samples(boundary: dict[str, Any], polygon: list[list[float]]) -> list[list[float]]:
+    samples: list[list[float]] = [[point[0], point[1], 0.0] for point in polygon]
+    if polygon:
+        for a, b in zip(polygon, polygon[1:] + polygon[:1]):
+            samples.append([(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, 0.0])
+    center = boundary_center(boundary, polygon)
+    if center:
+        samples.append(center)
+    for key in ("key_conflict_point_enu_m", "terminal_landing_point_enu_m", "forced_landing_point_enu_m"):
+        point = pos3(boundary.get(key))
+        if point:
+            samples.append(point)
+    unique: list[list[float]] = []
+    seen: set[tuple[float, float, float]] = set()
+    for sample in samples:
+        key = (round(sample[0], 3), round(sample[1], 3), round(sample[2], 3))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(sample)
+    return unique
+
+
+def route_crosses_boundary(route: list[list[float]], polygon: list[list[float]]) -> bool:
+    if not route or not polygon:
+        return False
+    if any(point_in_polygon_xy(point, polygon) for point in route):
+        return True
+    return any(segment_intersects_polygon_xy(a, b, polygon) for a, b in zip(route, route[1:]))
+
+
+def entity_route_points(entity: dict[str, Any], script: dict[str, Any]) -> list[list[float]]:
+    points: list[list[float]] = []
+    start = entity_mission_start_pos(entity) or entity_pos(entity)
+    if start:
+        points.append(start)
+    for waypoint in entity.get("route_waypoints_enu_m") or []:
+        found = pos3(waypoint)
+        if found:
+            points.append(found)
+    entity_id = str(entity.get("entity_id") or "")
+    for _, action in action_iter(script):
+        if action.get("type") != "move_entity" or str(action.get("entity_id") or action.get("ped_id") or "") != entity_id:
+            continue
+        for waypoint in action.get("waypoints_enu_m") or []:
+            found = pos3(waypoint)
+            if found:
+                points.append(found)
+    return points
+
+
+def inspect_loop_route(entity: dict[str, Any]) -> list[list[float]]:
+    contract = dict(entity.get("contract_inspect_uav") or {})
+    raw = contract.get("loop_route_enu_m") or contract.get("repaired_route_enu_m") or contract.get("planned_route_enu_m") or entity.get("route_waypoints_enu_m") or []
+    return [point for point in (pos3(item) for item in raw) if point]
+
+
+def sensor_fov_deg(contract: dict[str, Any]) -> float:
+    profile = dict(contract.get("sensor_profile") or {})
+    for source in (contract, profile):
+        for key in ("hfov_deg", "FOV_Degrees", "sensor_fov_deg"):
+            if key in source:
+                return float(source.get(key) or 0.0)
+    return 0.0
+
+
+def inspect_route_covers_boundary(route: list[list[float]], samples: list[list[float]], hfov_deg: float, altitude_m: float) -> bool:
+    if not route or not samples or hfov_deg <= 0.0 or altitude_m <= 0.0:
+        return False
+    footprint_radius = math.tan(math.radians(hfov_deg / 2.0)) * altitude_m
+    return all(any(dist_xy(route_point, sample) <= footprint_radius for route_point in route) for sample in samples)
+
+
+def visible_physical_entity(entity: dict[str, Any]) -> bool:
+    if entity.get("enabled") is False:
+        return False
+    asset_id = str(entity.get("logical_asset_id") or "")
+    category = str(entity.get("category") or "")
+    if asset_id == UAV_CORRIDOR_LOGICAL_ASSET_ID:
+        return False
+    if asset_id.startswith(("uav.", "vehicle.", "pedestrian.", "facility.", "prop.")):
+        return True
+    return category in {"uav", "vehicle", "pedestrian", "facility", "traffic_signal", "airspace_constraint", "hazard_zone"}
+
+
+def locomotion_entity(entity: dict[str, Any]) -> bool:
+    asset_id = str(entity.get("logical_asset_id") or "")
+    category = str(entity.get("category") or "")
+    return asset_id.startswith(("uav.", "vehicle.", "pedestrian.")) or category in {"uav", "vehicle", "pedestrian"}
+
+
+def entity_motion_displacement(entity: dict[str, Any], script: dict[str, Any]) -> float:
+    points = entity_route_points(entity, script)
+    if len(points) >= 2:
+        return path_length_m(points)
+    return 0.0
+
+
+def non_locomotion_has_animation(entity: dict[str, Any], script: dict[str, Any]) -> bool:
+    entity_id = str(entity.get("entity_id") or "")
+    motion = dict(entity.get("motion_contract") or {})
+    if str(motion.get("motion_kind") or "") in {"transform_animation", "state_animation"}:
+        return True
+    for _, action in action_iter(script):
+        if str(action.get("entity_id") or action.get("ped_id") or "") != entity_id:
+            continue
+        if action.get("type") in {"animate_entity_transform", "set_facility_state", "set_logical_boundary_state", "set_visual_state", "play_animation"}:
+            return True
+    return False
+
+
+def check_all_entities_motion_contract(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    sid = str(scene.get("scenario_id") or script.get("scenario_id") or "")
+    for entity in scene.get("entities", []):
+        if not visible_physical_entity(entity):
+            continue
+        entity_id = str(entity.get("entity_id") or "")
+        motion = dict(entity.get("motion_contract") or {})
+        if not motion:
+            issues.append(f"{sid}: visible entity missing motion_contract: {entity_id}")
+            continue
+        if motion.get("required") is not True:
+            issues.append(f"{sid}: visible entity motion_contract.required must be true: {entity_id}")
+        if str(motion.get("motion_kind") or "") not in {"kinematic_path", "transform_animation", "state_animation"}:
+            issues.append(f"{sid}: visible entity motion_contract.motion_kind invalid: {entity_id}")
+        if motion.get("semantic_link_required") is not True:
+            issues.append(f"{sid}: visible entity motion_contract.semantic_link_required must be true: {entity_id}")
+        if not motion.get("linked_intents"):
+            issues.append(f"{sid}: visible entity motion_contract.linked_intents missing: {entity_id}")
+        if locomotion_entity(entity):
+            min_displacement = float(motion.get("min_displacement_m") or 0.5)
+            displacement = entity_motion_displacement(entity, script)
+            if displacement < min_displacement:
+                issues.append(f"{sid}: locomotion entity displacement too small: {entity_id} {displacement:.2f}m < {min_displacement:.2f}m")
+        elif not non_locomotion_has_animation(entity, script):
+            issues.append(f"{sid}: non-locomotion visible entity lacks transform/state/material animation: {entity_id}")
+
+
+def check_capture_boundary_contract(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    sid = str(scene.get("scenario_id") or script.get("scenario_id") or "")
+    contract = get_contract(sid)
+    boundary = capture_boundary_payload(scene, script)
+    polygon = boundary_polygon(scene, script)
+    if not boundary:
+        issues.append(f"{sid}: missing capture_boundary contract")
+        return
+    if not polygon:
+        issues.append(f"{sid}: capture_boundary lacks polygon_enu_m")
+        return
+    if str(boundary.get("geometry_source") or "") == "local_bounds":
+        issues.append(f"{sid}: capture_boundary must not use local_bounds as geometry_source")
+    entities = {entity["entity_id"]: entity for entity in scene.get("entities", [])}
+    uavs = [entity for entity in entities.values() if str(entity.get("logical_asset_id") or "").startswith("uav.")]
+    if contract.uav_boundary_crossing_required:
+        for uav in uavs:
+            if not is_mission_uav(uav):
+                continue
+            if not route_crosses_boundary(entity_route_points(uav, script), polygon):
+                issues.append(f"{sid}: UAV route does not cross capture boundary: {uav['entity_id']}")
+    inspect_entities = [uav for uav in uavs if is_inspect_uav(uav)]
+    if len(inspect_entities) == 1:
+        inspect = inspect_entities[0]
+        loop_route = inspect_loop_route(inspect)
+        if not loop_route:
+            issues.append(f"{sid}: U_inspect lacks loop route for capture boundary observation")
+        else:
+            altitudes = {round(float(point[2]), 3) for point in loop_route}
+            contract_altitude = float(contract.inspect_altitude_m)
+            if len(altitudes) != 1 or abs(next(iter(altitudes)) - contract_altitude) > 0.001:
+                issues.append(f"{sid}: U_inspect loop route is not fixed at {contract_altitude:.1f}m")
+            if not route_is_closed(loop_route):
+                issues.append(f"{sid}: U_inspect loop route must be closed")
+            inspect_contract = dict(inspect.get("contract_inspect_uav") or {})
+            fov_deg = sensor_fov_deg(inspect_contract)
+            if contract.inspect.fov_coverage_required:
+                if fov_deg <= 0.0:
+                    issues.append(f"{sid}: U_inspect FoV is required but missing from contract_inspect_uav sensor profile/FOV_Degrees")
+                elif not inspect_route_covers_boundary(loop_route, boundary_samples(boundary, polygon), fov_deg, contract_altitude):
+                    issues.append(f"{sid}: U_inspect FoV footprint does not cover capture boundary samples")
+    pad_policy = dict(dict(script.get("parameters") or {}).get("semantic_event_contract") or {}).get("pad_boundary_policy")
+    if not isinstance(pad_policy, dict):
+        pad_policy = {}
+    inside_required_for = set(as_tuple_str(pad_policy.get("inside_required_for"))) or set(contract.pad_policy.inside_required_for)
+    if inside_required_for:
+        pads = [
+            entity
+            for entity in entities.values()
+            if str(entity.get("logical_asset_id") or "") == "facility.landing_pad.visible.v1"
+            and not str(entity.get("entity_id") or "").startswith("pad_home_")
+        ]
+        if not pads:
+            issues.append(f"{sid}: pad boundary policy requires event pads but none are declared")
+        for pad in pads:
+            position = entity_pos(pad)
+            if position and not point_in_polygon_xy(position, polygon):
+                issues.append(f"{sid}: event pad is outside capture boundary: {pad['entity_id']}")
+
+
 def check_evacuation_pedestrian_spacing(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
     scenario_id = str(script.get("scenario_id") or scene.get("scenario_id") or "")
     if not (scenario_id.startswith("L4-8") or scenario_id.startswith("X6")):
@@ -1331,6 +1761,8 @@ def check_lifecycle_closure(scene: dict[str, Any], script: dict[str, Any], issue
     for entity_id, entity in entities.items():
         asset_id = str(entity.get("logical_asset_id", ""))
         if not asset_id.startswith("uav."):
+            continue
+        if is_inspect_uav(entity) or is_observer_uav(entity):
             continue
         start = entity_pos(entity)
         lifecycle = entity.get("lifecycle") or {}
@@ -1400,7 +1832,7 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             ok = len(events) >= int(rule.get("min_count", 5))
         elif name == "uav_start_outside_constraint":
             constraints = [entity for entity in entities.values() if entity.get("logical_asset_id", "").startswith("trigger.")]
-            uavs = [entity for entity in entities.values() if entity.get("logical_asset_id", "").startswith("uav.")]
+            uavs = [entity for entity in entities.values() if entity.get("logical_asset_id", "").startswith("uav.") and is_mission_uav(entity)]
             for uav in uavs:
                 uav_pos = entity_mission_start_pos(uav)
                 for constraint in constraints:
@@ -1431,7 +1863,11 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             }
             ok = counts["pedestrian"] >= int(rule.get("pedestrian_min", 0)) and counts["ambulance"] >= int(rule.get("ambulance_min", 0)) and counts["uav"] >= int(rule.get("uav_min", 0))
         elif name == "uav_start_separation":
-            uav_positions = [entity_mission_start_pos(entity) for entity in entities.values() if entity.get("logical_asset_id", "").startswith("uav.")]
+            uav_positions = [
+                entity_mission_start_pos(entity)
+                for entity in entities.values()
+                if entity.get("logical_asset_id", "").startswith("uav.") and is_mission_uav(entity)
+            ]
             uav_positions = [item for item in uav_positions if item]
             ok = len(uav_positions) >= 2 and dist_xy(uav_positions[0], uav_positions[1]) >= float(rule.get("min_horizontal_distance_m", 0.0)) and abs(uav_positions[0][2] - uav_positions[1][2]) > 0.5
         elif name == "facade_approach_distance":
@@ -1466,6 +1902,10 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
         elif name == "uav_corridor_contract":
             ok = True
         elif name == "semantic_event_contract":
+            ok = True
+        elif name == "uav_boundary_crossing_required":
+            ok = True
+        elif name == "pad_inside_boundary_required":
             ok = True
         elif name == "background_vehicle_clearance":
             ok = check_background_vehicle_clearance_rule(scene, script, rule, issues)
@@ -1556,9 +1996,9 @@ def check_render_ready_contract(render_ready_root: Path, issues: list[str]) -> N
         label_pairs = [(str(row.get("topic") or row.get("source_event_id") or row.get("event_id") or ""), int(row.get("tick", 0) or 0)) for row in labels]
         if event_pairs != label_pairs:
             issues.append(f"{episode_dir.name}: event_trace/dynamic_labels mismatch")
-        ok, matched = l3_l4_exact_event_sequence_match(scenario_id, contract.required_event, events)
+        ok, matched = required_intent_sequence_matches(contract.required_intents, events)
         if not ok:
-            issues.append(f"{episode_dir.name}: render-ready required_event order mismatch: {contract.required_event} (matched={matched})")
+            issues.append(f"{episode_dir.name}: render-ready required_intents order mismatch: {contract.required_intents} (matched={matched})")
 
 
 def building_index(spatial: MapSpatialIndex) -> BuildingObstacleIndex:
@@ -1623,13 +2063,15 @@ def check_uav_corridor_contract(scene: dict[str, Any], script: dict[str, Any], s
 
     bindex = building_index(spatial)
     for uav in uavs:
+        if is_inspect_uav(uav):
+            continue
         pos = entity_mission_start_pos(uav)
         if pos and not allow_building_impact and bindex.point_collision(pos):
             issues.append(f"{sid}: UAV mission/start point intersects building volume: {uav['entity_id']} {pos}")
-        if pos and pos[2] >= UAV_MISSION_ALTITUDE_MIN_M and corridors and not any(point_in_corridor(pos, corridor) for corridor in corridors):
+        if is_mission_uav(uav) and pos and pos[2] >= UAV_MISSION_ALTITUDE_MIN_M and corridors and not any(point_in_corridor(pos, corridor) for corridor in corridors):
             issues.append(f"{sid}: UAV mission/start point is outside high-altitude corridors: {uav['entity_id']} {pos}")
 
-    starts = [(entity["entity_id"], entity_mission_start_pos(entity)) for entity in uavs]
+    starts = [(entity["entity_id"], entity_mission_start_pos(entity)) for entity in uavs if is_mission_uav(entity)]
     starts = [(entity_id, pos) for entity_id, pos in starts if pos]
     for index, (a_id, a_pos) in enumerate(starts):
         for b_id, b_pos in starts[index + 1:]:
@@ -1643,12 +2085,21 @@ def check_uav_corridor_contract(scene: dict[str, Any], script: dict[str, Any], s
         entity_id = str(action.get("entity_id") or action.get("ped_id") or "")
         if not asset_by_id.get(entity_id, "").startswith("uav."):
             continue
+        entity = entities.get(entity_id)
+        terminal_or_low_profile = uav_action_is_terminal_or_low_profile(action.get("action_id"))
         points = [pos3(point) for point in action.get("waypoints_enu_m") or []]
         points = [point for point in points if point]
         for point in points:
             if not allow_building_impact and bindex.point_collision(point):
                 issues.append(f"{sid}: UAV waypoint intersects building volume in {action.get('action_id')}: {entity_id} {point}")
-            if point[2] >= UAV_MISSION_ALTITUDE_MIN_M and corridors and not any(point_in_corridor(point, corridor) for corridor in corridors):
+            if (
+                entity
+                and is_mission_uav(entity)
+                and not terminal_or_low_profile
+                and point[2] >= UAV_MISSION_ALTITUDE_MIN_M
+                and corridors
+                and not any(point_in_corridor(point, corridor) for corridor in corridors)
+            ):
                 issues.append(f"{sid}: UAV high waypoint outside corridor in {action.get('action_id')}: {entity_id} {point}")
         for a, b in zip(points, points[1:]):
             if not allow_building_impact and bindex.segment_collision(a, b):
@@ -1669,6 +2120,7 @@ def validate_scenario(
     script = load_json(script_path)
     issues: list[str] = []
     check_contract_payload(scene, script, issues)
+    check_event_intent_contract(scene, script, issues)
     check_scene_contract_counts(scene, script, issues)
     check_entity_references(scene, script, issues)
     check_assets(scene, known_assets, issues)
@@ -1685,6 +2137,8 @@ def validate_scenario(
     check_proximity_metrics(scene, script, issues)
     check_activity_causality(scene, script, issues)
     check_lifecycle_closure(scene, script, issues)
+    check_capture_boundary_contract(scene, script, issues)
+    check_all_entities_motion_contract(scene, script, issues)
     check_uav_corridor_contract(scene, script, spatial, issues)
     execute_validation_rules(scene, script, known_assets, issues)
     return issues

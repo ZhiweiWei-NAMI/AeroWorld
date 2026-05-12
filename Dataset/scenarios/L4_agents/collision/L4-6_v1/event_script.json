@@ -15,15 +15,66 @@
         "facility": 1,
         "logical": 2
       },
+      "capture_boundary": {
+        "boundary_id": "capture_boundary_l4_6_v1",
+        "geometry_source": "event_entity",
+        "anchor_entity_roles": [
+          "capture_boundary",
+          "hazard_zone",
+          "airspace_constraint"
+        ],
+        "boundary_role": "capture_boundary",
+        "z_policy": "ground_to_event_altitude",
+        "source": "event_motion_bbox",
+        "source_entity_id": "",
+        "center_enu_m": [
+          7116.798,
+          6342.629,
+          0.0
+        ],
+        "polygon_enu_m": [
+          [
+            7048.168,
+            6301.483
+          ],
+          [
+            7185.429,
+            6301.483
+          ],
+          [
+            7185.429,
+            6383.774
+          ],
+          [
+            7048.168,
+            6383.774
+          ]
+        ],
+        "uav_boundary_crossing_required": true,
+        "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+        "inspect_fov_coverage_required": true,
+        "inspect_entity_role": "U_inspect"
+      },
       "inspect": {
         "role": "U_inspect",
         "altitude_code": "I10",
         "altitude_m": 10.0,
         "min_path_length_m": 80.0,
         "required_presence": "episode_full_duration",
-        "motion_policy": "inspect_orbit_or_racetrack_not_static_hover"
+        "motion_policy": "fixed_altitude_closed_loop",
+        "corridor_policy": "inspect_capture_corridor",
+        "fov_coverage_required": true,
+        "sensor_profile_required": true
       },
+      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "uav_boundary_crossing_required": true,
+      "inspect_fov_coverage_required": true,
       "required_event": "jaywalk > vehicle brake > retreat",
+      "required_intents": [
+        "jaywalk",
+        "vehicle_brake",
+        "retreat"
+      ],
       "background_semantics": {
         "vehicle_role": "braking/yielding vehicles",
         "pedestrian_role": "jaywalker + waiting peds",
@@ -43,7 +94,7 @@
     "target_logical_count": 2,
     "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
     "allow_building_impact": false,
-    "uav_corridor_segment_count": 18,
+    "uav_corridor_segment_count": 5,
     "uav_altitude_layers_m": [
       30.0,
       50.0,
@@ -62,19 +113,19 @@
     "uav_corridor_segments": [
       {
         "entity_id": "u_inspect_l4_6_v1",
-        "point_count": 9,
+        "point_count": 4,
         "assigned_altitude_m": 10.0,
         "used_lateral_bypass": false
       },
       {
         "entity_id": "uav_observer_l4_6_v1_2",
-        "point_count": 5,
+        "point_count": 2,
         "assigned_altitude_m": 50.0,
         "used_lateral_bypass": false
       },
       {
         "entity_id": "uav_observer_l4_6_v1_3",
-        "point_count": 7,
+        "point_count": 2,
         "assigned_altitude_m": 80.0,
         "used_lateral_bypass": false
       }
@@ -84,13 +135,13 @@
         "entity_id": "u_inspect_l4_6_v1",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7075.807,
-          6326.32,
+          7078.678,
+          6318.426,
           10.0
         ],
         "segment_end_enu_m": [
-          7078.678,
-          6318.426,
+          7160.768,
+          6354.862,
           10.0
         ],
         "assigned_altitude_m": 10.0
@@ -99,95 +150,20 @@
         "entity_id": "u_inspect_l4_6_v1",
         "segment_index": 1,
         "segment_start_enu_m": [
-          7078.678,
-          6318.426,
+          7160.768,
+          6354.862,
           10.0
         ],
         "segment_end_enu_m": [
           7078.678,
           6318.426,
-          36.0
+          10.0
         ],
         "assigned_altitude_m": 10.0
       },
       {
         "entity_id": "u_inspect_l4_6_v1",
         "segment_index": 2,
-        "segment_start_enu_m": [
-          7078.678,
-          6318.426,
-          36.0
-        ],
-        "segment_end_enu_m": [
-          7075.807,
-          6326.32,
-          36.0
-        ],
-        "assigned_altitude_m": 10.0
-      },
-      {
-        "entity_id": "u_inspect_l4_6_v1",
-        "segment_index": 3,
-        "segment_start_enu_m": [
-          7075.807,
-          6326.32,
-          36.0
-        ],
-        "segment_end_enu_m": [
-          7075.807,
-          6326.32,
-          3.0
-        ],
-        "assigned_altitude_m": 10.0
-      },
-      {
-        "entity_id": "u_inspect_l4_6_v1",
-        "segment_index": 4,
-        "segment_start_enu_m": [
-          7075.807,
-          6326.32,
-          3.0
-        ],
-        "segment_end_enu_m": [
-          7078.678,
-          6318.426,
-          10.0
-        ],
-        "assigned_altitude_m": 10.0
-      },
-      {
-        "entity_id": "u_inspect_l4_6_v1",
-        "segment_index": 5,
-        "segment_start_enu_m": [
-          7078.678,
-          6318.426,
-          10.0
-        ],
-        "segment_end_enu_m": [
-          7160.768,
-          6354.862,
-          10.0
-        ],
-        "assigned_altitude_m": 10.0
-      },
-      {
-        "entity_id": "u_inspect_l4_6_v1",
-        "segment_index": 6,
-        "segment_start_enu_m": [
-          7160.768,
-          6354.862,
-          10.0
-        ],
-        "segment_end_enu_m": [
-          7078.678,
-          6318.426,
-          10.0
-        ],
-        "assigned_altitude_m": 10.0
-      },
-      {
-        "entity_id": "u_inspect_l4_6_v1",
-        "segment_index": 7,
         "segment_start_enu_m": [
           7078.678,
           6318.426,
@@ -204,59 +180,14 @@
         "entity_id": "uav_observer_l4_6_v1_2",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7065.895,
-          6305.421,
-          50.0
-        ],
-        "segment_end_enu_m": [
-          7063.537,
-          6313.483,
-          50.0
-        ],
-        "assigned_altitude_m": 50.0
-      },
-      {
-        "entity_id": "uav_observer_l4_6_v1_2",
-        "segment_index": 1,
-        "segment_start_enu_m": [
           7063.537,
           6313.483,
           50.0
         ],
         "segment_end_enu_m": [
-          7063.537,
-          6313.483,
-          42.0
-        ],
-        "assigned_altitude_m": 50.0
-      },
-      {
-        "entity_id": "uav_observer_l4_6_v1_2",
-        "segment_index": 2,
-        "segment_start_enu_m": [
-          7063.537,
-          6313.483,
-          42.0
-        ],
-        "segment_end_enu_m": [
-          7065.895,
-          6305.421,
-          42.0
-        ],
-        "assigned_altitude_m": 50.0
-      },
-      {
-        "entity_id": "uav_observer_l4_6_v1_2",
-        "segment_index": 3,
-        "segment_start_enu_m": [
-          7065.895,
-          6305.421,
-          42.0
-        ],
-        "segment_end_enu_m": [
-          7065.895,
-          6305.421,
-          3.0
+          7173.429,
+          6360.973,
+          50.0
         ],
         "assigned_altitude_m": 50.0
       },
@@ -264,89 +195,14 @@
         "entity_id": "uav_observer_l4_6_v1_3",
         "segment_index": 0,
         "segment_start_enu_m": [
-          7060.056,
-          6325.384,
-          80.0
-        ],
-        "segment_end_enu_m": [
-          7060.168,
-          6325.0,
-          80.0
-        ],
-        "assigned_altitude_m": 80.0
-      },
-      {
-        "entity_id": "uav_observer_l4_6_v1_3",
-        "segment_index": 1,
-        "segment_start_enu_m": [
           7060.168,
           6325.0,
           80.0
         ],
         "segment_end_enu_m": [
-          7060.168,
-          6325.0,
-          42.0
-        ],
-        "assigned_altitude_m": 80.0
-      },
-      {
-        "entity_id": "uav_observer_l4_6_v1_3",
-        "segment_index": 2,
-        "segment_start_enu_m": [
-          7060.168,
-          6325.0,
-          42.0
-        ],
-        "segment_end_enu_m": [
-          7060.056,
-          6325.384,
-          42.0
-        ],
-        "assigned_altitude_m": 80.0
-      },
-      {
-        "entity_id": "uav_observer_l4_6_v1_3",
-        "segment_index": 3,
-        "segment_start_enu_m": [
-          7060.056,
-          6325.384,
-          42.0
-        ],
-        "segment_end_enu_m": [
-          7071.143,
-          6320.792,
-          42.0
-        ],
-        "assigned_altitude_m": 80.0
-      },
-      {
-        "entity_id": "uav_observer_l4_6_v1_3",
-        "segment_index": 4,
-        "segment_start_enu_m": [
-          7071.143,
-          6320.792,
-          42.0
-        ],
-        "segment_end_enu_m": [
-          7068.847,
-          6315.249,
-          3.0
-        ],
-        "assigned_altitude_m": 80.0
-      },
-      {
-        "entity_id": "uav_observer_l4_6_v1_3",
-        "segment_index": 5,
-        "segment_start_enu_m": [
-          7068.847,
-          6315.249,
-          3.0
-        ],
-        "segment_end_enu_m": [
-          7057.76,
-          6319.841,
-          3.0
+          7168.201,
+          6371.774,
+          80.0
         ],
         "assigned_altitude_m": 80.0
       }
@@ -359,24 +215,41 @@
         "horizontal_distance_m": 4.0,
         "vertical_distance_m": 2.0
       }
-    ]
+    ],
+    "capture_boundary": {
+      "boundary_id": "capture_boundary_l4_6_v1",
+      "source": "event_motion_bbox",
+      "source_entity_id": "",
+      "center_enu_m": [
+        7116.798,
+        6342.629,
+        0.0
+      ],
+      "polygon_enu_m": [
+        [
+          7048.168,
+          6301.483
+        ],
+        [
+          7185.429,
+          6301.483
+        ],
+        [
+          7185.429,
+          6383.774
+        ],
+        [
+          7048.168,
+          6383.774
+        ]
+      ],
+      "uav_boundary_crossing_required": true,
+      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "inspect_fov_coverage_required": true,
+      "inspect_entity_role": "U_inspect"
+    }
   },
   "triggers": [
-    {
-      "trigger_id": "trig_lifecycle_takeoff_u_inspect_l4_6_v1",
-      "type": "tick",
-      "tick": 30
-    },
-    {
-      "trigger_id": "trig_lifecycle_takeoff_uav_observer_l4_6_v1_2",
-      "type": "tick",
-      "tick": 38
-    },
-    {
-      "trigger_id": "trig_lifecycle_takeoff_uav_observer_l4_6_v1_3",
-      "type": "tick",
-      "tick": 46
-    },
     {
       "trigger_id": "trig_ped_enters_roadway",
       "type": "tick",
@@ -399,204 +272,9 @@
       "type": "event_fired_after",
       "event_id": "vehicle_ped_proximity",
       "delay_ticks": 30
-    },
-    {
-      "trigger_id": "trig_after_ped_retreats_delay_80",
-      "type": "event_fired_after",
-      "event_id": "ped_retreats",
-      "delay_ticks": 80
-    },
-    {
-      "trigger_id": "trig_after_ped_retreats_delay_88",
-      "type": "event_fired_after",
-      "event_id": "ped_retreats",
-      "delay_ticks": 88
-    },
-    {
-      "trigger_id": "trig_after_ped_retreats_delay_96",
-      "type": "event_fired_after",
-      "event_id": "ped_retreats",
-      "delay_ticks": 96
     }
   ],
   "events": [
-    {
-      "event_id": "lifecycle_takeoff_u_inspect_l4_6_v1",
-      "trigger_ref": "trig_lifecycle_takeoff_u_inspect_l4_6_v1",
-      "priority": 1,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "move_entity",
-          "action_id": "move_u_inspect_l4_6_v1_takeoff_entry",
-          "entity_id": "u_inspect_l4_6_v1",
-          "waypoints_enu_m": [
-            [
-              7075.807,
-              6326.32,
-              10.0
-            ],
-            [
-              7078.678,
-              6318.426,
-              10.0
-            ]
-          ],
-          "velocity_mps": 5.0,
-          "uav_corridor_validation": {
-            "status": "waypoints_repaired_for_building_clearance",
-            "assigned_altitude_m": 10.0,
-            "original_waypoints_enu_m": [
-              [
-                7075.807,
-                6326.32,
-                3.0
-              ],
-              [
-                7075.807,
-                6326.32,
-                18.0
-              ],
-              [
-                7078.678,
-                6318.426,
-                10.0
-              ]
-            ],
-            "preserved_action_type": "move_entity"
-          }
-        }
-      ],
-      "log_event": {
-        "topic": "evt_L4-6_v1_lifecycle_takeoff_u_inspect_l4_6_v1",
-        "category": "uav_lifecycle",
-        "title": "UAV takes off from visible home pad and enters mission airspace",
-        "severity": "info",
-        "overlay": "uav_lifecycle",
-        "target_ids": [
-          "u_inspect_l4_6_v1",
-          "pad_home_u_inspect_l4_6_v1"
-        ]
-      }
-    },
-    {
-      "event_id": "lifecycle_takeoff_uav_observer_l4_6_v1_2",
-      "trigger_ref": "trig_lifecycle_takeoff_uav_observer_l4_6_v1_2",
-      "priority": 2,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "move_entity",
-          "action_id": "move_uav_observer_l4_6_v1_2_takeoff_entry",
-          "entity_id": "uav_observer_l4_6_v1_2",
-          "waypoints_enu_m": [
-            [
-              7065.895,
-              6305.421,
-              50.0
-            ],
-            [
-              7063.537,
-              6313.483,
-              50.0
-            ]
-          ],
-          "velocity_mps": 5.0,
-          "uav_corridor_validation": {
-            "status": "waypoints_repaired_for_building_clearance",
-            "assigned_altitude_m": 50.0,
-            "original_waypoints_enu_m": [
-              [
-                7065.895,
-                6305.421,
-                3.0
-              ],
-              [
-                7065.895,
-                6305.421,
-                24.0
-              ],
-              [
-                7063.537,
-                6313.483,
-                42.0
-              ]
-            ],
-            "preserved_action_type": "move_entity"
-          }
-        }
-      ],
-      "log_event": {
-        "topic": "evt_L4-6_v1_lifecycle_takeoff_uav_observer_l4_6_v1_2",
-        "category": "uav_lifecycle",
-        "title": "UAV takes off from visible home pad and enters mission airspace",
-        "severity": "info",
-        "overlay": "uav_lifecycle",
-        "target_ids": [
-          "uav_observer_l4_6_v1_2",
-          "pad_home_uav_observer_l4_6_v1_2"
-        ]
-      }
-    },
-    {
-      "event_id": "lifecycle_takeoff_uav_observer_l4_6_v1_3",
-      "trigger_ref": "trig_lifecycle_takeoff_uav_observer_l4_6_v1_3",
-      "priority": 3,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "move_entity",
-          "action_id": "move_uav_observer_l4_6_v1_3_takeoff_entry",
-          "entity_id": "uav_observer_l4_6_v1_3",
-          "waypoints_enu_m": [
-            [
-              7060.056,
-              6325.384,
-              80.0
-            ],
-            [
-              7060.168,
-              6325.0,
-              80.0
-            ]
-          ],
-          "velocity_mps": 5.0,
-          "uav_corridor_validation": {
-            "status": "waypoints_repaired_for_building_clearance",
-            "assigned_altitude_m": 80.0,
-            "original_waypoints_enu_m": [
-              [
-                7060.056,
-                6325.384,
-                3.0
-              ],
-              [
-                7060.056,
-                6325.384,
-                24.0
-              ],
-              [
-                7060.168,
-                6325.0,
-                42.0
-              ]
-            ],
-            "preserved_action_type": "move_entity"
-          }
-        }
-      ],
-      "log_event": {
-        "topic": "evt_L4-6_v1_lifecycle_takeoff_uav_observer_l4_6_v1_3",
-        "category": "uav_lifecycle",
-        "title": "UAV takes off from visible home pad and enters mission airspace",
-        "severity": "info",
-        "overlay": "uav_lifecycle",
-        "target_ids": [
-          "uav_observer_l4_6_v1_3",
-          "pad_home_uav_observer_l4_6_v1_3"
-        ]
-      }
-    },
     {
       "event_id": "ped_enters_roadway",
       "trigger_ref": "trig_ped_enters_roadway",
@@ -731,238 +409,6 @@
         "overlay": "pedestrian",
         "target_ids": [
           "ped_jaywalk_l4_6_v1"
-        ]
-      }
-    },
-    {
-      "event_id": "lifecycle_landing_u_inspect_l4_6_v1",
-      "trigger_ref": "trig_after_ped_retreats_delay_80",
-      "priority": 9,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "move_entity",
-          "action_id": "move_u_inspect_l4_6_v1_landing_return",
-          "entity_id": "u_inspect_l4_6_v1",
-          "waypoints_enu_m": [
-            [
-              7078.678,
-              6318.426,
-              10.0
-            ],
-            [
-              7078.678,
-              6318.426,
-              36.0
-            ],
-            [
-              7075.807,
-              6326.32,
-              36.0
-            ],
-            [
-              7075.807,
-              6326.32,
-              3.0
-            ]
-          ],
-          "velocity_mps": 4.0,
-          "uav_corridor_validation": {
-            "status": "low_altitude_waypoints_preserved_and_building_clear",
-            "assigned_altitude_m": 10.0,
-            "original_waypoints_enu_m": [
-              [
-                7078.678,
-                6318.426,
-                10.0
-              ],
-              [
-                7078.678,
-                6318.426,
-                36.0
-              ],
-              [
-                7075.807,
-                6326.32,
-                36.0
-              ],
-              [
-                7075.807,
-                6326.32,
-                3.0
-              ]
-            ],
-            "preserved_action_type": "move_entity"
-          }
-        }
-      ],
-      "log_event": {
-        "topic": "evt_L4-6_v1_lifecycle_landing_u_inspect_l4_6_v1",
-        "category": "uav_lifecycle",
-        "title": "UAV returns to the visible home pad and lands after mission resolution",
-        "severity": "info",
-        "overlay": "uav_lifecycle",
-        "target_ids": [
-          "u_inspect_l4_6_v1",
-          "pad_home_u_inspect_l4_6_v1"
-        ]
-      }
-    },
-    {
-      "event_id": "lifecycle_landing_uav_observer_l4_6_v1_2",
-      "trigger_ref": "trig_after_ped_retreats_delay_88",
-      "priority": 9,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "move_entity",
-          "action_id": "move_uav_observer_l4_6_v1_2_landing_return",
-          "entity_id": "uav_observer_l4_6_v1_2",
-          "waypoints_enu_m": [
-            [
-              7063.537,
-              6313.483,
-              50.0
-            ],
-            [
-              7063.537,
-              6313.483,
-              42.0
-            ],
-            [
-              7065.895,
-              6305.421,
-              42.0
-            ],
-            [
-              7065.895,
-              6305.421,
-              3.0
-            ]
-          ],
-          "velocity_mps": 4.0,
-          "uav_corridor_validation": {
-            "status": "low_altitude_waypoints_preserved_and_building_clear",
-            "assigned_altitude_m": 50.0,
-            "original_waypoints_enu_m": [
-              [
-                7063.537,
-                6313.483,
-                42.0
-              ],
-              [
-                7063.537,
-                6313.483,
-                42.0
-              ],
-              [
-                7065.895,
-                6305.421,
-                42.0
-              ],
-              [
-                7065.895,
-                6305.421,
-                3.0
-              ]
-            ],
-            "preserved_action_type": "move_entity"
-          }
-        }
-      ],
-      "log_event": {
-        "topic": "evt_L4-6_v1_lifecycle_landing_uav_observer_l4_6_v1_2",
-        "category": "uav_lifecycle",
-        "title": "UAV returns to the visible home pad and lands after mission resolution",
-        "severity": "info",
-        "overlay": "uav_lifecycle",
-        "target_ids": [
-          "uav_observer_l4_6_v1_2",
-          "pad_home_uav_observer_l4_6_v1_2"
-        ]
-      }
-    },
-    {
-      "event_id": "lifecycle_landing_uav_observer_l4_6_v1_3",
-      "trigger_ref": "trig_after_ped_retreats_delay_96",
-      "priority": 9,
-      "max_fire_count": 1,
-      "actions": [
-        {
-          "type": "move_entity",
-          "action_id": "move_uav_observer_l4_6_v1_3_landing_return",
-          "entity_id": "uav_observer_l4_6_v1_3",
-          "waypoints_enu_m": [
-            [
-              7060.168,
-              6325.0,
-              80.0
-            ],
-            [
-              7060.168,
-              6325.0,
-              42.0
-            ],
-            [
-              7060.056,
-              6325.384,
-              42.0
-            ],
-            [
-              7071.143,
-              6320.792,
-              42.0
-            ],
-            [
-              7068.847,
-              6315.249,
-              3.0
-            ],
-            [
-              7057.76,
-              6319.841,
-              3.0
-            ]
-          ],
-          "velocity_mps": 4.0,
-          "uav_corridor_validation": {
-            "status": "low_altitude_waypoints_preserved_and_building_clear",
-            "assigned_altitude_m": 80.0,
-            "original_waypoints_enu_m": [
-              [
-                7060.168,
-                6325.0,
-                42.0
-              ],
-              [
-                7060.168,
-                6325.0,
-                42.0
-              ],
-              [
-                7060.056,
-                6325.384,
-                42.0
-              ],
-              [
-                7060.056,
-                6325.384,
-                3.0
-              ]
-            ],
-            "preserved_action_type": "move_entity"
-          }
-        }
-      ],
-      "log_event": {
-        "topic": "evt_L4-6_v1_lifecycle_landing_uav_observer_l4_6_v1_3",
-        "category": "uav_lifecycle",
-        "title": "UAV returns to the visible home pad and lands after mission resolution",
-        "severity": "info",
-        "overlay": "uav_lifecycle",
-        "target_ids": [
-          "uav_observer_l4_6_v1_3",
-          "pad_home_uav_observer_l4_6_v1_3"
         ]
       }
     }

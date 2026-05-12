@@ -13,11 +13,11 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      6187.731,
-      6983.879,
+      6176.707,
+      6971.274,
       0.0
     ],
-    "radius_m": 234.723,
+    "radius_m": 215.515,
     "source": "scene_entities_and_routes"
   },
   "entities": [
@@ -228,13 +228,13 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          6205.595,
-          7011.781,
+          6211.651,
+          7014.411,
           10.0
         ],
         "resolved_position_enu_m": [
-          6205.595,
-          7011.781,
+          6211.651,
+          7014.411,
           10.0
         ],
         "rotation_deg": {
@@ -242,31 +242,6 @@
         }
       },
       "route_waypoints_enu_m": [
-        [
-          6211.651,
-          7014.411,
-          10.0
-        ],
-        [
-          6211.651,
-          7014.411,
-          36.0
-        ],
-        [
-          6205.595,
-          7011.781,
-          36.0
-        ],
-        [
-          6205.595,
-          7011.781,
-          3.0
-        ],
-        [
-          6211.651,
-          7014.411,
-          10.0
-        ],
         [
           6143.153,
           6982.968,
@@ -284,7 +259,7 @@
         ]
       ],
       "initial_state": {
-        "mode": "preflight_on_pad",
+        "mode": "inspect_racetrack",
         "task_id": "X3_pedestrian_fall_to_emergency_response.u_inspect",
         "role": "U_inspect",
         "semantic_role": "long-lived UAV inspect view replacing high overview",
@@ -295,19 +270,46 @@
           "land"
         ],
         "assigned_altitude_m": 10.0,
+        "uav_corridor_role": "inspect_observer",
         "inspect_altitude_code": "I10",
         "min_path_length_m": 80.0,
-        "full_episode_presence": true,
-        "uav_corridor_role": "mission_uav"
+        "full_episode_presence": true
       },
       "activation_tick": 0,
       "uav_corridor_role": "inspect_observer",
       "contract_inspect_uav": {
         "policy": "semantic_event_contract_v1",
+        "corridor_role": "inspect_observer",
+        "motion_policy": "fixed_altitude_loop_observes_capture_boundary",
         "inspect_altitude_m": 10.0,
         "inspect_altitude_code": "I10",
+        "sensor_fov_deg": 85.0,
+        "sensor_fov_source": "Plugins/SumoImporter/Scripts/episode_capture_presets.json:uav_cameras.default[0].fov_degrees",
         "min_path_length_m": 80.0,
+        "fixed_altitude_loop": true,
         "planned_route_enu_m": [
+          [
+            6211.651,
+            7014.411,
+            10.0
+          ],
+          [
+            6143.153,
+            6982.968,
+            10.0
+          ],
+          [
+            6211.651,
+            7014.411,
+            10.0
+          ],
+          [
+            6143.153,
+            6982.968,
+            10.0
+          ]
+        ],
+        "loop_route_enu_m": [
           [
             6211.651,
             7014.411,
@@ -351,25 +353,9 @@
             10.0
           ]
         ],
-        "repaired_path_length_m": 226.11
-      },
-      "lifecycle": {
-        "auto_lifecycle_applied": true,
-        "home_pad_entity_id": "pad_home_u_inspect_x3_pedestrian_fall_to_emergency_response",
-        "home_hover_enu_m": [
-          6205.595,
-          7011.781,
-          10.0
-        ],
-        "mission_start_enu_m": [
-          6205.595,
-          7011.781,
-          10.0
-        ],
-        "requires_takeoff": true,
-        "requires_landing_or_terminal_resolution": true,
-        "assigned_altitude_m": 10.0,
-        "waypoint_repair_applied": true
+        "repaired_path_length_m": 226.11,
+        "observed_capture_boundary_id": "capture_boundary_x3_pedestrian_fall_to_emergency_response",
+        "inspect_fov_coverage_required": true
       },
       "uav_corridor": {
         "assigned_altitude_m": 10.0,
@@ -786,13 +772,13 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          6229.553,
-          6982.577,
+          6224.38,
+          6993.846,
           80.0
         ],
         "resolved_position_enu_m": [
-          6229.553,
-          6982.577,
+          6224.38,
+          6993.846,
           80.0
         ],
         "rotation_deg": {
@@ -801,38 +787,13 @@
       },
       "route_waypoints_enu_m": [
         [
-          6224.38,
-          6993.846,
+          6153.165,
+          6961.156,
           80.0
-        ],
-        [
-          6224.38,
-          6993.846,
-          42.0
-        ],
-        [
-          6229.553,
-          6982.577,
-          42.0
-        ],
-        [
-          6121.553,
-          6982.577,
-          42.0
-        ],
-        [
-          6121.553,
-          7018.577,
-          3.0
-        ],
-        [
-          6229.553,
-          7018.577,
-          3.0
         ]
       ],
       "initial_state": {
-        "mode": "preflight_on_pad",
+        "mode": "corridor_observer",
         "task_id": "uav_observer_x3_pedestrian_fall_to_emergency_response_3.task",
         "role": "mission_uav",
         "state_sequence": [
@@ -840,28 +801,10 @@
         ],
         "semantic_role": "corridor_observer",
         "assigned_altitude_m": 80.0,
-        "uav_corridor_role": "mission_uav"
+        "uav_corridor_role": "observer"
       },
       "activation_tick": 0,
       "uav_corridor_role": "observer",
-      "lifecycle": {
-        "auto_lifecycle_applied": true,
-        "home_pad_entity_id": "pad_home_uav_observer_x3_pedestrian_fall_to_emergency_response_3",
-        "home_hover_enu_m": [
-          6229.553,
-          6982.577,
-          80.0
-        ],
-        "mission_start_enu_m": [
-          6229.553,
-          6982.577,
-          80.0
-        ],
-        "requires_takeoff": true,
-        "requires_landing_or_terminal_resolution": true,
-        "assigned_altitude_m": 80.0,
-        "waypoint_repair_applied": true
-      },
       "uav_corridor": {
         "assigned_altitude_m": 80.0,
         "altitude_layers_m": [
@@ -901,74 +844,6 @@
       "initial_state": {
         "mode": "available",
         "task_id": "pad_home_uav_x3_detect.task",
-        "role": "semantic_facility",
-        "state_sequence": [
-          "available"
-        ],
-        "semantic_role": "available"
-      },
-      "activation_tick": 0
-    },
-    {
-      "entity_id": "pad_home_u_inspect_x3_pedestrian_fall_to_emergency_response",
-      "logical_asset_id": "facility.landing_pad.visible.v1",
-      "category": "facility",
-      "placement_mode": "pad_anchor",
-      "placement": {
-        "pad_instance_id": "home_u_inspect_x3_pedestrian_fall_to_emergency_response",
-        "approach_side": "departure",
-        "position_enu_m": [
-          6205.595,
-          7011.781,
-          0.0
-        ],
-        "resolved_position_enu_m": [
-          6205.595,
-          7011.781,
-          0.0
-        ],
-        "rotation_deg": {
-          "yaw_deg": -62.544
-        }
-      },
-      "route_waypoints_enu_m": [],
-      "initial_state": {
-        "mode": "available",
-        "task_id": "pad_home_u_inspect_x3_pedestrian_fall_to_emergency_response.task",
-        "role": "semantic_facility",
-        "state_sequence": [
-          "available"
-        ],
-        "semantic_role": "available"
-      },
-      "activation_tick": 0
-    },
-    {
-      "entity_id": "pad_home_uav_observer_x3_pedestrian_fall_to_emergency_response_3",
-      "logical_asset_id": "facility.landing_pad.visible.v1",
-      "category": "facility",
-      "placement_mode": "pad_anchor",
-      "placement": {
-        "pad_instance_id": "home_uav_observer_x3_pedestrian_fall_to_emergency_response_3",
-        "approach_side": "departure",
-        "position_enu_m": [
-          6229.553,
-          6982.577,
-          0.0
-        ],
-        "resolved_position_enu_m": [
-          6229.553,
-          6982.577,
-          0.0
-        ],
-        "rotation_deg": {
-          "yaw_deg": -155.344
-        }
-      },
-      "route_waypoints_enu_m": [],
-      "initial_state": {
-        "mode": "available",
-        "task_id": "pad_home_uav_observer_x3_pedestrian_fall_to_emergency_response_3.task",
         "role": "semantic_facility",
         "state_sequence": [
           "available"
@@ -1294,44 +1169,44 @@
       "placement_mode": "box_volume",
       "placement": {
         "center_enu_m": [
-          6208.623,
-          7013.096,
+          6177.402,
+          6998.69,
           10.0
         ],
         "resolved_position_enu_m": [
-          6208.623,
-          7013.096,
+          6177.402,
+          6998.69,
           10.0
         ],
         "extent_m": [
-          3.301,
+          37.685,
           4.0,
           4.0
         ],
         "size_m": [
-          6.602,
+          75.37,
           8.0,
           8.0
         ],
         "rotation_deg": {
           "pitch_deg": 0.0,
-          "yaw_deg": 23.474,
+          "yaw_deg": -155.343,
           "roll_deg": 0.0
         },
         "scale_xyz": [
-          6.602,
+          75.37,
           8.0,
           8.0
         ],
         "source_uav_entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
         "segment_start_enu_m": [
-          6205.595,
-          7011.781,
+          6211.651,
+          7014.411,
           10.0
         ],
         "segment_end_enu_m": [
-          6211.651,
-          7014.411,
+          6143.153,
+          6982.968,
           10.0
         ],
         "altitude_layer_m": 10.0
@@ -1416,14 +1291,6 @@
       "tick": 0
     },
     {
-      "entity_id": "pad_home_u_inspect_x3_pedestrian_fall_to_emergency_response",
-      "tick": 0
-    },
-    {
-      "entity_id": "pad_home_uav_observer_x3_pedestrian_fall_to_emergency_response_3",
-      "tick": 0
-    },
-    {
       "entity_id": "corridor_x3_pedestrian_fall_to_emergency_response_uav_x3_detect_00",
       "tick": 0
     },
@@ -1458,9 +1325,9 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          6187.731,
-          6983.879,
-          153.348
+          6176.707,
+          6971.274,
+          125.497
         ],
         "rotation_deg": {
           "pitch_deg": -70.0,
@@ -1505,15 +1372,39 @@
           "facility": 2,
           "logical": 6
         },
+        "capture_boundary": {
+          "boundary_id": "capture_boundary.X3_pedestrian_fall_to_emergency_response.primary",
+          "geometry_source": "event_entity",
+          "anchor_entity_roles": [
+            "capture_boundary",
+            "hazard_zone",
+            "airspace_constraint"
+          ],
+          "boundary_role": "capture_boundary",
+          "z_policy": "ground_to_event_altitude"
+        },
         "inspect": {
           "role": "U_inspect",
           "altitude_code": "I10",
           "altitude_m": 10.0,
           "min_path_length_m": 80.0,
           "required_presence": "episode_full_duration",
-          "motion_policy": "inspect_orbit_or_racetrack_not_static_hover"
+          "motion_policy": "fixed_altitude_closed_loop",
+          "corridor_policy": "inspect_capture_corridor",
+          "fov_coverage_required": true,
+          "sensor_profile_required": true
         },
+        "pad_boundary_policy": {
+          "default": "outside_allowed",
+          "inside_required_for": []
+        },
+        "uav_boundary_crossing_required": true,
+        "inspect_fov_coverage_required": true,
         "required_event": "fall > responder > handoff",
+        "required_intents": [
+          "traffic_or_facility_incident",
+          "recovery_or_restore"
+        ],
         "background_semantics": {
           "vehicle_role": "ambulance/yield chain",
           "pedestrian_role": "fallen + bystanders",
@@ -1531,10 +1422,15 @@
     {
       "rule": "uav_corridor_contract",
       "target_uav_count": 3,
-      "corridor_segment_count": 19,
+      "corridor_segment_count": 9,
       "materialized_corridor_scene_count": 6,
       "allow_building_impact": false,
       "description": "UAV waypoints are repaired for building clearance; corridor scene entities are capped by the exact episode logical-sidecar contract"
+    },
+    {
+      "rule": "uav_boundary_crossing_required",
+      "boundary_id": "capture_boundary_x3_pedestrian_fall_to_emergency_response",
+      "description": "Mission/observer UAV routes must pass through the semantic capture boundary; pads may remain outside unless the pad policy says otherwise"
     },
     {
       "rule": "cross_layer_event_chain_min",

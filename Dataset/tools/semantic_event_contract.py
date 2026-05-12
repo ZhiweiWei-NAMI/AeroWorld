@@ -14,6 +14,34 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class CaptureBoundaryContract:
+    boundary_id: str
+    geometry_source: str
+    anchor_entity_roles: tuple[str, ...]
+    boundary_role: str
+    z_policy: str
+
+
+@dataclass(frozen=True)
+class PadBoundaryPolicy:
+    default: str
+    inside_required_for: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class InspectContract:
+    role: str
+    altitude_code: str
+    altitude_m: float
+    min_path_length_m: float
+    required_presence: str
+    motion_policy: str
+    corridor_policy: str
+    fov_coverage_required: bool
+    sensor_profile_required: bool
+
+
+@dataclass(frozen=True)
 class EpisodeContract:
     scenario_id: str
     uav: int
@@ -23,6 +51,11 @@ class EpisodeContract:
     logical: int
     inspect_altitude_m: float
     required_event: str
+    required_intents: tuple[str, ...]
+    capture_boundary: CaptureBoundaryContract
+    uav_boundary_crossing_required: bool
+    pad_policy: PadBoundaryPolicy
+    inspect: InspectContract
     vehicle_role: str
     pedestrian_role: str
     weather: str
@@ -40,6 +73,163 @@ class EpisodeContract:
     @property
     def inspect_code(self) -> str:
         return f"I{int(round(self.inspect_altitude_m))}"
+
+    @property
+    def pad_boundary_policy(self) -> str:
+        return self.pad_policy.default
+
+
+INTENT_ALIASES: dict[str, frozenset[str]] = {
+    "airspace_boundary_conflict": frozenset(
+        {
+            "boundary conflict",
+            "geofence intrusion",
+            "nfz proximity alert",
+            "no fly zone violation",
+            "airspace boundary conflict",
+            "nfz violation alert",
+            "lockdown",
+        }
+    ),
+    "avoid_or_rth": frozenset(
+        {
+            "avoid",
+            "avoidance",
+            "evade",
+            "evasion",
+            "rth",
+            "return home",
+            "return safe airspace",
+            "reroute",
+            "deconflict",
+            "separation",
+            "divert",
+            "pull up",
+        }
+    ),
+    "landing_or_terminal_resolution": frozenset(
+        {
+            "land",
+            "lands",
+            "landing",
+            "touchdown",
+            "safe land",
+            "terminal resolution",
+            "backup landing",
+            "forced landing",
+        }
+    ),
+    "pad_contention": frozenset(
+        {
+            "pad contention",
+            "pad request",
+            "pad arbitration",
+            "priority landing",
+            "charger unavailable",
+            "charger failure",
+            "station fail",
+        }
+    ),
+    "collision_or_near_miss": frozenset(
+        {
+            "collision",
+            "near miss",
+            "nearmiss",
+            "crossing conflict",
+            "uav vehicle crossing",
+            "pedestrian near miss",
+            "vehicle conflict",
+            "contact risk",
+            "jaywalk conflict",
+        }
+    ),
+    "forced_landing": frozenset({"forced descent", "forced landing", "emergency landing", "touchdown"}),
+    "crowd_evacuation": frozenset({"crowd evacuation", "crowd evac", "evacuation", "evac", "crowd response", "crowd clear"}),
+    "weather_degradation": frozenset({"rain", "fog", "wind", "gust", "dusk", "heat", "visibility"}),
+    "digital_anomaly": frozenset(
+        {
+            "c2 degraded",
+            "tower degraded",
+            "c2 loss",
+            "latency",
+            "packet loss",
+            "spoof",
+            "jamming",
+            "gcs intrusion",
+            "gnss anomaly",
+            "gnss drift",
+        }
+    ),
+    "recovery_or_restore": frozenset(
+        {
+            "restore",
+            "recovery",
+            "recover",
+            "correction",
+            "corrected",
+            "relocalize",
+            "handoff",
+            "validate",
+            "report",
+            "secure recovery",
+            "backup link",
+            "channel",
+            "lockout",
+        }
+    ),
+    "traffic_or_facility_incident": frozenset(
+        {
+            "roadwork closure",
+            "hazmat leak",
+            "hazmat spread",
+            "signal fault",
+            "queue",
+            "manual flow",
+            "ambulance priority",
+            "av fault",
+            "av failure",
+            "fall",
+            "responder",
+            "medical handoff",
+        }
+    ),
+}
+
+
+def normalize_semantic_text(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+
+
+def normalize_intent(value: str) -> str:
+    return normalize_semantic_text(value).replace(" ", "_")
+
+
+def _contains_phrase(text: str, phrase: str) -> bool:
+    normalized = normalize_semantic_text(phrase)
+    if not normalized:
+        return False
+    return normalized in text
+
+
+def canonical_intent_from_text(value: str) -> str | None:
+    text = normalize_semantic_text(value)
+    if not text:
+        return None
+    normalized = normalize_intent(text)
+    if normalized in INTENT_ALIASES:
+        return normalized
+    for intent, aliases in INTENT_ALIASES.items():
+        if intent == normalized or any(_contains_phrase(text, alias) for alias in aliases):
+            return intent
+    return normalized
+
+
+def _intent_values(value: Any) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, list) or isinstance(value, tuple):
+        return tuple(str(item) for item in value if str(item))
+    return ()
 
 
 _ROWS: tuple[tuple[str, str, str, str, str, str], ...] = (
@@ -130,10 +320,54 @@ def _parse_inspect(value: str) -> float:
     return float(text[1:])
 
 
+def _default_capture_boundary_contract(scenario_id: str) -> CaptureBoundaryContract:
+    return CaptureBoundaryContract(
+        boundary_id=f"capture_boundary.{scenario_id}.primary",
+        geometry_source="event_entity",
+        anchor_entity_roles=("capture_boundary", "hazard_zone", "airspace_constraint"),
+        boundary_role="capture_boundary",
+        z_policy="ground_to_event_altitude",
+    )
+
+
+def _default_pad_boundary_policy(scenario_id: str) -> PadBoundaryPolicy:
+    if scenario_id.startswith(("L2-4_", "X5_")):
+        return PadBoundaryPolicy(
+            default="outside_allowed",
+            inside_required_for=("pad_contention", "priority_landing_arbitration"),
+        )
+    return PadBoundaryPolicy(default="outside_allowed", inside_required_for=())
+
+
+def _default_inspect_contract(inspect_altitude_m: float) -> InspectContract:
+    return InspectContract(
+        role="U_inspect",
+        altitude_code=f"I{int(round(inspect_altitude_m))}",
+        altitude_m=inspect_altitude_m,
+        min_path_length_m=80.0,
+        required_presence="episode_full_duration",
+        motion_policy="fixed_altitude_closed_loop",
+        corridor_policy="inspect_capture_corridor",
+        fov_coverage_required=True,
+        sensor_profile_required=True,
+    )
+
+
+def required_intents_for_event_text(required_event: str) -> tuple[str, ...]:
+    stages = [stage.strip() for stage in str(required_event or "").split(">") if stage.strip()]
+    intents: list[str] = []
+    for stage in stages:
+        explicit = canonical_intent_from_text(stage)
+        if explicit and explicit not in intents:
+            intents.append(explicit)
+    return tuple(intents)
+
+
 def _build_contracts() -> dict[str, EpisodeContract]:
     contracts: dict[str, EpisodeContract] = {}
     for scenario_id, counts, inspect, required_event, vehicle_role, pedestrian_role, weather in _ROWS:
         uav, vehicle, pedestrian, facility, logical = _parse_counts(counts)
+        inspect_altitude_m = _parse_inspect(inspect)
         contracts[scenario_id] = EpisodeContract(
             scenario_id=scenario_id,
             uav=uav,
@@ -141,8 +375,13 @@ def _build_contracts() -> dict[str, EpisodeContract]:
             pedestrian=pedestrian,
             facility=facility,
             logical=logical,
-            inspect_altitude_m=_parse_inspect(inspect),
+            inspect_altitude_m=inspect_altitude_m,
             required_event=required_event,
+            required_intents=required_intents_for_event_text(required_event),
+            capture_boundary=_default_capture_boundary_contract(scenario_id),
+            uav_boundary_crossing_required=True,
+            pad_policy=_default_pad_boundary_policy(scenario_id),
+            inspect=_default_inspect_contract(inspect_altitude_m),
             vehicle_role=vehicle_role,
             pedestrian_role=pedestrian_role,
             weather=weather,
@@ -178,15 +417,32 @@ def contract_payload(contract: EpisodeContract) -> dict[str, Any]:
         "schema": "low_altitude_event_chain_contract_v1",
         "scenario_id": contract.scenario_id,
         "exact_counts": contract.counts,
-        "inspect": {
-            "role": "U_inspect",
-            "altitude_code": contract.inspect_code,
-            "altitude_m": contract.inspect_altitude_m,
-            "min_path_length_m": 80.0,
-            "required_presence": "episode_full_duration",
-            "motion_policy": "inspect_orbit_or_racetrack_not_static_hover",
+        "capture_boundary": {
+            "boundary_id": contract.capture_boundary.boundary_id,
+            "geometry_source": contract.capture_boundary.geometry_source,
+            "anchor_entity_roles": list(contract.capture_boundary.anchor_entity_roles),
+            "boundary_role": contract.capture_boundary.boundary_role,
+            "z_policy": contract.capture_boundary.z_policy,
         },
+        "inspect": {
+            "role": contract.inspect.role,
+            "altitude_code": contract.inspect.altitude_code,
+            "altitude_m": contract.inspect.altitude_m,
+            "min_path_length_m": contract.inspect.min_path_length_m,
+            "required_presence": contract.inspect.required_presence,
+            "motion_policy": contract.inspect.motion_policy,
+            "corridor_policy": contract.inspect.corridor_policy,
+            "fov_coverage_required": contract.inspect.fov_coverage_required,
+            "sensor_profile_required": contract.inspect.sensor_profile_required,
+        },
+        "pad_boundary_policy": {
+            "default": contract.pad_policy.default,
+            "inside_required_for": list(contract.pad_policy.inside_required_for),
+        },
+        "uav_boundary_crossing_required": contract.uav_boundary_crossing_required,
+        "inspect_fov_coverage_required": contract.inspect.fov_coverage_required,
         "required_event": contract.required_event,
+        "required_intents": list(contract.required_intents),
         "background_semantics": {
             "vehicle_role": contract.vehicle_role,
             "pedestrian_role": contract.pedestrian_role,
@@ -205,32 +461,19 @@ def all_contracts() -> tuple[EpisodeContract, ...]:
     return tuple(EPISODE_CONTRACTS[key] for key in EPISODE_CONTRACTS)
 
 
-def normalize_semantic_text(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
-
-
-def required_event_stages(required_event: str) -> tuple[tuple[tuple[str, ...], ...], ...]:
-    stages: list[tuple[tuple[str, ...], ...]] = []
-    for raw_stage in str(required_event or "").split(">"):
-        options: list[tuple[str, ...]] = []
-        for raw_option in raw_stage.split("/"):
-            tokens = tuple(token for token in normalize_semantic_text(raw_option).split() if token)
-            if tokens:
-                options.append(tokens)
-        if options:
-            stages.append(tuple(options))
-    return tuple(stages)
-
-
 def event_text_haystack(event: dict[str, Any]) -> str:
     payload = dict(event.get("payload") or {})
+    chain_id = str(event.get("chain_id") or "")
+    is_takeoff = chain_id.startswith("lifecycle_takeoff")
+    semantic_chain_id = "" if is_takeoff else chain_id
+    semantic_event_id = "" if is_takeoff else str(event.get("event_id") or "")
+    semantic_source_event_id = "" if is_takeoff else str(event.get("source_event_id") or "")
+    semantic_payload_event_id = "" if is_takeoff else str(payload.get("event_id") or "")
     parts = [
-        event.get("event_id"),
-        event.get("topic"),
-        event.get("source_event_id"),
-        event.get("source_topic"),
-        payload.get("event_id"),
-        payload.get("source_topic"),
+        semantic_event_id,
+        semantic_source_event_id,
+        semantic_chain_id,
+        semantic_payload_event_id,
         payload.get("title"),
         payload.get("category"),
         payload.get("phase"),
@@ -239,28 +482,48 @@ def event_text_haystack(event: dict[str, Any]) -> str:
     return normalize_semantic_text(" ".join(str(part or "") for part in parts))
 
 
-def required_event_sequence_matches(required_event: str, events: list[dict[str, Any]]) -> tuple[bool, list[str]]:
-    stages = required_event_stages(required_event)
-    if not stages:
+def canonical_event_intents(event: dict[str, Any]) -> set[str]:
+    payload = dict(event.get("payload") or {})
+    explicit = _intent_values(event.get("intent"))
+    if explicit:
+        return {canonical_intent_from_text(item) or normalize_intent(item) for item in explicit}
+    payload_intent = _intent_values(payload.get("intent"))
+    if payload_intent:
+        return {canonical_intent_from_text(item) or normalize_intent(item) for item in payload_intent}
+
+    haystack = event_text_haystack(event)
+    matched: set[str] = set()
+    for intent, aliases in INTENT_ALIASES.items():
+        if normalize_intent(intent) in haystack.replace(" ", "_") or any(normalize_semantic_text(alias) in haystack for alias in aliases):
+            matched.add(intent)
+    return matched
+
+
+def required_intent_sequence_matches(
+    required_intents: tuple[str, ...],
+    events: list[dict[str, Any]],
+) -> tuple[bool, list[str]]:
+    if not required_intents:
         return True, []
     matches: list[str] = []
-    start_index = 0
-    for stage in stages:
-        found_index = -1
-        for index in range(start_index, len(events)):
-            haystack = event_text_haystack(events[index])
-            if any(all(token in haystack for token in option) for option in stage):
-                found_index = index
+    index = 0
+    for required in required_intents:
+        required_intent = normalize_intent(required)
+        found = False
+        while index < len(events):
+            if required_intent in canonical_event_intents(events[index]):
+                matches.append(
+                    str(
+                        events[index].get("topic")
+                        or events[index].get("source_event_id")
+                        or events[index].get("event_id")
+                        or ""
+                    )
+                )
+                found = True
+                index += 1
                 break
-        if found_index < 0:
+            index += 1
+        if not found:
             return False, matches
-        matches.append(
-            str(
-                events[found_index].get("topic")
-                or events[found_index].get("source_event_id")
-                or events[found_index].get("event_id")
-                or ""
-            )
-        )
-        start_index = found_index + 1
     return True, matches

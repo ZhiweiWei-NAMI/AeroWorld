@@ -5908,12 +5908,86 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             return "vehicle"
         return "asset"
 
+    def _script_target_asset_instance_id(
+        self,
+        action: dict[str, Any],
+        entity_id: str,
+        logical_asset_id: str = "",
+    ) -> str:
+        explicit = str(
+            action.get("asset_instance_id")
+            or action.get("instance_id")
+            or action.get("asset_id_override")
+            or action.get("target_asset_id")
+            or ""
+        ).strip()
+        if explicit:
+            return explicit
+        logical_asset_id = logical_asset_id or self._script_entity_logical_asset_id(entity_id, action)
+        if logical_asset_id.startswith("trigger."):
+            return safe_name(f"event_semantic.NoFly.Trigger.{entity_id}")
+        if (
+            logical_asset_id == "facility.landing_pad.visible.v1"
+            or logical_asset_id.startswith("semantic.uav_corridor.")
+        ):
+            return safe_name(f"event_semantic.{entity_id}")
+        return entity_id
+
+    @staticmethod
+    def _script_scale_xyz(value: Any, field_name: str) -> list[float]:
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+            raise ValueError(f"{field_name} must be a numeric vector")
+        values = list(value)
+        if len(values) < 2:
+            raise ValueError(f"{field_name} requires at least x/y components")
+        while len(values) < 3:
+            values.append(1.0)
+        return [float(values[0]), float(values[1]), float(values[2])]
+
+    def _script_transform_animation_keyframes(self, raw_keyframes: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw_keyframes, Sequence) or isinstance(raw_keyframes, (str, bytes)):
+            raise ValueError("animate_entity_transform requires a keyframes list")
+        keyframes: list[dict[str, Any]] = []
+        for index, raw_keyframe in enumerate(raw_keyframes):
+            if not isinstance(raw_keyframe, dict):
+                raise ValueError(f"keyframes[{index}] must be an object")
+            keyframe = dict(raw_keyframe)
+            if "position_enu_m" in keyframe:
+                keyframe["position_enu_m"] = self._script_transform_position(
+                    keyframe["position_enu_m"],
+                    f"keyframes[{index}].position_enu_m",
+                )
+            if "rotation_deg" in keyframe:
+                keyframe["rotation_deg"] = self._script_transform_rotation({"rotation_deg": keyframe["rotation_deg"]})
+            if "scale_xyz" in keyframe:
+                keyframe["scale_xyz"] = self._script_scale_xyz(keyframe["scale_xyz"], f"keyframes[{index}].scale_xyz")
+            pose = keyframe.get("pose_enu_m")
+            if isinstance(pose, dict):
+                pose_payload = dict(pose)
+                if "position_enu_m" in pose_payload:
+                    pose_payload["position_enu_m"] = self._script_transform_position(
+                        pose_payload["position_enu_m"],
+                        f"keyframes[{index}].pose_enu_m.position_enu_m",
+                    )
+                if "rotation_deg" in pose_payload:
+                    pose_payload["rotation_deg"] = self._script_transform_rotation(
+                        {"rotation_deg": pose_payload["rotation_deg"]}
+                    )
+                keyframe["pose_enu_m"] = pose_payload
+            keyframes.append(keyframe)
+        if not keyframes:
+            raise ValueError("animate_entity_transform requires at least one keyframe")
+        return keyframes
+
     def _register_event_action_handlers(self) -> None:
         interp = self.event_interpreter
         interp.register_handler("set_weather", self._script_set_weather)
         interp.register_handler("spawn_entity", self._script_spawn_entity)
         interp.register_handler("move_entity", self._script_move_entity)
         interp.register_handler("remove_entity", self._script_remove_entity)
+        interp.register_handler("animate_entity_transform", self._script_animate_entity_transform)
+        interp.register_handler("set_facility_state", self._script_set_facility_state)
+        interp.register_handler("set_logical_boundary_state", self._script_set_logical_boundary_state)
         interp.register_handler("play_animation", self._script_play_animation)
         interp.register_handler("set_pedestrian_activity", self._script_set_pedestrian_activity)
         interp.register_handler("spawn_crowd", self._script_spawn_crowd)
@@ -6306,6 +6380,119 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         self.event_controlled_entity_ids.discard(entity_id)
         return {"status": "ok", "entity_id": entity_id, "response": response}
 
+    def _script_animate_entity_transform(self, action: dict[str, Any]) -> dict[str, Any]:
+        entity_id = str(action.get("entity_id") or "").strip()
+        if not entity_id:
+            raise ValueError("animate_entity_transform requires entity_id")
+        logical_asset_id = self._script_entity_logical_asset_id(entity_id, action)
+        animation = dict(action.get("transform_animation") or {})
+        raw_keyframes = action.get("keyframes", animation.get("keyframes"))
+        keyframes = self._script_transform_animation_keyframes(raw_keyframes)
+        animation["keyframes"] = keyframes
+        for key in ("duration_ticks", "duration_s", "easing", "loop", "relative"):
+            if key in action:
+                animation[key] = action[key]
+        visual_state = dict(action.get("visual_state") or {})
+        for key in ("state", "mode", "material_variant", "pulse_rate_hz", "custom_stencil_class"):
+            if key in action:
+                visual_state[key] = action[key]
+        visual_state.setdefault("mode", "transform_animation")
+        payload: dict[str, Any] = {
+            "asset_id": self._script_target_asset_instance_id(action, entity_id, logical_asset_id),
+            "entity_id": entity_id,
+            "visual_state": visual_state,
+            "transform_animation": animation,
+            "keyframes": keyframes,
+        }
+        if "tags" in action:
+            payload["tags"] = list(action.get("tags") or [])
+        final_keyframe = keyframes[-1]
+        if "scale_xyz" in final_keyframe:
+            payload["scale_xyz"] = list(final_keyframe["scale_xyz"])
+        response = self.client.move_asset(payload, map_id=self.map_id)
+        return {
+            "status": "ok",
+            "entity_id": entity_id,
+            "asset_id": payload["asset_id"],
+            "keyframe_count": len(keyframes),
+            "response": response,
+        }
+
+    def _script_set_facility_state(self, action: dict[str, Any]) -> dict[str, Any]:
+        entity_id = str(action.get("entity_id") or "").strip()
+        if not entity_id:
+            raise ValueError("set_facility_state requires entity_id")
+        logical_asset_id = self._script_entity_logical_asset_id(entity_id, action)
+        visual_state = dict(action.get("visual_state") or {})
+        for key in (
+            "state",
+            "lights_on",
+            "beacon_phase",
+            "door_state",
+            "material_variant",
+            "mode",
+            "pulse_rate_hz",
+        ):
+            if key in action:
+                visual_state[key] = action[key]
+        facility_state = str(action.get("state") or visual_state.get("state") or "").strip()
+        if facility_state:
+            visual_state["facility_state"] = facility_state
+        payload: dict[str, Any] = {
+            "asset_id": self._script_target_asset_instance_id(action, entity_id, logical_asset_id),
+            "entity_id": entity_id,
+            "visual_state": visual_state,
+            "facility_state": facility_state,
+        }
+        for key in ("lights_on", "beacon_phase", "door_state", "material_variant"):
+            if key in visual_state:
+                payload[key] = visual_state[key]
+        response = self.client.move_asset(payload, map_id=self.map_id)
+        return {
+            "status": "ok",
+            "entity_id": entity_id,
+            "asset_id": payload["asset_id"],
+            "facility_state": facility_state,
+            "response": response,
+        }
+
+    def _script_set_logical_boundary_state(self, action: dict[str, Any]) -> dict[str, Any]:
+        entity_id = str(action.get("entity_id") or "").strip()
+        if not entity_id:
+            raise ValueError("set_logical_boundary_state requires entity_id")
+        logical_asset_id = self._script_entity_logical_asset_id(entity_id, action)
+        visual_state = dict(action.get("visual_state") or {})
+        for key in (
+            "state",
+            "pulse_rate_hz",
+            "custom_stencil_class",
+            "material_variant",
+            "mode",
+            "lights_on",
+        ):
+            if key in action:
+                visual_state[key] = action[key]
+        boundary_state = str(action.get("state") or visual_state.get("state") or "").strip()
+        if boundary_state:
+            visual_state["logical_boundary_state"] = boundary_state
+        payload: dict[str, Any] = {
+            "asset_id": self._script_target_asset_instance_id(action, entity_id, logical_asset_id),
+            "entity_id": entity_id,
+            "visual_state": visual_state,
+            "logical_boundary_state": boundary_state,
+        }
+        for key in ("pulse_rate_hz", "custom_stencil_class", "material_variant", "lights_on"):
+            if key in visual_state:
+                payload[key] = visual_state[key]
+        response = self.client.move_asset(payload, map_id=self.map_id)
+        return {
+            "status": "ok",
+            "entity_id": entity_id,
+            "asset_id": payload["asset_id"],
+            "logical_boundary_state": boundary_state,
+            "response": response,
+        }
+
     def _script_play_animation(self, action: dict[str, Any]) -> dict[str, Any]:
         ped_id = str(action["ped_id"])
         anim_path = str(action["animation_path"])
@@ -6321,7 +6508,13 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
 
     def _script_set_pedestrian_activity(self, action: dict[str, Any]) -> dict[str, Any]:
         ped_id = str(action.get("entity_id") or action.get("ped_id") or "").strip()
-        activity_type = str(action.get("activity_type") or "").strip().lower()
+        activity_type = str(
+            action.get("activity_type")
+            or action.get("activity")
+            or action.get("state")
+            or action.get("mode")
+            or ""
+        ).strip().lower()
         if not ped_id:
             raise ValueError("set_pedestrian_activity requires entity_id")
         if not activity_type:
@@ -6329,11 +6522,16 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         self.event_pedestrian_activity_state[ped_id] = activity_type
         if self.event_interpreter is not None:
             self.event_interpreter.update_entity_activity(ped_id, activity_type)
+        response: dict[str, Any] = {"status": "skipped", "reason": "pedestrian_not_active"}
+        if ped_id in self.ped_active_ids:
+            response = self._ped_activity_action(ped_id, activity_type)
+            self.ped_last_activity[ped_id] = activity_type
         return {
             "status": "ok",
             "ped_id": ped_id,
             "activity_type": activity_type,
-            "command": "python_activity_state_only",
+            "command": "pedestrian_activity_state",
+            "response": response,
         }
 
     def _script_spawn_crowd(self, action: dict[str, Any]) -> dict[str, Any]:

@@ -5,13 +5,14 @@ import bisect
 import copy
 import json
 import math
+import hashlib
 import shutil
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
 from pedestrian_activity_catalog import activity_annotations, normalize_activity_type
+from semantic_event_contract import contract_payload, get_contract
 
 
 DEFAULT_MAP_ID = "donghu_road_topo"
@@ -159,12 +160,23 @@ PRESERVED_ENTITY_FIELDS = (
     "background_role",
     "contract_scenario_id",
     "contract_inspect_uav",
+    "capture_boundary",
+    "capture_boundary_id",
+    "capture_contract",
     "background_vehicle",
     "background_pedestrian",
     "contract_facility",
     "contract_logical_sidecar",
+    "motion_contract",
     "uav_corridor_role",
     "uav_corridor",
+    "inspect_capture_corridor",
+    "uav_boundary_crossing_required",
+    "uav_crosses_boundary",
+    "inspect_observes_boundary",
+    "mission_boundary_crossing",
+    "pad_boundary_policy",
+    "inspect_fov_coverage_required",
     "assigned_altitude_m",
     "inspect_altitude_code",
     "inspect_altitude_m",
@@ -192,6 +204,10 @@ PRESERVED_EVENT_FIELDS = (
     "source_frame_id",
     "published_event_refs",
     "state_diff_refs",
+    "intent",
+    "intent_stage",
+    "causal_chain_id",
+    "capture_boundary_id",
 )
 
 
@@ -331,24 +347,38 @@ def logical_asset_for(source_entry: dict[str, Any], profile: dict[str, str]) -> 
     return str(profile.get("logical_asset_id") or "")
 
 
+def value_is_present(value: Any) -> bool:
+    return value is not None and value != ""
+
+
 def preserved_fields_from(*sources: dict[str, Any]) -> dict[str, Any]:
     preserved: dict[str, Any] = {}
     for field in PRESERVED_ENTITY_FIELDS:
         for source in sources:
-            if field in source and source[field] not in (None, ""):
+            if field in source and value_is_present(source[field]):
                 preserved[field] = copy.deepcopy(source[field])
                 break
             nested_state = source.get("initial_state")
-            if isinstance(nested_state, dict) and field in nested_state and nested_state[field] not in (None, ""):
+            if isinstance(nested_state, dict) and field in nested_state and value_is_present(nested_state[field]):
                 preserved[field] = copy.deepcopy(nested_state[field])
                 break
             nested_visual_state = source.get("visual_state")
-            if isinstance(nested_visual_state, dict) and field in nested_visual_state and nested_visual_state[field] not in (None, ""):
+            if isinstance(nested_visual_state, dict) and field in nested_visual_state and value_is_present(nested_visual_state[field]):
                 preserved[field] = copy.deepcopy(nested_visual_state[field])
                 break
-            for nested_key in ("background_vehicle", "background_pedestrian", "contract_facility", "contract_inspect_uav", "contract_logical_sidecar", "uav_corridor"):
+            for nested_key in (
+                "background_vehicle",
+                "background_pedestrian",
+                "capture_contract",
+                "contract_facility",
+                "contract_inspect_uav",
+                "contract_logical_sidecar",
+                "inspect_capture_corridor",
+                "motion_contract",
+                "uav_corridor",
+            ):
                 nested = source.get(nested_key)
-                if isinstance(nested, dict) and field in nested and nested[field] not in (None, ""):
+                if isinstance(nested, dict) and field in nested and value_is_present(nested[field]):
                     preserved[field] = copy.deepcopy(nested[field])
                     break
             if field in preserved:
@@ -461,6 +491,53 @@ def target_ids_from_event(row: dict[str, Any]) -> list[str]:
         return [str(value) for value in scoped if str(value)]
     target = scope.get("target_id")
     return [str(target)] if target else []
+
+
+def truth_boundary_summary(entities: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    boundary_ids = sorted(
+        {
+            str(entity.get("capture_boundary_id"))
+            for entity in entities
+            if value_is_present(entity.get("capture_boundary_id"))
+        }
+    )
+    pad_policies = sorted(
+        {
+            json.dumps(entity.get("pad_boundary_policy"), ensure_ascii=False, sort_keys=True)
+            for entity in entities
+            if value_is_present(entity.get("pad_boundary_policy"))
+        }
+    )
+    motion_state: dict[str, str] = {}
+    for entity in sorted(entities, key=lambda item: str(item.get("entity_id") or "")):
+        entity_id = str(entity.get("entity_id") or "")
+        if not entity_id:
+            continue
+        state = (
+            entity.get("motion_state")
+            or entity.get("animation_hint")
+            or entity.get("activity_type")
+            or entity.get("state")
+        )
+        annotations = entity.get("annotations")
+        if not value_is_present(state) and isinstance(annotations, dict):
+            state = annotations.get("activity_type")
+        motion_contract = entity.get("motion_contract")
+        if not value_is_present(state) and isinstance(motion_contract, dict):
+            state = motion_contract.get("motion_kind")
+        if value_is_present(state):
+            motion_state[entity_id] = str(state)
+    return {
+        "capture_boundary_id": boundary_ids[0] if len(boundary_ids) == 1 else boundary_ids,
+        "uav_crosses_boundary": any(bool(entity.get("uav_crosses_boundary")) for entity in entities),
+        "inspect_observes_boundary": any(bool(entity.get("inspect_observes_boundary")) for entity in entities),
+        "pad_boundary_policy": (
+            json.loads(pad_policies[0])
+            if len(pad_policies) == 1
+            else [json.loads(policy) for policy in pad_policies]
+        ),
+        "entity_motion_state": motion_state,
+    }
 
 
 def build_activity_overrides(event_rows: Sequence[dict[str, Any]], roster: dict[str, dict[str, Any]]) -> dict[str, list[tuple[int, str]]]:
@@ -624,6 +701,157 @@ def repo_relative(path: Path, project_root: Path) -> str:
         return str(path.resolve())
 
 
+def resolve_manifest_path(value: Any, source_episode_dir: Path, project_root: Path) -> Path | None:
+    if not value:
+        return None
+    raw_path = Path(str(value))
+    candidates = [raw_path] if raw_path.is_absolute() else [project_root / raw_path, source_episode_dir / raw_path]
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0]
+
+
+def load_json_or_none(path: Path | None) -> Any:
+    if path is None or not path.exists():
+        return None
+    return load_json(path)
+
+
+def sha256_json(payload: Any) -> str:
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def stable_source_contract_hash(
+    source_episode_dir: Path,
+    manifest: dict[str, Any],
+    *,
+    project_root: Path,
+    scenario_id: str,
+) -> str:
+    scene_setup_path = resolve_manifest_path(manifest.get("source_scene_setup_path"), source_episode_dir, project_root)
+    event_script_path = resolve_manifest_path(manifest.get("source_event_script_path"), source_episode_dir, project_root)
+    try:
+        semantic_contract = contract_payload(get_contract(scenario_id))
+    except KeyError:
+        semantic_contract = None
+    return sha256_json(
+        {
+            "scene_setup": load_json_or_none(scene_setup_path),
+            "event_script": load_json_or_none(event_script_path),
+            "semantic_event_contract": semantic_contract,
+        }
+    )
+
+
+def scene_setup_entities(scene_setup: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    entities: dict[str, dict[str, Any]] = {}
+    for entity in scene_setup.get("entities") or []:
+        if not isinstance(entity, dict):
+            continue
+        entity_id = str(entity.get("entity_id") or "").strip()
+        if entity_id:
+            entities[entity_id] = dict(entity)
+    return entities
+
+
+def inspect_route_from_source(inspect_entity: dict[str, Any], inspect_contract: dict[str, Any]) -> list[list[float]]:
+    route = inspect_contract.get("planned_route_enu_m")
+    if not isinstance(route, list):
+        raise RuntimeError(f"Missing planned_route_enu_m on inspect contract {inspect_entity.get('entity_id')!r}")
+    route_points = [point for point in route if isinstance(point, Sequence) and not isinstance(point, (str, bytes))]
+    if len(route_points) < 2:
+        raise RuntimeError(f"Inspect planned route is too short on entity {inspect_entity.get('entity_id')!r}")
+    return [[float(value) for value in point[:3]] for point in route_points]
+
+
+def capture_contract_from_source(
+    *,
+    source_episode_dir: Path,
+    manifest: dict[str, Any],
+    project_root: Path,
+    scenario_id: str,
+) -> dict[str, Any]:
+    scene_setup_path = resolve_manifest_path(manifest.get("source_scene_setup_path"), source_episode_dir, project_root)
+    event_script_path = resolve_manifest_path(manifest.get("source_event_script_path"), source_episode_dir, project_root)
+    scene_setup = load_json_or_none(scene_setup_path)
+    event_script = load_json_or_none(event_script_path)
+    if not isinstance(scene_setup, dict):
+        raise RuntimeError(f"Missing scene_setup.json for source episode {source_episode_dir}")
+    if not isinstance(event_script, dict):
+        raise RuntimeError(f"Missing event_script.json for source episode {source_episode_dir}")
+
+    entities = scene_setup_entities(scene_setup)
+    inspect_entities = [entity for entity in entities.values() if isinstance(entity.get("contract_inspect_uav"), dict)]
+    if len(inspect_entities) != 1:
+        raise RuntimeError(f"Expected exactly one inspect entity with contract_inspect_uav, found {len(inspect_entities)}")
+    inspect_entity = inspect_entities[0]
+
+    inspect_contract = dict(inspect_entity.get("contract_inspect_uav") or {})
+    lifecycle = dict(inspect_entity.get("lifecycle") or {})
+    home_pad_id = str(lifecycle.get("home_pad_entity_id") or "").strip()
+    if not home_pad_id:
+        raise RuntimeError("Missing lifecycle.home_pad_entity_id on U_inspect entity")
+    home_pad = entities.get(home_pad_id)
+    if not isinstance(home_pad, dict):
+        raise RuntimeError(f"Missing home pad entity {home_pad_id!r}")
+
+    boundary_event = None
+    for event in event_script.get("events") or []:
+        if isinstance(event, dict) and str(event.get("event_id") or "").strip() == "boundary_conflict":
+            boundary_event = event
+            break
+    if not isinstance(boundary_event, dict):
+        raise RuntimeError("Missing boundary_conflict event in source event_script.json")
+    trigger_ref = str(boundary_event.get("trigger_ref") or "").strip()
+    if not trigger_ref:
+        raise RuntimeError("Missing trigger_ref on boundary_conflict event")
+    trigger = None
+    for candidate in event_script.get("triggers") or []:
+        if isinstance(candidate, dict) and str(candidate.get("trigger_id") or "").strip() == trigger_ref:
+            trigger = candidate
+            break
+    if not isinstance(trigger, dict):
+        raise RuntimeError(f"Missing trigger {trigger_ref!r} for boundary_conflict event")
+    capture_boundary_id = str(trigger.get("entity_b") or "").strip()
+    if not capture_boundary_id:
+        raise RuntimeError("Missing capture boundary entity id on boundary_conflict trigger")
+
+    return {
+        "capture_boundary_id": capture_boundary_id,
+        "uav_crosses_boundary": True,
+        "inspect_observes_boundary": True,
+        "pad_boundary_policy": str((home_pad.get("placement") or {}).get("approach_side") or "").strip(),
+        "inspect_entity_id": str(inspect_entity.get("entity_id") or "").strip(),
+        "inspect_route_enu_m": inspect_route_from_source(inspect_entity, inspect_contract),
+        "inspect_contract": inspect_contract,
+    }
+
+
+def truth_boundary_summary(
+    entities: Sequence[dict[str, Any]],
+    *,
+    capture_boundary_id: str,
+    uav_crosses_boundary: bool,
+    inspect_observes_boundary: bool,
+    pad_boundary_policy: str,
+) -> dict[str, Any]:
+    motion_state: dict[str, str] = {}
+    for entity in sorted(entities, key=lambda item: str(item.get("entity_id") or "")):
+        entity_id = str(entity.get("entity_id") or "")
+        state = str(entity.get("state") or entity.get("task_state") or entity.get("role") or "idle")
+        if str(entity.get("entity_category") or "").lower() == "uav":
+            motion_state[entity_id] = state
+    return {
+        "capture_boundary_id": capture_boundary_id,
+        "uav_crosses_boundary": bool(uav_crosses_boundary),
+        "inspect_observes_boundary": bool(inspect_observes_boundary),
+        "pad_boundary_policy": pad_boundary_policy,
+        "entity_motion_state": motion_state,
+    }
+
+
 def convert_episode(
     source_episode_dir: Path,
     output_episode_dir: Path,
@@ -650,6 +878,12 @@ def convert_episode(
     episode_id = str(manifest.get("episode_id") or source_episode_dir.name)
     scenario_id = str(manifest.get("scenario_id") or source_episode_dir.name)
     duration_ticks = int(manifest.get("duration_ticks") or 0)
+    source_contract_hash = stable_source_contract_hash(
+        source_episode_dir,
+        manifest,
+        project_root=project_root,
+        scenario_id=scenario_id,
+    )
 
     trajectory_rows = load_jsonl(source_episode_dir / "trajectories.jsonl")
     event_rows = load_jsonl(source_episode_dir / "event_trace.jsonl")
@@ -671,6 +905,12 @@ def convert_episode(
     if duration_ticks <= 0:
         duration_ticks = max_traj_tick
     ticks = list(range(0, duration_ticks + 1))
+    source_contract = capture_contract_from_source(
+        source_episode_dir=source_episode_dir,
+        manifest=manifest,
+        project_root=project_root,
+        scenario_id=scenario_id,
+    )
 
     activity_overrides = build_activity_overrides(event_rows, legacy_roster)
     roster_entities: list[dict[str, Any]] = []
@@ -715,6 +955,8 @@ def convert_episode(
             roster_entry["entity_category"] = "facility"
             roster_asset_id = str(roster_entry.get("asset_id") or source_entry.get("asset_id") or "")
             roster_entry["entity_kind"] = "facility.landing_pad" if roster_asset_id.startswith("facility.landing_pad") else roster_entry["entity_kind"]
+        if entity_id == source_contract["inspect_entity_id"]:
+            roster_entry["route_waypoints_enu_m"] = [list(point) for point in source_contract["inspect_route_enu_m"]]
         roster_entities.append(roster_entry)
 
     truth_frames: list[dict[str, Any]] = []
@@ -757,6 +999,8 @@ def convert_episode(
                 "visual_revision": 1,
             }
             entity.update(preserved_fields_from(row, roster_entry))
+            if entity_id == source_contract["inspect_entity_id"]:
+                entity["route_waypoints_enu_m"] = [list(point) for point in source_contract["inspect_route_enu_m"]]
             if str(entity.get("role") or "") == "semantic_facility" and category == "facility":
                 entity["entity_category"] = "facility"
             if row.get("state") not in (None, ""):
@@ -764,6 +1008,13 @@ def convert_episode(
             entities.append(entity)
 
         counts = Counter(str(entity["entity_category"]) for entity in entities)
+        boundary_summary = truth_boundary_summary(
+            entities,
+            capture_boundary_id=source_contract["capture_boundary_id"],
+            uav_crosses_boundary=source_contract["uav_crosses_boundary"],
+            inspect_observes_boundary=source_contract["inspect_observes_boundary"],
+            pad_boundary_policy=source_contract["pad_boundary_policy"],
+        )
         truth_frames.append(
             {
                 "schema_name": "truth_frame",
@@ -779,6 +1030,11 @@ def convert_episode(
                 "render_mode": "ue_pie",
                 "active_site_id": site_id,
                 "active_roi_id": roi_id,
+                "capture_boundary_id": boundary_summary["capture_boundary_id"],
+                "uav_crosses_boundary": boundary_summary["uav_crosses_boundary"],
+                "inspect_observes_boundary": boundary_summary["inspect_observes_boundary"],
+                "pad_boundary_policy": boundary_summary["pad_boundary_policy"],
+                "entity_motion_state": boundary_summary["entity_motion_state"],
                 "roster_summary": {
                     "total": len(entities),
                     "by_category": dict(sorted(counts.items())),
@@ -826,12 +1082,20 @@ def convert_episode(
         "tick_start": ticks[0],
         "tick_end": ticks[-1],
         "entity_count": len(roster_entities),
+        "capture_boundary_id": source_contract["capture_boundary_id"],
+        "uav_crosses_boundary": source_contract["uav_crosses_boundary"],
+        "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
+        "pad_boundary_policy": source_contract["pad_boundary_policy"],
     }
     compiled_summary = {
         "site_contracts": {site_id: site_contract},
         "roi_windows": {roi_id: roi_window},
         "entity_counts_by_category": dict(sorted(entity_counts.items())),
         "event_count": len(event_rows),
+        "capture_boundary_id": source_contract["capture_boundary_id"],
+        "uav_crosses_boundary": source_contract["uav_crosses_boundary"],
+        "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
+        "pad_boundary_policy": source_contract["pad_boundary_policy"],
     }
     scenario_plan = {
         "schema_name": "scenario_plan",
@@ -839,6 +1103,10 @@ def convert_episode(
         "episode_id": episode_id,
         "scenario_id": scenario_id,
         "map_id": map_id,
+        "capture_boundary_id": source_contract["capture_boundary_id"],
+        "uav_crosses_boundary": source_contract["uav_crosses_boundary"],
+        "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
+        "pad_boundary_policy": source_contract["pad_boundary_policy"],
         "runtime_contract": {
             "tick_hz": tick_hz,
             "dt_s": round(1.0 / float(tick_hz), 6),
@@ -890,10 +1158,14 @@ def convert_episode(
             "episode_id": episode_id,
             "scenario_id": scenario_id,
             "map_id": map_id,
+            "capture_boundary_id": source_contract["capture_boundary_id"],
+            "uav_crosses_boundary": source_contract["uav_crosses_boundary"],
+            "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
+            "pad_boundary_policy": source_contract["pad_boundary_policy"],
             "generation": {
                 "generator": "Dataset/tools/convert_to_render_ready.py",
                 "source_episode_dir": repo_relative(source_episode_dir, project_root),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source_contract_hash": source_contract_hash,
             },
             "record_counts": record_counts,
             "canonical_record_counts": copy.deepcopy(record_counts),

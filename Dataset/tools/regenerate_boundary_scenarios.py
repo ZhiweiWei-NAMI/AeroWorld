@@ -55,6 +55,7 @@ LANE_SAMPLES_CSV = (
     / "lane_center_samples.csv"
 )
 BUILDING_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "building" / "building.geojson"
+CAPTURE_PRESETS = ROOT / "Plugins" / "SumoImporter" / "Scripts" / "episode_capture_presets.json"
 WORLD_OFFSET_X_M = 7000.0
 WORLD_OFFSET_Y_M = 6200.0
 LANE_HALF_WIDTH_M = 1.9
@@ -118,6 +119,20 @@ BACKGROUND_VEHICLE_ASSETS = (
     "vehicle.emergency.suv.v1",
     "vehicle.service.box.v1",
 )
+
+
+def default_uav_sensor_fov_deg() -> float:
+    presets = json.loads(CAPTURE_PRESETS.read_text(encoding="utf-8-sig"))
+    cameras = list((presets.get("uav_cameras") or {}).get("default") or [])
+    if not cameras:
+        raise RuntimeError(f"No default UAV camera preset found in {CAPTURE_PRESETS}")
+    fov = float(dict(cameras[0]).get("fov_degrees") or 0.0)
+    if fov <= 0.0:
+        raise RuntimeError(f"Default UAV camera preset lacks positive fov_degrees in {CAPTURE_PRESETS}")
+    return fov
+
+
+DEFAULT_UAV_SENSOR_FOV_DEG = default_uav_sensor_fov_deg()
 
 SEMANTIC_STATIC_STATES = {
     "queued",
@@ -1416,6 +1431,75 @@ def _route_length_m(points: list[list[float]]) -> float:
     return length
 
 
+def _capture_boundary_entity(scene: dict[str, Any]) -> bool:
+    asset_id = str(scene.get("logical_asset_id") or "")
+    category = str(scene.get("category") or "")
+    return asset_id.startswith("trigger.") or category in {"airspace_constraint", "hazard_zone", "crowd_anchor"}
+
+
+def _scene_polygon_xy(scene: dict[str, Any]) -> list[list[float]]:
+    placement = dict(scene.get("placement") or {})
+    polygon = placement.get("polygon_enu_m") or []
+    result: list[list[float]] = []
+    for point in polygon:
+        if isinstance(point, list) and len(point) >= 2:
+            result.append([round(float(point[0]), 3), round(float(point[1]), 3)])
+    if result:
+        return result
+    center = scene_pos(scene)
+    extent = placement.get("extent_m") or placement.get("size_m")
+    if not center or not isinstance(extent, list) or len(extent) < 2:
+        return []
+    half_x = float(extent[0]) * (0.5 if "size_m" in placement and "extent_m" not in placement else 1.0)
+    half_y = float(extent[1]) * (0.5 if "size_m" in placement and "extent_m" not in placement else 1.0)
+    return [
+        q(center[0] - half_x, center[1] - half_y, 0.0)[:2],
+        q(center[0] + half_x, center[1] - half_y, 0.0)[:2],
+        q(center[0] + half_x, center[1] + half_y, 0.0)[:2],
+        q(center[0] - half_x, center[1] + half_y, 0.0)[:2],
+    ]
+
+
+def _capture_boundary_from_points(scenario_id: str, scenes: list[dict[str, Any]], events: list[dict[str, Any]]) -> dict[str, Any]:
+    boundary_scenes = [scene for scene in scenes if _capture_boundary_entity(scene)]
+    if boundary_scenes:
+        primary = boundary_scenes[0]
+        center = scene_pos(primary) or _contract_center(scenes, events)
+        polygon = _scene_polygon_xy(primary)
+        return {
+            "boundary_id": str(primary.get("entity_id") or f"capture_boundary_{safe_id(scenario_id)}"),
+            "source": "scene_entity",
+            "source_entity_id": str(primary.get("entity_id") or ""),
+            "center_enu_m": q(center[0], center[1], center[2] if len(center) > 2 else 0.0),
+            "polygon_enu_m": polygon,
+        }
+    points = _contract_anchor_points(scenes, events)
+    xs = [float(point[0]) for point in points]
+    ys = [float(point[1]) for point in points]
+    margin = 12.0
+    min_x, max_x = min(xs) - margin, max(xs) + margin
+    min_y, max_y = min(ys) - margin, max(ys) + margin
+    center = q((min_x + max_x) * 0.5, (min_y + max_y) * 0.5, GROUND_Z_M)
+    return {
+        "boundary_id": f"capture_boundary_{safe_id(scenario_id)}",
+        "source": "event_motion_bbox",
+        "source_entity_id": "",
+        "center_enu_m": center,
+        "polygon_enu_m": [
+            [round(min_x, 3), round(min_y, 3)],
+            [round(max_x, 3), round(min_y, 3)],
+            [round(max_x, 3), round(max_y, 3)],
+            [round(min_x, 3), round(max_y, 3)],
+        ],
+    }
+
+
+def _scenario_pad_boundary_policy(scenario_id: str) -> str:
+    if scenario_id.startswith(("L2-4_", "X5_")):
+        return "event_pads_inside_capture_boundary"
+    return "pads_may_be_outside_capture_boundary"
+
+
 def _inspect_route_candidates(center: list[float], altitude_m: float) -> list[list[float]]:
     candidates: list[list[float]] = []
     base = q(center[0], center[1], altitude_m)
@@ -1527,6 +1611,7 @@ def _add_contract_inspect_uav(
             semantic_role="long-lived UAV inspect view replacing high overview",
             mode="inspect_racetrack",
             assigned_altitude_m=contract.inspect_altitude_m,
+            uav_corridor_role="inspect_observer",
             inspect_altitude_code=contract.inspect_code,
             min_path_length_m=80.0,
             full_episode_presence=True,
@@ -1535,10 +1620,16 @@ def _add_contract_inspect_uav(
     scene["uav_corridor_role"] = "inspect_observer"
     scene["contract_inspect_uav"] = {
         "policy": "semantic_event_contract_v1",
+        "corridor_role": "inspect_observer",
+        "motion_policy": "fixed_altitude_loop_observes_capture_boundary",
         "inspect_altitude_m": contract.inspect_altitude_m,
         "inspect_altitude_code": contract.inspect_code,
+        "sensor_fov_deg": DEFAULT_UAV_SENSOR_FOV_DEG,
+        "sensor_fov_source": "Plugins/SumoImporter/Scripts/episode_capture_presets.json:uav_cameras.default[0].fov_degrees",
         "min_path_length_m": 80.0,
+        "fixed_altitude_loop": True,
         "planned_route_enu_m": [start, *route],
+        "loop_route_enu_m": [start, *route],
     }
     add(specs, scenes, (spec, scene))
     return entity_id
@@ -2159,6 +2250,18 @@ def terminal_uav_action(action_id: str, final_z_m: float) -> bool:
     return any(token in lowered for token in ("touchdown", "landing", "debris", "crash"))
 
 
+def _scene_uav_corridor_role(scene: dict[str, Any]) -> str:
+    initial_state = dict(scene.get("initial_state") or {})
+    if str(initial_state.get("role") or "") == "U_inspect":
+        return "inspect_observer"
+    return str(scene.get("uav_corridor_role") or initial_state.get("uav_corridor_role") or "")
+
+
+def _scene_uses_mission_lifecycle(scene: dict[str, Any]) -> bool:
+    corridor_role = _scene_uav_corridor_role(scene)
+    return corridor_role not in {"inspect_observer", "observer"}
+
+
 def add_uav_lifecycle(
     scenario_id: str,
     specs: list[dict[str, Any]],
@@ -2171,6 +2274,7 @@ def add_uav_lifecycle(
         for scene in scenes
         if str(scene.get("logical_asset_id", "")).startswith("uav.")
         and not scene.get("lifecycle", {}).get("auto_lifecycle_applied")
+        and _scene_uses_mission_lifecycle(scene)
     ]
     if not uav_scenes:
         return
@@ -2309,11 +2413,52 @@ def make_bundle(
     add_uav_lifecycle(scenario_id, spec_entities, scene_entities, events)
     apply_uav_corridor_contract(scenario_id, spec_entities, scene_entities, events, parameters)
     normalize_proximity_trigger_reachability(scenario_id, scene_entities, events, parameters)
+    capture_boundary = {
+        **_capture_boundary_from_points(scenario_id, scene_entities, events),
+        "uav_boundary_crossing_required": True,
+        "pad_boundary_policy": _scenario_pad_boundary_policy(scenario_id),
+        "inspect_fov_coverage_required": True,
+        "inspect_entity_role": "U_inspect",
+    }
+    parameters["capture_boundary"] = capture_boundary
+    if isinstance(parameters.get("semantic_event_contract"), dict):
+        parameters["semantic_event_contract"] = {
+            **parameters["semantic_event_contract"],
+            "capture_boundary": {
+                **dict(parameters["semantic_event_contract"].get("capture_boundary") or {}),
+                **capture_boundary,
+            },
+            "uav_boundary_crossing_required": True,
+            "pad_boundary_policy": capture_boundary["pad_boundary_policy"],
+            "inspect_fov_coverage_required": True,
+        }
+    for scene in scene_entities:
+        if str((scene.get("initial_state") or {}).get("role") or "") == "U_inspect":
+            scene["contract_inspect_uav"] = {
+                **(scene.get("contract_inspect_uav") or {}),
+                "observed_capture_boundary_id": capture_boundary["boundary_id"],
+                "inspect_fov_coverage_required": True,
+            }
     ensure_contract_logical_count(scenario_id, spec_entities, scene_entities, events, parameters)
     pending_validation_rules = list(parameters.pop("_pending_validation_rules", []))
     ids = [e["entity_id"] for e in scene_entities]
     rules = base_rules(ids, scenario_id) + asset_rules(scene_entities)
     rules.extend(pending_validation_rules)
+    rules.append(
+        {
+            "rule": "uav_boundary_crossing_required",
+            "boundary_id": capture_boundary["boundary_id"],
+            "description": "Mission/observer UAV routes must pass through the semantic capture boundary; pads may remain outside unless the pad policy says otherwise",
+        }
+    )
+    if capture_boundary["pad_boundary_policy"] == "event_pads_inside_capture_boundary":
+        rules.append(
+            {
+                "rule": "pad_inside_boundary_required",
+                "boundary_id": capture_boundary["boundary_id"],
+                "description": "Pad-contention scenarios require event pads inside the semantic capture boundary",
+            }
+        )
     if validation_rules:
         rules.extend(validation_rules)
     if len(rules) < 2 and ids:
@@ -2542,7 +2687,8 @@ def _set_uav_altitude_metadata(
     scene["initial_state"] = {
         **(scene.get("initial_state") or {}),
         "assigned_altitude_m": altitude_m,
-        "uav_corridor_role": (scene.get("initial_state") or {}).get("uav_corridor_role", "mission_uav"),
+        "uav_corridor_role": scene.get("uav_corridor_role")
+        or (scene.get("initial_state") or {}).get("uav_corridor_role", "mission_uav"),
     }
     scene["uav_corridor"] = {
         "assigned_altitude_m": altitude_m,
@@ -2829,7 +2975,9 @@ def apply_uav_corridor_contract(
             scene["contract_inspect_uav"] = {
                 **(scene.get("contract_inspect_uav") or {}),
                 "repaired_route_enu_m": inspect_route,
+                "loop_route_enu_m": inspect_route,
                 "repaired_path_length_m": round(_route_length_m(inspect_route), 3),
+                "fixed_altitude_loop": True,
             }
             for point in inspect_route:
                 if not repaired_route or dist_xy(repaired_route[-1], point) > 0.05 or abs(repaired_route[-1][2] - point[2]) > 0.05:

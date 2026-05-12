@@ -186,7 +186,7 @@ This matrix is the locked episode contract for later implementation and review. 
 | X3 | 3/3/6/2/6 | I10 | fall > responder > handoff | V: ambulance/yield chain; P: fallen + bystanders | clear |
 | X4 | 3/3/4/2/10 | I22 | fog > UAV conflict > evasion | V: low-visibility traffic; P: fog-context pedestrians | fog |
 | X5 | 3/3/4/5/10 | I18 | station fail > pad contention | V: facility access traffic; P: waiting near facility | clear |
-| X6 | 3/3/10/3/12 | I10 | crowd evac > NFZ lockdown | V: perimeter vehicles move/hold; P: evacuation to safe zone | clear |
+| X6 | 3/3/10/3/12 | I10 | crowd evac > NFZ lockdown | V: perimeter vehicles move/hold; P: evacuation to safe zone | clear/light smoke |
 
 ## Immediate Next Actions
 
