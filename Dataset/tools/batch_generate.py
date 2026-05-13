@@ -132,46 +132,6 @@ def path_length_m(points: Sequence[Sequence[float]]) -> float:
     return sum(distance3(a, b) for a, b in zip(points, points[1:]))
 
 
-def extend_ground_flow_route(
-    start: list[float],
-    route: list[list[float]],
-    *,
-    velocity_mps: float,
-    duration_ticks: int,
-    min_visible_motion_ratio: float,
-) -> list[list[float]]:
-    base: list[list[float]] = []
-    for point in [start, *route]:
-        candidate = vector3(point)
-        if base and distance3(base[-1], candidate) < 0.05:
-            continue
-        base.append(candidate)
-    if len(base) < 2:
-        return [vector3(point) for point in route]
-    target_length_m = float(velocity_mps) * (float(duration_ticks) / float(TICK_HZ)) * max(
-        1.05,
-        float(min_visible_motion_ratio) + 0.08,
-    )
-    result = [list(point) for point in base[1:]]
-    cycle = [*base[-2::-1], *base[1:]]
-    current = list(result[-1])
-    current_length_m = path_length_m([start, *result])
-    while current_length_m < target_length_m:
-        progressed = False
-        for point in cycle:
-            if distance3(current, point) < 0.05:
-                continue
-            result.append(list(point))
-            current_length_m += distance3(current, point)
-            current = list(point)
-            progressed = True
-            if current_length_m >= target_length_m:
-                break
-        if not progressed:
-            break
-    return result
-
-
 def extend_loop_route(
     start: list[float],
     route: list[list[float]],
@@ -785,6 +745,14 @@ def _write_continuous_ground_row(
     row.update(row_activity_payload(label_class, state))
 
 
+def _has_continuous_ground_flow_contract(entity: dict[str, Any]) -> bool:
+    contract = dict(entity.get("ground_flow_contract") or {})
+    if not contract:
+        scene_setup = dict(entity.get("scene_setup") or {})
+        contract = dict(scene_setup.get("ground_flow_contract") or {})
+    return str(contract.get("policy") or "") == "continuous_capture_ground_flow_v1"
+
+
 def _ground_flow_point(
     *,
     tick: int,
@@ -882,6 +850,8 @@ def apply_ambient_ground_motion(
         entity = entities.get(entity_id)
         if not entity:
             continue
+        if _has_continuous_ground_flow_contract(entity):
+            continue
         if not (
             bool(entity.get("background_vehicle"))
             or bool(entity.get("background_pedestrian"))
@@ -920,12 +890,14 @@ def keep_ground_entities_moving(
         label_class = str(entity_rows[0].get("label_class") or "")
         if label_class not in AMBIENT_GROUND_MOTION_SPAN_M:
             continue
+        entity = entities.get(entity_id) or {}
+        if _has_continuous_ground_flow_contract(entity):
+            continue
         moving_flags = [_row_xy_speed(row) > GROUND_MOTION_SPEED_EPS_MPS for row in entity_rows]
         moving_ratio = sum(1 for flag in moving_flags if flag) / float(len(entity_rows))
         tick0_moving = _row_xy_speed(entity_rows[0]) > GROUND_MOTION_SPEED_EPS_MPS
         if moving_ratio >= 0.85 and tick0_moving:
             continue
-        entity = entities.get(entity_id) or {}
         speed = AMBIENT_GROUND_MOTION_SPEED_MPS[label_class]
         span = AMBIENT_GROUND_MOTION_SPAN_M[label_class]
         first_moving_index = next((idx for idx, flag in enumerate(moving_flags) if flag), None)
@@ -1197,13 +1169,7 @@ def route_motion_schedule(
     ground_flow = dict(ground_flow_contract or {})
     if str(ground_flow.get("policy") or "") == "continuous_capture_ground_flow_v1":
         velocity = max(0.1, _to_float(ground_flow.get("speed_mps", velocity), velocity))
-        route_waypoints = extend_ground_flow_route(
-            vector3(initial_pos),
-            [vector3(waypoint) for waypoint in route_waypoints],
-            velocity_mps=velocity,
-            duration_ticks=max(1, _to_int(ground_flow.get("route_duration_ticks"), DEFAULT_DURATION_TICKS)),
-            min_visible_motion_ratio=max(0.0, _to_float(ground_flow.get("min_visible_motion_ratio", 0.85), 0.85)),
-        )
+        route_waypoints = [vector3(waypoint) for waypoint in route_waypoints]
     activity_type = initial_state
     post_activity_type = initial_state
     if label_class == "pedestrian":

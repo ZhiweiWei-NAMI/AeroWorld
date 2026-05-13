@@ -98,6 +98,12 @@ GROUND_FLOW_MIN_XY_SPAN_M = {
     "pedestrian": 8.0,
     "vehicle": 18.0,
 }
+FORBIDDEN_GROUND_FLOW_LOOP_POLICIES = {"bounce_between_route_waypoints"}
+GROUND_FLOW_PINGPONG_REVERSAL_LIMIT = 2
+GROUND_FLOW_PINGPONG_SPAN_M = {
+    "pedestrian": 14.0,
+    "vehicle": 40.0,
+}
 ROI_MARGIN_M = 1000.0
 SCRIPT_TICK_HZ = 10.0
 DELAY_SAFETY_FACTOR = 1.1
@@ -1692,6 +1698,25 @@ def check_all_entities_motion_contract(scene: dict[str, Any], script: dict[str, 
             issues.append(f"{sid}: non-locomotion visible entity lacks transform/state/material animation: {entity_id}")
 
 
+def check_ground_flow_contracts(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
+    sid = str(scene.get("scenario_id") or script.get("scenario_id") or "")
+    for entity in scene.get("entities", []):
+        state = dict(entity.get("initial_state") or {})
+        role = str(state.get("role") or entity.get("role") or "")
+        if role not in {"semantic_background_vehicle", "semantic_background_pedestrian"}:
+            continue
+        entity_id = str(entity.get("entity_id") or "")
+        contract = dict(entity.get("ground_flow_contract") or {})
+        if not contract:
+            issues.append(f"{sid}: background ground-flow entity missing ground_flow_contract: {entity_id}")
+            continue
+        if str(contract.get("policy") or "") != "continuous_capture_ground_flow_v1":
+            issues.append(f"{sid}: background ground-flow entity has invalid policy: {entity_id}")
+        loop_policy = str(contract.get("loop_policy") or "")
+        if loop_policy in FORBIDDEN_GROUND_FLOW_LOOP_POLICIES:
+            issues.append(f"{sid}: background ground-flow entity uses forbidden loop_policy={loop_policy}: {entity_id}")
+
+
 def check_capture_boundary_contract(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
     sid = str(scene.get("scenario_id") or script.get("scenario_id") or "")
     contract = get_contract(sid)
@@ -2087,6 +2112,24 @@ def _render_ready_entity_counts(episode_dir: Path) -> dict[str, int]:
     return counts
 
 
+def ground_flow_direction_reversals(points: list[list[float]]) -> int:
+    reversals = 0
+    previous_unit: tuple[float, float] | None = None
+    for a, b in zip(points, points[1:]):
+        dx = float(b[0]) - float(a[0])
+        dy = float(b[1]) - float(a[1])
+        norm = math.hypot(dx, dy)
+        if norm <= 0.05:
+            continue
+        unit = (dx / norm, dy / norm)
+        if previous_unit is not None:
+            dot = previous_unit[0] * unit[0] + previous_unit[1] * unit[1]
+            if dot < -0.95:
+                reversals += 1
+        previous_unit = unit
+    return reversals
+
+
 def check_render_ready_ground_flow(episode_name: str, truths: list[dict[str, Any]], issues: list[str]) -> None:
     stats: dict[str, dict[str, Any]] = {}
     for frame in truths:
@@ -2111,6 +2154,7 @@ def check_render_ready_ground_flow(episode_name: str, truths: list[dict[str, Any
                     "tick0_moving": False,
                     "xs": [],
                     "ys": [],
+                    "positions": [],
                 },
             )
             if not visible:
@@ -2129,6 +2173,7 @@ def check_render_ready_ground_flow(episode_name: str, truths: list[dict[str, Any
             if len(position) >= 2:
                 row["xs"].append(float(position[0]))
                 row["ys"].append(float(position[1]))
+                row["positions"].append([float(position[0]), float(position[1]), float(position[2] if len(position) > 2 else 0.0)])
     for entity_id, row in sorted(stats.items()):
         visible = int(row["visible"])
         if visible <= 0:
@@ -2150,6 +2195,12 @@ def check_render_ready_ground_flow(episode_name: str, truths: list[dict[str, Any
             issues.append(
                 f"{episode_name}: background {row['category']} {entity_id} XY motion span too small: "
                 f"{xy_span:.3f}m < {min_xy_span:.3f}m"
+            )
+        reversals = ground_flow_direction_reversals(list(row["positions"]))
+        if reversals > GROUND_FLOW_PINGPONG_REVERSAL_LIMIT and xy_span <= GROUND_FLOW_PINGPONG_SPAN_M[str(row["category"])]:
+            issues.append(
+                f"{episode_name}: background {row['category']} {entity_id} appears to ping-pong in a short span: "
+                f"{reversals} reversals over {xy_span:.3f}m"
             )
 
 
@@ -2395,6 +2446,7 @@ def validate_scenario(
     check_lifecycle_closure(scene, script, issues)
     check_capture_boundary_contract(scene, script, issues)
     check_all_entities_motion_contract(scene, script, issues)
+    check_ground_flow_contracts(scene, script, issues)
     check_uav_corridor_contract(scene, script, spatial, issues)
     execute_validation_rules(scene, script, known_assets, issues)
     return issues

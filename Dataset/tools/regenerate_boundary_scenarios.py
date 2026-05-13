@@ -1486,44 +1486,6 @@ def _sumo_vehicle_route(start: list[float], index: int) -> list[list[float]]:
     return snapped
 
 
-def _extend_ground_flow_route(
-    start: list[float],
-    route: list[list[float]],
-    *,
-    velocity_mps: float,
-    duration_ticks: int = GROUND_FLOW_ROUTE_DURATION_TICKS,
-) -> list[list[float]]:
-    base = _dedupe_route_points([start, *route])
-    if len(base) < 2:
-        return []
-    target_length_m = (
-        float(velocity_mps)
-        * (float(duration_ticks) / 10.0)
-        * (GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO + 0.08)
-    )
-    result: list[list[float]] = [list(point) for point in base[1:]]
-    cycle = [*base[-2::-1], *base[1:]]
-    current = list(result[-1])
-    current_length_m = path_length_m([start, *result])
-    while current_length_m < target_length_m:
-        progressed = False
-        for point in cycle:
-            if dist_xy(current, point) < 0.05 and abs(float(current[2]) - float(point[2])) < 0.05:
-                continue
-            result.append(list(point))
-            current_length_m += math.hypot(
-                float(current[0]) - float(point[0]),
-                float(current[1]) - float(point[1]),
-            )
-            current = list(point)
-            progressed = True
-            if current_length_m >= target_length_m:
-                break
-        if not progressed:
-            break
-    return result
-
-
 def _ground_flow_contract(
     kind: str,
     velocity_mps: float,
@@ -1531,11 +1493,7 @@ def _ground_flow_contract(
     *,
     route_source: str,
 ) -> dict[str, Any]:
-    planned_route = _extend_ground_flow_route(
-        list(route[0]),
-        [list(point) for point in route[1:]],
-        velocity_mps=velocity_mps,
-    ) if len(route) >= 2 else []
+    route_points = _dedupe_route_points([list(point) for point in route])
     min_xy_span_m = (
         BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M
         if kind == "vehicle"
@@ -1549,9 +1507,9 @@ def _ground_flow_contract(
         "min_xy_span_m": min_xy_span_m,
         "speed_mps": float(velocity_mps),
         "route_duration_ticks": GROUND_FLOW_ROUTE_DURATION_TICKS,
-        "loop_policy": "bounce_between_route_waypoints",
+        "loop_policy": "single_pass_route_waypoints",
         "route_source": route_source,
-        "planned_path_length_m": round(path_length_m([list(route[0]), *planned_route]), 3) if planned_route else 0.0,
+        "planned_path_length_m": round(path_length_m(route_points), 3) if len(route_points) >= 2 else 0.0,
     }
 
 
