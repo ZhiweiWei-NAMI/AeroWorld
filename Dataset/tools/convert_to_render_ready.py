@@ -7,6 +7,7 @@ import json
 import math
 import hashlib
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Sequence
@@ -14,11 +15,55 @@ from typing import Any, Sequence
 from pedestrian_activity_catalog import activity_annotations, normalize_activity_type
 from semantic_event_contract import contract_payload, get_contract
 
+try:
+    from uav_global_flow.truth_integration import (
+        DEFAULT_UAV_OUTPUT_DIR,
+        UavGlobalFlowDataset,
+        UavSegment,
+        UavSelection,
+        load_uav_global_flow_dataset,
+        uav_pad_truth_entity_id,
+        uav_truth_entity_id,
+    )
+except ModuleNotFoundError:  # pragma: no cover - supports package imports from repo root.
+    from Dataset.tools.uav_global_flow.truth_integration import (
+        DEFAULT_UAV_OUTPUT_DIR,
+        UavGlobalFlowDataset,
+        UavSegment,
+        UavSelection,
+        load_uav_global_flow_dataset,
+        uav_pad_truth_entity_id,
+        uav_truth_entity_id,
+    )
+
+try:
+    from sumo_ground_flow.truth_integration import (
+        DEFAULT_MAX_VISIBLE_VEHICLES,
+        DEFAULT_MIN_VISIBLE_VEHICLES,
+        DEFAULT_SUMO_OUTPUT_DIR,
+        SumoTrafficDataset,
+        VehicleSelection,
+        VisibilityGeometry,
+        load_sumo_traffic_dataset,
+    )
+except ModuleNotFoundError:  # pragma: no cover - supports package imports from repo root.
+    from Dataset.tools.sumo_ground_flow.truth_integration import (
+        DEFAULT_MAX_VISIBLE_VEHICLES,
+        DEFAULT_MIN_VISIBLE_VEHICLES,
+        DEFAULT_SUMO_OUTPUT_DIR,
+        SumoTrafficDataset,
+        VehicleSelection,
+        VisibilityGeometry,
+        load_sumo_traffic_dataset,
+    )
+
 
 DEFAULT_MAP_ID = "donghu_road_topo"
 DEFAULT_SITE_ID = "site.intersection_a"
 DEFAULT_ROI_ID = "roi.intersection_a.v1"
 DEFAULT_TICK_HZ = 10
+SUMO_TRUTH_MAX_OBSERVATION_DISTANCE_M = 120.0
+UAV_GLOBAL_FLOW_SOURCE = "uav_global_flow"
 
 
 ENTITY_PROFILES: dict[str, dict[str, str]] = {
@@ -27,7 +72,7 @@ ENTITY_PROFILES: dict[str, dict[str, str]] = {
         "entity_kind": "uav.drone",
         "proxy_template_id": "drone.quadrotor",
         "logical_asset_id": "uav.inspect.quad.v1",
-        "mode": "runtime_multirotor",
+        "mode": "scene_sync",
     },
     "vehicle": {
         "entity_category": "vehicle",
@@ -511,6 +556,53 @@ def sample_row_at_tick(entity_rows: Sequence[dict[str, Any]], tick: int, tick_hz
     row["pos_enu"] = position
     row["vel_mps"] = velocity
     return row
+
+
+def is_background_ground_flow_actor(entry: dict[str, Any]) -> bool:
+    role = str(entry.get("role") or "")
+    background_role = str(entry.get("background_role") or "")
+    category = str(entry.get("entity_category") or entry.get("label_class") or "")
+    contract = dict(entry.get("ground_flow_contract") or {})
+    return (
+        bool(contract)
+        and category in {"pedestrian", "vehicle"}
+        and (
+            role in {"semantic_background_pedestrian", "semantic_background_vehicle"}
+            or background_role == "semantic_context"
+        )
+    )
+
+
+def visible_until_tick_for_ground_flow(entity_rows: Sequence[dict[str, Any]], tick_hz: int) -> int:
+    last_moving_tick = -1
+    previous_position: list[float] | None = None
+    for row in entity_rows:
+        tick = int(row.get("tick", 0))
+        position = normalize_vector3(row.get("pos_enu"))
+        velocity = normalize_vector3(row.get("vel_mps"))
+        moved_by_position = (
+            previous_position is not None
+            and math.hypot(position[0] - previous_position[0], position[1] - previous_position[1]) > 0.02
+        )
+        moving_by_velocity = math.hypot(velocity[0], velocity[1]) > 0.05
+        if moved_by_position or moving_by_velocity:
+            last_moving_tick = tick
+        previous_position = position
+    if last_moving_tick < 0:
+        return -1
+    return last_moving_tick + max(1, int(tick_hz))
+
+
+def first_moving_tick(entity_rows: Sequence[dict[str, Any]], *, min_displacement_m: float = 0.5) -> int:
+    initial_position: list[float] | None = None
+    for row in entity_rows:
+        tick = int(row.get("tick", 0))
+        position = normalize_vector3(row.get("pos_enu"))
+        if initial_position is None:
+            initial_position = position
+        if math.hypot(position[0] - initial_position[0], position[1] - initial_position[1]) > min_displacement_m:
+            return tick
+    return -1
 
 
 def normalized_position_for_render(row: dict[str, Any]) -> list[float]:
@@ -1001,6 +1093,7 @@ def capture_contract_from_source(
 
     return {
         "capture_boundary_id": source_capture_boundary_id(event_script),
+        "capture_boundary_polygon_enu_m": [list(point) for point in polygon],
         "uav_crosses_boundary": uav_crosses_boundary,
         "inspect_observes_boundary": inspect_observes_boundary,
         "pad_boundary_policy": source_pad_boundary_policy(event_script),
@@ -1033,6 +1126,429 @@ def truth_boundary_summary(
     }
 
 
+def logical_asset_for_global_uav(uav: dict[str, Any]) -> str:
+    mission_type = str(uav.get("mission_type") or "").lower()
+    semantic_role = str(uav.get("semantic_role") or "").lower()
+    if "relay" in mission_type or "relay" in semantic_role:
+        return "uav.relay.quad.v1"
+    if "delivery" in mission_type:
+        return "uav.delivery.quad.v1"
+    return "uav.inspect.quad.v1"
+
+
+def build_uav_pad_roster_entries(
+    *,
+    uav_dataset: UavGlobalFlowDataset,
+    site_id: str,
+    roi_id: str,
+) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for pad in uav_dataset.pads:
+        pad_id = str(pad.get("pad_id") or "")
+        if not pad_id:
+            continue
+        position = normalize_vector3(pad.get("position_enu_m"))
+        entries.append(
+            {
+                "entity_id": uav_pad_truth_entity_id(pad_id),
+                "uav_pad_id": pad_id,
+                "label_class": "landing_pad",
+                "asset_id": "facility.landing_pad.visible.v1",
+                "site_id": site_id,
+                "roi_id": roi_id,
+                "entity_category": "facility",
+                "entity_kind": "facility.landing_pad",
+                "entity_type": "facility.landing_pad",
+                "proxy_template_id": "proxy.facility_landing_pad",
+                "logical_asset_id": "facility.landing_pad.visible.v1",
+                "mode": "scene_sync",
+                "initial_position_enu_m": position,
+                "initial_yaw_deg": 0.0,
+                "tags": ["facility", "landing_pad", "uav_global_flow", "charging_logistics_pad"],
+                "source": UAV_GLOBAL_FLOW_SOURCE,
+                "background_role": "global_uav_pad",
+                "uav_global_pad": {
+                    "policy": "donghu_global_uav_pad_network_v1",
+                    "pad_id": pad_id,
+                    "role": pad.get("role"),
+                    "grid_cell_id": pad.get("grid_cell_id"),
+                    "lane_edge_id": pad.get("lane_edge_id"),
+                    "lane_s_m": pad.get("lane_s_m"),
+                    "phase_origin_weights": pad.get("phase_origin_weights"),
+                    "phase_destination_weights": pad.get("phase_destination_weights"),
+                },
+                "motion_contract": {
+                    "policy": "static_facility_truth_frame_v1",
+                    "actor_kind": "facility",
+                    "source": UAV_GLOBAL_FLOW_SOURCE,
+                },
+            }
+        )
+    return entries
+
+
+def uav_pad_truth_entity(
+    *,
+    roster_entry: dict[str, Any],
+    tick: int,
+    site_id: str,
+    roi_id: str,
+) -> dict[str, Any]:
+    position = normalize_vector3(roster_entry.get("initial_position_enu_m"))
+    return {
+        "entity_id": roster_entry["entity_id"],
+        "entity_category": "facility",
+        "entity_kind": "facility.landing_pad",
+        "entity_type": "facility.landing_pad",
+        "label_class": "landing_pad",
+        "site_id": site_id,
+        "roi_id": roi_id,
+        "proxy_template_id": "proxy.facility_landing_pad",
+        "logical_asset_id": "facility.landing_pad.visible.v1",
+        "tags": list(roster_entry.get("tags") or []),
+        "truth_pose": truth_pose(position, 0.0, [0.0, 0.0, 0.0]),
+        "render_presence": render_presence(roi_id),
+        "annotations": build_annotations("static", {"vel_mps": [0.0, 0.0, 0.0]}, "facility"),
+        "state_revision": int(tick) + 1,
+        "visual_revision": 1,
+        "source": UAV_GLOBAL_FLOW_SOURCE,
+        "background_role": "global_uav_pad",
+        "uav_global_pad": copy.deepcopy(roster_entry.get("uav_global_pad") or {}),
+        "motion_contract": copy.deepcopy(roster_entry.get("motion_contract") or {}),
+    }
+
+
+def build_uav_roster_entries(
+    *,
+    uav_dataset: UavGlobalFlowDataset,
+    uav_segment: UavSegment,
+    uav_selection: UavSelection,
+    site_id: str,
+    roi_id: str,
+) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    segment_payload = uav_segment.as_dict()
+    for uav_id in uav_selection.uav_ids:
+        first_record = uav_dataset.first_uav_record_in_segment(uav_segment, uav_id)
+        if first_record is None:
+            continue
+        task_id = str(first_record.get("task_id") or uav_selection.task_ids.get(uav_id, ""))
+        task = dict(uav_dataset.tasks_by_id.get(task_id) or {})
+        position = normalize_vector3(first_record.get("position_enu_m"))
+        velocity = normalize_vector3(first_record.get("velocity_enu_mps"))
+        yaw_deg = float(first_record.get("yaw_deg") or heading_deg_from_velocity(velocity))
+        logical_asset_id = logical_asset_for_global_uav(first_record)
+        entries.append(
+            {
+                "entity_id": uav_selection.entity_ids[uav_id],
+                "uav_id": uav_id,
+                "task_id": task_id,
+                "label_class": "uav",
+                "asset_id": logical_asset_id,
+                "site_id": site_id,
+                "roi_id": roi_id,
+                "entity_category": "uav",
+                "entity_kind": "uav.drone",
+                "entity_type": "uav.drone",
+                "proxy_template_id": "drone.quadrotor",
+                "logical_asset_id": logical_asset_id,
+                "mode": "scene_sync",
+                "initial_position_enu_m": position,
+                "initial_yaw_deg": round(yaw_deg, 6),
+                "tags": [
+                    "uav",
+                    "uav_global_flow",
+                    str(first_record.get("mission_type") or "mission"),
+                    str(first_record.get("semantic_role") or "global_uav"),
+                ],
+                "source": UAV_GLOBAL_FLOW_SOURCE,
+                "background_role": "donghu_global_uav_flow",
+                "semantic_role": first_record.get("semantic_role"),
+                "uav_global_flow": {
+                    "policy": "donghu_global_uav_flow_truth_replay_v1",
+                    "uav_id": uav_id,
+                    "task_id": task_id,
+                    "mission_type": first_record.get("mission_type"),
+                    "semantic_role": first_record.get("semantic_role"),
+                    "corridor_family": first_record.get("corridor_family"),
+                    "corridor_id": first_record.get("corridor_id"),
+                    "altitude_layer_m": first_record.get("altitude_layer_m"),
+                    "origin_pad_id": first_record.get("origin_pad_id"),
+                    "target_pad_id": first_record.get("target_pad_id"),
+                    "target_cell_id": first_record.get("target_cell_id"),
+                    "sample_period_s": uav_dataset.manifest.get("sample_period_s"),
+                },
+                "motion_contract": {
+                    "policy": "uav_global_flow_truth_replay_v1",
+                    "actor_kind": "uav",
+                    "route_source": "donghu_global_uav_flow",
+                    "source": UAV_GLOBAL_FLOW_SOURCE,
+                    "segment": segment_payload,
+                    "looping": task.get("looping"),
+                    "speed_mps": task.get("speed_mps"),
+                    "route_length_m": task.get("route_length_m"),
+                    "altitude_layer_m": first_record.get("altitude_layer_m"),
+                },
+                "uav_segment": segment_payload,
+            }
+        )
+    return entries
+
+
+def uav_global_truth_entity(
+    *,
+    uav: dict[str, Any],
+    roster_entry: dict[str, Any],
+    tick: int,
+    site_id: str,
+    roi_id: str,
+) -> dict[str, Any]:
+    position = normalize_vector3(uav.get("position_enu_m"))
+    velocity = normalize_vector3(uav.get("velocity_enu_mps"))
+    yaw_deg = float(uav.get("yaw_deg") or heading_deg_from_velocity(velocity, fallback_deg=float(roster_entry.get("initial_yaw_deg") or 0.0)))
+    speed = math.sqrt(sum(float(value) ** 2 for value in velocity))
+    activity_row = {"vel_mps": velocity, "state": "moving" if speed > 0.1 else "idle"}
+    entity = {
+        "entity_id": roster_entry["entity_id"],
+        "entity_category": "uav",
+        "entity_kind": "uav.drone",
+        "entity_type": "uav.drone",
+        "label_class": "uav",
+        "site_id": site_id,
+        "roi_id": roi_id,
+        "proxy_template_id": "drone.quadrotor",
+        "logical_asset_id": roster_entry.get("logical_asset_id") or logical_asset_for_global_uav(uav),
+        "tags": list(roster_entry.get("tags") or []),
+        "truth_pose": truth_pose(position, yaw_deg, velocity),
+        "render_presence": render_presence(roi_id),
+        "annotations": build_annotations("flight", activity_row, "uav"),
+        "state_revision": int(tick) + 1,
+        "visual_revision": 1,
+        "source": UAV_GLOBAL_FLOW_SOURCE,
+        "background_role": "donghu_global_uav_flow",
+        "semantic_role": uav.get("semantic_role") or roster_entry.get("semantic_role"),
+        "uav_global_flow": {
+            **copy.deepcopy(roster_entry.get("uav_global_flow") or {}),
+            "active_event_ids": list(uav.get("active_event_ids") or []),
+            "source_prev_time_s": uav.get("source_prev_time_s"),
+            "source_next_time_s": uav.get("source_next_time_s"),
+            "source_alpha": uav.get("source_alpha"),
+        },
+        "motion_contract": copy.deepcopy(roster_entry.get("motion_contract") or {}),
+        "uav_segment": copy.deepcopy(roster_entry.get("uav_segment") or {}),
+    }
+    if uav.get("mission_type") not in (None, ""):
+        entity["mission_type"] = uav.get("mission_type")
+    if uav.get("task_id") not in (None, ""):
+        entity["task_id"] = uav.get("task_id")
+    return entity
+
+
+def uav_frame_truth_payload(
+    *,
+    uav_dataset: UavGlobalFlowDataset,
+    uav_segment: UavSegment,
+    uav_selection: UavSelection,
+    uav_sample: dict[str, Any],
+    active_uav_count: int,
+) -> dict[str, Any]:
+    return {
+        "enabled": True,
+        "segment": uav_segment.as_dict(),
+        "absolute_time_s": uav_sample["absolute_time_s"],
+        "source_prev_time_s": uav_sample["source_prev_time_s"],
+        "source_next_time_s": uav_sample["source_next_time_s"],
+        "source_alpha": uav_sample["source_alpha"],
+        "source_uav_count": int(uav_sample.get("source_uav_count") or 0),
+        "active_selected_uav_count": int(active_uav_count),
+        "selected_uav_count": int(uav_selection.selected_count),
+        "minimum_active_uavs_required": uav_dataset.manifest.get("minimum_active_uavs_required"),
+        "baseline_active_uavs": uav_dataset.manifest.get("baseline_active_uavs"),
+        "task_count": uav_dataset.manifest.get("task_count"),
+    }
+
+
+def logical_asset_for_sumo_vehicle(vehicle: dict[str, Any]) -> str:
+    vehicle_type = str(vehicle.get("vehicle_type") or "").lower()
+    vehicle_id = str(vehicle.get("vehicle_id") or "").lower()
+    if "emergency" in vehicle_type or "ambulance" in vehicle_id:
+        return "vehicle.emergency.ambulance.v1"
+    if "delivery" in vehicle_type:
+        return "vehicle.service.box.v1"
+    return "vehicle.ground.boxcar.v1"
+
+
+def sumo_vehicle_profile(vehicle: dict[str, Any]) -> dict[str, str]:
+    profile = dict(ENTITY_PROFILES["vehicle"])
+    profile["logical_asset_id"] = logical_asset_for_sumo_vehicle(vehicle)
+    return profile
+
+
+def build_sumo_vehicle_roster_entries(
+    *,
+    sumo_dataset: SumoTrafficDataset,
+    sumo_segment: Any,
+    sumo_selection: VehicleSelection,
+    site_id: str,
+    roi_id: str,
+) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    segment_payload = sumo_segment.as_dict()
+    for vehicle_id in sumo_selection.vehicle_ids:
+        first_record = sumo_dataset.first_vehicle_record_in_segment(sumo_segment, vehicle_id)
+        if not first_record:
+            continue
+        profile = sumo_vehicle_profile(first_record)
+        position = normalize_vector3(first_record.get("truth_position_enu_m"))
+        yaw_deg = float(first_record.get("truth_yaw_deg") or 0.0)
+        entity_id = sumo_selection.entity_ids[vehicle_id]
+        entries.append(
+            {
+                "entity_id": entity_id,
+                "sumo_vehicle_id": vehicle_id,
+                "label_class": "vehicle",
+                "asset_id": profile["logical_asset_id"],
+                "site_id": site_id,
+                "roi_id": roi_id,
+                "entity_category": "vehicle",
+                "entity_kind": "vehicle.car",
+                "entity_type": "vehicle.car",
+                "proxy_template_id": profile["proxy_template_id"],
+                "logical_asset_id": profile["logical_asset_id"],
+                "mode": "scene_sync",
+                "initial_position_enu_m": position,
+                "initial_yaw_deg": round(yaw_deg, 6),
+                "tags": ["vehicle", "sumo_traci", "background_traffic"],
+                "source": "sumo_traci",
+                "background_role": "sumo_background_traffic",
+                "background_vehicle": {
+                    "policy": "sumo_truth_frame_background_v1",
+                    "source": "sumo_traci",
+                    "sumo_vehicle_id": vehicle_id,
+                    "vehicle_type": first_record.get("vehicle_type"),
+                    "control_role": first_record.get("control_role"),
+                },
+                "ground_flow_contract": {
+                    "policy": "sumo_segment_truth_replay_v1",
+                    "actor_kind": "vehicle",
+                    "route_source": "sumo_traci_fcd_projected_to_ue_truth",
+                    "sample_period_s": sumo_dataset.manifest.get("sample_period_s"),
+                    "segment": segment_payload,
+                },
+                "sumo_segment": segment_payload,
+                "sumo_vehicle": {
+                    "vehicle_id": vehicle_id,
+                    "vehicle_type": first_record.get("vehicle_type"),
+                    "route_id": first_record.get("route_id"),
+                    "sumo_edge_id": first_record.get("sumo_edge_id"),
+                    "sumo_lane_id": first_record.get("sumo_lane_id"),
+                    "control_role": first_record.get("control_role"),
+                },
+                "sumo_visibility": {
+                    "min_observation_distance_m": round(
+                        float(sumo_selection.min_distance_m_by_vehicle_id.get(vehicle_id, 0.0)),
+                        6,
+                    ),
+                    "frames_seen_in_segment": int(sumo_selection.frames_seen_by_vehicle_id.get(vehicle_id, 0)),
+                },
+            }
+        )
+    return entries
+
+
+def sumo_vehicle_truth_entity(
+    *,
+    vehicle: dict[str, Any],
+    roster_entry: dict[str, Any],
+    tick: int,
+    site_id: str,
+    roi_id: str,
+    capture_boundary_id: str,
+    observation_distance_m: float,
+) -> dict[str, Any]:
+    profile = sumo_vehicle_profile(vehicle)
+    position = normalize_vector3(vehicle.get("truth_position_enu_m"))
+    velocity = normalize_vector3(vehicle.get("velocity_enu_mps"))
+    yaw_deg = float(vehicle.get("truth_yaw_deg") or heading_deg_from_velocity(velocity))
+    activity_type = "incident_controlled" if str(vehicle.get("control_role") or "") == "incident_controlled" else "moving"
+    row_for_annotations = {"vel_mps": velocity}
+    entity = {
+        "entity_id": str(roster_entry["entity_id"]),
+        "entity_category": "vehicle",
+        "entity_kind": "vehicle.car",
+        "entity_type": "vehicle.car",
+        "label_class": "vehicle",
+        "site_id": site_id,
+        "roi_id": roi_id,
+        "proxy_template_id": profile["proxy_template_id"],
+        "logical_asset_id": profile["logical_asset_id"],
+        "tags": list(roster_entry.get("tags") or []),
+        "truth_pose": truth_pose(position, yaw_deg, velocity),
+        "render_presence": render_presence(roi_id),
+        "annotations": build_annotations(activity_type, row_for_annotations, "vehicle"),
+        "state": activity_type,
+        "state_revision": int(tick) + 1,
+        "visual_revision": 1,
+        "source": "sumo_traci",
+        "capture_boundary_id": capture_boundary_id,
+        "background_role": "sumo_background_traffic",
+        "background_vehicle": copy.deepcopy(roster_entry.get("background_vehicle") or {}),
+        "ground_flow_contract": copy.deepcopy(roster_entry.get("ground_flow_contract") or {}),
+        "sumo_segment": copy.deepcopy(roster_entry.get("sumo_segment") or {}),
+        "sumo_vehicle": {
+            "vehicle_id": vehicle.get("vehicle_id"),
+            "vehicle_type": vehicle.get("vehicle_type"),
+            "route_id": vehicle.get("route_id"),
+            "sumo_edge_id": vehicle.get("sumo_edge_id"),
+            "sumo_lane_id": vehicle.get("sumo_lane_id"),
+            "lane_position_m": vehicle.get("lane_position_m"),
+            "sumo_xy_m": vehicle.get("sumo_xy_m"),
+            "sumo_angle_deg": vehicle.get("sumo_angle_deg"),
+            "speed_mps": vehicle.get("speed_mps"),
+            "accel_mps2": vehicle.get("accel_mps2"),
+            "signals": vehicle.get("signals"),
+            "dimensions_m": vehicle.get("dimensions_m"),
+            "control_role": vehicle.get("control_role"),
+            "source_prev_time_s": vehicle.get("source_prev_time_s"),
+            "source_next_time_s": vehicle.get("source_next_time_s"),
+            "source_alpha": vehicle.get("source_alpha"),
+        },
+        "sumo_visibility": {
+            "inspect_observation_distance_m": round(float(observation_distance_m), 6),
+            "selected_for_capture_truth": True,
+        },
+    }
+    return entity
+
+
+def sumo_frame_truth_payload(
+    *,
+    sumo_dataset: SumoTrafficDataset,
+    sumo_segment: Any,
+    sumo_selection: VehicleSelection,
+    sumo_sample: dict[str, Any],
+    scenario_id: str,
+) -> dict[str, Any]:
+    traffic_lights = dict(sumo_sample.get("traffic_lights") or {})
+    active_incidents = list(sumo_sample.get("active_incidents") or [])
+    return {
+        "enabled": True,
+        "segment": sumo_segment.as_dict(),
+        "scenario_id": scenario_id,
+        "absolute_time_s": sumo_sample["absolute_time_s"],
+        "source_prev_time_s": sumo_sample["source_prev_time_s"],
+        "source_next_time_s": sumo_sample["source_next_time_s"],
+        "source_alpha": sumo_sample["source_alpha"],
+        "source_vehicle_count": int(sumo_sample.get("source_vehicle_count") or 0),
+        "selected_vehicle_count": int(sumo_selection.selected_count),
+        "active_selected_vehicle_count": len(sumo_sample.get("vehicles") or []),
+        "traffic_light_count": len(traffic_lights),
+        "traffic_light_states": traffic_lights,
+        "active_incidents": active_incidents,
+        "active_incident_count": len(active_incidents),
+    }
+
+
 def convert_episode(
     source_episode_dir: Path,
     output_episode_dir: Path,
@@ -1043,6 +1559,12 @@ def convert_episode(
     roi_id: str = DEFAULT_ROI_ID,
     tick_hz: int = DEFAULT_TICK_HZ,
     overwrite: bool = False,
+    sumo_output_dir: Path | None = DEFAULT_SUMO_OUTPUT_DIR,
+    enable_sumo_traffic: bool = True,
+    preloaded_sumo_dataset: SumoTrafficDataset | None = None,
+    uav_output_dir: Path | None = DEFAULT_UAV_OUTPUT_DIR,
+    enable_uav_global_flow: bool = True,
+    preloaded_uav_dataset: UavGlobalFlowDataset | None = None,
 ) -> dict[str, Any]:
     source_episode_dir = source_episode_dir.resolve()
     output_episode_dir = output_episode_dir.resolve()
@@ -1092,6 +1614,86 @@ def convert_episode(
         raise RuntimeError(f"{source_episode_dir.name}: source trajectories do not prove all mission/observer UAVs cross capture boundary")
     if not source_contract["inspect_observes_boundary"]:
         raise RuntimeError(f"{source_episode_dir.name}: source inspect route/sensor profile does not prove boundary observation")
+
+    sumo_dataset: SumoTrafficDataset | None = None
+    sumo_segment: Any | None = None
+    sumo_visibility: VisibilityGeometry | None = None
+    sumo_selection: VehicleSelection | None = None
+    sumo_roster_entities: list[dict[str, Any]] = []
+    sumo_roster_by_vehicle_id: dict[str, dict[str, Any]] = {}
+    if enable_sumo_traffic:
+        if sumo_output_dir is None:
+            raise RuntimeError("SUMO traffic integration is enabled but no SUMO output directory was provided")
+        sumo_dataset = preloaded_sumo_dataset or load_sumo_traffic_dataset(Path(sumo_output_dir))
+        sumo_segment = sumo_dataset.segment_for_episode(episode_id, manifest)
+        if abs(float(duration_ticks) / float(tick_hz) - sumo_segment.duration_s) > 1e-6:
+            raise RuntimeError(
+                f"{source_episode_dir.name}: episode duration must be {sumo_segment.duration_s:.1f}s "
+                f"to bind seed segments; found {duration_ticks / float(tick_hz):.3f}s"
+            )
+        sumo_visibility = VisibilityGeometry.from_contract(source_contract)
+        sumo_selection = sumo_dataset.select_visible_vehicles(
+            segment=sumo_segment,
+            visibility=sumo_visibility,
+            scenario_id=scenario_id,
+            min_visible=DEFAULT_MIN_VISIBLE_VEHICLES,
+            max_visible=DEFAULT_MAX_VISIBLE_VEHICLES,
+        )
+        sumo_roster_entities = build_sumo_vehicle_roster_entries(
+            sumo_dataset=sumo_dataset,
+            sumo_segment=sumo_segment,
+            sumo_selection=sumo_selection,
+            site_id=site_id,
+            roi_id=roi_id,
+        )
+        sumo_roster_by_vehicle_id = {
+            str(entry["sumo_vehicle_id"]): entry
+            for entry in sumo_roster_entities
+        }
+        if len(sumo_roster_entities) != sumo_selection.selected_count:
+            raise RuntimeError(
+                f"{source_episode_dir.name}: selected SUMO vehicles missing first records "
+                f"({len(sumo_roster_entities)} of {sumo_selection.selected_count})"
+            )
+
+    uav_dataset: UavGlobalFlowDataset | None = None
+    uav_segment: UavSegment | None = None
+    uav_selection: UavSelection | None = None
+    uav_roster_entities: list[dict[str, Any]] = []
+    uav_roster_by_uav_id: dict[str, dict[str, Any]] = {}
+    uav_pad_roster_entities: list[dict[str, Any]] = []
+    if enable_uav_global_flow:
+        if uav_output_dir is None:
+            raise RuntimeError("UAV global flow integration is enabled but no UAV output directory was provided")
+        uav_dataset = preloaded_uav_dataset or load_uav_global_flow_dataset(Path(uav_output_dir))
+        uav_segment = uav_dataset.segment_for_episode(episode_id, manifest)
+        if abs(float(duration_ticks) / float(tick_hz) - uav_segment.duration_s) > 1e-6:
+            raise RuntimeError(
+                f"{source_episode_dir.name}: episode duration must be {uav_segment.duration_s:.1f}s "
+                f"to bind UAV seed segments; found {duration_ticks / float(tick_hz):.3f}s"
+            )
+        uav_selection = uav_dataset.select_segment_uavs(uav_segment)
+        uav_roster_entities = build_uav_roster_entries(
+            uav_dataset=uav_dataset,
+            uav_segment=uav_segment,
+            uav_selection=uav_selection,
+            site_id=site_id,
+            roi_id=roi_id,
+        )
+        uav_roster_by_uav_id = {
+            str(entry["uav_id"]): entry
+            for entry in uav_roster_entities
+        }
+        uav_pad_roster_entities = build_uav_pad_roster_entries(
+            uav_dataset=uav_dataset,
+            site_id=site_id,
+            roi_id=roi_id,
+        )
+        if len(uav_roster_entities) != uav_selection.selected_count:
+            raise RuntimeError(
+                f"{source_episode_dir.name}: selected UAVs missing first records "
+                f"({len(uav_roster_entities)} of {uav_selection.selected_count})"
+            )
 
     activity_overrides = build_activity_overrides(event_rows, source_roster)
     roster_entities: list[dict[str, Any]] = []
@@ -1149,12 +1751,32 @@ def convert_episode(
         roster_entities.append(roster_entry)
 
     truth_frames: list[dict[str, Any]] = []
+    visible_until_tick_by_background_ground_flow = {
+        str(entry["entity_id"]): visible_until_tick_for_ground_flow(grouped[str(entry["entity_id"])], tick_hz)
+        for entry in roster_entities
+        if is_background_ground_flow_actor(entry)
+    }
+    first_moving_tick_by_local_uav = {
+        str(entry["entity_id"]): first_moving_tick(grouped[str(entry["entity_id"])])
+        for entry in roster_entities
+        if str(entry.get("entity_category") or entry.get("label_class") or "") == "uav"
+    }
     for tick in ticks:
         entities: list[dict[str, Any]] = []
         for roster_entry in roster_entities:
             entity_id = str(roster_entry["entity_id"])
+            if entity_id in visible_until_tick_by_background_ground_flow:
+                visible_until_tick = int(visible_until_tick_by_background_ground_flow[entity_id])
+                if visible_until_tick < 0 or tick > visible_until_tick:
+                    continue
             profile = profile_for_entity(roster_entry, grouped[entity_id][0])
             category = str(profile["entity_category"])
+            if category == "uav" and entity_id in first_moving_tick_by_local_uav:
+                first_motion_tick = int(first_moving_tick_by_local_uav[entity_id])
+                if first_motion_tick < 0:
+                    continue
+                if first_motion_tick > 0 and tick < first_motion_tick:
+                    continue
             row = sample_row_at_tick(grouped[entity_id], tick, tick_hz)
             position = normalized_position_for_render(row)
             velocity = normalize_vector3(row.get("vel_mps"))
@@ -1170,6 +1792,12 @@ def convert_episode(
                 velocity_enu_mps=velocity,
                 overrides=activity_overrides,
             )
+            speed_mps = math.hypot(velocity[0], velocity[1])
+            if category == "uav" and speed_mps < 0.5:
+                state_text = str(row.get("state") or "").lower()
+                terminal_state = any(token in state_text for token in ("crash", "collision", "forced", "landing", "fault", "failure"))
+                if not terminal_state and activity_type in {"idle", "hover", "preflight_on_pad", "flight"}:
+                    continue
             entity = {
                 "entity_id": entity_id,
                 "entity_category": category,
@@ -1195,6 +1823,94 @@ def convert_episode(
             if row.get("state") not in (None, ""):
                 entity["state"] = row.get("state")
             entities.append(entity)
+
+        sumo_truth_payload: dict[str, Any] | None = None
+        if sumo_dataset is not None and sumo_segment is not None and sumo_selection is not None and sumo_visibility is not None:
+            sumo_sample = sumo_dataset.sample(
+                segment=sumo_segment,
+                episode_sim_time_s=tick / float(tick_hz),
+                selected_vehicle_ids=sumo_selection.vehicle_ids,
+                scenario_id=scenario_id,
+            )
+            visible_sumo_vehicle_count = 0
+            for vehicle in sumo_sample.get("vehicles") or []:
+                vehicle_id = str(vehicle.get("vehicle_id") or "")
+                roster_entry = sumo_roster_by_vehicle_id.get(vehicle_id)
+                if not roster_entry:
+                    continue
+                control_role = str(vehicle.get("control_role") or "")
+                speed_mps = float(vehicle.get("speed_mps") or 0.0)
+                if control_role != "incident_controlled" and speed_mps < 0.5:
+                    continue
+                position = normalize_vector3(vehicle.get("truth_position_enu_m"))
+                observation_distance_m = sumo_visibility.observation_distance_m(position)
+                if observation_distance_m > SUMO_TRUTH_MAX_OBSERVATION_DISTANCE_M:
+                    continue
+                visible_sumo_vehicle_count += 1
+                entities.append(
+                    sumo_vehicle_truth_entity(
+                        vehicle=vehicle,
+                        roster_entry=roster_entry,
+                        tick=tick,
+                        site_id=site_id,
+                        roi_id=roi_id,
+                        capture_boundary_id=source_contract["capture_boundary_id"],
+                        observation_distance_m=observation_distance_m,
+                    )
+                )
+            sumo_truth_payload = sumo_frame_truth_payload(
+                sumo_dataset=sumo_dataset,
+                sumo_segment=sumo_segment,
+                sumo_selection=sumo_selection,
+                sumo_sample=sumo_sample,
+                scenario_id=scenario_id,
+            )
+            sumo_truth_payload["active_selected_vehicle_count"] = visible_sumo_vehicle_count
+            sumo_truth_payload["max_observation_distance_m"] = SUMO_TRUTH_MAX_OBSERVATION_DISTANCE_M
+            sumo_semantics_payload = copy.deepcopy(sumo_truth_payload)
+            sumo_semantics_payload.pop("traffic_light_states", None)
+        else:
+            sumo_semantics_payload = None
+
+        uav_truth_payload: dict[str, Any] | None = None
+        if uav_dataset is not None and uav_segment is not None and uav_selection is not None:
+            for pad_entry in uav_pad_roster_entities:
+                entities.append(
+                    uav_pad_truth_entity(
+                        roster_entry=pad_entry,
+                        tick=tick,
+                        site_id=site_id,
+                        roi_id=roi_id,
+                    )
+                )
+            uav_sample = uav_dataset.sample(
+                segment=uav_segment,
+                episode_sim_time_s=tick / float(tick_hz),
+                selected_uav_ids=uav_selection.uav_ids,
+            )
+            active_uav_count = 0
+            for uav in uav_sample.get("uavs") or []:
+                uav_id = str(uav.get("uav_id") or "")
+                roster_entry = uav_roster_by_uav_id.get(uav_id)
+                if not roster_entry:
+                    continue
+                active_uav_count += 1
+                entities.append(
+                    uav_global_truth_entity(
+                        uav=uav,
+                        roster_entry=roster_entry,
+                        tick=tick,
+                        site_id=site_id,
+                        roi_id=roi_id,
+                    )
+                )
+            uav_truth_payload = uav_frame_truth_payload(
+                uav_dataset=uav_dataset,
+                uav_segment=uav_segment,
+                uav_selection=uav_selection,
+                uav_sample=uav_sample,
+                active_uav_count=active_uav_count,
+            )
 
         counts = Counter(str(entity["entity_category"]) for entity in entities)
         boundary_summary = truth_boundary_summary(
@@ -1223,6 +1939,12 @@ def convert_episode(
                 "uav_crosses_boundary": boundary_summary["uav_crosses_boundary"],
                 "inspect_observes_boundary": boundary_summary["inspect_observes_boundary"],
                 "pad_boundary_policy": boundary_summary["pad_boundary_policy"],
+                "sumo_segment": sumo_truth_payload["segment"] if sumo_truth_payload else None,
+                "sumo_semantics": sumo_semantics_payload,
+                "sumo_active_incidents": sumo_truth_payload["active_incidents"] if sumo_truth_payload else [],
+                "sumo_traffic_light_states": sumo_truth_payload["traffic_light_states"] if sumo_truth_payload else {},
+                "uav_segment": uav_truth_payload["segment"] if uav_truth_payload else None,
+                "uav_global_flow": uav_truth_payload,
                 "entity_motion_state": boundary_summary["entity_motion_state"],
                 "roster_summary": {
                     "total": len(entities),
@@ -1238,9 +1960,10 @@ def convert_episode(
         if source_path.exists():
             shutil.copy2(source_path, output_episode_dir / name)
 
+    all_roster_entities = [*roster_entities, *sumo_roster_entities, *uav_pad_roster_entities, *uav_roster_entities]
     weather_rows = expand_weather_rows(source_weather_rows, ticks)
     dynamic_labels = build_dynamic_labels(event_rows, episode_id)
-    entity_counts = Counter(str(entity.get("entity_category") or "") for entity in roster_entities)
+    entity_counts = Counter(str(entity.get("entity_category") or "") for entity in all_roster_entities)
     xs = [
         float(entity["truth_pose"]["position_enu_m"][0])
         for frame in truth_frames
@@ -1270,7 +1993,7 @@ def convert_episode(
         "suggested_roi_id": roi_id,
         "tick_start": ticks[0],
         "tick_end": ticks[-1],
-        "entity_count": len(roster_entities),
+        "entity_count": len(all_roster_entities),
         "capture_boundary_id": source_contract["capture_boundary_id"],
         "uav_crosses_boundary": source_contract["uav_crosses_boundary"],
         "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
@@ -1286,6 +2009,33 @@ def convert_episode(
         "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
         "pad_boundary_policy": source_contract["pad_boundary_policy"],
     }
+    if sumo_dataset is not None and sumo_segment is not None and sumo_selection is not None and sumo_visibility is not None:
+        compiled_summary["sumo_traffic"] = {
+            "enabled": True,
+            "source": sumo_dataset.source_summary(),
+            "segment": sumo_segment.as_dict(),
+            "visibility_geometry": sumo_visibility.as_dict(),
+            "selection": sumo_selection.as_dict(),
+            "scenario_incidents": [
+                {
+                    "incident_id": item.get("incident_id"),
+                    "episode_event_id": item.get("episode_event_id"),
+                    "accident_class": item.get("accident_class"),
+                    "start_s": item.get("start_s"),
+                    "end_s": item.get("end_s"),
+                    "injection_method": item.get("injection_method"),
+                }
+                for item in sumo_dataset.scenario_incidents(scenario_id)
+            ],
+        }
+    if uav_dataset is not None and uav_segment is not None and uav_selection is not None:
+        compiled_summary["uav_global_flow"] = {
+            "enabled": True,
+            "source": uav_dataset.source_summary(),
+            "segment": uav_segment.as_dict(),
+            "selection": uav_selection.as_dict(),
+            "pad_count": len(uav_pad_roster_entities),
+        }
     scenario_plan = {
         "schema_name": "scenario_plan",
         "schema_version": "v1",
@@ -1296,6 +2046,8 @@ def convert_episode(
         "uav_crosses_boundary": source_contract["uav_crosses_boundary"],
         "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
         "pad_boundary_policy": source_contract["pad_boundary_policy"],
+        "sumo_traffic": copy.deepcopy(compiled_summary.get("sumo_traffic") or {"enabled": False}),
+        "uav_global_flow": copy.deepcopy(compiled_summary.get("uav_global_flow") or {"enabled": False}),
         "runtime_contract": {
             "tick_hz": tick_hz,
             "dt_s": round(1.0 / float(tick_hz), 6),
@@ -1303,7 +2055,7 @@ def convert_episode(
             "tick_end": ticks[-1],
         },
         "compiled_plan_summary": compiled_summary,
-        "global_entity_roster": roster_entities,
+        "global_entity_roster": all_roster_entities,
         "export_contract": {
             "artifacts": {
                 "scenario_plan": "scenario_plan.json",
@@ -1323,7 +2075,7 @@ def convert_episode(
     }
     record_counts = {
         "scenario_plan": 1,
-        "global_entity_roster": len(roster_entities),
+        "global_entity_roster": len(all_roster_entities),
         "truth_frames": len(truth_frames),
         "event_trace": len(event_rows),
         "trajectories": len(trajectory_rows),
@@ -1351,6 +2103,8 @@ def convert_episode(
             "uav_crosses_boundary": source_contract["uav_crosses_boundary"],
             "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
             "pad_boundary_policy": source_contract["pad_boundary_policy"],
+            "sumo_traffic": copy.deepcopy(compiled_summary.get("sumo_traffic") or {"enabled": False}),
+            "uav_global_flow": copy.deepcopy(compiled_summary.get("uav_global_flow") or {"enabled": False}),
             "generation": {
                 "generator": "Dataset/tools/convert_to_render_ready.py",
                 "source_episode_dir": repo_relative(source_episode_dir, project_root),
@@ -1359,9 +2113,9 @@ def convert_episode(
             "record_counts": record_counts,
             "canonical_record_counts": copy.deepcopy(record_counts),
             "node_counts": {
-                "all_nodes": len(roster_entities),
+                "all_nodes": len(all_roster_entities),
                 "dynamic_nodes": len(grouped),
-                "static_nodes": max(0, len(roster_entities) - len(grouped)),
+                "static_nodes": max(0, len(all_roster_entities) - len(grouped)),
             },
             "artifacts": artifacts,
             "canonical_artifacts": copy.deepcopy(artifacts),
@@ -1375,7 +2129,7 @@ def convert_episode(
         }
     )
 
-    write_json(output_episode_dir / "global_entity_roster.json", {"entities": roster_entities})
+    write_json(output_episode_dir / "global_entity_roster.json", {"entities": all_roster_entities})
     write_jsonl(output_episode_dir / "truth_frames.jsonl", truth_frames)
     write_jsonl(output_episode_dir / "weather_meta.jsonl", weather_rows)
     write_jsonl(output_episode_dir / "dynamic_labels.jsonl", dynamic_labels)
@@ -1409,7 +2163,7 @@ def default_output_dir(source_episode_dir: Path, output_root: Path) -> Path:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert Dataset episodes into episode_render_host-ready packages.")
-    parser.add_argument("--episode", type=Path, help="One Dataset episode directory to convert")
+    parser.add_argument("--episode", type=Path, action="append", help="One Dataset episode directory to convert; may be repeated")
     parser.add_argument("--episodes-root", type=Path, default=Path("Dataset/episodes"), help="Source Dataset episodes root")
     parser.add_argument("--output-root", type=Path, default=Path("Dataset/render_ready_episodes"), help="Render-ready output root")
     parser.add_argument("--map-id", default=DEFAULT_MAP_ID)
@@ -1418,6 +2172,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tick-hz", type=int, default=DEFAULT_TICK_HZ)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--all", action="store_true", help="Convert every directory under --episodes-root")
+    parser.add_argument("--sumo-output-dir", type=Path, default=DEFAULT_SUMO_OUTPUT_DIR)
+    parser.add_argument("--disable-sumo-traffic", action="store_true")
+    parser.add_argument("--uav-output-dir", type=Path, default=DEFAULT_UAV_OUTPUT_DIR)
+    parser.add_argument("--disable-uav-global-flow", action="store_true")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of parallel episode conversion workers. Use 1 for deterministic single-threaded output.",
+    )
     return parser.parse_args()
 
 
@@ -1425,15 +2189,21 @@ def main() -> None:
     args = parse_args()
     project_root = Path(__file__).resolve().parents[2]
     if args.episode:
-        episodes = [args.episode]
+        episodes = list(args.episode)
     elif args.all:
         episodes = sorted(path for path in args.episodes_root.iterdir() if path.is_dir())
     else:
         raise SystemExit("Specify --episode or --all.")
 
-    results: list[dict[str, Any]] = []
-    for source_episode_dir in episodes:
-        result = convert_episode(
+    preloaded_sumo_dataset: SumoTrafficDataset | None = None
+    if not bool(args.disable_sumo_traffic):
+        preloaded_sumo_dataset = load_sumo_traffic_dataset(Path(args.sumo_output_dir))
+    preloaded_uav_dataset: UavGlobalFlowDataset | None = None
+    if not bool(args.disable_uav_global_flow):
+        preloaded_uav_dataset = load_uav_global_flow_dataset(Path(args.uav_output_dir))
+
+    def _convert_one(source_episode_dir: Path) -> dict[str, Any]:
+        return convert_episode(
             source_episode_dir,
             default_output_dir(source_episode_dir, args.output_root),
             project_root=project_root,
@@ -1442,10 +2212,33 @@ def main() -> None:
             roi_id=args.roi_id,
             tick_hz=max(1, int(args.tick_hz)),
             overwrite=bool(args.overwrite),
+            sumo_output_dir=args.sumo_output_dir,
+            enable_sumo_traffic=not bool(args.disable_sumo_traffic),
+            preloaded_sumo_dataset=preloaded_sumo_dataset,
+            uav_output_dir=args.uav_output_dir,
+            enable_uav_global_flow=not bool(args.disable_uav_global_flow),
+            preloaded_uav_dataset=preloaded_uav_dataset,
         )
-        results.append(result)
-        status = "skipped" if result.get("skipped") else "converted"
-        print(f"[convert_to_render_ready] {status}: {source_episode_dir} -> {result['episode_dir']}")
+
+    results: list[dict[str, Any]] = []
+    worker_count = max(1, int(args.workers or 1))
+    if worker_count == 1 or len(episodes) <= 1:
+        for source_episode_dir in episodes:
+            result = _convert_one(source_episode_dir)
+            results.append(result)
+            status = "skipped" if result.get("skipped") else "converted"
+            print(f"[convert_to_render_ready] {status}: {source_episode_dir} -> {result['episode_dir']}")
+    else:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            future_to_episode = {executor.submit(_convert_one, episode): episode for episode in episodes}
+            for future in as_completed(future_to_episode):
+                source_episode_dir = future_to_episode[future]
+                result = future.result()
+                results.append(result)
+                status = "skipped" if result.get("skipped") else "converted"
+                print(f"[convert_to_render_ready] {status}: {source_episode_dir} -> {result['episode_dir']}")
+
+        results.sort(key=lambda item: str(item.get("episode_dir") or ""))
 
     print(json.dumps({"count": len(results), "results": results}, indent=2, ensure_ascii=False))
 
