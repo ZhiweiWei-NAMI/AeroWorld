@@ -30,6 +30,7 @@ STRICT_MODE_OFF
 
 #include "api/RpcLibAdaptorsBase.hpp"
 #include <functional>
+#include <stdexcept>
 #include <thread>
 
 STRICT_MODE_ON
@@ -540,7 +541,9 @@ namespace airlib
         });
 
         pimpl_->server.bind("simSetCameraFov", [&](const std::string& camera_name, float fov_degrees, const std::string& vehicle_name) -> void {
-            getWorldSimApi()->setCameraFoV(fov_degrees, CameraDetails(camera_name, vehicle_name));
+            throw std::invalid_argument(
+                "simSetCameraFov is disabled in the AeroWorld capture runtime; configure FOV in AirSim settings.json and re-enter PIE. "
+                "vehicle='" + vehicle_name + "' camera='" + camera_name + "' requested_fov_degrees=" + std::to_string(fov_degrees));
         });
 
         pimpl_->server.bind("simGetCollisionInfo", [&](const std::string& vehicle_name) -> RpcLibAdaptorsBase::CollisionInfo {

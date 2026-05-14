@@ -250,9 +250,6 @@ class AeroSimClient:
             return self.airsim_pose_to_enu_payload(type("_Pose", (), {"position": state.position, "orientation": state.orientation})())
         return self.airsim_pose_to_enu_payload(self._client.simGetVehiclePose(str(vehicle_name)))
 
-    def set_camera_fov(self, vehicle_name: str, camera_name: str, fov_degrees: float) -> None:
-        self._client.simSetCameraFov(str(camera_name), float(fov_degrees), str(vehicle_name))
-
     def set_camera_pose(
         self,
         vehicle_name: str,

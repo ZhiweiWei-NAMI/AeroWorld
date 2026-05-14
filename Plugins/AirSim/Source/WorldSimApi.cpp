@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <algorithm>
+#include <stdexcept>
 
 namespace
 {
@@ -54,6 +55,23 @@ const APIPCamera* ResolveRpcCamera(const ASimModeBase* simmode, const WorldSimAp
     }
 
     return simmode != nullptr ? simmode->getCamera(camera_details) : nullptr;
+}
+
+std::string FormatRpcCameraDetails(const WorldSimApi::CameraDetails& camera_details)
+{
+    return "vehicle='" + camera_details.vehicle_name + "' camera='" + camera_details.camera_name + "'";
+}
+
+const APIPCamera* RequireRpcCamera(const ASimModeBase* simmode, const WorldSimApi::CameraDetails& camera_details, const char* operation_name)
+{
+    const APIPCamera* camera = ResolveRpcCamera(simmode, camera_details);
+    if (camera == nullptr) {
+        throw std::invalid_argument(
+            std::string(operation_name) + " failed because the AirSim camera is not registered (" +
+            FormatRpcCameraDetails(camera_details) + ")");
+    }
+
+    return camera;
 }
 }
 
@@ -1142,7 +1160,7 @@ std::vector<msr::airlib::GeoPoint> WorldSimApi::getWorldExtents() const
 msr::airlib::CameraInfo WorldSimApi::getCameraInfo(const CameraDetails& camera_details) const
 {
     msr::airlib::CameraInfo info;
-    const APIPCamera* camera = ResolveRpcCamera(simmode_, camera_details);
+    const APIPCamera* camera = RequireRpcCamera(simmode_, camera_details, "simGetCameraInfo");
     UAirBlueprintLib::RunCommandOnGameThread([camera, &info]() {
         info = camera->getCameraInfo();
     },
@@ -1153,7 +1171,7 @@ msr::airlib::CameraInfo WorldSimApi::getCameraInfo(const CameraDetails& camera_d
 
 void WorldSimApi::setCameraPose(const msr::airlib::Pose& pose, const CameraDetails& camera_details)
 {
-    APIPCamera* camera = const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details));
+    APIPCamera* camera = const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simSetCameraPose"));
     UAirBlueprintLib::RunCommandOnGameThread([camera, &pose]() {
         camera->setCameraPose(pose);
     },
@@ -1162,16 +1180,14 @@ void WorldSimApi::setCameraPose(const msr::airlib::Pose& pose, const CameraDetai
 
 void WorldSimApi::setCameraFoV(float fov_degrees, const CameraDetails& camera_details)
 {
-    APIPCamera* camera = const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details));
-    UAirBlueprintLib::RunCommandOnGameThread([camera, &fov_degrees]() {
-        camera->setCameraFoV(fov_degrees);
-    },
-                                             true);
+    throw std::invalid_argument(
+        "simSetCameraFov is disabled in the AeroWorld capture runtime; configure FOV in AirSim settings.json and re-enter PIE. " +
+        FormatRpcCameraDetails(camera_details) + " requested_fov_degrees=" + std::to_string(fov_degrees));
 }
 
 void WorldSimApi::setDistortionParam(const std::string& param_name, float value, const CameraDetails& camera_details)
 {
-    APIPCamera* camera = const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details));
+    APIPCamera* camera = const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simSetDistortionParam"));
     UAirBlueprintLib::RunCommandOnGameThread([camera, &param_name, &value]() {
         camera->setDistortionParam(param_name, value);
     },
@@ -1181,7 +1197,7 @@ void WorldSimApi::setDistortionParam(const std::string& param_name, float value,
 std::vector<float> WorldSimApi::getDistortionParams(const CameraDetails& camera_details) const
 {
     std::vector<float> param_values;
-    const APIPCamera* camera = ResolveRpcCamera(simmode_, camera_details);
+    const APIPCamera* camera = RequireRpcCamera(simmode_, camera_details, "simGetDistortionParams");
     UAirBlueprintLib::RunCommandOnGameThread([camera, &param_values]() {
         param_values = camera->getDistortionParams();
     },
@@ -1235,88 +1251,88 @@ std::vector<uint8_t> WorldSimApi::getImage(ImageCaptureBase::ImageType image_typ
 //CinemAirSim
 std::vector<std::string> WorldSimApi::getPresetLensSettings(const CameraDetails& camera_details)
 {
-    return ResolveRpcCamera(simmode_, camera_details)->getPresetLensSettings();
+    return RequireRpcCamera(simmode_, camera_details, "simGetPresetLensSettings")->getPresetLensSettings();
 }
 
 std::string WorldSimApi::getLensSettings(const CameraDetails& camera_details)
 {
-    return ResolveRpcCamera(simmode_, camera_details)->getLensSettings();
+    return RequireRpcCamera(simmode_, camera_details, "simGetLensSettings")->getLensSettings();
 }
 
 void WorldSimApi::setPresetLensSettings(std::string preset, const CameraDetails& camera_details)
 {
-    return const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details))->setPresetLensSettings(preset);
+    return const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simSetPresetLensSettings"))->setPresetLensSettings(preset);
 }
 
 std::vector<std::string> WorldSimApi::getPresetFilmbackSettings(const CameraDetails& camera_details)
 {
-    return ResolveRpcCamera(simmode_, camera_details)->getPresetFilmbackSettings();
+    return RequireRpcCamera(simmode_, camera_details, "simGetPresetFilmbackSettings")->getPresetFilmbackSettings();
 }
 
 void WorldSimApi::setPresetFilmbackSettings(std::string preset, const CameraDetails& camera_details)
 {
-    return const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details))->setPresetFilmbackSettings(preset);
+    return const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simSetPresetFilmbackSettings"))->setPresetFilmbackSettings(preset);
 }
 
 std::string WorldSimApi::getFilmbackSettings(const CameraDetails& camera_details)
 {
-    return ResolveRpcCamera(simmode_, camera_details)->getFilmbackSettings();
+    return RequireRpcCamera(simmode_, camera_details, "simGetFilmbackSettings")->getFilmbackSettings();
 }
 
 float WorldSimApi::setFilmbackSettings(float width, float height, const CameraDetails& camera_details)
 {
-    return const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details))->setFilmbackSettings(width, height);
+    return const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simSetFilmbackSettings"))->setFilmbackSettings(width, height);
 }
 
 float WorldSimApi::getFocalLength(const CameraDetails& camera_details)
 {
-    return ResolveRpcCamera(simmode_, camera_details)->getFocalLength();
+    return RequireRpcCamera(simmode_, camera_details, "simGetFocalLength")->getFocalLength();
 }
 
 void WorldSimApi::setFocalLength(float focal_length, const CameraDetails& camera_details)
 {
-    return const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details))->setFocalLength(focal_length);
+    return const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simSetFocalLength"))->setFocalLength(focal_length);
 }
 
 void WorldSimApi::enableManualFocus(bool enable, const CameraDetails& camera_details)
 {
-    return const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details))->enableManualFocus(enable);
+    return const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simEnableManualFocus"))->enableManualFocus(enable);
 }
 
 float WorldSimApi::getFocusDistance(const CameraDetails& camera_details)
 {
-    return ResolveRpcCamera(simmode_, camera_details)->getFocusDistance();
+    return RequireRpcCamera(simmode_, camera_details, "simGetFocusDistance")->getFocusDistance();
 }
 
 void WorldSimApi::setFocusDistance(float focus_distance, const CameraDetails& camera_details)
 {
-    return const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details))->setFocusDistance(focus_distance);
+    return const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simSetFocusDistance"))->setFocusDistance(focus_distance);
 }
 
 float WorldSimApi::getFocusAperture(const CameraDetails& camera_details)
 {
-    return ResolveRpcCamera(simmode_, camera_details)->getFocusAperture();
+    return RequireRpcCamera(simmode_, camera_details, "simGetFocusAperture")->getFocusAperture();
 }
 
 void WorldSimApi::setFocusAperture(float focus_aperture, const CameraDetails& camera_details)
 {
-    return const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details))->setFocusAperture(focus_aperture);
+    return const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simSetFocusAperture"))->setFocusAperture(focus_aperture);
 }
 
 void WorldSimApi::enableFocusPlane(bool enable, const CameraDetails& camera_details)
 {
-    return const_cast<APIPCamera*>(ResolveRpcCamera(simmode_, camera_details))->enableFocusPlane(enable);
+    return const_cast<APIPCamera*>(RequireRpcCamera(simmode_, camera_details, "simEnableFocusPlane"))->enableFocusPlane(enable);
 }
 
 std::string WorldSimApi::getCurrentFieldOfView(const CameraDetails& camera_details)
 {
-    return ResolveRpcCamera(simmode_, camera_details)->getCurrentFieldOfView();
+    return RequireRpcCamera(simmode_, camera_details, "simGetCurrentFieldOfView")->getCurrentFieldOfView();
 }
 //End CinemAirSim
 
 void WorldSimApi::addDetectionFilterMeshName(ImageCaptureBase::ImageType image_type, const std::string& mesh_name, const CameraDetails& camera_details, const std::string& annotation_name)
 {
-    const APIPCamera* camera = ResolveRpcCamera(simmode_, camera_details);
+    const APIPCamera* camera = RequireRpcCamera(simmode_, camera_details, "simAddDetectionFilterMeshName");
 
     UAirBlueprintLib::RunCommandOnGameThread([camera, image_type, &mesh_name, annotation_name]() {
         camera->getDetectionComponent(image_type, false, annotation_name)->addMeshName(mesh_name);
@@ -1326,7 +1342,7 @@ void WorldSimApi::addDetectionFilterMeshName(ImageCaptureBase::ImageType image_t
 
 void WorldSimApi::setDetectionFilterRadius(ImageCaptureBase::ImageType image_type, float radius_cm, const CameraDetails& camera_details, const std::string& annotation_name)
 {
-    const APIPCamera* camera = ResolveRpcCamera(simmode_, camera_details);
+    const APIPCamera* camera = RequireRpcCamera(simmode_, camera_details, "simSetDetectionFilterRadius");
 
     UAirBlueprintLib::RunCommandOnGameThread([camera, image_type, radius_cm, annotation_name]() {
         camera->getDetectionComponent(image_type, false, annotation_name)->setFilterRadius(radius_cm);
@@ -1336,7 +1352,7 @@ void WorldSimApi::setDetectionFilterRadius(ImageCaptureBase::ImageType image_typ
 
 void WorldSimApi::clearDetectionMeshNames(ImageCaptureBase::ImageType image_type, const CameraDetails& camera_details, const std::string& annotation_name)
 {
-    const APIPCamera* camera = ResolveRpcCamera(simmode_, camera_details);
+    const APIPCamera* camera = RequireRpcCamera(simmode_, camera_details, "simClearDetectionMeshNames");
 
     UAirBlueprintLib::RunCommandOnGameThread([camera, image_type, annotation_name]() {
         camera->getDetectionComponent(image_type, false, annotation_name)->clearMeshNames();
@@ -1348,7 +1364,7 @@ std::vector<msr::airlib::DetectionInfo> WorldSimApi::getDetections(ImageCaptureB
 {
     std::vector<msr::airlib::DetectionInfo> result;
 
-    const APIPCamera* camera = ResolveRpcCamera(simmode_, camera_details);
+    const APIPCamera* camera = RequireRpcCamera(simmode_, camera_details, "simGetDetections");
     const NedTransform& ned_transform = simmode_->getVehicleSimApi(camera_details.vehicle_name)->getNedTransform();
     TMap<UMeshComponent*, FString> component_to_name_map = simmode_->GetInstanceSegmentationComponentToNameMap();
     UAirBlueprintLib::RunCommandOnGameThread([camera, image_type, component_to_name_map , &result, &ned_transform, annotation_name]() {

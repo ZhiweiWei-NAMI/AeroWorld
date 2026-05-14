@@ -1844,7 +1844,8 @@ void ASimModeBase::toggleTraceAll()
 
 const APIPCamera* ASimModeBase::getCamera(const msr::airlib::CameraDetails& camera_details) const
 {
-    return getVehicleSimApi(camera_details.vehicle_name)->getCamera(camera_details.camera_name);
+    const PawnSimApi* vehicle_sim_api = getVehicleSimApi(camera_details.vehicle_name);
+    return vehicle_sim_api != nullptr ? vehicle_sim_api->getCamera(camera_details.camera_name) : nullptr;
 }
 
 const UnrealImageCapture* ASimModeBase::getImageCapture(const std::string& vehicle_name) const

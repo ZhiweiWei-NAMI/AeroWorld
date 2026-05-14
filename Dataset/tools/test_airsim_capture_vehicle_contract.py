@@ -88,13 +88,8 @@ class AirSimCaptureVehicleContractTest(unittest.TestCase):
     def test_uav_native_capture_does_not_mutate_runtime_fov(self) -> None:
         class Client:
             def __init__(self) -> None:
-                self.set_camera_fov_called = False
                 self.camera_pose_calls: list[tuple[object, ...]] = []
                 self.capture_calls: list[dict[str, object]] = []
-
-            def set_camera_fov(self, *_args: object, **_kwargs: object) -> None:
-                self.set_camera_fov_called = True
-                raise AssertionError("UAV native capture must not call simSetCameraFov at runtime")
 
             def set_camera_pose_ned(self, *args: object, **kwargs: object) -> None:
                 self.camera_pose_calls.append((*args, kwargs))
@@ -180,7 +175,6 @@ class AirSimCaptureVehicleContractTest(unittest.TestCase):
             uav_debug={},
         )
 
-        self.assertFalse(fake_client.set_camera_fov_called)
         self.assertEqual(len(fake_client.camera_pose_calls), 1)
         self.assertEqual(len(fake_client.capture_calls), 1)
         self.assertEqual(dict(written["common_sidecar"])["camera_info_before_capture"]["fov_degrees"], 85.0)
