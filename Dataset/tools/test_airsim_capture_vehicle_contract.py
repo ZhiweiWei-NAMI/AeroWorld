@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,7 +26,7 @@ class AirSimCaptureVehicleContractTest(unittest.TestCase):
                 self.add_vehicle_called = False
 
             def get_settings_string(self) -> str:
-                return json.dumps({"ViewMode": "FlyWithMe"})
+                raise AssertionError("AirSim getSettingsString RPC must not be used for capture settings validation")
 
             def list_vehicles(self) -> list[str]:
                 return []
@@ -38,20 +39,29 @@ class AirSimCaptureVehicleContractTest(unittest.TestCase):
             host = "127.0.0.1"
             port = 41451
 
-        fake_client = Client()
-        host = object.__new__(EpisodeRenderHost)
-        host.args = Args()
-        host.client = fake_client
-        host.config = {"timeouts": {"rpc_retry_count": 0}}
-        host.uav_capture_backend = "airsim_native"
-        host.capture_role_filters = set()
-        host.airsim_capture_vehicle = "CaptureUAV_0"
-        host.airsim_capture_vehicle_ready = False
+        with tempfile.TemporaryDirectory() as tmp:
+            settings_path = Path(tmp) / "settings.json"
+            settings_path.write_text(
+                json.dumps({"ViewMode": "FlyWithMe", "Vehicles": {"CaptureUAV_0": {"VehicleType": "SimpleFlight"}}}),
+                encoding="utf-8",
+            )
+            fake_client = Client()
+            host = object.__new__(EpisodeRenderHost)
+            host.args = Args()
+            host.client = fake_client
+            host.config = {
+                "timeouts": {"rpc_retry_count": 0},
+                "airsim_capture": {"settings_path": str(settings_path)},
+            }
+            host.uav_capture_backend = "airsim_native"
+            host.capture_role_filters = set()
+            host.airsim_capture_vehicle = "CaptureUAV_0"
+            host.airsim_capture_vehicle_ready = False
 
-        with self.assertRaisesRegex(RuntimeError, "runtime simAddVehicle is not allowed"):
-            host._ensure_airsim_capture_vehicle()
+            with self.assertRaisesRegex(RuntimeError, "runtime simAddVehicle is not allowed"):
+                host._ensure_airsim_capture_vehicle()
 
-        self.assertFalse(fake_client.add_vehicle_called)
+            self.assertFalse(fake_client.add_vehicle_called)
 
     def test_uav_capture_pose_uses_truth_even_when_status_disagrees(self) -> None:
         host = object.__new__(EpisodeRenderHost)

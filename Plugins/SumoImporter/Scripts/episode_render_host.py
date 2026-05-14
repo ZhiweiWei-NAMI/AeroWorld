@@ -21,6 +21,7 @@ from typing import Any, Sequence
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parents[2]
 DEFAULT_CONFIG_PATH = SCRIPT_DIR / "episode_render_host_config.json"
+DEFAULT_AIRSIM_SETTINGS_PATH = Path(r"E:\HuaweiMoveData\Users\weizhiwei\Documents\AirSim\settings.json")
 
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -2199,13 +2200,29 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
     def _airsim_capture_pose_tolerance_m(self) -> float:
         return max(0.05, float(self._airsim_capture_cfg().get("pose_tolerance_m", 2.0)))
 
+    def _airsim_settings_path(self) -> Path:
+        cfg = self._airsim_capture_cfg()
+        raw_path = str(cfg.get("settings_path") or cfg.get("settings_json_path") or DEFAULT_AIRSIM_SETTINGS_PATH).strip()
+        return Path(raw_path).expanduser()
+
+    def _load_airsim_settings(self) -> dict[str, Any]:
+        settings_path = self._airsim_settings_path()
+        if not settings_path.exists():
+            raise RuntimeError(
+                f"AirSim settings.json not found at {settings_path}. "
+                "The formal capture runtime validates the Huawei Share AirSim settings file directly."
+            )
+        try:
+            return dict(json.loads(settings_path.read_text(encoding="utf-8")))
+        except Exception as exc:
+            raise RuntimeError(f"Unable to read AirSim settings.json at {settings_path}: {exc}") from exc
+
     def _guard_airsim_native_capture_rpc(self) -> set[str]:
         if self.client is None:
             raise RuntimeError("Host is not connected.")
         try:
             self._retry("airsim_native_preflight_ping", self.client.client.ping)
             vehicles = set(self._retry("airsim_native_preflight_list_vehicles", self.client.list_vehicles))
-            _ = self._retry("airsim_native_preflight_getSettingsString", self.client.get_settings_string)
             return vehicles
         except Exception as exc:
             raise RuntimeError(
@@ -2234,8 +2251,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             raise RuntimeError("Host is not connected.")
         if self.airsim_capture_vehicle_ready:
             return
-        settings_text = self._retry("getSettingsString", self.client.get_settings_string)
-        settings = json.loads(settings_text)
+        settings = self._load_airsim_settings()
         view_mode = str(settings.get("ViewMode") or "").strip()
         if view_mode.lower() == "nodisplay":
             raise RuntimeError(
@@ -2245,6 +2261,12 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             )
         if not self.airsim_capture_vehicle:
             raise RuntimeError("--airsim-capture-vehicle cannot be empty in airsim_native mode.")
+        vehicles_cfg = dict(settings.get("Vehicles") or {})
+        if self.airsim_capture_vehicle not in vehicles_cfg:
+            raise RuntimeError(
+                f"AirSim capture vehicle '{self.airsim_capture_vehicle}' is missing from {self._airsim_settings_path()}. "
+                "The formal UAV capture path requires this preconfigured settings vehicle; runtime simAddVehicle is not allowed."
+            )
         park_position, park_rotation = self._airsim_capture_park_pose()
         vehicles = self._guard_airsim_native_capture_rpc()
         if self.airsim_capture_vehicle not in vehicles:
