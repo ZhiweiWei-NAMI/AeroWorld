@@ -250,28 +250,6 @@ class AeroSimClient:
             return self.airsim_pose_to_enu_payload(type("_Pose", (), {"position": state.position, "orientation": state.orientation})())
         return self.airsim_pose_to_enu_payload(self._client.simGetVehiclePose(str(vehicle_name)))
 
-    def set_camera_pose(
-        self,
-        vehicle_name: str,
-        camera_name: str,
-        *,
-        position_enu_m: Sequence[float] = (0.0, 0.0, 0.0),
-        rotation_deg: Sequence[float] | dict[str, Any] | None = None,
-    ) -> None:
-        pose = self.build_airsim_pose(position_enu_m, rotation_deg)
-        self._client.simSetCameraPose(str(camera_name), pose, str(vehicle_name))
-
-    def set_camera_pose_ned(
-        self,
-        vehicle_name: str,
-        camera_name: str,
-        *,
-        position_ned_m: Sequence[float] = (0.0, 0.0, 0.0),
-        rotation_deg: Sequence[float] | dict[str, Any] | None = None,
-    ) -> None:
-        pose = self.build_airsim_pose_ned(position_ned_m, rotation_deg)
-        self._client.simSetCameraPose(str(camera_name), pose, str(vehicle_name))
-
     def get_camera_info(self, vehicle_name: str, camera_name: str) -> dict[str, Any]:
         info = self._client.simGetCameraInfo(str(camera_name), str(vehicle_name))
         pose = getattr(info, "pose", None)

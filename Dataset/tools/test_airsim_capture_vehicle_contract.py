@@ -85,14 +85,10 @@ class AirSimCaptureVehicleContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "truth_pose.position_enu_m"):
             host._uav_pose_for_capture({"entity_id": "missing_truth", "entity_category": "uav"}, {})
 
-    def test_uav_native_capture_does_not_mutate_runtime_fov(self) -> None:
+    def test_uav_native_capture_does_not_mutate_runtime_camera(self) -> None:
         class Client:
             def __init__(self) -> None:
-                self.camera_pose_calls: list[tuple[object, ...]] = []
                 self.capture_calls: list[dict[str, object]] = []
-
-            def set_camera_pose_ned(self, *args: object, **kwargs: object) -> None:
-                self.camera_pose_calls.append((*args, kwargs))
 
             def get_camera_info(self, vehicle_name: str, camera_name: str) -> dict[str, object]:
                 return {
@@ -164,7 +160,7 @@ class AirSimCaptureVehicleContractTest(unittest.TestCase):
                 "fov_degrees": 85.0,
                 "width": 1280,
                 "height": 720,
-                "set_capture_camera_pose": True,
+                "set_capture_camera_pose": False,
                 "camera_pose_frame": "ned",
                 "camera_offset_body_ned_m": [0.0, 0.0, 0.0],
                 "fixed_rotation_offset_deg": {"pitch_deg": -90.0, "yaw_deg": 0.0, "roll_deg": 0.0},
@@ -175,7 +171,6 @@ class AirSimCaptureVehicleContractTest(unittest.TestCase):
             uav_debug={},
         )
 
-        self.assertEqual(len(fake_client.camera_pose_calls), 1)
         self.assertEqual(len(fake_client.capture_calls), 1)
         self.assertEqual(dict(written["common_sidecar"])["camera_info_before_capture"]["fov_degrees"], 85.0)
 

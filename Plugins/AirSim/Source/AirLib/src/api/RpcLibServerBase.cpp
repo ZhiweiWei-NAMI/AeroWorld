@@ -30,7 +30,6 @@ STRICT_MODE_OFF
 
 #include "api/RpcLibAdaptorsBase.hpp"
 #include <functional>
-#include <stdexcept>
 #include <thread>
 
 STRICT_MODE_ON
@@ -537,13 +536,21 @@ namespace airlib
         });
 
         pimpl_->server.bind("simSetCameraPose", [&](const std::string& camera_name, const RpcLibAdaptorsBase::Pose& pose, const std::string& vehicle_name) -> void {
-            getWorldSimApi()->setCameraPose(pose.to(), CameraDetails(camera_name, vehicle_name));
+            unused(camera_name);
+            unused(pose);
+            unused(vehicle_name);
+            common_utils::Utils::log(
+                "simSetCameraPose is disabled in the AeroWorld capture runtime; configure camera pose in AirSim settings.json and move CaptureUAV_0 instead.",
+                common_utils::Utils::kLogLevelError);
         });
 
         pimpl_->server.bind("simSetCameraFov", [&](const std::string& camera_name, float fov_degrees, const std::string& vehicle_name) -> void {
-            throw std::invalid_argument(
-                "simSetCameraFov is disabled in the AeroWorld capture runtime; configure FOV in AirSim settings.json and re-enter PIE. "
-                "vehicle='" + vehicle_name + "' camera='" + camera_name + "' requested_fov_degrees=" + std::to_string(fov_degrees));
+            unused(camera_name);
+            unused(fov_degrees);
+            unused(vehicle_name);
+            common_utils::Utils::log(
+                "simSetCameraFov is disabled in the AeroWorld capture runtime; configure FOV in AirSim settings.json and re-enter PIE.",
+                common_utils::Utils::kLogLevelError);
         });
 
         pimpl_->server.bind("simGetCollisionInfo", [&](const std::string& vehicle_name) -> RpcLibAdaptorsBase::CollisionInfo {

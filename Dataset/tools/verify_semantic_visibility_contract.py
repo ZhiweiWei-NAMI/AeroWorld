@@ -85,8 +85,8 @@ def validate_nadir_preset(preset: dict[str, Any]) -> list[str]:
         errors.append(f"default UAV camera preset is not the existing nadir view: pitch={pitch} yaw={yaw} roll={roll}")
     if str(preset.get("camera_name") or "") != "bottom_center":
         errors.append(f"default UAV camera_name changed from bottom_center: {preset.get('camera_name')!r}")
-    if not bool(preset.get("set_capture_camera_pose", False)):
-        errors.append("default UAV camera preset no longer sets the AirSim capture camera pose")
+    if bool(preset.get("set_capture_camera_pose", False)):
+        errors.append("default UAV camera preset must not mutate the AirSim capture camera pose at runtime")
     return errors
 
 

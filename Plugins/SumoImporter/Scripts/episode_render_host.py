@@ -4713,23 +4713,10 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             if settle_s > 0.0:
                 time.sleep(settle_s)
         set_capture_camera_pose = bool(preset.get("set_capture_camera_pose", False))
-        if set_capture_camera_pose and not uses_ue_custom_stencil:
-            camera_pose_frame = str(preset.get("camera_pose_frame") or preset.get("camera_pose_coordinate_frame") or "ned").strip().lower()
-            if camera_pose_frame not in {"ned", "enu"}:
-                raise RuntimeError(f"Unsupported AirSim camera pose frame '{camera_pose_frame}' for preset {preset}")
-            set_camera_pose_fn = self.client.set_camera_pose_ned if camera_pose_frame == "ned" else self.client.set_camera_pose
-            set_camera_pose_kwargs = (
-                {"position_ned_m": camera_offset_body_m}
-                if camera_pose_frame == "ned"
-                else {"position_enu_m": camera_offset_body_m}
-            )
-            self._retry(
-                "simSetCameraPose",
-                set_camera_pose_fn,
-                self.airsim_capture_vehicle,
-                camera_name,
-                rotation_deg=camera_rotation_body_deg,
-                **set_camera_pose_kwargs,
+        if set_capture_camera_pose:
+            raise RuntimeError(
+                "AirSim native UAV capture must not mutate camera pose at runtime. "
+                "Configure the capture camera in AirSim settings.json and pin CaptureUAV_0 to the TruthFrame pose."
             )
         if not uses_ue_custom_stencil:
             camera_info_before_capture = self._retry(
