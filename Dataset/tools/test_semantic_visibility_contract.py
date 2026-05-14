@@ -32,7 +32,7 @@ from run_semantic_event_chain_every10 import (  # noqa: E402
     event_chain_output_dir,
     event_chain_uav_output_dir,
     filter_event_chain_capture_presets,
-    runtime_uav_active_ticks_by_entity,
+    scene_uav_active_ticks_by_entity,
     validate_contract,
     write_guarded_config,
 )
@@ -257,7 +257,7 @@ class EventChainCaptureContractTest(unittest.TestCase):
         self.assertEqual(event_chain_output_dir(root, 69, "high_overview_rgb"), root / "hi" / "e69")
         self.assertEqual(event_chain_uav_output_dir(root, 69, view_id), root / "uav" / "e69" / "v012")
 
-    def test_every10_tick_selection_and_uav_active_ticks_are_explicit(self) -> None:
+    def test_every10_tick_selection_and_scene_uav_active_ticks_are_explicit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             episode_dir = Path(tmp) / "episode_event_chain"
             episode_dir.mkdir()
@@ -265,7 +265,7 @@ class EventChainCaptureContractTest(unittest.TestCase):
                 episode_dir / "global_entity_roster.json",
                 {
                     "entities": [
-                        {"entity_id": "uav_alpha", "entity_category": "uav", "mode": "runtime_multirotor"},
+                        {"entity_id": "uav_alpha", "entity_category": "uav", "mode": "scene_sync"},
                         {"entity_id": "uav_static", "entity_category": "uav", "mode": "metadata_only"},
                     ]
                 },
@@ -285,7 +285,7 @@ class EventChainCaptureContractTest(unittest.TestCase):
             (episode_dir / "truth_frames.jsonl").write_text("\n".join(frames) + "\n", encoding="utf-8")
 
             ticks = event_chain_capture_ticks(episode_dir, tick_start=0, tick_end=20, tick_step=10, strict=True)
-            active = runtime_uav_active_ticks_by_entity(episode_dir, ticks)
+            active = scene_uav_active_ticks_by_entity(episode_dir, ticks)
 
             self.assertEqual(ticks, [0, 10, 20])
             self.assertEqual(active["uav_alpha"], [0, 20])
@@ -336,7 +336,7 @@ class EventChainCaptureContractTest(unittest.TestCase):
         class Args:
             output_root: Path
             editor_hook_capture_timeout_s = 90.0
-            uav_control_backend = "pose_sync"
+            uav_scene_control_backend = "truth_frame_scene_sync"
             tick_start = 0
             tick_end = 900
             tick_step = 10

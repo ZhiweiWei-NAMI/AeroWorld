@@ -80,8 +80,8 @@ LEGACY_AIRSIM_SEGMENTATION_CLASSES: tuple[dict[str, Any], ...] = (
     {
         "class_id": 20,
         "class_name": "uav",
-        "actor_regex": r".*(CaptureUAV_0|Quadrotor|RuntimeMultirotor|uav).*",
-        "component_regex": r".*(CaptureUAV_0|Quadrotor|RuntimeMultirotor|uav).*",
+    "actor_regex": r".*(CaptureUAV_0|Quadrotor|uav).*",
+    "component_regex": r".*(CaptureUAV_0|Quadrotor|uav).*",
         "required_for_static_audit": False,
         "category": "dynamic_actor",
     },

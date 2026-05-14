@@ -198,9 +198,9 @@ FReply SCityRuntimeValidationPanel::HandleSpawnCrowdClicked() { SUBSYSTEM_CALL(S
 FReply SCityRuntimeValidationPanel::HandleSpawnConeClicked() { SUBSYSTEM_CALL(SpawnCone); }
 FReply SCityRuntimeValidationPanel::HandleSpawnStreetLightClicked() { SUBSYSTEM_CALL(SpawnStreetLightPlaceholder); }
 FReply SCityRuntimeValidationPanel::HandleSpawnVehicleClicked() { SUBSYSTEM_CALL(SpawnSceneVehicle); }
-FReply SCityRuntimeValidationPanel::HandleSpawnUAVClicked() { SUBSYSTEM_CALL(SpawnRuntimeUAV); }
+FReply SCityRuntimeValidationPanel::HandleSpawnUAVClicked() { SUBSYSTEM_CALL(SpawnSceneUAV); }
 FReply SCityRuntimeValidationPanel::HandleMoveVehicleClicked() { SUBSYSTEM_CALL(MoveSceneVehicle); }
-FReply SCityRuntimeValidationPanel::HandleMoveUAVClicked() { SUBSYSTEM_CALL(MoveRuntimeUAV); }
+FReply SCityRuntimeValidationPanel::HandleMoveUAVClicked() { SUBSYSTEM_CALL(MoveSceneUAV); }
 FReply SCityRuntimeValidationPanel::HandleRemoveAllClicked() { SUBSYSTEM_CALL(RemoveAll); }
 
 #undef SUBSYSTEM_CALL

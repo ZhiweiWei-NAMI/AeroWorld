@@ -107,11 +107,6 @@ public:
     virtual std::string simAeroProjectGround(const std::string& request_json) override;
     virtual std::string simAeroQueryPedAnchor(const std::string& request_json) override;
     virtual std::string simAeroApplyWeather(const std::string& request_json) override;
-    virtual std::string simAeroCreateRuntimeMultirotor(const std::string& request_json) override;
-    virtual std::string simAeroMoveRuntimeMultirotor(const std::string& request_json) override;
-    virtual std::string simAeroGetRuntimeMultirotorStatus(const std::string& request_json) override;
-    virtual std::string simAeroRemoveRuntimeVehicle(const std::string& request_json) override;
-    virtual std::string simAeroGetRuntimeVehiclePose(const std::string& request_json) override;
     virtual Vector3r getObjectScale(const std::string& object_name) const override;
     virtual bool setObjectScale(const std::string& object_name, const Vector3r& scale) override;
 

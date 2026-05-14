@@ -13,10 +13,11 @@ import json
 import csv
 import math
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from pprint import pformat
-from typing import Any
+from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from spec_compiler import (  # noqa: E402
@@ -41,7 +42,12 @@ from semantic_event_contract import (  # noqa: E402
     contract_payload,
     get_contract,
 )
-from sumo_ground_flow import SumoGroundFlowPlanner, SumoRouteError  # noqa: E402
+from sumo_ground_flow import (  # noqa: E402
+    SpatialAssignment,
+    SpatialEventGridPlanner,
+    SumoGroundFlowPlanner,
+    SumoRouteError,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -62,6 +68,8 @@ BUILDING_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "building" /
 CAPTURE_PRESETS = ROOT / "Plugins" / "SumoImporter" / "Scripts" / "episode_capture_presets.json"
 WORLD_OFFSET_X_M = 7000.0
 WORLD_OFFSET_Y_M = 6200.0
+CURRENT_WORLD_OFFSET_X_M = WORLD_OFFSET_X_M
+CURRENT_WORLD_OFFSET_Y_M = WORLD_OFFSET_Y_M
 LANE_HALF_WIDTH_M = 1.9
 SIDEWALK_MIN_OFFSET_FROM_CURB_M = 1.2
 GATHERING_MIN_OFFSET_FROM_CURB_M = 4.5
@@ -130,6 +138,8 @@ GROUND_FLOW_ROUTE_DURATION_TICKS = 900
 BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M = 24.0
 BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M = 9.0
 SUMO_TO_TRAFFIC_BUNDLE_MAX_SNAP_M = 15.0
+FORCED_LANDING_DESCENT_SPEED_MPS = 8.0
+FORCED_LANDING_TOUCHDOWN_SPEED_MPS = 2.0
 
 
 def default_uav_sensor_fov_deg() -> float:
@@ -310,11 +320,23 @@ UAV_CORRIDORS = HighAltitudeCorridorPlanner(SPATIAL)
 
 
 def p(x: float, y: float, z: float = 0.0) -> list[float]:
-    return [round(x + WORLD_OFFSET_X_M, 3), round(y + WORLD_OFFSET_Y_M, 3), round(z, 3)]
+    return [round(x + CURRENT_WORLD_OFFSET_X_M, 3), round(y + CURRENT_WORLD_OFFSET_Y_M, 3), round(z, 3)]
 
 
 def q(x: float, y: float, z: float = 0.0) -> list[float]:
     return [round(x, 3), round(y, 3), round(z, 3)]
+
+
+def reset_world_event_origin() -> None:
+    global CURRENT_WORLD_OFFSET_X_M, CURRENT_WORLD_OFFSET_Y_M
+    CURRENT_WORLD_OFFSET_X_M = WORLD_OFFSET_X_M
+    CURRENT_WORLD_OFFSET_Y_M = WORLD_OFFSET_Y_M
+
+
+def set_world_event_origin(x_m: float, y_m: float) -> None:
+    global CURRENT_WORLD_OFFSET_X_M, CURRENT_WORLD_OFFSET_Y_M
+    CURRENT_WORLD_OFFSET_X_M = float(x_m)
+    CURRENT_WORLD_OFFSET_Y_M = float(y_m)
 
 
 def dist_xy(a: list[float], b: list[float]) -> float:
@@ -383,6 +405,15 @@ def shifted_sidewalk_point(base_pos_enu: list[float], dx_m: float, dy_m: float, 
                 allow_green=True,
             )
             if not point_errors:
+                try:
+                    SPATIAL.plan_sidewalk_route(
+                        [base_pos_enu, point],
+                        allow_green=True,
+                        context="sidewalk_shifted_target_reachability",
+                    )
+                except SpatialValidationError as exc:
+                    errors.append(str(exc))
+                    continue
                 return point
             errors.extend(point_errors[:2])
     raise RuntimeError(f"Unable to plan shifted sidewalk target from {base_pos_enu}: {errors[:6]}")
@@ -2349,7 +2380,7 @@ def apply_semantic_event_contract(
             counts["facility"],
         )
         counts = _scene_counts(scenes)
-    ensure_contract_background_roles(scenario_id, specs, scenes, contract)
+    ensure_contract_background_roles(scenario_id, specs, scenes, events, contract)
     ensure_background_ground_flow_routes(scenario_id, specs, scenes)
     return contract
 
@@ -2358,9 +2389,23 @@ def ensure_contract_background_roles(
     scenario_id: str,
     specs: list[dict[str, Any]],
     scenes: list[dict[str, Any]],
+    events: list[dict[str, Any]],
     contract: EpisodeContract,
 ) -> None:
     spec_by_id = {str(spec.get("entity_id") or ""): spec for spec in specs}
+    event_target_ids: set[str] = set()
+    for event_def in events:
+        severity = str(event_def.get("log_severity") or "").lower()
+        if severity not in {"warning", "critical"}:
+            continue
+        for target_id in event_def.get("log_target_ids") or []:
+            if target_id:
+                event_target_ids.add(str(target_id))
+        for action_def in event_def.get("actions") or []:
+            params = action_params(action_def)
+            target_id = str(params.get("entity_id") or params.get("ped_id") or "")
+            if target_id:
+                event_target_ids.add(target_id)
     missing = {
         "vehicle": not any(
             str((scene.get("initial_state") or {}).get("role") or "") == "semantic_background_vehicle"
@@ -2398,7 +2443,12 @@ def ensure_contract_background_roles(
         ]
         if not candidates:
             raise RuntimeError(f"{scenario_id}: contract requires background {kind}, but no {kind} scene exists")
-        selected = sorted(candidates, key=lambda item: str(item.get("entity_id") or ""))[0]
+        non_event_candidates = [
+            scene
+            for scene in candidates
+            if str(scene.get("entity_id") or "") not in event_target_ids
+        ]
+        selected = sorted(non_event_candidates or candidates, key=lambda item: str(item.get("entity_id") or ""))[0]
         payload = role_payload[kind]
         state = dict(selected.get("initial_state") or {})
         state.update(
@@ -3909,6 +3959,7 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
         if scenario_id.startswith("L1-3_v2"):
             events[1]["log_title"] = "Fast intruder crossing constrained airspace"
         events[1]["log_target_ids"].append(intruder)
+    events[1]["require_conditions"] = ["trig_approach_boundary"]
     if scenario_id.startswith("L1-4"):
         uav_b = f"uav_{scenario_id.lower().replace('-', '_')}_secondary"
         uav_c = f"uav_{scenario_id.lower().replace('-', '_')}_tertiary"
@@ -4231,9 +4282,9 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         events = [
             event("crowd_present", tick(0), [ped_activity(f"set_{ped_id}_crowd_chatting", ped_id, "chatting") for ped_id in crowd_ids], 0, scenario_id, "Ground crowd is visible before the UAV fault begins", "pedestrian", crowd_ids, "info"),
             event("forced_landing_fault", tick(230), [visual("set_uav_forced_landing_fault", uav, "propulsion_fault")], 1, scenario_id, "UAV fault appears near a ground crowd", "uav_mission", [uav, ped_a, ped_b], "critical"),
-            event("descent_to_low_altitude", fired("forced_landing_fault"), [move("move_uav_forced_descent", uav, [start, descent_mid, low, land], 3.0)], 2, scenario_id, "UAV descends from 30m to low height", "uav_mission", [uav], "critical"),
+            event("descent_to_low_altitude", fired("forced_landing_fault"), [move("move_uav_forced_descent", uav, [start, descent_mid, low, land], FORCED_LANDING_DESCENT_SPEED_MPS)], 2, scenario_id, "UAV descends from 30m to low height", "uav_mission", [uav], "critical"),
             event("crowd_proximity_response", prox(uav, ped_a, 7.5, 2, metric="xy_plus_z", horizontal_distance_m=7.5, vertical_distance_m=10.0), [move("move_ped_a_evade_landing", ped_a, [ped_a_start, ped_a_evade], 2.0, post_activity_type="quarrel"), move("move_ped_b_evade_landing", ped_b, [ped_b_start, ped_b_evade], 2.0, post_activity_type="quarrel"), screenshot("capture_forced_landing")], 3, scenario_id, "Crowd evades forced landing zone and yells at the forced landing site", "pedestrian", [ped_a, ped_b, uav], "warning"),
-            event("safe_landing", fired("crowd_proximity_response"), [move("move_uav_safe_touchdown", uav, [land, q(land[0] + 1, land[1] + 1, 0.8)], 1.0)], 4, scenario_id, "UAV completes safe landing", "uav_mission", [uav], "info"),
+            event("safe_landing", fired("crowd_proximity_response"), [move("move_uav_safe_touchdown", uav, [land, q(land[0], land[1], 0.8)], FORCED_LANDING_TOUCHDOWN_SPEED_MPS)], 4, scenario_id, "UAV completes safe landing", "uav_mission", [uav], "info"),
         ]
         desc = "UAV forced landing near crowd"
         rules.append({"rule": "forced_landing_descent_profile", "z_sequence": [30, 8, 3], "description": "UAV descends through low-altitude forced landing profile"})
@@ -4675,7 +4726,7 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
             event("fog_threshold", weather("fog", "gte", 0.5, 5), [set_weather("set_x4_fog", "fog", fog=0.65, visibility_m=700.0)], 1, scenario_id, "Fog reaches operational threshold", "weather", [uav_a, uav_b], "warning"),
             event("visibility_drop", fired("fog_threshold"), [visual("set_x4_uav_a_visual_degraded", uav_a, "visual_degraded"), visual("set_x4_uav_b_visual_degraded", uav_b, "visual_degraded")], 2, scenario_id, "Visibility drops for both UAVs", "weather", [uav_a, uav_b], "warning"),
             event("fog_converging_routes", fired("visibility_drop"), [move("move_x4_uav_a_converge", uav_a, [a0, meet], 6.0), move("move_x4_uav_b_converge", uav_b, [b0, meet], 6.0)], 3, scenario_id, "Fog causes converging route conflict", "uav_mission", [uav_a, uav_b], "critical"),
-            event("fog_uav_conflict", prox(uav_a, uav_b, 8.0, 2), [visual("set_x4_uav_a_hover", uav_a, "hover"), move("move_x4_uav_b_evasion", uav_b, [meet, p(ox + 14, oy + 18, 36)], 8.0), screenshot("capture_x4_conflict")], 4, scenario_id, "UAV proximity conflict under fog", "uav_mission", [uav_a, uav_b], "critical"),
+            event("fog_uav_conflict", prox(uav_a, uav_b, 8.0, 2, metric="xy_plus_z", horizontal_distance_m=8.0, vertical_distance_m=35.0), [visual("set_x4_uav_a_hover", uav_a, "hover"), move("move_x4_uav_b_evasion", uav_b, [meet, p(ox + 14, oy + 18, 36)], 8.0), screenshot("capture_x4_conflict")], 4, scenario_id, "UAV proximity conflict under fog", "uav_mission", [uav_a, uav_b], "critical"),
             event("fog_conflict_recovered", fired("fog_uav_conflict"), [move("move_x4_uav_a_resume", uav_a, [meet, p(ox - 16, oy + 18, 30)], 5.5)], 5, scenario_id, "UAVs recover after fog conflict", "uav_mission", [uav_a, uav_b], "info"),
         ]
         desc = "Fog to multi-UAV conflict cross-layer chain"
@@ -4937,6 +4988,75 @@ if __name__ == "__main__":
 '''
 
 
+def _bundle_capture_center(bundle: ScenarioBundle) -> list[float]:
+    boundary = dict(bundle.parameters.get("capture_boundary") or {})
+    center = boundary.get("center_enu_m")
+    if isinstance(center, list) and len(center) >= 2:
+        return [float(center[0]), float(center[1]), float(center[2] if len(center) > 2 else GROUND_Z_M)]
+    return _capture_boundary_focus_center(bundle.scene_entities, bundle.events)
+
+
+def build_spatially_assigned_bundle(
+    scenario_id: str,
+    builder: Callable[[], ScenarioBundle],
+    assignment: SpatialAssignment,
+    provisional_center: list[float] | None = None,
+) -> ScenarioBundle:
+    if provisional_center is None:
+        reset_world_event_origin()
+        provisional = builder()
+        provisional_center = _bundle_capture_center(provisional)
+    target = assignment.target_center_enu_m
+    target_origin_x = WORLD_OFFSET_X_M + float(target[0]) - float(provisional_center[0])
+    target_origin_y = WORLD_OFFSET_Y_M + float(target[1]) - float(provisional_center[1])
+    set_world_event_origin(target_origin_x, target_origin_y)
+    try:
+        bundle = builder()
+    finally:
+        reset_world_event_origin()
+    actual_center = _bundle_capture_center(bundle)
+    target_error_m = dist_xy(actual_center, target)
+    assignment_payload = assignment.to_dict()
+    assignment_payload.update(
+        {
+            "provisional_capture_center_enu_m": q(
+                provisional_center[0],
+                provisional_center[1],
+                provisional_center[2] if len(provisional_center) > 2 else GROUND_Z_M,
+            ),
+            "applied_world_origin_enu_m": q(target_origin_x, target_origin_y, GROUND_Z_M),
+            "actual_capture_center_enu_m": q(
+                actual_center[0],
+                actual_center[1],
+                actual_center[2] if len(actual_center) > 2 else GROUND_Z_M,
+            ),
+            "target_error_m": round(target_error_m, 6),
+        }
+    )
+    bundle.parameters["spatial_grid_assignment"] = assignment_payload
+    bundle.validation_rules = list(bundle.validation_rules or [])
+    bundle.validation_rules.append(
+        {
+            "rule": "spatial_grid_assignment",
+            "policy": "city_grid_main_road_event_coverage_v1",
+            "event_space_class": assignment.event_space_class,
+            "target_center_enu_m": assignment_payload["target_center_enu_m"],
+            "actual_capture_center_enu_m": assignment_payload["actual_capture_center_enu_m"],
+            "target_error_m": assignment_payload["target_error_m"],
+            "description": "Episode location is assigned from the city main-road spatial grid; traffic incidents bind to SUMO incident anchors while nontraffic EPI avoid incident grids",
+        }
+    )
+    if assignment.event_space_class == "traffic_incident_grid" and target_error_m > 80.0:
+        raise RuntimeError(
+            f"{scenario_id}: traffic incident capture center is {target_error_m:.1f}m from SUMO anchor"
+        )
+    if assignment.event_space_class == "nontraffic_main_road_grid" and target_error_m > 140.0:
+        raise RuntimeError(
+            f"{scenario_id}: nontraffic capture center is {target_error_m:.1f}m from assigned main-road grid"
+        )
+    return bundle
+
+
 def collect_bundles(selected_scenarios: set[str] | None = None) -> list[ScenarioBundle]:
     selected = set(selected_scenarios or set())
 
@@ -4982,28 +5102,116 @@ def collect_bundles(selected_scenarios: set[str] | None = None) -> list[Scenario
         ("X5", "X5_comm_failure_to_pad_contention"),
         ("X6", "X6_crowd_evacuation_to_airspace_lockdown"),
     ]
+    all_scenario_ids = [*ids_l1, *ids_l2, *ids_l3, *ids_l4, *ids_l5, *ids_l6, *(dirname for _short_id, dirname in x_ids)]
+    spatial_grid = SpatialEventGridPlanner(planner=SUMO_GROUND_FLOW)
+    spatial_assignments = spatial_grid.assign_scenarios(all_scenario_ids)
+    nonincident_cells = spatial_grid.nontraffic_cells_for_assignments(spatial_assignments)
+    used_nontraffic_cell_ids: set[str] = set()
+    if selected:
+        for script_path in SCENARIOS_ROOT.rglob("event_script.json"):
+            try:
+                existing_script = json.loads(script_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            existing_id = str(existing_script.get("scenario_id") or script_path.parent.name)
+            is_selected = (
+                existing_id in selected
+                or script_path.parent.name in selected
+                or any(existing_id.startswith(f"{token}_") for token in selected)
+            )
+            if is_selected:
+                continue
+            assignment = dict((existing_script.get("parameters") or {}).get("spatial_grid_assignment") or {})
+            if str(assignment.get("event_space_class") or "") != "nontraffic_main_road_grid":
+                continue
+            grid_cell = dict(assignment.get("grid_cell") or {})
+            cell_id = str(grid_cell.get("cell_id") or "")
+            if cell_id:
+                used_nontraffic_cell_ids.add(cell_id)
     bundles: list[ScenarioBundle] = []
+
+    def nontraffic_assignment_for_cell(scenario_id: str, cell: Any) -> SpatialAssignment:
+        return SpatialAssignment(
+            scenario_id=scenario_id,
+            event_space_class="nontraffic_main_road_grid",
+            target_center_enu_m=list(cell.representative_enu_m),
+            grid_cell=cell,
+            source="main_road_grid.nonincident_cell",
+            exclusion_radius_m=spatial_grid.accident_exclusion_radius_m,
+        )
+
+    def append_assigned(scenario_id: str, builder: Callable[[], ScenarioBundle]) -> None:
+        primary = spatial_assignments[scenario_id]
+        candidates = [primary]
+        if primary.event_space_class == "nontraffic_main_road_grid":
+            start_index = next(
+                (
+                    index
+                    for index, cell in enumerate(nonincident_cells)
+                    if cell.cell_id == primary.grid_cell.cell_id
+                ),
+                0,
+            )
+            for offset in range(1, len(nonincident_cells)):
+                cell = nonincident_cells[(start_index + offset) % len(nonincident_cells)]
+                if cell.cell_id == primary.grid_cell.cell_id:
+                    continue
+                candidates.append(nontraffic_assignment_for_cell(scenario_id, cell))
+            candidates = [
+                candidate
+                for candidate in candidates
+                if candidate.grid_cell.cell_id not in used_nontraffic_cell_ids
+            ] + [
+                candidate
+                for candidate in candidates
+                if candidate.grid_cell.cell_id in used_nontraffic_cell_ids
+            ]
+        errors: list[str] = []
+        reset_world_event_origin()
+        provisional = builder()
+        provisional_center = _bundle_capture_center(provisional)
+        for assignment in candidates:
+            try:
+                bundle = build_spatially_assigned_bundle(
+                    scenario_id,
+                    builder,
+                    assignment,
+                    provisional_center=provisional_center,
+                )
+                bundles.append(bundle)
+                if assignment.event_space_class == "nontraffic_main_road_grid":
+                    used_nontraffic_cell_ids.add(assignment.grid_cell.cell_id)
+                return
+            except RuntimeError as exc:
+                errors.append(str(exc))
+                if primary.event_space_class == "traffic_incident_grid":
+                    break
+        raise RuntimeError(
+            f"{scenario_id}: unable to place scenario in assigned spatial grid candidates; "
+            f"errors={errors[:4]}"
+        )
+
     for i, scenario_id in enumerate(ids_l1):
         if include(scenario_id):
-            bundles.append(build_l1(scenario_id, i))
+            append_assigned(scenario_id, lambda scenario_id=scenario_id, i=i: build_l1(scenario_id, i))
     for i, scenario_id in enumerate(ids_l2):
         if include(scenario_id):
-            bundles.append(build_l2(scenario_id, i))
+            append_assigned(scenario_id, lambda scenario_id=scenario_id, i=i: build_l2(scenario_id, i))
     for i, scenario_id in enumerate(ids_l3):
         if include(scenario_id):
-            bundles.append(build_l3(scenario_id, i))
+            append_assigned(scenario_id, lambda scenario_id=scenario_id, i=i: build_l3(scenario_id, i))
     for i, scenario_id in enumerate(ids_l4):
         if include(scenario_id):
-            bundles.append(build_l4(scenario_id, i))
+            append_assigned(scenario_id, lambda scenario_id=scenario_id, i=i: build_l4(scenario_id, i))
     for i, scenario_id in enumerate(ids_l5):
         if include(scenario_id):
-            bundles.append(build_l5(scenario_id, i))
+            append_assigned(scenario_id, lambda scenario_id=scenario_id, i=i: build_l5(scenario_id, i))
     for i, scenario_id in enumerate(ids_l6):
         if include(scenario_id):
-            bundles.append(build_l6(scenario_id, i))
+            append_assigned(scenario_id, lambda scenario_id=scenario_id, i=i: build_l6(scenario_id, i))
     for i, (short_id, dirname) in enumerate(x_ids):
         if include(dirname, short_id):
-            bundles.append(build_x(short_id, dirname, i))
+            append_assigned(dirname, lambda short_id=short_id, dirname=dirname, i=i: build_x(short_id, dirname, i))
     return bundles
 
 
@@ -5118,9 +5326,21 @@ def validate_bundle(bundle: ScenarioBundle, compiled: dict[str, Any], catalog_id
 
 def write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        f.write("\n")
+    write_text_retry(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def write_text_retry(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    last_error: OSError | None = None
+    for attempt in range(6):
+        try:
+            path.write_text(text, encoding="utf-8")
+            return
+        except OSError as exc:
+            last_error = exc
+            time.sleep(0.2 * (attempt + 1))
+    if last_error is not None:
+        raise last_error
 
 
 def main() -> None:
@@ -5146,7 +5366,7 @@ def main() -> None:
         bundle.directory.mkdir(parents=True, exist_ok=True)
         write_json(bundle.directory / "event_script.json", compiled)
         write_json(bundle.directory / "scene_setup.json", scene_setup_from_bundle(bundle))
-        (bundle.directory / "spec.py").write_text(write_spec_py(bundle), encoding="utf-8")
+        write_text_retry(bundle.directory / "spec.py", write_spec_py(bundle))
     if errors:
         print("\n".join(errors), file=sys.stderr)
         raise SystemExit(1)

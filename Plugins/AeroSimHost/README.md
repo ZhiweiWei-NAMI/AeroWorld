@@ -2,7 +2,7 @@
 
 This plugin owns the UE runtime bridge and the authoritative UE-side API surface.
 
-If Python code needs to drive UE, spawn/move assets, query grounding, control pedestrians, apply weather, or control runtime UAVs, the contract eventually resolves here.
+If Python code needs to drive UE, spawn/move assets, query grounding, control pedestrians, apply weather, or capture fixed-world images, the contract eventually resolves here.
 
 ## Read Order
 
@@ -67,12 +67,6 @@ This is why those files currently stay in `Config`, even if source map materials
   `simAeroQueryPedAnchor`
 - weather:
   `simAeroApplyWeather`
-- runtime UAV:
-  `simAeroCreateRuntimeMultirotor`
-  `simAeroMoveRuntimeMultirotor`
-  `simAeroGetRuntimeMultirotorStatus`
-  `simAeroRemoveRuntimeVehicle`
-  `simAeroGetRuntimeVehiclePose`
 - capture:
   `simAeroCaptureWorldCamera`
 

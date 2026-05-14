@@ -12,6 +12,11 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Sequence
 
+try:
+    import orjson
+except ModuleNotFoundError:  # pragma: no cover - optional speedup for trajectory exports.
+    orjson = None
+
 from pedestrian_activity_catalog import activity_annotations, normalize_activity_type
 from semantic_event_contract import contract_payload, get_contract
 
@@ -62,8 +67,8 @@ DEFAULT_MAP_ID = "donghu_road_topo"
 DEFAULT_SITE_ID = "site.intersection_a"
 DEFAULT_ROI_ID = "roi.intersection_a.v1"
 DEFAULT_TICK_HZ = 10
-SUMO_TRUTH_MAX_OBSERVATION_DISTANCE_M = 120.0
 UAV_GLOBAL_FLOW_SOURCE = "uav_global_flow"
+INTEREST_FILTER_CATEGORIES = {"pedestrian", "vehicle", "uav"}
 
 
 ENTITY_PROFILES: dict[str, dict[str, str]] = {
@@ -331,6 +336,75 @@ def write_jsonl(path: Path, rows: Sequence[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def dumps_jsonl_bytes(payload: Any) -> bytes:
+    if orjson is not None:
+        return orjson.dumps(payload, option=orjson.OPT_APPEND_NEWLINE)
+    return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def truth_entity_to_trajectory_row(frame: dict[str, Any], entity: dict[str, Any]) -> dict[str, Any]:
+    pose = dict(entity.get("truth_pose") or {})
+    position = normalize_vector3(pose.get("position_enu_m"))
+    velocity = normalize_vector3(pose.get("velocity_enu_mps"))
+    annotations = dict(entity.get("annotations") or {})
+    activity = dict(dict(annotations.get("state_facets") or {}).get("activity") or {})
+    row: dict[str, Any] = {
+        "tick": int(frame.get("tick") if frame.get("tick") is not None else frame.get("frame_seq", 0)),
+        "frame_id": frame.get("frame_id"),
+        "sim_time_s": frame.get("sim_time_s"),
+        "entity_id": entity.get("entity_id"),
+        "label_class": entity.get("label_class"),
+        "asset_id": entity.get("logical_asset_id") or entity.get("asset_id"),
+        "entity_category": entity.get("entity_category"),
+        "entity_kind": entity.get("entity_kind"),
+        "entity_type": entity.get("entity_type"),
+        "pos_enu": position,
+        "vel_mps": velocity,
+        "yaw_deg": dict(pose.get("rotation_deg") or {}).get("yaw_deg"),
+        "state": entity.get("state") or annotations.get("activity_type"),
+        "activity_type": annotations.get("activity_type"),
+        "animation_hint": activity.get("animation_hint"),
+        "posture": activity.get("posture"),
+        "social_state": activity.get("social_state"),
+        "source": entity.get("source"),
+        "category": entity.get("entity_category"),
+    }
+    preserve_keys = (
+        "task_id",
+        "role",
+        "semantic_role",
+        "background_role",
+        "capture_boundary_id",
+        "route_waypoints_enu_m",
+        "background_vehicle",
+        "background_pedestrian",
+        "sumo_segment",
+        "sumo_vehicle",
+        "sumo_visibility",
+        "uav_segment",
+        "uav_global_flow",
+        "uav_global_pad",
+        "contract_facility",
+    )
+    for key in preserve_keys:
+        if key in entity:
+            row[key] = copy.deepcopy(entity[key])
+    return {key: value for key, value in row.items() if value is not None}
+
+
+def write_truth_trajectories(path: Path, truth_frames: Sequence[dict[str, Any]]) -> int:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with path.open("wb") as handle:
+        for frame in truth_frames:
+            for entity in frame.get("entities") or []:
+                if not isinstance(entity, dict):
+                    continue
+                handle.write(dumps_jsonl_bytes(truth_entity_to_trajectory_row(frame, entity)))
+                count += 1
+    return count
 
 
 def normalize_vector3(value: Any, default: Sequence[float] = (0.0, 0.0, 0.0)) -> list[float]:
@@ -633,8 +707,46 @@ def target_ids_from_event(row: dict[str, Any]) -> list[str]:
     return [str(target)] if target else []
 
 
-def build_activity_overrides(event_rows: Sequence[dict[str, Any]], roster: dict[str, dict[str, Any]]) -> dict[str, list[tuple[int, str]]]:
+def _event_id_from_trace(row: dict[str, Any], scenario_id: str) -> str:
+    raw = str(row.get("source_event_id") or row.get("topic") or row.get("event_id") or "")
+    prefix = f"evt_{scenario_id}_"
+    return raw[len(prefix) :] if raw.startswith(prefix) else raw
+
+
+def build_activity_overrides(
+    event_rows: Sequence[dict[str, Any]],
+    roster: dict[str, dict[str, Any]],
+    event_script: dict[str, Any] | None = None,
+    scenario_id: str = "",
+) -> dict[str, list[tuple[int, str]]]:
     overrides: dict[str, list[tuple[int, str]]] = defaultdict(list)
+    event_tick_by_id = {
+        _event_id_from_trace(row, scenario_id): int(row.get("tick", row.get("activated_tick", 0)) or 0)
+        for row in event_rows
+    }
+    if isinstance(event_script, dict):
+        for event in event_script.get("events") or []:
+            event_id = str(event.get("event_id") or "")
+            if event_id not in event_tick_by_id:
+                continue
+            tick = event_tick_by_id[event_id]
+            for action in event.get("actions") or []:
+                action_type = str(action.get("type") or "")
+                entity_id = str(action.get("entity_id") or action.get("ped_id") or "")
+                if not entity_id:
+                    continue
+                if action_type == "set_pedestrian_activity":
+                    activity = str(action.get("activity_type") or "").strip()
+                    if activity:
+                        overrides[entity_id].append((tick, activity))
+                elif action_type == "set_visual_state":
+                    mode = str((action.get("visual_state") or {}).get("mode") or action.get("mode") or "").strip()
+                    if mode:
+                        overrides[entity_id].append((tick, mode))
+                elif action_type == "move_entity":
+                    activity = str(action.get("activity_type") or "").strip()
+                    if activity:
+                        overrides[entity_id].append((tick, activity))
     for row in event_rows:
         tick = int(row.get("tick", row.get("activated_tick", 0)) or 0)
         text = event_text(row)
@@ -668,10 +780,6 @@ def activity_for_sample(
     # Non-pedestrian rows keep the historical speed/state fallback below.
     speed_xy = math.hypot(float(velocity_enu_mps[0]), float(velocity_enu_mps[1]))
     state_text = str(state or "").strip().lower()
-    if category == "pedestrian":
-        row_activity = str(row_activity_type or "").strip().lower()
-        if row_activity:
-            return normalize_activity_type(row_activity, moving=speed_xy > 0.15)
     activity = ""
     for override_tick, override_activity in overrides.get(entity_id, []):
         if tick >= override_tick:
@@ -679,7 +787,11 @@ def activity_for_sample(
         else:
             break
     if activity:
-        return activity
+        return normalize_activity_type(activity, moving=speed_xy > 0.15) if category == "pedestrian" else str(activity)
+    if category == "pedestrian":
+        row_activity = str(row_activity_type or "").strip().lower()
+        if row_activity:
+            return normalize_activity_type(row_activity, moving=speed_xy > 0.15)
     if category == "pedestrian":
         row_activity = state_text if state_text not in {"moving", "idle"} else ""
         if row_activity:
@@ -985,6 +1097,10 @@ def source_boundary_polygon(event_script: dict[str, Any]) -> list[list[float]]:
     if not polygon:
         raise RuntimeError("Source capture_boundary lacks polygon_enu_m")
     return polygon
+
+
+def point_in_interest_xy(point: Sequence[float], visibility: VisibilityGeometry) -> bool:
+    return float(visibility.observation_distance_m(point)) <= float(visibility.padding_m)
 
 
 def source_uav_role(entity: dict[str, Any]) -> str:
@@ -1588,18 +1704,22 @@ def convert_episode(
         scenario_id=scenario_id,
     )
 
-    trajectory_rows = load_jsonl(source_episode_dir / "trajectories.jsonl")
+    source_trajectory_rows = load_jsonl(source_episode_dir / "trajectories.jsonl")
     event_rows = load_jsonl(source_episode_dir / "event_trace.jsonl")
     source_weather_rows = load_jsonl(source_episode_dir / "weather_meta.jsonl")
     source_roster = read_source_roster(source_episode_dir / "global_entity_roster.json")
+    event_script_path = resolve_manifest_path(manifest.get("source_event_script_path"), source_episode_dir, project_root)
+    event_script = load_json_or_none(event_script_path)
+    if not isinstance(event_script, dict):
+        raise RuntimeError(f"{source_episode_dir.name}: source event_script is missing")
 
-    grouped = rows_by_entity(trajectory_rows)
+    grouped = rows_by_entity(source_trajectory_rows)
     if not grouped:
         raise RuntimeError(f"No trajectory rows found in {source_episode_dir}")
     missing_roster = sorted(entity_id for entity_id in grouped if entity_id not in source_roster)
     if missing_roster:
         raise RuntimeError(f"{source_episode_dir.name}: trajectory entities missing from source roster: {missing_roster}")
-    max_traj_tick = max(int(row.get("tick", 0)) for row in trajectory_rows)
+    max_traj_tick = max(int(row.get("tick", 0)) for row in source_trajectory_rows)
     if duration_ticks <= 0:
         duration_ticks = max_traj_tick
     ticks = list(range(0, duration_ticks + 1))
@@ -1614,6 +1734,7 @@ def convert_episode(
         raise RuntimeError(f"{source_episode_dir.name}: source trajectories do not prove all mission/observer UAVs cross capture boundary")
     if not source_contract["inspect_observes_boundary"]:
         raise RuntimeError(f"{source_episode_dir.name}: source inspect route/sensor profile does not prove boundary observation")
+    interest_visibility = VisibilityGeometry.from_contract(source_contract)
 
     sumo_dataset: SumoTrafficDataset | None = None
     sumo_segment: Any | None = None
@@ -1631,7 +1752,7 @@ def convert_episode(
                 f"{source_episode_dir.name}: episode duration must be {sumo_segment.duration_s:.1f}s "
                 f"to bind seed segments; found {duration_ticks / float(tick_hz):.3f}s"
             )
-        sumo_visibility = VisibilityGeometry.from_contract(source_contract)
+        sumo_visibility = interest_visibility
         sumo_selection = sumo_dataset.select_visible_vehicles(
             segment=sumo_segment,
             visibility=sumo_visibility,
@@ -1672,7 +1793,7 @@ def convert_episode(
                 f"{source_episode_dir.name}: episode duration must be {uav_segment.duration_s:.1f}s "
                 f"to bind UAV seed segments; found {duration_ticks / float(tick_hz):.3f}s"
             )
-        uav_selection = uav_dataset.select_segment_uavs(uav_segment)
+        uav_selection = uav_dataset.select_visible_uavs(segment=uav_segment, visibility=interest_visibility)
         uav_roster_entities = build_uav_roster_entries(
             uav_dataset=uav_dataset,
             uav_segment=uav_segment,
@@ -1695,7 +1816,7 @@ def convert_episode(
                 f"({len(uav_roster_entities)} of {uav_selection.selected_count})"
             )
 
-    activity_overrides = build_activity_overrides(event_rows, source_roster)
+    activity_overrides = build_activity_overrides(event_rows, source_roster, event_script, scenario_id)
     roster_entities: list[dict[str, Any]] = []
     first_samples: dict[str, dict[str, Any]] = {}
     last_yaw_by_entity: dict[str, float] = {}
@@ -1779,6 +1900,8 @@ def convert_episode(
                     continue
             row = sample_row_at_tick(grouped[entity_id], tick, tick_hz)
             position = normalized_position_for_render(row)
+            if category in INTEREST_FILTER_CATEGORIES and not point_in_interest_xy(position, interest_visibility):
+                continue
             velocity = normalize_vector3(row.get("vel_mps"))
             yaw = heading_deg_from_velocity(velocity, fallback_deg=last_yaw_by_entity.get(entity_id, 0.0))
             if math.hypot(velocity[0], velocity[1]) > 1e-4:
@@ -1844,7 +1967,7 @@ def convert_episode(
                     continue
                 position = normalize_vector3(vehicle.get("truth_position_enu_m"))
                 observation_distance_m = sumo_visibility.observation_distance_m(position)
-                if observation_distance_m > SUMO_TRUTH_MAX_OBSERVATION_DISTANCE_M:
+                if observation_distance_m > sumo_visibility.padding_m:
                     continue
                 visible_sumo_vehicle_count += 1
                 entities.append(
@@ -1866,7 +1989,7 @@ def convert_episode(
                 scenario_id=scenario_id,
             )
             sumo_truth_payload["active_selected_vehicle_count"] = visible_sumo_vehicle_count
-            sumo_truth_payload["max_observation_distance_m"] = SUMO_TRUTH_MAX_OBSERVATION_DISTANCE_M
+            sumo_truth_payload["max_observation_distance_m"] = sumo_visibility.padding_m
             sumo_semantics_payload = copy.deepcopy(sumo_truth_payload)
             sumo_semantics_payload.pop("traffic_light_states", None)
         else:
@@ -1894,16 +2017,23 @@ def convert_episode(
                 roster_entry = uav_roster_by_uav_id.get(uav_id)
                 if not roster_entry:
                     continue
+                position = normalize_vector3(uav.get("position_enu_m"))
+                observation_distance_m = interest_visibility.observation_distance_m(position)
+                if observation_distance_m > interest_visibility.padding_m:
+                    continue
                 active_uav_count += 1
-                entities.append(
-                    uav_global_truth_entity(
-                        uav=uav,
-                        roster_entry=roster_entry,
-                        tick=tick,
-                        site_id=site_id,
-                        roi_id=roi_id,
-                    )
+                entity = uav_global_truth_entity(
+                    uav=uav,
+                    roster_entry=roster_entry,
+                    tick=tick,
+                    site_id=site_id,
+                    roi_id=roi_id,
                 )
+                entity["uav_visibility"] = {
+                    "inspect_observation_distance_m": round(float(observation_distance_m), 6),
+                    "selected_for_capture_truth": True,
+                }
+                entities.append(entity)
             uav_truth_payload = uav_frame_truth_payload(
                 uav_dataset=uav_dataset,
                 uav_segment=uav_segment,
@@ -1955,12 +2085,24 @@ def convert_episode(
         )
 
     output_episode_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("trajectories.jsonl", "event_trace.jsonl"):
+    for name in ("event_trace.jsonl",):
         source_path = source_episode_dir / name
         if source_path.exists():
             shutil.copy2(source_path, output_episode_dir / name)
 
-    all_roster_entities = [*roster_entities, *sumo_roster_entities, *uav_pad_roster_entities, *uav_roster_entities]
+    truth_entity_ids = {
+        str(entity.get("entity_id") or "")
+        for frame in truth_frames
+        for entity in frame.get("entities") or []
+        if str(entity.get("entity_id") or "")
+    }
+    all_candidate_roster_entities = [*roster_entities, *sumo_roster_entities, *uav_pad_roster_entities, *uav_roster_entities]
+    all_roster_entities = [
+        entity
+        for entity in all_candidate_roster_entities
+        if str(entity.get("entity_category") or entity.get("label_class") or "").lower() not in INTEREST_FILTER_CATEGORIES
+        or str(entity.get("entity_id") or "") in truth_entity_ids
+    ]
     weather_rows = expand_weather_rows(source_weather_rows, ticks)
     dynamic_labels = build_dynamic_labels(event_rows, episode_id)
     entity_counts = Counter(str(entity.get("entity_category") or "") for entity in all_roster_entities)
@@ -2073,12 +2215,13 @@ def convert_episode(
             "summary": compiled_summary,
         },
     }
+    render_trajectory_count = sum(len(frame.get("entities") or []) for frame in truth_frames)
     record_counts = {
         "scenario_plan": 1,
         "global_entity_roster": len(all_roster_entities),
         "truth_frames": len(truth_frames),
         "event_trace": len(event_rows),
-        "trajectories": len(trajectory_rows),
+        "trajectories": render_trajectory_count,
         "weather_meta": len(weather_rows),
         "dynamic_labels": len(dynamic_labels),
         "episode_manifest": 1,
@@ -2114,8 +2257,18 @@ def convert_episode(
             "canonical_record_counts": copy.deepcopy(record_counts),
             "node_counts": {
                 "all_nodes": len(all_roster_entities),
-                "dynamic_nodes": len(grouped),
-                "static_nodes": max(0, len(all_roster_entities) - len(grouped)),
+                "dynamic_nodes": sum(
+                    1
+                    for entity in all_roster_entities
+                    if str(entity.get("entity_category") or entity.get("label_class") or "").lower()
+                    in INTEREST_FILTER_CATEGORIES
+                ),
+                "static_nodes": sum(
+                    1
+                    for entity in all_roster_entities
+                    if str(entity.get("entity_category") or entity.get("label_class") or "").lower()
+                    not in INTEREST_FILTER_CATEGORIES
+                ),
             },
             "artifacts": artifacts,
             "canonical_artifacts": copy.deepcopy(artifacts),
@@ -2133,6 +2286,11 @@ def convert_episode(
     write_jsonl(output_episode_dir / "truth_frames.jsonl", truth_frames)
     write_jsonl(output_episode_dir / "weather_meta.jsonl", weather_rows)
     write_jsonl(output_episode_dir / "dynamic_labels.jsonl", dynamic_labels)
+    written_trajectory_count = write_truth_trajectories(output_episode_dir / "trajectories.jsonl", truth_frames)
+    if written_trajectory_count != render_trajectory_count:
+        raise RuntimeError(
+            f"{source_episode_dir.name}: wrote {written_trajectory_count} trajectory rows, expected {render_trajectory_count}"
+        )
     write_json(output_episode_dir / "scenario_plan.json", scenario_plan)
     write_json(output_episode_dir / "episode_manifest.json", render_manifest)
     write_json(

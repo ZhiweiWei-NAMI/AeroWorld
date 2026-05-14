@@ -16,7 +16,7 @@ This Unreal project is organized around AeroSim/AirSim playback, multimodal capt
 ## Plugins
 
 - `Plugins/AeroSimHost/`
-  UE-side Aero bridge, scene sync, asset placement, weather application, runtime UAV control, and the authoritative `simAero*` contract.
+  UE-side Aero bridge, scene sync, asset placement, weather application, fixed-world capture, and the authoritative `simAero*` contract.
 - `Plugins/PedestrianRuntime/`
   Managed pedestrian spawning, variant application, animation, movement, and crowd runtime behavior.
 - `Plugins/SumoImporter/`

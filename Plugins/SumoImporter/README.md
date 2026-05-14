@@ -47,7 +47,7 @@ Scenario generation should produce data packages, not directly mutate the world.
   Python wrapper around the UE bridge RPC surface.
 - `Scripts/episode_render_host_config.json`
   Main runtime config for package playback and capture.
-  Capture tasks still require explicit `--airsim-capture-entity` and `--capture-view-id` when applicable.
+  UAV host runs require explicit `--airsim-capture-entity` and `--capture-view-id`; the event-chain runner creates those runs by rotating across every active scene UAV.
 - `Config/LowAltitude/Maps/<map_id>/map_package.json`
   Current summary of runtime map config and plugin-owned map-source inputs.
 - `Scripts/episode_template_resolver.json`
@@ -67,8 +67,8 @@ Scenario generation should produce data packages, not directly mutate the world.
    apply scene-sync semantic actors
    update truth-driven semantic actors, including background vehicles and pedestrians
    enforce physical motion for all relevant entities
-   update runtime UAVs
-   trigger all cameras once for that tick using the stable capture entity and capture view id for the task
+  sync scene UAVs from truth frames
+  trigger all cameras once for that tick by pinning `CaptureUAV_0` to the selected scene UAV
    write sidecars and images
 6. Run `Demos/multiview/build_multiview_demo_assets.py` for GIF/timeline outputs.
 
@@ -87,7 +87,6 @@ For Python developers, the most important RPC families are:
 - `poll_feedback`
 - `project_ground`
 - pedestrian RPCs such as `ped_spawn`, `ped_reset`, `ped_play_animation`
-- runtime UAV RPCs such as `create_runtime_multirotor`, `move_runtime_multirotor`, `get_runtime_multirotor_status`
 - `apply_weather`
 - `capture_world_camera`
 

@@ -32,7 +32,7 @@ def _play(asset: str, *, loop_count: int = 999, reapply: bool = False, freeze: b
         "loop_count": loop_count,
     }
     if reapply:
-        action["reapply_after_pose_sync"] = True
+        action["reapply_after_pose_update"] = True
     if freeze:
         action["freeze_pose_while_active"] = True
     return action

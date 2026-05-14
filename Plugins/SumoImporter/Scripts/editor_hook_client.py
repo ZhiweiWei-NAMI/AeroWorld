@@ -489,147 +489,7 @@ print("EDITOR_HOOK_SENT", {command_name!r}, payload.get("request_id"))
         )
         return self._run_console_json_command("aero.apply_weather_json", request_json)
 
-    def create_runtime_multirotor(
-        self,
-        *,
-        map_id: str,
-        vehicle_name: str,
-        position_enu_m: list[float],
-        rotation_deg: dict[str, float],
-    ) -> dict[str, Any]:
-        request_json = self._make_request_json(
-            map_id,
-            f"create_{vehicle_name}",
-            {
-                "vehicle_name": vehicle_name,
-                "position_enu_m": [float(value) for value in position_enu_m],
-                "rotation_deg": dict(rotation_deg),
-            },
-        )
-        return self._run_console_json_command("aero.create_runtime_multirotor_json", request_json)
-
-    def move_runtime_multirotor(
-        self,
-        *,
-        map_id: str,
-        vehicle_name: str,
-        target_enu_m: list[float],
-        velocity_mps: float,
-    ) -> dict[str, Any]:
-        request_json = self._make_request_json(
-            map_id,
-            f"move_{vehicle_name}",
-            {
-                "vehicle_name": vehicle_name,
-                "target_enu_m": [float(value) for value in target_enu_m],
-                "position_enu_m": [float(value) for value in target_enu_m],
-                "velocity_mps": float(velocity_mps),
-            },
-        )
-        return self._run_console_json_command("aero.move_runtime_multirotor_json", request_json)
-
-    def remove_runtime_vehicle(
-        self,
-        *,
-        map_id: str,
-        vehicle_name: str,
-    ) -> dict[str, Any]:
-        request_json = self._make_request_json(
-            map_id,
-            f"remove_{vehicle_name}",
-            {
-                "vehicle_name": vehicle_name,
-            },
-        )
-        return self._run_console_json_command("aero.remove_runtime_vehicle_json", request_json)
-
-    def destroy_runtime_vehicle_actors(
-        self,
-        *,
-        vehicle_names: list[str],
-    ) -> dict[str, Any]:
-        requested_vehicle_names = [str(value).strip() for value in vehicle_names if str(value).strip()]
-        if not requested_vehicle_names:
-            return {
-                "requested_vehicle_names": [],
-                "destroyed": [],
-                "errors": [],
-                "missing": [],
-            }
-
-        names_text = json.dumps(requested_vehicle_names, ensure_ascii=True)
-        python_command = f"""
-import json
-import unreal
-
-vehicle_names = json.loads({names_text!r})
-
-worlds = unreal.EditorLevelLibrary.get_pie_worlds(False)
-if not worlds:
-    raise RuntimeError("No PIE world available for runtime UAV actor cleanup.")
-
-world = worlds[0]
-pawns = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.Pawn)
-
-def _safe_label(actor):
-    try:
-        return actor.get_actor_label()
-    except Exception:
-        return ""
-
-matched = {{name: [] for name in vehicle_names}}
-for pawn in pawns:
-    actor_name = str(pawn.get_name() or "")
-    actor_label = str(_safe_label(pawn) or "")
-    for vehicle_name in vehicle_names:
-        if (
-            actor_name == vehicle_name
-            or actor_label == vehicle_name
-            or actor_name.startswith(vehicle_name + "_")
-            or actor_label.startswith(vehicle_name)
-        ):
-            matched[vehicle_name].append(pawn)
-
-destroyed = []
-errors = []
-for vehicle_name, actors in matched.items():
-    for actor in actors:
-        actor_name = str(actor.get_name() or "")
-        actor_label = str(_safe_label(actor) or "")
-        try:
-            destroyed_ok = False
-            try:
-                destroyed_ok = bool(actor.destroy_actor())
-            except Exception:
-                destroyed_ok = False
-            if not destroyed_ok:
-                actor.k2_destroy_actor()
-                destroyed_ok = True
-            destroyed.append({{
-                "vehicle_name": vehicle_name,
-                "actor_name": actor_name,
-                "actor_label": actor_label,
-                "destroyed": bool(destroyed_ok),
-            }})
-        except Exception as exc:
-            errors.append({{
-                "vehicle_name": vehicle_name,
-                "actor_name": actor_name,
-                "actor_label": actor_label,
-                "error": str(exc),
-            }})
-
-missing = [vehicle_name for vehicle_name, actors in matched.items() if not actors]
-print(json.dumps({{
-    "requested_vehicle_names": vehicle_names,
-    "destroyed": destroyed,
-    "errors": errors,
-    "missing": missing,
-}}, ensure_ascii=False))
-"""
-        return self._run_python_json(python_command)
-
-    def inspect_runtime_vehicle_actors(
+    def inspect_capture_vehicle_actors(
         self,
         *,
         vehicle_names: list[str],
@@ -646,7 +506,7 @@ world_origin_cm = json.loads({origin_text!r})
 
 worlds = unreal.EditorLevelLibrary.get_pie_worlds(False)
 if not worlds:
-    raise RuntimeError("No PIE world available for runtime UAV actor inspection.")
+    raise RuntimeError("No PIE world available for AirSim capture vehicle actor inspection.")
 
 world = worlds[0]
 pawns = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.Pawn)

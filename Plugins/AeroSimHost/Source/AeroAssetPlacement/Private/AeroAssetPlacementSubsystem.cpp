@@ -59,6 +59,35 @@ TArray<FString> ReadStringArray(const TSharedPtr<FJsonObject>& Object, const FSt
 	return Result;
 }
 
+bool IsKinematicUavTemplate(const FAeroAssetTemplateDefinition& TemplateDef)
+{
+	return TemplateDef.SemanticType.Contains(TEXT("uav"), ESearchCase::IgnoreCase) ||
+		TemplateDef.LogicalAssetId.StartsWith(TEXT("uav."));
+}
+
+void EnforceKinematicUavActor(AActor* Actor, const FAeroAssetTemplateDefinition& TemplateDef)
+{
+	if (!IsValid(Actor) || !IsKinematicUavTemplate(TemplateDef))
+	{
+		return;
+	}
+
+	TArray<UPrimitiveComponent*> PrimitiveComponents;
+	Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+	for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+	{
+		if (!IsValid(PrimitiveComponent))
+		{
+			continue;
+		}
+		PrimitiveComponent->SetMobility(EComponentMobility::Movable);
+		PrimitiveComponent->SetSimulatePhysics(false);
+		PrimitiveComponent->SetEnableGravity(false);
+		PrimitiveComponent->SetPhysicsLinearVelocity(FVector::ZeroVector);
+		PrimitiveComponent->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
+	}
+}
+
 bool StringArrayContainsIgnoreCase(const TArray<FString>& Values, const FString& Needle)
 {
 	for (const FString& Value : Values)
@@ -1207,6 +1236,7 @@ bool UAeroAssetPlacementSubsystem::SpawnActorForInstance(FAeroAssetInstanceState
 	if (Instance.Actor.IsValid())
 	{
 		MoveActorForTemplate(Instance.Actor.Get(), *TemplateDef, WorldLocationCm, FinalRotation);
+		EnforceKinematicUavActor(Instance.Actor.Get(), *TemplateDef);
 		AlignActorToGroundByBounds(Instance.Actor.Get(), *TemplateDef);
 		const FVector ActorScale = Instance.bHasInstanceScale ? Instance.InstanceScale : TemplateDef->DefaultScale;
 		Instance.Actor->SetActorScale3D(ActorScale);
@@ -1344,6 +1374,7 @@ bool UAeroAssetPlacementSubsystem::SpawnActorForInstance(FAeroAssetInstanceState
 			Primitive->SetCollisionProfileName(*TemplateDef->CollisionProfile);
 		}
 	}
+	EnforceKinematicUavActor(SpawnedActor, *TemplateDef);
 	if (Instance.bCustomStencilOnly || TemplateDef->bCustomStencilOnly)
 	{
 		TArray<UPrimitiveComponent*> PrimitiveComponents;
@@ -1589,6 +1620,8 @@ bool UAeroAssetPlacementSubsystem::MoveActorForTemplate(AActor* Actor, const FAe
 		return false;
 	}
 
+	EnforceKinematicUavActor(Actor, TemplateDef);
+
 	if (TemplateDef.MovementMode == EAeroMovementMode::SweepFollow)
 	{
 		if (Cast<UPrimitiveComponent>(Actor->GetRootComponent()) != nullptr)
@@ -1596,6 +1629,7 @@ bool UAeroAssetPlacementSubsystem::MoveActorForTemplate(AActor* Actor, const FAe
 			const FVector StartWorldLocationCm = Actor->GetActorLocation();
 			FHitResult SweepHit;
 			const bool bMoved = Actor->SetActorLocationAndRotation(WorldLocationCm, FinalRotation, true, &SweepHit, ETeleportType::None);
+			EnforceKinematicUavActor(Actor, TemplateDef);
 			if (SweepHit.bBlockingHit)
 			{
 				MaybeEmitSweepCollision(Actor, SweepHit, StartWorldLocationCm);
@@ -1605,7 +1639,9 @@ bool UAeroAssetPlacementSubsystem::MoveActorForTemplate(AActor* Actor, const FAe
 		}
 	}
 
-	return Actor->SetActorLocationAndRotation(WorldLocationCm, FinalRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	const bool bMoved = Actor->SetActorLocationAndRotation(WorldLocationCm, FinalRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	EnforceKinematicUavActor(Actor, TemplateDef);
+	return bMoved;
 }
 
 void UAeroAssetPlacementSubsystem::AlignActorToGroundByBounds(AActor* Actor, const FAeroAssetTemplateDefinition& TemplateDef) const

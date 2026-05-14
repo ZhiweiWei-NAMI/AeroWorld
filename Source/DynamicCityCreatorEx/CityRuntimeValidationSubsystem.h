@@ -25,8 +25,7 @@ enum class ECityTrackedObjectKind : uint8
 {
 	Pedestrian,
 	Crowd,
-	Asset,
-	RuntimeVehicle
+	Asset
 };
 
 struct FCityValidationStepResult
@@ -80,9 +79,9 @@ public:
 	void SpawnCone();
 	void SpawnStreetLightPlaceholder();
 	void SpawnSceneVehicle();
-	void SpawnRuntimeUAV();
+	void SpawnSceneUAV();
 	void MoveSceneVehicle();
-	void MoveRuntimeUAV();
+	void MoveSceneUAV();
 	void RemoveAll();
 	void PlayPedAnimation(const FString& AnimationAssetPath, const FString& Label);
 	void TogglePanelVisibility();
@@ -108,7 +107,6 @@ private:
 	void ResetDemoScheduling();
 	void ScheduleAction(double DelaySeconds, TFunction<void()> Action);
 	void ExecuteScheduledActions();
-	void PollActiveHudUavMove();
 	void UpdateTrackedObjects();
 	void UpdateTrackedObjectActor(FCityTrackedRuntimeObject& TrackedObject);
 	void UpdateGroundingState(FCityTrackedRuntimeObject& TrackedObject);
@@ -142,15 +140,12 @@ private:
 	bool ClearCrowdInternal(const FString& GroupId);
 	AActor* ResolvePedestrianActor(const FString& PedId) const;
 	AActor* ResolveAssetActor(const FString& AssetId) const;
-	AActor* ResolveRuntimeVehicleActor(const FString& VehicleName) const;
 	void TrackPedestrian(const FString& PedId, ECityTrackedObjectKind Kind, const FString& GroupId = FString());
 	void TrackAsset(const FString& AssetId, const FString& LogicalAssetId);
-	void TrackRuntimeVehicle(const FString& VehicleName, const FString& LogicalAssetId);
 	void UntrackGroup(const FString& GroupId);
 	FString BuildFeedbackSummary(const FAeroFeedbackEvent& Event) const;
 	bool GetDemoReferenceWorldCm(FVector& OutWorldCm) const;
 	void SetStepUnavailable(const FString& StepName, const FString& Message);
-	bool BindHudRuntimeVehicle(AActor* Actor, const FString& EntityId, const FString& LogicalAssetId, const TArray<FString>& Tags, const FString& LabelClass);
 
 private:
 	TSharedPtr<SCityRuntimeValidationPanel> PanelWidget;

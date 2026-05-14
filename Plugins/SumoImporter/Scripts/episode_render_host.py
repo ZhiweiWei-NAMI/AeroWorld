@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import ast
 import bisect
+import ctypes
 import csv
 import hashlib
 import json
@@ -31,7 +32,6 @@ from donghu_core.discovery import project_root_from, resolve_map_package  # noqa
 from donghu_core.event_script_interpreter import EventScriptInterpreter  # noqa: E402
 from donghu_core.interfaces import RuntimeFrameRecord  # noqa: E402
 from donghu_core.pedestrian_pose_service import PedestrianPoseService  # noqa: E402
-from donghu_core.uav_execution_service import UavExecutionService  # noqa: E402
 from donghu_core.weather_service import WeatherService  # noqa: E402
 
 
@@ -56,11 +56,6 @@ REQUIRED_CAPABILITIES = {
     "simAeroRemoveAsset",
     "simAeroCaptureWorldCamera",
     "simAeroApplyWeather",
-    "simAeroCreateRuntimeMultirotor",
-    "simAeroMoveRuntimeMultirotor",
-    "simAeroGetRuntimeMultirotorStatus",
-    "simAeroRemoveRuntimeVehicle",
-    "simAeroGetRuntimeVehiclePose",
 }
 
 @dataclass(frozen=True)
@@ -803,8 +798,6 @@ class TemplateResolver:
                     resolved["variant_id"] = self._explicit_ped_variant(entity, roster_entry) or self._choose_ped_variant(
                         str(entity.get("entity_id", ""))
                     )
-                if resolved.get("mode") == "runtime_multirotor" and not resolved.get("vehicle_name"):
-                    resolved["vehicle_name"] = str(entity.get("entity_id", ""))
                 return resolved
 
         category = str(entity.get("entity_category") or roster_entry.get("entity_category") or "")
@@ -822,10 +815,10 @@ class TemplateResolver:
             )
             merged["resolved_via"] = "pedestrian_default"
             return merged
-        if resolved.get("mode") == "runtime_multirotor":
+        if category == "uav":
             merged = dict(self._uav_cfg)
             merged.update(resolved)
-            merged["vehicle_name"] = str(merged.get("vehicle_name") or entity.get("entity_id", ""))
+            merged["mode"] = "scene_sync"
             merged["resolved_via"] = "uav_default"
             return merged
         return resolved
@@ -954,11 +947,6 @@ class EpisodeRenderHost:
             min_speed_mps=float(pedestrian_pose_cfg.get("min_speed_mps", 0.15)),
             locomotion_yaw_offset_deg=float(pedestrian_pose_cfg.get("locomotion_yaw_offset_deg", 180.0)),
         )
-        self.uav_execution_service = UavExecutionService(
-            arrival_tolerance_m=float((self.config.get("runtime_uav") or {}).get("arrival_tolerance_m", 1.5)),
-            hover_before_capture=False,
-        )
-
         self.scene_active_ids: set[str] = set()
         self.ped_active_ids: set[str] = set()
         self.ped_last_activity: dict[str, str] = {}
@@ -967,7 +955,7 @@ class EpisodeRenderHost:
         self.uav_last_command_target_by_entity: dict[str, list[float]] = {}
         self.event_controlled_entity_ids: set[str] = set()
 
-        self.all_scene_sync_ids, self.all_ped_ids, self.all_uav_vehicle_names = self._discover_entity_modes()
+        self.all_scene_sync_ids, self.all_ped_ids = self._discover_entity_modes()
         self.batch_plans = self._build_batches()
 
         self.airsim: Any | None = None
@@ -977,39 +965,22 @@ class EpisodeRenderHost:
         self.prepared_capture_output_dirs: set[Path] = set()
         self.crowd_group_ids: set[str] = set()
         self.asset_catalog_reload_attempted = False
-        self.runtime_uav_direct_rpc_enabled = True
-        self.runtime_uav_direct_rpc_disable_reason = ""
-        runtime_uav_cfg = dict(self.config.get("runtime_uav") or {})
-        runtime_uav_backend_arg = str(getattr(self.args, "runtime_uav_control_backend", "") or "").strip().lower()
-        configured_runtime_uav_backend = str(runtime_uav_cfg.get("control_backend") or "").strip().lower()
-        self.runtime_uav_control_backend = runtime_uav_backend_arg or str(
-            configured_runtime_uav_backend or "pose_sync"
+        uav_scene_control_cfg = dict(self.config.get("uav_scene_control") or {})
+        uav_scene_backend_arg = str(getattr(self.args, "uav_scene_control_backend", "") or "").strip().lower()
+        configured_uav_scene_backend = str(uav_scene_control_cfg.get("backend") or "").strip().lower()
+        requested_uav_scene_backend = uav_scene_backend_arg or str(
+            configured_uav_scene_backend or "truth_frame_scene_sync"
         ).strip().lower()
-        if self.runtime_uav_control_backend not in {"airsim_move", "pose_sync"}:
+        if requested_uav_scene_backend not in {"truth_frame_scene_sync"}:
             raise RuntimeError(
-                "Unsupported runtime UAV control backend "
-                f"'{self.runtime_uav_control_backend}'. Expected airsim_move or pose_sync."
+                "Formal dataset capture supports only truth_frame_scene_sync for non-capture UAVs; "
+                f"got '{requested_uav_scene_backend}'. AirSim controls only the rotating capture vehicle."
             )
-        if self.runtime_uav_control_backend == "airsim_move" and runtime_uav_cfg.get("allow_legacy_airsim_move") is not True:
-            raise RuntimeError(
-                "airsim_move is a legacy runtime UAV control backend and is forbidden for formal dataset capture. "
-                "Use pose_sync, or set runtime_uav.allow_legacy_airsim_move=true for an explicit diagnostic run."
-            )
-        self.runtime_uav_editor_hook_fallback_enabled = bool(
-            runtime_uav_cfg.get("editor_hook_fallback_enabled", False)
-        )
-        if self.runtime_uav_editor_hook_fallback_enabled:
-            raise RuntimeError(
-                "Formal runtime UAV control forbids editor-hook fallback. "
-                "Set runtime_uav.editor_hook_fallback_enabled=false for dataset capture."
-            )
-        self.runtime_uav_non_capture_failure_nonfatal = bool(
-            runtime_uav_cfg.get("non_capture_rpc_failure_nonfatal", False)
-        )
-        self.runtime_uav_debug_cfg = dict(self.config.get("runtime_uav_debug") or {})
-        self.runtime_uav_debug_entity_ids = {
+        self.uav_scene_control_backend = "truth_frame_scene_sync"
+        self.uav_debug_cfg = dict(self.config.get("uav_debug") or {})
+        self.uav_debug_entity_ids = {
             str(value).strip()
-            for value in (self.runtime_uav_debug_cfg.get("entity_ids") or [])
+            for value in (self.uav_debug_cfg.get("entity_ids") or [])
             if str(value).strip()
         }
         role_filters = {
@@ -1747,10 +1718,9 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         }
         return self.last_airsim_proxy_capture_exclusion_result
 
-    def _discover_entity_modes(self) -> tuple[set[str], set[str], set[str]]:
+    def _discover_entity_modes(self) -> tuple[set[str], set[str]]:
         scene_ids: set[str] = set()
         ped_ids: set[str] = set()
-        uav_vehicle_names: set[str] = set()
         for entity in self.global_roster:
             entity_id = str(entity.get("entity_id", ""))
             resolved = self.template_resolver.resolve(entity, entity)
@@ -1759,9 +1729,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                 scene_ids.add(entity_id)
             elif mode == "pedestrian_managed":
                 ped_ids.add(entity_id)
-            elif mode == "runtime_multirotor":
-                uav_vehicle_names.add(str(resolved.get("vehicle_name") or entity_id))
-        return scene_ids, ped_ids, uav_vehicle_names
+        return scene_ids, ped_ids
 
     @staticmethod
     def _cluster_scalar_values(values: Sequence[float], threshold_m: float) -> list[float]:
@@ -2050,7 +2018,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         if self.road_geometry is None:
             return None
 
-        # Fallen pedestrians must stay at their truth position — do not project to roadside.
+        # Fallen pedestrians must stay at their truth position 鈥?do not project to roadside.
         if entity_category == "pedestrian" and is_fallen_activity(entity):
             return None
 
@@ -2172,6 +2140,56 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                 time.sleep(delay_s)
         raise RuntimeError(f"{label} failed without an exception")
 
+    @staticmethod
+    def _free_memory_gb() -> float | None:
+        class MemoryStatus(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        try:
+            status = MemoryStatus()
+            status.dwLength = ctypes.sizeof(status)
+            if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return None
+            return float(status.ullAvailPhys) / (1024.0 ** 3)
+        except Exception:
+            return None
+
+    def _guard_runtime_resources(self, *, context: str) -> None:
+        min_free_memory_gb = float(getattr(self.args, "min_free_memory_gb", 0.0) or 0.0)
+        if min_free_memory_gb > 0.0:
+            free_memory_gb = self._free_memory_gb()
+            if free_memory_gb is not None and free_memory_gb < min_free_memory_gb:
+                raise RuntimeError(
+                    f"Resource guard failed before {context}: free_memory_gb={free_memory_gb:.2f} "
+                    f"< min_free_memory_gb={min_free_memory_gb:.2f}. PIE is left running for inspection."
+                )
+
+        min_output_free_disk_gb = float(getattr(self.args, "min_output_free_disk_gb", 0.0) or 0.0)
+        if min_output_free_disk_gb > 0.0:
+            target = self.output_dir
+            existing = target if target.exists() else target.parent
+            while not existing.exists() and existing != existing.parent:
+                existing = existing.parent
+            if existing.exists():
+                usage = shutil.disk_usage(existing)
+                free_disk_gb = float(usage.free) / (1024.0 ** 3)
+                if free_disk_gb < min_output_free_disk_gb:
+                    raise RuntimeError(
+                        f"Resource guard failed before {context}: output_free_disk_gb={free_disk_gb:.2f} "
+                        f"< min_output_free_disk_gb={min_output_free_disk_gb:.2f} at {existing}. "
+                        "PIE is left running for inspection."
+                    )
+
     def _airsim_capture_cfg(self) -> dict[str, Any]:
         return dict(self.config.get("airsim_capture") or {})
 
@@ -2180,6 +2198,21 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
 
     def _airsim_capture_pose_tolerance_m(self) -> float:
         return max(0.05, float(self._airsim_capture_cfg().get("pose_tolerance_m", 2.0)))
+
+    def _guard_airsim_native_capture_rpc(self) -> set[str]:
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        try:
+            self._retry("airsim_native_preflight_ping", self.client.client.ping)
+            vehicles = set(self._retry("airsim_native_preflight_list_vehicles", self.client.list_vehicles))
+            _ = self._retry("airsim_native_preflight_getSettingsString", self.client.get_settings_string)
+            return vehicles
+        except Exception as exc:
+            raise RuntimeError(
+                "AirSim native capture RPC guard failed before UAV capture. "
+                f"host={self.args.host} port={self.args.port} vehicle={self.airsim_capture_vehicle!r}. "
+                "Keep UE/PIE open for inspection; re-enter PIE or restore AirSim RPC before retrying."
+            ) from exc
 
     def _airsim_capture_park_pose(self) -> tuple[list[float], dict[str, float]]:
         cfg = self._airsim_capture_cfg()
@@ -2217,7 +2250,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         if not self.airsim_capture_vehicle:
             raise RuntimeError("--airsim-capture-vehicle cannot be empty in airsim_native mode.")
         park_position, park_rotation = self._airsim_capture_park_pose()
-        vehicles = set(self._retry("list_vehicles", self.client.list_vehicles))
+        vehicles = self._guard_airsim_native_capture_rpc()
         if self.airsim_capture_vehicle not in vehicles:
             added = self._retry(
                 "simAddVehicle",
@@ -2246,7 +2279,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             rotation_deg={"pitch_deg": 0.0, "yaw_deg": 0.0, "roll_deg": 0.0},
             ignore_collision=True,
         )
-        probe, _ = self._probe_runtime_uav_actor(self.airsim_capture_vehicle)
+        probe, _ = self._probe_vehicle_actor(self.airsim_capture_vehicle)
         actor = dict(probe.get("actor") or {})
         world_cm = actor.get("position_world_cm")
         if not isinstance(world_cm, Sequence) or isinstance(world_cm, (str, bytes)) or len(world_cm) < 3:
@@ -2533,14 +2566,6 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             )
         return [float(ground_relative[0]), float(ground_relative[1]), float(ground_relative[2])]
 
-    def _runtime_uav_command_position_enu(self, entity_id: str, position_enu_m: Sequence[float]) -> list[float]:
-        return self._ground_relative_position(
-            position_enu_m,
-            enabled=bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
-            cache_namespace=f"uav_script:{entity_id}",
-            use_cache=True,
-        )
-
     def _project_ground_details(
         self,
         position_enu_m: Sequence[float],
@@ -2707,7 +2732,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         unresolved: list[str] = []
         for entity in self.global_roster:
             mode = str(self.template_resolver.resolve(entity, entity).get("mode", ""))
-            if mode not in {"scene_sync", "pedestrian_managed", "runtime_multirotor", "metadata_only"}:
+            if mode not in {"scene_sync", "pedestrian_managed", "metadata_only"}:
                 unresolved.append(str(entity.get("entity_id", "")))
         if unresolved:
             raise RuntimeError(f"Template resolver returned unsupported mode for entities: {', '.join(unresolved)}")
@@ -3014,7 +3039,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
     def hard_reset_world_state(self) -> None:
         if self.client is None:
             raise RuntimeError("Host is not connected.")
-        print("[EpisodeHost] Resetting previously spawned scene_sync, pedestrians, and runtime UAVs.")
+        print("[EpisodeHost] Resetting previously spawned scene_sync entities and pedestrians.")
         if self.all_scene_sync_ids:
             payload = {
                 "tick": 0,
@@ -3053,32 +3078,6 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             self._best_effort("ped_release", self.client.ped_release, ped_id, map_id=self.map_id)
         for group_id in sorted(self.crowd_group_ids):
             self._best_effort("ped_clear_crowd", self.client.ped_clear_crowd, group_id, map_id=self.map_id)
-        for vehicle_name in sorted(self.all_uav_vehicle_names):
-            if self._runtime_uav_use_editor_hook():
-                self._best_effort(
-                    "remove_runtime_vehicle_editor_hook",
-                    self._runtime_uav_editor_hook().remove_runtime_vehicle,
-                    map_id=self.map_id,
-                    vehicle_name=vehicle_name,
-                )
-                continue
-            try:
-                self.client.remove_runtime_vehicle(vehicle_name, map_id=self.map_id)
-            except Exception as exc:
-                print(f"[EpisodeHost] remove_runtime_vehicle reset warning for {vehicle_name}: {exc}")
-                if self.runtime_uav_editor_hook_fallback_enabled:
-                    self._best_effort(
-                        "remove_runtime_vehicle_editor_hook",
-                        self._runtime_uav_editor_hook().remove_runtime_vehicle,
-                        map_id=self.map_id,
-                        vehicle_name=vehicle_name,
-                    )
-        destroy_payload = self._force_destroy_runtime_vehicle_actors(self.all_uav_vehicle_names)
-        if destroy_payload:
-            destroyed_rows = list(destroy_payload.get("destroyed") or [])
-            if destroyed_rows:
-                destroyed_names = ", ".join(sorted({str(row.get("vehicle_name") or "") for row in destroyed_rows if str(row.get("vehicle_name") or "").strip()}))
-                print(f"[EpisodeHost] Force-destroyed lingering runtime UAV actors: {destroyed_names}")
         self._soft_reset_tracking()
 
     def _apply_scene_frame(self, frame: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -3104,6 +3103,12 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         accepted_scene_records: list[dict[str, Any]] = []
         for entity, resolution, record in scene_candidates:
             entity_id = str(entity["entity_id"])
+            if (
+                self._airsim_capture_enabled()
+                and entity_id == self.active_airsim_capture_entity_id
+                and str(entity.get("entity_category") or "").strip().lower() == "uav"
+            ):
+                continue
             overlap = self._vehicle_overlap_reason(record, accepted_scene_records)
             if overlap is not None:
                 kept_record, reason, dist_m = overlap
@@ -3275,7 +3280,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             if frame_pose and locomotion_activity and not moving_locomotion:
                 effective_activity_type = "stopped"
                 effective_activity_rule = self._ped_activity_rule(effective_activity_type)
-            pose_sync_performed = False
+            pose_update_performed = False
 
             if ped_id not in self.ped_active_ids:
                 spawn_response = self._retry(
@@ -3290,7 +3295,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                     map_id=self.map_id,
                 )
                 results[ped_id] = {"spawn": spawn_response.get("payload", {})}
-                pose_sync_performed = True
+                pose_update_performed = True
                 if frame_pose:
                     frame_pose_response = self._retry(
                         "ped_frame_pose",
@@ -3313,7 +3318,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                         "reason": "freeze_pose_while_active",
                     }
                 }
-                pose_sync_performed = False
+                pose_update_performed = False
             else:
                 reset_response = self._retry(
                     "ped_frame_pose" if frame_pose else "ped_reset",
@@ -3329,14 +3334,14 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                     map_id=self.map_id,
                 )
                 results[ped_id] = {("frame_pose" if frame_pose else "reset"): reset_response.get("payload", {})}
-                pose_sync_performed = True
+                pose_update_performed = True
 
             if self.ped_last_variant.get(ped_id) != variant_id:
                 variant_response = self._retry("ped_set_variant", self.client.ped_set_variant, ped_id, variant_id, map_id=self.map_id)
                 results.setdefault(ped_id, {})["variant"] = variant_response.get("payload", {})
                 self.ped_last_variant[ped_id] = variant_id
 
-            should_reapply_activity = bool(effective_activity_rule.get("reapply_after_pose_sync", False)) and pose_sync_performed
+            should_reapply_activity = bool(effective_activity_rule.get("reapply_after_pose_update", False)) and pose_update_performed
             if self.ped_last_activity.get(ped_id) != effective_activity_type or should_reapply_activity:
                 results.setdefault(ped_id, {})["activity"] = self._ped_activity_action(ped_id, effective_activity_type)
                 self.ped_last_activity[ped_id] = effective_activity_type
@@ -3352,163 +3357,20 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         self.ped_active_ids = current_ids
         return results
 
-    def _wait_for_uav_status(self, vehicle_name: str, target_enu_m: Sequence[float]) -> dict[str, Any]:
-        if self.client is None:
-            raise RuntimeError("Host is not connected.")
-        timeout_cfg = dict(self.config.get("timeouts") or {})
-        timeout_s = float(timeout_cfg.get("uav_move_timeout_s", 10.0))
-        if timeout_s <= 0.0:
-            pose_payload: dict[str, Any] = {}
-            pose_warning = ""
-            try:
-                pose_response = self._retry("get_runtime_vehicle_pose", self.client.get_runtime_vehicle_pose, vehicle_name, map_id=self.map_id)
-                pose_payload = dict(pose_response.get("payload") or {})
-            except Exception as exc:
-                pose_warning = str(exc)
-            result = self.uav_execution_service.build_wait_status(
-                vehicle_name=vehicle_name,
-                status_payload={"state": "skipped", "reason": "uav status polling disabled"},
-                pose_payload=pose_payload,
-                target_enu_m=target_enu_m,
-                timed_out=False,
-                warning=pose_warning,
-            )
-            if pose_warning:
-                result["pose_warning"] = pose_warning
-            return result
-        poll_interval_s = float(timeout_cfg.get("uav_status_poll_interval_s", 0.25))
-        deadline = time.perf_counter() + timeout_s
-        status_payload: dict[str, Any] = {}
-        timed_out = False
-
-        while time.perf_counter() < deadline:
-            status_response = self._retry("get_runtime_multirotor_status", self.client.get_runtime_multirotor_status, vehicle_name, map_id=self.map_id)
-            status_payload = dict(status_response.get("payload") or {})
-            state = str(status_payload.get("state", "idle")).lower()
-            if state in {"succeeded", "failed", "cancelled"}:
-                break
-            time.sleep(poll_interval_s)
-        else:
-            timed_out = True
-
-        pose_response = self._retry("get_runtime_vehicle_pose", self.client.get_runtime_vehicle_pose, vehicle_name, map_id=self.map_id)
-        pose_payload = dict(pose_response.get("payload") or {})
-        return self.uav_execution_service.build_wait_status(
-            vehicle_name=vehicle_name,
-            status_payload=status_payload,
-            pose_payload=pose_payload,
-            target_enu_m=target_enu_m,
-            timed_out=timed_out,
-        )
-
-    def _uav_status_snapshot(self, vehicle_name: str, target_enu_m: Sequence[float] | None = None) -> dict[str, Any]:
-        if self.client is None:
-            raise RuntimeError("Host is not connected.")
-        status_payload: dict[str, Any] = {}
-        pose_payload: dict[str, Any] = {}
-        warning_parts: list[str] = []
-        try:
-            status_response = self._retry(
-                "get_runtime_multirotor_status",
-                self.client.get_runtime_multirotor_status,
-                vehicle_name,
-                map_id=self.map_id,
-            )
-            status_payload = dict(status_response.get("payload") or {})
-        except Exception as exc:
-            warning_parts.append(f"status={exc}")
-        try:
-            pose_response = self._retry(
-                "get_runtime_vehicle_pose",
-                self.client.get_runtime_vehicle_pose,
-                vehicle_name,
-                map_id=self.map_id,
-            )
-            pose_payload = dict(pose_response.get("payload") or {})
-        except Exception as exc:
-            warning_parts.append(f"pose={exc}")
-
-        resolved_target = target_enu_m
-        pose_position = pose_payload.get("position_enu_m")
-        if resolved_target is None and isinstance(pose_position, Sequence) and not isinstance(pose_position, (str, bytes)):
-            resolved_target = [
-                float(pose_position[0]),
-                float(pose_position[1]),
-                float(pose_position[2] if len(pose_position) > 2 else 0.0),
-            ]
-        if resolved_target is None:
-            resolved_target = [0.0, 0.0, 0.0]
-
-        result = self.uav_execution_service.build_wait_status(
-            vehicle_name=vehicle_name,
-            status_payload=status_payload,
-            pose_payload=pose_payload,
-            target_enu_m=resolved_target,
-            timed_out=False,
-            warning="; ".join(warning_parts),
-        )
-        if warning_parts:
-            result["pose_warning"] = "; ".join(warning_parts)
-        return result
-
-    @staticmethod
-    def _ensure_uav_status_ok(wait_status: dict[str, Any], *, vehicle_name: str, context: str) -> None:
-        status_payload = dict(wait_status.get("status") or {})
-        state = str(status_payload.get("state") or status_payload.get("status") or "").strip().lower()
-        still_running = state in {"running", "moving", "in_progress", "pending", "active"}
-        if bool(wait_status.get("timed_out")) and still_running:
-            wait_status["timed_out_accepted_running"] = True
-            wait_status["warning"] = "UAV command was still running at poll timeout; continuing capture."
-            return
-        if bool(wait_status.get("timed_out")) or state in {"failed", "cancelled", "timeout", "missing"}:
-            raise RuntimeError(
-                f"Runtime UAV command failed for {vehicle_name} during {context}: "
-                f"state={state or '<empty>'} error={status_payload.get('error') or status_payload.get('message') or ''}"
-            )
-
-    def _ensure_uav_pose_ok(self, wait_status: dict[str, Any], *, vehicle_name: str, context: str) -> None:
-        if bool(wait_status.get("timed_out")):
-            raise RuntimeError(f"Runtime UAV pose wait timed out for {vehicle_name} during {context}")
-        position_error_m = wait_status.get("position_error_m")
-        if position_error_m is None:
-            raise RuntimeError(f"Runtime UAV pose is unavailable for {vehicle_name} during {context}")
-        tolerance_m = self._runtime_uav_position_tolerance_m()
-        if float(position_error_m) > tolerance_m:
-            raise RuntimeError(
-                f"Runtime UAV pose error for {vehicle_name} during {context}: "
-                f"{float(position_error_m):.3f} m > tolerance {tolerance_m:.3f} m"
-            )
-
-    def _wait_for_uav_pose(self, vehicle_name: str, target_enu_m: Sequence[float], *, timeout_s: float | None = None) -> dict[str, Any]:
-        timeout_cfg = self._runtime_uav_timeout_cfg()
-        pose_timeout_s = float(timeout_s if timeout_s is not None else timeout_cfg.get("uav_spawn_pose_timeout_s", 3.0))
-        poll_interval_s = float(timeout_cfg.get("uav_status_poll_interval_s", 0.25))
-        deadline = time.perf_counter() + max(0.0, pose_timeout_s)
-        last_status = self._uav_status_snapshot(vehicle_name, target_enu_m)
-        while True:
-            position_error_m = last_status.get("position_error_m")
-            if position_error_m is not None and float(position_error_m) <= self._runtime_uav_position_tolerance_m():
-                return last_status
-            if pose_timeout_s <= 0.0 or time.perf_counter() >= deadline:
-                last_status["timed_out"] = bool(position_error_m is None)
-                return last_status
-            time.sleep(max(0.01, poll_interval_s))
-            last_status = self._uav_status_snapshot(vehicle_name, target_enu_m)
-
     def _sync_uavs(self, frame: dict[str, Any]) -> dict[str, Any]:
         if self.client is None:
             raise RuntimeError("Host is not connected.")
-        current_entities: set[str] = set()
         results: dict[str, Any] = {}
         for entity in frame.get("entities", []):
-            resolution = self._entity_resolution(entity)
-            if str(resolution.get("mode", "")) != "runtime_multirotor":
+            if str(entity.get("entity_category") or "").strip().lower() != "uav":
                 continue
             if truth_submission_state(entity) != "submit_to_ue":
                 continue
 
             entity_id = str(entity["entity_id"])
-            vehicle_name = str(resolution.get("vehicle_name") or entity_id)
+            vehicle_name = self.airsim_capture_vehicle if (
+                self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id
+            ) else entity_id
             if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
                 target_enu_m = self._entity_position_enu(entity)
                 target_enu_m = self._ground_relative_position(
@@ -3518,303 +3380,53 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                     use_cache=True,
                 )
                 rotation_deg = self._entity_rotation_deg(entity)
-                if self._runtime_uav_pose_sync_mode():
-                    wait_status = {
-                        "vehicle_name": self.airsim_capture_vehicle,
-                        "requested_position_enu_m": [float(value) for value in target_enu_m],
-                        "requested_rotation_deg": dict(rotation_deg),
-                        "pose": {
-                            "position_enu_m": [float(value) for value in target_enu_m],
-                            "rotation_deg": dict(rotation_deg),
-                        },
-                        "pose_error_m": 0.0,
-                        "capture_pose_mode": "deferred_capture_tick_pin",
-                        "path_used": "pose_sync_capture_entity",
-                    }
-                else:
-                    self._ensure_airsim_capture_vehicle()
-                    wait_status = self._pin_airsim_capture_vehicle(
-                        target_enu_m,
-                        rotation_deg,
-                        context=f"truth-frame sync {entity_id}",
-                    )
-                    wait_status["path_used"] = "airsim_native_capture_vehicle"
+                wait_status = self._truth_frame_uav_status(
+                    entity_id=entity_id,
+                    vehicle_name=self.airsim_capture_vehicle,
+                    target_enu_m=target_enu_m,
+                    rotation_deg=rotation_deg,
+                    operation="capture_source_truth_frame",
+                )
+                wait_status["capture_vehicle_name"] = self.airsim_capture_vehicle
                 wait_status["source_entity_id"] = entity_id
-                wait_status["replaces_runtime_multirotor"] = True
-                wait_status["status"] = {
-                    "state": "ok",
-                    "reason": "capture_entity_pinned_to_airsim_vehicle",
-                }
+                wait_status["replaces_scene_uav_for_capture"] = True
+                wait_status["capture_pose_mode"] = "deferred_capture_tick_pin"
+                wait_status["path_used"] = "truth_frame_capture_source"
+                wait_status["status"]["reason"] = "capture_source_truth_frame_deferred_to_capture_tick_pin"
                 wait_status["capture_gate"] = {
                     "wait_for_arrival": False,
                     "hover_before_capture": False,
                     "arrival_tolerance_m": self._airsim_capture_pose_tolerance_m(),
                     "degraded": False,
                 }
-                current_entities.add(entity_id)
                 results[entity_id] = wait_status
-                continue
-            if (
-                entity_id in self.event_controlled_entity_ids
-                and entity_id in self.uav_active_by_entity
-            ):
-                vehicle_name = self.uav_active_by_entity.get(entity_id, vehicle_name)
-                current_entities.add(entity_id)
-                wait_status = self._uav_status_snapshot(vehicle_name)
-                wait_status["path_used"] = "direct_rpc"
-                wait_status["sync_skipped"] = "event_script_controlled"
-                if self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal:
-                    wait_payload = dict(wait_status.get("status") or {})
-                    wait_state = str(wait_payload.get("state") or wait_payload.get("status") or "").strip().lower()
-                    if wait_state in {"failed", "cancelled", "timeout", "missing"}:
-                        wait_payload["original_state"] = wait_state
-                        wait_payload["state"] = "warning"
-                        wait_payload["reason"] = "event_controlled_non_capture_sync_skipped_nonfatal"
-                        wait_status["status"] = wait_payload
-                        wait_status["non_capture_uav_sync_nonfatal"] = True
-                        wait_status["timed_out_accepted_running"] = True
-                results[entity_id] = wait_status
+                self.uav_active_by_entity[entity_id] = self.airsim_capture_vehicle
+                self.uav_last_command_target_by_entity[entity_id] = list(target_enu_m)
                 continue
 
             target_enu_m = self._entity_position_enu(entity)
             target_enu_m = self._ground_relative_position(
                 target_enu_m,
                 enabled=bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
-                cache_namespace=f"uav:{vehicle_name}",
+                cache_namespace=f"uav:{entity_id}",
                 use_cache=True,
             )
-            if self._runtime_uav_use_editor_hook() and not self._runtime_uav_visible_in_ground_views(
-                str(entity.get("site_id") or self.args.site or ""),
-                target_enu_m,
-            ):
-                continue
-            current_entities.add(entity_id)
             rotation_deg = self._entity_rotation_deg(entity)
-            velocity_hint = float(((entity.get("annotations") or {}).get("speed_mps")) or resolution.get("velocity_mps") or 5.0)
-
-            if entity_id not in self.uav_active_by_entity:
-                used_editor_hook = False
-                if not self._runtime_uav_use_editor_hook():
-                    try:
-                        create_response = self._retry(
-                            "create_runtime_multirotor",
-                            self.client.create_runtime_multirotor,
-                            vehicle_name,
-                            position_enu_m=target_enu_m,
-                            rotation_deg=rotation_deg,
-                            map_id=self.map_id,
-                        )
-                        move_response = {
-                            "payload": {
-                                "vehicle_name": vehicle_name,
-                                "state": "skipped",
-                                "reason": "initial_create_exact_pose",
-                                "target_enu_m": [float(value) for value in target_enu_m],
-                                "velocity_mps": max(0.5, velocity_hint),
-                                "synthetic": True,
-                            }
-                        }
-                    except Exception as exc:
-                        if self.runtime_uav_editor_hook_fallback_enabled and not self.runtime_uav_non_capture_failure_nonfatal:
-                            self._disable_runtime_uav_direct_rpc(str(exc))
-                            print(f"[EpisodeHost] runtime UAV RPC failed for {vehicle_name}; falling back to editor hook: {exc}")
-                            create_response, move_response = self._recreate_editor_hook_runtime_uav(
-                                vehicle_name=vehicle_name,
-                                target_enu_m=target_enu_m,
-                                rotation_deg=rotation_deg,
-                                velocity_mps=max(0.5, velocity_hint),
-                            )
-                            used_editor_hook = True
-                        else:
-                            print(
-                                f"[EpisodeHost] runtime UAV RPC warning for non-capture {vehicle_name}; "
-                                f"continuing without editor-hook fallback: {exc}"
-                            )
-                            results[entity_id] = self._runtime_uav_nonfatal_rpc_status(
-                                entity_id=entity_id,
-                                vehicle_name=vehicle_name,
-                                operation="create",
-                                exc=exc,
-                                target_enu_m=target_enu_m,
-                                rotation_deg=rotation_deg,
-                            )
-                            continue
-                else:
-                    create_response, move_response = self._recreate_editor_hook_runtime_uav(
-                        vehicle_name=vehicle_name,
-                        target_enu_m=target_enu_m,
-                        rotation_deg=rotation_deg,
-                        velocity_mps=max(0.5, velocity_hint),
-                    )
-                    used_editor_hook = True
-                if used_editor_hook:
-                    try:
-                        wait_status = self._wait_for_editor_hook_uav_status(vehicle_name, target_enu_m)
-                    except Exception as exc:
-                        print(f"[EpisodeHost] UAV actor-probe warning for {vehicle_name} after create: {exc}")
-                        wait_status = {
-                            "vehicle_name": vehicle_name,
-                            "status": {"state": "unknown", "warning": str(exc), "reason": "editor_hook_actor_probe"},
-                            "pose": {},
-                            "timed_out": False,
-                            "position_error_m": None,
-                        }
-                    wait_status["create"] = create_response.get("payload", {})
-                    wait_status["move"] = move_response.get("payload", {})
-                    wait_status["path_used"] = "editor_hook"
-                    results[entity_id] = wait_status
-                else:
-                    try:
-                        wait_status = self._wait_for_uav_status(vehicle_name, target_enu_m)
-                    except Exception as exc:
-                        print(f"[EpisodeHost] UAV status warning for {vehicle_name} after create: {exc}")
-                        wait_status = self._uav_status_snapshot(vehicle_name, target_enu_m)
-                        wait_status["pose_warning"] = str(exc)
-                    wait_status["create"] = create_response.get("payload", {})
-                    wait_status["move"] = move_response.get("payload", {})
-                    wait_status["path_used"] = "direct_rpc"
-                    wait_status["truth_sync_pose_deviation_accepted"] = True
-                    results[entity_id] = wait_status
-                    self.uav_last_command_target_by_entity[entity_id] = list(target_enu_m)
-            else:
-                used_editor_hook = False
-                previous_target = self.uav_last_command_target_by_entity.get(entity_id)
-                previous_error_m = distance_m(previous_target, target_enu_m)
-                if previous_error_m is not None and previous_error_m <= 0.25:
-                    wait_status = self._uav_status_snapshot(vehicle_name, target_enu_m)
-                    position_error_m = wait_status.get("position_error_m")
-                    if position_error_m is not None and float(position_error_m) <= self._runtime_uav_position_tolerance_m():
-                        wait_status["move"] = {
-                            "status": "skipped",
-                            "reason": "target_unchanged",
-                            "previous_error_m": previous_error_m,
-                        }
-                        wait_status["path_used"] = "direct_rpc" if not self._runtime_uav_use_editor_hook() else "editor_hook"
-                        results[entity_id] = wait_status
-                        self.uav_active_by_entity[entity_id] = vehicle_name
-                        continue
-                    wait_status["move"] = {
-                        "status": "skipped",
-                        "reason": "truth_sync_target_unchanged_pose_deviation_accepted",
-                        "previous_error_m": previous_error_m,
-                        "position_error_m": position_error_m,
-                    }
-                    wait_status["truth_sync_pose_deviation_accepted"] = True
-                    wait_status["path_used"] = "direct_rpc" if not self._runtime_uav_use_editor_hook() else "editor_hook"
-                    results[entity_id] = wait_status
-                    self.uav_active_by_entity[entity_id] = vehicle_name
-                    continue
-
-                if not self._runtime_uav_use_editor_hook():
-                    try:
-                        move_response = self._retry(
-                            "move_runtime_multirotor",
-                            self.client.move_runtime_multirotor,
-                            vehicle_name,
-                            target_enu_m=target_enu_m,
-                            velocity_mps=max(0.5, velocity_hint),
-                            map_id=self.map_id,
-                        )
-                    except Exception as exc:
-                        if self.runtime_uav_editor_hook_fallback_enabled and not self.runtime_uav_non_capture_failure_nonfatal:
-                            self._disable_runtime_uav_direct_rpc(str(exc))
-                            print(f"[EpisodeHost] runtime UAV move RPC failed for {vehicle_name}; falling back to editor hook: {exc}")
-                            create_response, move_response = self._recreate_editor_hook_runtime_uav(
-                                vehicle_name=vehicle_name,
-                                target_enu_m=target_enu_m,
-                                rotation_deg=rotation_deg,
-                                velocity_mps=max(0.5, velocity_hint),
-                            )
-                            used_editor_hook = True
-                        else:
-                            print(
-                                f"[EpisodeHost] runtime UAV move RPC warning for non-capture {vehicle_name}; "
-                                f"continuing without editor-hook fallback: {exc}"
-                            )
-                            results[entity_id] = self._runtime_uav_nonfatal_rpc_status(
-                                entity_id=entity_id,
-                                vehicle_name=vehicle_name,
-                                operation="move",
-                                exc=exc,
-                                target_enu_m=target_enu_m,
-                                rotation_deg=rotation_deg,
-                            )
-                            continue
-                else:
-                    create_response, move_response = self._recreate_editor_hook_runtime_uav(
-                        vehicle_name=vehicle_name,
-                        target_enu_m=target_enu_m,
-                        rotation_deg=rotation_deg,
-                        velocity_mps=max(0.5, velocity_hint),
-                    )
-                    used_editor_hook = True
-                if used_editor_hook:
-                    try:
-                        wait_status = self._wait_for_editor_hook_uav_status(vehicle_name, target_enu_m)
-                    except Exception as exc:
-                        print(f"[EpisodeHost] UAV actor-probe warning for {vehicle_name} after move: {exc}")
-                        wait_status = {
-                            "vehicle_name": vehicle_name,
-                            "status": {"state": "unknown", "warning": str(exc), "reason": "editor_hook_actor_probe"},
-                            "pose": {},
-                            "timed_out": False,
-                            "position_error_m": None,
-                        }
-                    wait_status["create"] = create_response.get("payload", {})
-                    wait_status["move"] = move_response.get("payload", {})
-                    wait_status["path_used"] = "editor_hook"
-                    results[entity_id] = wait_status
-                else:
-                    try:
-                        wait_status = self._wait_for_uav_status(vehicle_name, target_enu_m)
-                        self._ensure_uav_status_ok(wait_status, vehicle_name=vehicle_name, context="truth-frame sync")
-                    except Exception as exc:
-                        if self.runtime_uav_non_capture_failure_nonfatal:
-                            print(
-                                f"[EpisodeHost] UAV status warning for non-capture {vehicle_name} after move; "
-                                f"continuing: {exc}"
-                            )
-                            wait_status = self._runtime_uav_nonfatal_rpc_status(
-                                entity_id=entity_id,
-                                vehicle_name=vehicle_name,
-                                operation="status_after_move",
-                                exc=exc,
-                                target_enu_m=target_enu_m,
-                                rotation_deg=rotation_deg,
-                            )
-                        else:
-                            print(f"[EpisodeHost] UAV status warning for {vehicle_name} after move: {exc}")
-                            raise
-                    wait_status["move"] = move_response.get("payload", {})
-                    wait_status["path_used"] = "direct_rpc"
-                    results[entity_id] = wait_status
-                    self.uav_last_command_target_by_entity[entity_id] = list(target_enu_m)
-
+            wait_status = self._truth_frame_uav_status(
+                entity_id=entity_id,
+                vehicle_name=vehicle_name,
+                target_enu_m=target_enu_m,
+                rotation_deg=rotation_deg,
+                operation="scene_sync_truth_frame",
+            )
+            results[entity_id] = wait_status
             self.uav_active_by_entity[entity_id] = vehicle_name
+            self.uav_last_command_target_by_entity[entity_id] = list(target_enu_m)
 
+        current_entities = set(results)
         for entity_id in sorted(set(self.uav_active_by_entity) - current_entities):
-            vehicle_name = self.uav_active_by_entity.pop(entity_id)
+            self.uav_active_by_entity.pop(entity_id, None)
             self.uav_last_command_target_by_entity.pop(entity_id, None)
-            if vehicle_name == self.airsim_capture_vehicle:
-                continue
-            if not self._runtime_uav_use_editor_hook():
-                try:
-                    self._retry("remove_runtime_vehicle", self.client.remove_runtime_vehicle, vehicle_name, map_id=self.map_id)
-                    continue
-                except Exception as exc:
-                    if not self.runtime_uav_editor_hook_fallback_enabled:
-                        print(
-                            f"[EpisodeHost] remove_runtime_vehicle warning for {vehicle_name}; "
-                            f"editor-hook fallback disabled: {exc}"
-                        )
-                        continue
-                    self._disable_runtime_uav_direct_rpc(str(exc))
-                    print(f"[EpisodeHost] remove_runtime_vehicle RPC failed for {vehicle_name}; falling back to editor hook: {exc}")
-            try:
-                self._runtime_uav_editor_hook().remove_runtime_vehicle(map_id=self.map_id, vehicle_name=vehicle_name)
-            except Exception as hook_exc:
-                print(f"[EpisodeHost] remove_runtime_vehicle warning for {vehicle_name}: {hook_exc}")
-            self._force_destroy_runtime_vehicle_actors([vehicle_name])
 
         return results
 
@@ -3981,50 +3593,11 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             }
         return self._transform_rotation_deg(raw_rotation)
 
-    def _runtime_uav_visibility_filter_cfg(self) -> dict[str, Any]:
-        return dict(self.config.get("runtime_uav_visibility_filter") or {})
-
-    def _ground_camera_contains_position(self, preset: dict[str, Any], position_enu_m: Sequence[float]) -> bool:
-        camera_position = self._camera_position_from_preset(preset)
-        if len(camera_position) < 3 or len(position_enu_m) < 3:
-            return True
-        rotation = dict(preset.get("rotation_deg") or {})
-        pitch_deg = float(rotation.get("pitch_deg", 0.0))
-        if abs(pitch_deg + 90.0) > 1.0:
-            return True
-
-        camera_height_m = float(camera_position[2])
-        target_height_m = float(position_enu_m[2])
-        dz = camera_height_m - target_height_m
-        if dz <= 0.0:
-            return False
-
-        width = max(1, int(preset.get("width") or 1920))
-        height = max(1, int(preset.get("height") or 1080))
-        hfov_rad = math.radians(float(preset.get("fov_degrees") or 60.0))
-        vfov_rad = 2.0 * math.atan(math.tan(hfov_rad * 0.5) / (float(width) / float(height)))
-        margin_m = max(0.0, float(self._runtime_uav_visibility_filter_cfg().get("margin_m", 0.0)))
-
-        dx = float(position_enu_m[0]) - float(camera_position[0])
-        dy = float(position_enu_m[1]) - float(camera_position[1])
-        half_width_m = dz * math.tan(hfov_rad * 0.5) + margin_m
-        half_height_m = dz * math.tan(vfov_rad * 0.5) + margin_m
-        return abs(dx) <= half_width_m and abs(dy) <= half_height_m
-
-    def _runtime_uav_visible_in_ground_views(self, site_id: str, position_enu_m: Sequence[float]) -> bool:
-        visibility_cfg = self._runtime_uav_visibility_filter_cfg()
-        if not bool(visibility_cfg.get("enabled", False)):
-            return True
-        presets = self._site_ground_presets(self.args.site or site_id)
-        if not presets:
-            return True
-        return any(self._ground_camera_contains_position(preset, position_enu_m) for preset in presets)
-
     def _uav_camera_presets(self) -> list[dict[str, Any]]:
         uav = dict(self.capture_presets.get("uav_cameras") or {})
         return [dict(item) for item in (uav.get("default") or [])]
 
-    def _frame_active_runtime_uavs(self, frame: dict[str, Any], *, site_id: str = "") -> list[str]:
+    def _frame_active_uavs(self, frame: dict[str, Any], *, site_id: str = "") -> list[str]:
         ids: list[str] = []
         for entity in frame.get("entities") or []:
             entity_id = str(entity.get("entity_id") or "")
@@ -4035,8 +3608,6 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             if site_id and str(entity.get("site_id") or "") not in {"", site_id}:
                 continue
             if truth_submission_state(entity) != "submit_to_ue":
-                continue
-            if str(self._entity_resolution(entity).get("mode") or "") != "runtime_multirotor":
                 continue
             ids.append(entity_id)
         return sorted(set(ids))
@@ -4062,16 +3633,16 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             frame = self.frames_by_tick.get(int(tick))
             if not frame:
                 continue
-            active_ids = self._frame_active_runtime_uavs(frame, site_id=batch.site_id)
+            active_ids = self._frame_active_uavs(frame, site_id=batch.site_id)
             if explicit in active_ids:
                 self.active_airsim_capture_entity_id = explicit
                 break
         if explicit and not self.active_airsim_capture_entity_id:
             raise RuntimeError(
-                f"Requested --airsim-capture-entity '{explicit}' is not an active runtime UAV in batch {batch.batch_id}."
+                f"Requested --airsim-capture-entity '{explicit}' is not an active UAV in batch {batch.batch_id}."
             )
         if not self.active_airsim_capture_entity_id:
-            raise RuntimeError(f"AirSim native UAV capture requested but no active runtime UAV exists in batch {batch.batch_id}.")
+            raise RuntimeError(f"AirSim native UAV capture requested but no active UAV exists in batch {batch.batch_id}.")
         self.active_capture_view_id = self.requested_capture_view_id
         print(
             "[EpisodeHost] AirSim native capture source "
@@ -4106,108 +3677,67 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         )
         return self.fixed_world_capture_hook
 
-    def _runtime_uav_editor_hook(self) -> FixedWorldCaptureEditorHook:
+    def _vehicle_actor_probe_hook(self) -> FixedWorldCaptureEditorHook:
         return self._fixed_world_capture_hook()
 
-    def _disable_runtime_uav_direct_rpc(self, reason: str) -> None:
-        normalized_reason = " ".join(str(reason).split())
-        if not self.runtime_uav_editor_hook_fallback_enabled:
-            print(
-                "[EpisodeHost] Direct runtime UAV RPC problem recorded without editor-hook fallback. "
-                f"reason={normalized_reason}"
-            )
-            self.runtime_uav_direct_rpc_disable_reason = normalized_reason
-            return
-        if self.runtime_uav_direct_rpc_enabled:
-            print(
-                "[EpisodeHost] Disabling direct runtime UAV RPC for this session; "
-                f"forcing editor hook fallback. reason={normalized_reason}"
-            )
-        self.runtime_uav_direct_rpc_enabled = False
-        self.runtime_uav_direct_rpc_disable_reason = normalized_reason
-
-    def _runtime_uav_use_editor_hook(self) -> bool:
-        return self.runtime_uav_editor_hook_fallback_enabled and not self.runtime_uav_direct_rpc_enabled
-
-    def _runtime_uav_pose_sync_mode(self) -> bool:
-        return self.runtime_uav_control_backend == "pose_sync"
-
-    def _runtime_uav_nonfatal_rpc_status(
+    def _truth_frame_uav_status(
         self,
         *,
         entity_id: str,
         vehicle_name: str,
-        operation: str,
-        exc: BaseException,
-        target_enu_m: Sequence[float] | None = None,
+        target_enu_m: Sequence[float],
         rotation_deg: dict[str, Any] | None = None,
+        operation: str,
     ) -> dict[str, Any]:
-        target = [float(value) for value in target_enu_m] if target_enu_m is not None else []
-        error = str(exc)
+        target = [float(value) for value in target_enu_m]
+        rotation = dict(rotation_deg or {})
         return {
             "vehicle_name": vehicle_name,
+            "source_entity_id": entity_id,
             "status": {
-                "state": "warning",
-                "reason": f"{operation}_direct_runtime_rpc_failed_nonfatal",
+                "state": "ok",
+                "reason": f"{operation}_uav_truth_frame_scene_sync",
                 "position_enu_m": target,
                 "target_enu_m": target,
-                "distance_m": None,
-                "tolerance_m": self._runtime_uav_position_tolerance_m(),
-                "error": error,
+                "distance_m": 0.0,
+                "tolerance_m": self._uav_position_tolerance_m(),
             },
-            "create": {
-                "ok": False,
-                "via": "direct_rpc_failed_nonfatal",
-                "operation": operation,
-                "error": error,
+            "pose": {
+                "position_enu_m": target,
+                "rotation_deg": rotation,
             },
             "move": {
-                "ok": False,
-                "via": "direct_rpc_failed_nonfatal",
+                "ok": True,
+                "via": "truth_frame_scene_sync",
                 "operation": operation,
                 "target_enu_m": target,
-                "rotation_deg": rotation_deg or {},
-                "error": error,
+                "rotation_deg": rotation,
             },
-            "path_used": "direct_rpc_failed_nonfatal",
-            "non_capture_uav_sync_nonfatal": True,
-            "editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
+            "path_used": "truth_frame_scene_sync",
+            "truth_frame_scene_sync": True,
+            "timed_out": False,
+            "position_error_m": 0.0,
+            "capture_gate": {
+                "wait_for_arrival": False,
+                "hover_before_capture": False,
+                "arrival_tolerance_m": self._uav_position_tolerance_m(),
+                "degraded": False,
+            },
         }
 
-    def _runtime_uav_timeout_cfg(self) -> dict[str, Any]:
+    def _uav_timeout_cfg(self) -> dict[str, Any]:
         return dict(self.config.get("timeouts") or {})
 
-    def _runtime_uav_position_tolerance_m(self) -> float:
-        timeout_cfg = self._runtime_uav_timeout_cfg()
+    def _uav_position_tolerance_m(self) -> float:
+        timeout_cfg = self._uav_timeout_cfg()
         return max(0.1, float(timeout_cfg.get("uav_position_tolerance_m", 2.0)))
 
-    def _force_destroy_runtime_vehicle_actors(self, vehicle_names: Sequence[str]) -> dict[str, Any] | None:
-        names = sorted({str(value).strip() for value in vehicle_names if str(value).strip()})
-        if not names:
-            return None
-        return self._best_effort(
-            "destroy_runtime_vehicle_actors",
-            self._runtime_uav_editor_hook().destroy_runtime_vehicle_actors,
-            vehicle_names=names,
-        )
-
-    def _runtime_uav_should_debug(self, entity_id: str) -> bool:
-        if not self.runtime_uav_debug_entity_ids:
+    def _uav_should_debug(self, entity_id: str) -> bool:
+        if not self.uav_debug_entity_ids:
             return True
-        return str(entity_id).strip() in self.runtime_uav_debug_entity_ids
+        return str(entity_id).strip() in self.uav_debug_entity_ids
 
-    @staticmethod
-    def _runtime_uav_path_used(status_entry: dict[str, Any]) -> str:
-        status_reason = str((status_entry.get("status") or {}).get("reason") or "").strip().lower()
-        if "editor_hook" in status_reason:
-            return "editor_hook"
-        for key in ("create", "move"):
-            via = str((status_entry.get(key) or {}).get("via") or "").strip().lower()
-            if via:
-                return via
-        return "direct_rpc"
-
-    def _runtime_uav_command_debug(
+    def _uav_command_debug(
         self,
         entity: dict[str, Any],
         *,
@@ -4242,7 +3772,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             "pose_adjustment": dict(snap_details or {}),
         }
 
-    def _probe_runtime_uav_actors(
+    def _probe_vehicle_actors(
         self,
         by_entity: dict[str, dict[str, Any]],
     ) -> dict[str, Any]:
@@ -4266,7 +3796,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             }
 
         try:
-            payload = self._runtime_uav_editor_hook().inspect_runtime_vehicle_actors(
+            payload = self._vehicle_actor_probe_hook().inspect_capture_vehicle_actors(
                 vehicle_names=vehicle_names,
                 world_origin_cm=[float(value) for value in self.world_origin_cm],
             )
@@ -4296,139 +3826,35 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             },
         }
 
-    def _probe_runtime_uav_actor(self, vehicle_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
-        probe_payload = self._probe_runtime_uav_actors({"__probe__": {"vehicle_name": vehicle_name}})
+    def _probe_vehicle_actor(self, vehicle_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        probe_payload = self._probe_vehicle_actors({"__probe__": {"vehicle_name": vehicle_name}})
         return (
             dict((probe_payload.get("vehicles") or {}).get(vehicle_name) or {}),
             dict(probe_payload.get("probe_meta") or {}),
         )
 
-    def _wait_for_editor_hook_uav_status(self, vehicle_name: str, target_enu_m: Sequence[float]) -> dict[str, Any]:
-        timeout_cfg = self._runtime_uav_timeout_cfg()
-        timeout_s = float(timeout_cfg.get("uav_move_timeout_s", 10.0))
-        poll_interval_s = float(timeout_cfg.get("uav_status_poll_interval_s", 0.25))
-        tolerance_m = self._runtime_uav_position_tolerance_m()
-        deadline = time.perf_counter() + max(0.0, timeout_s)
-
-        last_probe: dict[str, Any] = {}
-        last_probe_meta: dict[str, Any] = {}
-        last_error_m: float | None = None
-        timed_out = False
-        state = "probe_only"
-
-        while True:
-            last_probe, last_probe_meta = self._probe_runtime_uav_actor(vehicle_name)
-            actor_row = dict(last_probe.get("actor") or {})
-            actor_position_enu_m = actor_row.get("position_enu_m")
-            last_error_m = distance_m(
-                target_enu_m,
-                actor_position_enu_m if isinstance(actor_position_enu_m, list) else None,
-            )
-            if bool(last_probe.get("found")) and last_error_m is not None and last_error_m <= tolerance_m:
-                state = "succeeded"
-                break
-            if timeout_s <= 0.0:
-                state = "probe_only"
-                break
-            if time.perf_counter() >= deadline:
-                timed_out = True
-                state = "timeout" if bool(last_probe.get("found")) else "missing"
-                break
-            time.sleep(poll_interval_s)
-
-        actor_row = dict(last_probe.get("actor") or {})
-        actor_position_enu_m = actor_row.get("position_enu_m")
-        actor_rotation_deg = actor_row.get("rotation_deg")
-        pose_payload: dict[str, Any] = {}
-        if isinstance(actor_position_enu_m, list):
-            pose_payload["position_enu_m"] = list(actor_position_enu_m)
-        if isinstance(actor_rotation_deg, dict):
-            pose_payload["rotation_deg"] = dict(actor_rotation_deg)
-
-        probe_warning = str(last_probe.get("probe_error") or "")
-        status_payload: dict[str, Any] = {
-            "state": state,
-            "reason": "editor_hook_actor_probe",
-            "position_tolerance_m": tolerance_m,
-        }
-        if "position_enu_m" in pose_payload:
-            status_payload["current_enu_m"] = list(pose_payload["position_enu_m"])
-        if probe_warning:
-            status_payload["warning"] = probe_warning
-
-        result = self.uav_execution_service.build_wait_status(
-            vehicle_name=vehicle_name,
-            status_payload=status_payload,
-            pose_payload=pose_payload,
-            target_enu_m=target_enu_m,
-            timed_out=timed_out,
-            warning=probe_warning,
-            reason="editor_hook_actor_probe",
-        )
-        result["pose_warning"] = probe_warning
-        result["actor_probe"] = last_probe
-        result["probe_meta"] = last_probe_meta
-        result["position_error_m"] = last_error_m
-        return result
-
-    def _recreate_editor_hook_runtime_uav(
-        self,
-        *,
-        vehicle_name: str,
-        target_enu_m: Sequence[float],
-        rotation_deg: dict[str, Any],
-        velocity_mps: float,
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
-        hook = self._runtime_uav_editor_hook()
-        self._best_effort(
-            "remove_runtime_vehicle_editor_hook",
-            hook.remove_runtime_vehicle,
-            map_id=self.map_id,
-            vehicle_name=vehicle_name,
-        )
-        self._force_destroy_runtime_vehicle_actors([vehicle_name])
-        create_response = hook.create_runtime_multirotor(
-            map_id=self.map_id,
-            vehicle_name=vehicle_name,
-            position_enu_m=[float(value) for value in target_enu_m],
-            rotation_deg={key: float(value) for key, value in rotation_deg.items()},
-        )
-        move_response = {
-            "payload": {
-                "vehicle_name": vehicle_name,
-                "state": "skipped",
-                "reason": "editor_hook_recreate_exact_pose",
-                "target_enu_m": [float(value) for value in target_enu_m],
-                "velocity_mps": float(velocity_mps),
-                "via": "editor_hook_recreate",
-                "synthetic": True,
-            }
-        }
-        return create_response, move_response
-
-    def _collect_runtime_uav_debug(
+    def _collect_uav_debug(
         self,
         frame: dict[str, Any],
         uav_status: dict[str, Any],
     ) -> dict[str, Any]:
         debug_by_entity: dict[str, dict[str, Any]] = {}
-        vehicle_name_to_entity_id: dict[str, str] = {}
 
         for entity in frame.get("entities", []):
             resolution = self._entity_resolution(entity)
-            if str(resolution.get("mode", "")) != "runtime_multirotor":
+            if str(entity.get("entity_category") or "").strip().lower() != "uav":
                 continue
             if truth_submission_state(entity) != "submit_to_ue":
                 continue
 
             entity_id = str(entity.get("entity_id") or "")
-            if not self._runtime_uav_should_debug(entity_id):
+            if not self._uav_should_debug(entity_id):
                 continue
 
             status_entry = dict(uav_status.get(entity_id) or {})
             if not status_entry:
                 continue
-            vehicle_name = str(status_entry.get("vehicle_name") or resolution.get("vehicle_name") or entity_id)
+            vehicle_name = str(status_entry.get("vehicle_name") or entity_id)
             transformed_position_enu_m, transformed_rotation_deg = self._transformed_entity_pose(entity)
             resolved_position_enu_m, resolved_rotation_deg, snap_details = self._resolve_entity_pose(entity)
             ground_details = self._project_ground_details(
@@ -4439,12 +3865,11 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             command_target_enu_m = list((ground_details or {}).get("ground_relative_enu_m") or resolved_position_enu_m)
             command_velocity_mps = float(((entity.get("annotations") or {}).get("speed_mps")) or resolution.get("velocity_mps") or 5.0)
 
-            rpc_status_payload = dict(status_entry.get("status") or {})
-            rpc_pose_payload = dict(status_entry.get("pose") or {})
-            rpc_status_current_enu_m = rpc_status_payload.get("current_enu_m")
-            rpc_pose_enu_m = rpc_pose_payload.get("position_enu_m")
+            status_payload = dict(status_entry.get("status") or {})
+            pose_payload = dict(status_entry.get("pose") or {})
+            pose_enu_m = pose_payload.get("position_enu_m")
 
-            debug_entry = self._runtime_uav_command_debug(
+            debug_entry = self._uav_command_debug(
                 entity,
                 vehicle_name=vehicle_name,
                 command_target_enu_m=command_target_enu_m,
@@ -4455,56 +3880,20 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             )
             debug_entry.update(
                 {
-                    "path_used": self._runtime_uav_path_used(status_entry),
-                    "rpc_create_payload": dict(status_entry.get("create") or {}),
-                    "rpc_move_payload": dict(status_entry.get("move") or {}),
-                    "rpc_status_payload": rpc_status_payload,
-                    "rpc_pose_payload": rpc_pose_payload,
-                    "rpc_status_current_enu_m": list(rpc_status_current_enu_m) if isinstance(rpc_status_current_enu_m, list) else rpc_status_current_enu_m,
-                    "rpc_pose_enu_m": list(rpc_pose_enu_m) if isinstance(rpc_pose_enu_m, list) else rpc_pose_enu_m,
+                    "path_used": str(status_entry.get("path_used") or "truth_frame_scene_sync"),
+                    "status_payload": status_payload,
+                    "pose_payload": pose_payload,
+                    "pose_enu_m": list(pose_enu_m) if isinstance(pose_enu_m, list) else pose_enu_m,
                     "position_error_m": status_entry.get("position_error_m"),
                     "timed_out": bool(status_entry.get("timed_out", False)),
                     "pose_warning": str(status_entry.get("pose_warning") or ""),
                 }
             )
             debug_by_entity[entity_id] = debug_entry
-            vehicle_name_to_entity_id[vehicle_name] = entity_id
-
-        probe_payload = self._probe_runtime_uav_actors(debug_by_entity)
-        vehicle_probe_map = dict(probe_payload.get("vehicles") or {})
-        probe_meta = dict(probe_payload.get("probe_meta") or {})
-
-        for vehicle_name, entity_id in vehicle_name_to_entity_id.items():
-            debug_entry = debug_by_entity.get(entity_id)
-            if debug_entry is None:
-                continue
-            actor_probe = dict(vehicle_probe_map.get(vehicle_name) or {})
-            actor_row = dict(actor_probe.get("actor") or {})
-            actor_position_enu_m = actor_row.get("position_enu_m")
-            actor_rotation_deg = actor_row.get("rotation_deg")
-            debug_entry["actor_probe"] = actor_probe
-            debug_entry["actor_position_enu_m"] = list(actor_position_enu_m) if isinstance(actor_position_enu_m, list) else actor_position_enu_m
-            debug_entry["actor_rotation_deg"] = dict(actor_rotation_deg or {})
-            debug_entry["actor_vs_command_error_m"] = distance_m(
-                debug_entry.get("command_payload_target_enu_m"),
-                actor_position_enu_m if isinstance(actor_position_enu_m, list) else None,
-            )
-            debug_entry["actor_vs_truth_error_m"] = distance_m(
-                debug_entry.get("raw_truth_position_enu_m"),
-                actor_position_enu_m if isinstance(actor_position_enu_m, list) else None,
-            )
-            debug_entry["rpc_pose_vs_actor_error_m"] = distance_m(
-                debug_entry.get("rpc_pose_enu_m") if isinstance(debug_entry.get("rpc_pose_enu_m"), list) else None,
-                actor_position_enu_m if isinstance(actor_position_enu_m, list) else None,
-            )
-            debug_entry["rpc_status_vs_actor_error_m"] = distance_m(
-                debug_entry.get("rpc_status_current_enu_m") if isinstance(debug_entry.get("rpc_status_current_enu_m"), list) else None,
-                actor_position_enu_m if isinstance(actor_position_enu_m, list) else None,
-            )
 
         return {
             "vehicles": debug_by_entity,
-            "probe_meta": probe_meta,
+            "probe_meta": {"probe_disabled": True, "reason": "uav_truth_frame_scene_sync"},
         }
 
     def _cleanup_pie_world_actors(self) -> None:
@@ -4801,9 +4190,8 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "uav_capture_vehicle": self.airsim_capture_vehicle,
                 "uav_modalities": ["rgb", "depth", "seg"],
                 "single_camera_single_modality_per_run": True,
-                "uav_editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
-                "runtime_uav_control_backend": self.runtime_uav_control_backend,
-                "non_capture_runtime_uav_rpc_failure_nonfatal": bool(self.runtime_uav_non_capture_failure_nonfatal),
+                "uav_scene_control_backend": self.uav_scene_control_backend,
+                "non_capture_uav_control": "truth_frame_scene_sync",
                 "python_segmentation_id_assignment_enabled": False,
                 "segmentation_backend": self.segmentation_backend,
                 "segmentation_kind": "ue_custom_stencil_class_id_u8",
@@ -5359,8 +4747,8 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             settle_s = float((self.config.get("timeouts") or {}).get("camera_settle_s", 0.25))
             if settle_s > 0.0:
                 time.sleep(settle_s)
-        set_runtime_camera_pose = bool(preset.get("set_runtime_camera_pose", False))
-        if set_runtime_camera_pose and not uses_ue_custom_stencil:
+        set_capture_camera_pose = bool(preset.get("set_capture_camera_pose", False))
+        if set_capture_camera_pose and not uses_ue_custom_stencil:
             camera_pose_frame = str(preset.get("camera_pose_frame") or preset.get("camera_pose_coordinate_frame") or "ned").strip().lower()
             if camera_pose_frame not in {"ned", "enu"}:
                 raise RuntimeError(f"Unsupported AirSim camera pose frame '{camera_pose_frame}' for preset {preset}")
@@ -5459,7 +4847,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "roi_id": batch.roi_id,
                 "weather": weather_payload,
                 "feedback": feedback_payload,
-                "uav_runtime": vehicle_status,
+                "uav_scene_status": vehicle_status,
                 "uav_debug": uav_debug,
                 "uav_entity_id": entity_id,
                 "source_uav_entity_id": entity_id,
@@ -5468,7 +4856,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "camera_name": camera_name,
                 "requested_camera_pose_body_m": camera_offset_body_m,
                 "requested_camera_rotation_body_deg": camera_rotation_body_deg,
-                "set_runtime_camera_pose": set_runtime_camera_pose,
+                "set_capture_camera_pose": set_capture_camera_pose,
                 "camera_pose_frame": str(preset.get("camera_pose_frame") or preset.get("camera_pose_coordinate_frame") or "ned").strip().lower(),
                 "camera_info_before_capture": camera_info_before_capture,
                 "source_uav_pose_enu_m": source_uav_position_enu_m,
@@ -5493,8 +4881,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "capture_alignment_key": f"{self.episode_id}:{batch.batch_id}:{int(frame['tick'])}:{view_id}",
                 "capture_alignment_source": "deterministic_episode_frame",
                 "capture_backend": "ue_custom_stencil_fixed_world_camera",
-                "runtime_uav_control_backend": self.runtime_uav_control_backend,
-                "runtime_uav_editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
+                "uav_scene_control_backend": self.uav_scene_control_backend,
                 "coordinate_space_contract": self._coordinate_space_contract(),
                 "event_semantic_logical_region_policy": self._event_semantic_logical_region_policy(),
                 "event_semantic_objects": self.event_semantic_coordinate_audit,
@@ -5545,7 +4932,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             "roi_id": batch.roi_id,
             "weather": weather_payload,
             "feedback": feedback_payload,
-            "uav_runtime": vehicle_status,
+            "uav_scene_status": vehicle_status,
             "uav_debug": uav_debug,
             "uav_entity_id": entity_id,
             "source_uav_entity_id": entity_id,
@@ -5554,7 +4941,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             "camera_name": camera_name,
             "requested_camera_pose_body_m": camera_offset_body_m,
             "requested_camera_rotation_body_deg": camera_rotation_body_deg,
-            "set_runtime_camera_pose": set_runtime_camera_pose,
+            "set_capture_camera_pose": set_capture_camera_pose,
             "camera_pose_frame": str(preset.get("camera_pose_frame") or preset.get("camera_pose_coordinate_frame") or "ned").strip().lower(),
             "camera_info_before_capture": camera_info_before_capture,
             "source_uav_pose_enu_m": source_uav_position_enu_m,
@@ -5576,8 +4963,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             "capture_alignment_key": f"{self.episode_id}:{batch.batch_id}:{int(frame['tick'])}:{view_id}",
             "capture_alignment_source": "deterministic_episode_frame",
             "capture_backend": "airsim_native_uav_camera",
-            "runtime_uav_control_backend": self.runtime_uav_control_backend,
-            "runtime_uav_editor_hook_fallback_enabled": bool(self.runtime_uav_editor_hook_fallback_enabled),
+            "uav_scene_control_backend": self.uav_scene_control_backend,
             "coordinate_space_contract": self._coordinate_space_contract(),
             "event_semantic_logical_region_policy": self._event_semantic_logical_region_policy(),
             "event_semantic_objects": self.event_semantic_coordinate_audit,
@@ -5690,7 +5076,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "roi_id": batch.roi_id,
                 "weather": weather_payload,
                 "feedback": feedback_payload,
-                "uav_runtime": uav_status,
+                "uav_scene_status": uav_status,
                 "uav_debug": uav_debug,
                 "camera_pose_enu_m": resolved_camera_position_enu_m,
                 "camera_rotation_deg": resolved_camera_rotation_deg,
@@ -5735,13 +5121,12 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 str(entity.get("entity_id") or "")
                 for entity in frame.get("entities") or []
                 if str(entity.get("entity_category") or "").strip().lower() == "uav"
-                and str(self._entity_resolution(entity).get("mode") or "") == "runtime_multirotor"
                 and truth_submission_state(entity) == "submit_to_ue"
             ]
             expected_uavs = [entity_id for entity_id in expected_uavs if entity_id]
             if expected_uavs:
                 raise RuntimeError(
-                    "UAV capture requested but no runtime multirotor status was produced for: "
+                    "UAV capture requested but no truth-frame UAV status was produced for: "
                     + ", ".join(sorted(expected_uavs))
                 )
             return
@@ -5819,10 +5204,16 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             if batch.tick_start <= int(value) <= batch.tick_end
         ]
         if explicit_capture_ticks:
-            return set(explicit_capture_ticks)
+            ticks = sorted(set(explicit_capture_ticks))
+            max_capture_frames = int(getattr(self.args, "max_capture_frames", 0) or 0)
+            return set(ticks[:max_capture_frames] if max_capture_frames > 0 else ticks)
         ticks = [tick for tick in self.sorted_ticks if batch.tick_start <= tick <= batch.tick_end]
         stride = max(1, int(getattr(self.args, "tick_stride", 1) or 1))
-        return set(ticks[::stride])
+        capture_ticks = ticks[::stride]
+        max_capture_frames = int(getattr(self.args, "max_capture_frames", 0) or 0)
+        if max_capture_frames > 0:
+            capture_ticks = capture_ticks[:max_capture_frames]
+        return set(capture_ticks)
 
     # ------------------------------------------------------------------
     # Event script action handlers
@@ -6058,51 +5449,21 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             )
             self.ped_active_ids.add(entity_id)
             return {"status": "ok", "entity_id": entity_id, "ped_id": entity_id, "response": response}
-        if asset_kind == "uav":
-            command_position = self._runtime_uav_command_position_enu(entity_id, position)
-            try:
-                response = self.client.create_runtime_multirotor(
-                    asset_instance_id,
-                    position_enu_m=command_position,
-                    rotation_deg=rotation,
-                    map_id=self.map_id,
-                )
-            except Exception as exc:
-                if not (self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal):
-                    raise
-                print(
-                    f"[EpisodeHost] event spawn runtime UAV RPC warning for {asset_instance_id}; "
-                    f"continuing without editor-hook fallback: {exc}"
-                )
-                return {
-                    "status": "ok",
-                    "entity_id": entity_id,
-                    "vehicle_name": asset_instance_id,
-                    "command_position_enu_m": command_position,
-                    "response": {
-                        "payload": {
-                            "state": "warning",
-                            "reason": "event_spawn_direct_runtime_rpc_failed_nonfatal",
-                            "error": str(exc),
-                        }
-                    },
-                    "wait_status": self._runtime_uav_nonfatal_rpc_status(
-                        entity_id=entity_id,
-                        vehicle_name=asset_instance_id,
-                        operation="event_spawn",
-                        exc=exc,
-                        target_enu_m=command_position,
-                        rotation_deg=rotation,
-                    ),
-                }
-            self.uav_active_by_entity[entity_id] = asset_instance_id
-            self.uav_last_command_target_by_entity[entity_id] = list(command_position)
+        if asset_kind == "uav" and self.uav_scene_control_backend == "truth_frame_scene_sync":
+            if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
+                self.uav_active_by_entity[entity_id] = self.airsim_capture_vehicle
+            self.uav_last_command_target_by_entity[entity_id] = list(position)
             return {
                 "status": "ok",
                 "entity_id": entity_id,
-                "vehicle_name": asset_instance_id,
-                "command_position_enu_m": command_position,
-                "response": response,
+                "asset_id": asset_instance_id,
+                "response": {
+                    "payload": {
+                        "state": "skipped",
+                        "reason": "uav_spawn_deferred_to_truth_frame_scene_sync",
+                        "target_enu_m": [float(value) for value in position],
+                    }
+                },
             }
         payload: dict[str, Any] = {
             "asset_id": asset_instance_id,
@@ -6116,6 +5477,9 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             "visual_state": dict(action.get("visual_state") or {}),
         }
         response = self.client.spawn_asset(payload, map_id=self.map_id)
+        if asset_kind == "uav":
+            self.uav_active_by_entity[entity_id] = asset_instance_id
+            self.uav_last_command_target_by_entity[entity_id] = list(position)
         return {"status": "ok", "entity_id": entity_id, "asset_id": asset_instance_id, "response": response}
 
     def _script_move_entity(self, action: dict[str, Any]) -> dict[str, Any]:
@@ -6185,170 +5549,76 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "status": "ok",
                 "entity_id": entity_id,
                 "ped_id": entity_id,
-                "command": "truth_frame_pose_sync",
+                "command": "truth_frame_position_update",
                 "target_enu_m": [float(value) for value in position],
                 "reason": "pedestrian movement is applied deterministically from truth_frames before capture",
             }
         if asset_kind == "uav":
-            vehicle_name = self.uav_active_by_entity.get(entity_id, asset_instance_id)
-            command_position = self._runtime_uav_command_position_enu(entity_id, position)
-            velocity_mps = float(action.get("velocity_mps", 5.0))
             if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
                 command_rotation = rotation or self._entity_rotation_deg({"entity_id": entity_id})
-                if self._runtime_uav_pose_sync_mode():
-                    wait_status = {
-                        "vehicle_name": self.airsim_capture_vehicle,
-                        "status": {
-                            "state": "ok",
-                            "reason": "capture_entity_event_move_deferred_to_capture_tick_pin",
-                        },
-                        "pose": {
-                            "position_enu_m": [float(value) for value in command_position],
-                            "rotation_deg": dict(command_rotation or {}),
-                        },
-                        "timed_out": False,
-                        "position_error_m": 0.0,
-                        "path_used": "pose_sync_capture_entity",
-                        "truth_frame_pose_sync": True,
-                    }
-                else:
-                    self._ensure_airsim_capture_vehicle()
-                    wait_status = self._pin_airsim_capture_vehicle(
-                        command_position,
-                        command_rotation,
-                        context=f"event action {action.get('action_id') or '<unnamed>'}",
-                    )
+                wait_status = self._truth_frame_uav_status(
+                    entity_id=entity_id,
+                    vehicle_name=self.airsim_capture_vehicle,
+                    target_enu_m=position,
+                    rotation_deg=command_rotation,
+                    operation="capture_source_event_move",
+                )
+                wait_status["capture_vehicle_name"] = self.airsim_capture_vehicle
+                wait_status["capture_pose_mode"] = "deferred_capture_tick_pin"
+                wait_status["replaces_scene_uav_for_capture"] = True
                 response = {
                     "payload": {
                         "vehicle_name": self.airsim_capture_vehicle,
                         "source_entity_id": entity_id,
                         "state": "ok",
-                        "reason": "capture_entity_event_move_pinned_to_airsim_vehicle",
-                        "target_enu_m": [float(value) for value in command_position],
+                        "reason": "capture_source_event_move_deferred_to_capture_tick_pin",
+                        "target_enu_m": [float(value) for value in position],
                         "rotation_deg": dict(command_rotation or {}),
-                        "velocity_mps": velocity_mps,
+                        "velocity_mps": float(action.get("velocity_mps", 5.0)),
                         "synthetic": True,
                     }
                 }
                 self.uav_active_by_entity[entity_id] = self.airsim_capture_vehicle
-                self.uav_last_command_target_by_entity[entity_id] = list(command_position)
-                wait_status["path_used"] = "airsim_native_capture_vehicle"
+                self.uav_last_command_target_by_entity[entity_id] = list(position)
+                wait_status["path_used"] = "truth_frame_capture_source"
                 wait_status["source_entity_id"] = entity_id
-                wait_status["replaces_runtime_multirotor"] = True
                 return {
                     "status": "ok",
                     "entity_id": entity_id,
                     "vehicle_name": self.airsim_capture_vehicle,
-                    "command_position_enu_m": command_position,
+                    "command_position_enu_m": position,
                     "response": response,
                     "wait_status": wait_status,
                 }
-            if self._runtime_uav_pose_sync_mode():
-                try:
-                    if entity_id not in self.uav_active_by_entity:
-                        self.client.create_runtime_multirotor(
-                            vehicle_name,
-                            position_enu_m=command_position,
-                            rotation_deg=rotation or self._entity_rotation_deg({"entity_id": entity_id}),
-                            map_id=self.map_id,
-                        )
-                        self.uav_active_by_entity[entity_id] = vehicle_name
-                    response = self.client.move_runtime_multirotor(
-                        vehicle_name,
-                        target_enu_m=command_position,
-                        velocity_mps=velocity_mps,
-                        map_id=self.map_id,
-                    )
-                    try:
-                        wait_status = self._wait_for_uav_status(vehicle_name, command_position)
-                        wait_payload = dict(wait_status.get("status") or {})
-                        wait_state = str(wait_payload.get("state") or wait_payload.get("status") or "").strip().lower()
-                        if self.runtime_uav_non_capture_failure_nonfatal and wait_state in {"failed", "cancelled", "timeout", "missing"}:
-                            wait_payload["original_state"] = wait_state
-                            wait_payload["state"] = "warning"
-                            wait_payload["reason"] = "non_capture_event_move_runtime_status_nonfatal"
-                            wait_status["status"] = wait_payload
-                            wait_status["non_capture_uav_event_move_nonfatal"] = True
-                            wait_status["timed_out_accepted_running"] = True
-                    except Exception as wait_exc:
-                        if not self.runtime_uav_non_capture_failure_nonfatal:
-                            raise
-                        wait_status = self._runtime_uav_nonfatal_rpc_status(
-                            entity_id=entity_id,
-                            vehicle_name=vehicle_name,
-                            operation="event_move_status",
-                            exc=wait_exc,
-                            target_enu_m=command_position,
-                            rotation_deg=rotation or {},
-                        )
-                    wait_status["path_used"] = "direct_rpc"
-                except Exception as exc:
-                    if not self.runtime_uav_non_capture_failure_nonfatal:
-                        raise
-                    print(
-                        f"[EpisodeHost] event move runtime UAV RPC warning for non-capture {vehicle_name}; "
-                        f"continuing without editor-hook fallback: {exc}"
-                    )
-                    response = {
-                        "payload": {
-                            "vehicle_name": vehicle_name,
-                            "state": "warning",
-                            "reason": "event_move_direct_runtime_rpc_failed_nonfatal",
-                            "target_enu_m": [float(value) for value in command_position],
-                            "velocity_mps": velocity_mps,
-                            "synthetic": True,
-                            "error": str(exc),
-                        }
-                    }
-                    wait_status = self._runtime_uav_nonfatal_rpc_status(
-                        entity_id=entity_id,
-                        vehicle_name=vehicle_name,
-                        operation="event_move",
-                        exc=exc,
-                        target_enu_m=command_position,
-                        rotation_deg=rotation or {},
-                    )
+            if self.uav_scene_control_backend == "truth_frame_scene_sync":
+                command_rotation = rotation or self._entity_rotation_deg({"entity_id": entity_id})
+                wait_status = self._truth_frame_uav_status(
+                    entity_id=entity_id,
+                    vehicle_name=entity_id,
+                    target_enu_m=position,
+                    rotation_deg=command_rotation,
+                    operation="event_move_deferred_to_truth_frame",
+                )
+                wait_status["status"]["reason"] = "event_uav_move_deferred_to_truth_frame_scene_sync"
+                wait_status["move"]["reason"] = "non_capture_uav_pose_is_authoritative_in_truth_frames"
+                self.uav_last_command_target_by_entity[entity_id] = list(position)
                 return {
                     "status": "ok",
                     "entity_id": entity_id,
-                    "vehicle_name": vehicle_name,
-                    "command_position_enu_m": command_position,
-                    "response": response,
+                    "asset_id": asset_instance_id,
+                    "command_position_enu_m": position,
+                    "response": {
+                        "payload": {
+                            "state": "skipped",
+                            "reason": "uav_move_deferred_to_truth_frame_scene_sync",
+                        }
+                    },
                     "wait_status": wait_status,
                 }
-            previous_target = self.uav_last_command_target_by_entity.get(entity_id)
-            previous_error_m = distance_m(previous_target, command_position)
-            if previous_error_m is not None and previous_error_m <= 0.25:
-                response = {
-                    "payload": {
-                        "vehicle_name": vehicle_name,
-                        "state": "skipped",
-                        "reason": "event_target_unchanged",
-                        "target_enu_m": [float(value) for value in command_position],
-                        "previous_error_m": previous_error_m,
-                        "synthetic": True,
-                    }
-                }
-                wait_status = self._uav_status_snapshot(vehicle_name, command_position)
-            else:
-                response = self.client.move_runtime_multirotor(
-                    vehicle_name,
-                    target_enu_m=command_position,
-                    velocity_mps=velocity_mps,
-                    map_id=self.map_id,
-                )
-                wait_status = self._wait_for_uav_status(vehicle_name, command_position)
-                self._ensure_uav_status_ok(wait_status, vehicle_name=vehicle_name, context=f"event action {action.get('action_id') or '<unnamed>'}")
-            self.uav_active_by_entity[entity_id] = vehicle_name
-            self.uav_last_command_target_by_entity[entity_id] = list(command_position)
-            return {
-                "status": "ok",
-                "entity_id": entity_id,
-                "vehicle_name": vehicle_name,
-                "command_position_enu_m": command_position,
-                "response": response,
-                "wait_status": wait_status,
-            }
+            response = self.client.move_asset(payload, map_id=self.map_id)
+            self.uav_active_by_entity[entity_id] = asset_instance_id
+            self.uav_last_command_target_by_entity[entity_id] = list(position)
+            return {"status": "ok", "entity_id": entity_id, "asset_id": asset_instance_id, "response": response}
         response = self.client.move_asset(payload, map_id=self.map_id)
         return {"status": "ok", "entity_id": entity_id, "asset_id": asset_instance_id, "response": response}
 
@@ -6362,26 +5632,40 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             self.ped_active_ids.discard(entity_id)
             return {"status": "ok", "entity_id": entity_id, "response": response}
         if asset_kind == "uav":
-            vehicle_name = self.uav_active_by_entity.pop(entity_id, entity_id)
-            try:
-                response = self.client.remove_runtime_vehicle(vehicle_name, map_id=self.map_id)
-            except Exception as exc:
-                if not (self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal):
-                    raise
-                print(
-                    f"[EpisodeHost] event remove runtime UAV RPC warning for {vehicle_name}; "
-                    f"continuing without editor-hook fallback: {exc}"
-                )
-                response = {
-                    "payload": {
-                        "state": "warning",
-                        "reason": "event_remove_direct_runtime_rpc_failed_nonfatal",
-                        "error": str(exc),
-                    }
+            if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
+                self.uav_active_by_entity.pop(entity_id, None)
+                self.event_controlled_entity_ids.discard(entity_id)
+                self.uav_last_command_target_by_entity.pop(entity_id, None)
+                return {
+                    "status": "ok",
+                    "entity_id": entity_id,
+                    "capture_vehicle_name": self.airsim_capture_vehicle,
+                    "response": {
+                        "payload": {
+                            "state": "skipped",
+                            "reason": "capture_vehicle_is_retained_and_reused",
+                        }
+                    },
                 }
+            asset_id = self.uav_active_by_entity.pop(entity_id, entity_id)
+            if self.uav_scene_control_backend == "truth_frame_scene_sync":
+                self.event_controlled_entity_ids.discard(entity_id)
+                self.uav_last_command_target_by_entity.pop(entity_id, None)
+                return {
+                    "status": "ok",
+                    "entity_id": entity_id,
+                    "asset_id": asset_id,
+                    "response": {
+                        "payload": {
+                            "state": "skipped",
+                            "reason": "uav_remove_deferred_to_truth_frame_scene_sync",
+                        }
+                    },
+                }
+            response = self.client.remove_asset(asset_id, map_id=self.map_id)
             self.event_controlled_entity_ids.discard(entity_id)
             self.uav_last_command_target_by_entity.pop(entity_id, None)
-            return {"status": "ok", "entity_id": entity_id, "vehicle_name": vehicle_name, "response": response}
+            return {"status": "ok", "entity_id": entity_id, "asset_id": asset_id, "response": response}
         response = self.client.remove_asset(entity_id, map_id=self.map_id)
         self.event_controlled_entity_ids.discard(entity_id)
         return {"status": "ok", "entity_id": entity_id, "response": response}
@@ -6572,63 +5856,26 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 visual_state[key] = action[key]
         logical_asset_id = self._script_entity_logical_asset_id(entity_id, action)
         if self._script_asset_kind(logical_asset_id) == "uav":
-            vehicle_name = self.uav_active_by_entity.get(entity_id)
-            if not vehicle_name:
-                if self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal:
-                    return {
-                        "status": "ok",
-                        "entity_id": entity_id,
-                        "visual_state": visual_state,
-                        "runtime_uav_state_only": True,
-                        "non_capture_uav_visual_state_nonfatal": True,
-                        "warning": "runtime UAV is not active; visual state not applied",
-                    }
-                raise RuntimeError(f"set_visual_state for UAV '{entity_id}' requires an active runtime multirotor")
-            mode = str(visual_state.get("mode") or "").strip().lower()
-            if mode == "hover":
-                raw_position = self.event_entity_initial_positions.get(entity_id)
-                if not raw_position:
-                    pose_response = self.client.get_runtime_vehicle_pose(vehicle_name, map_id=self.map_id)
-                    pose_payload = dict(pose_response.get("payload") or {})
-                    pose_position = pose_payload.get("position_enu_m")
-                    if not isinstance(pose_position, Sequence) or isinstance(pose_position, (str, bytes)):
-                        raise RuntimeError(f"Cannot resolve current runtime UAV pose for hover: {entity_id}")
-                    command_position = [
-                        float(pose_position[0]),
-                        float(pose_position[1]),
-                        float(pose_position[2] if len(pose_position) > 2 else 0.0),
-                    ]
-                else:
-                    command_position = self._runtime_uav_command_position_enu(entity_id, raw_position)
-                wait_status = self._uav_status_snapshot(vehicle_name, command_position)
-                wait_payload = dict(wait_status.get("status") or {})
-                wait_state = str(wait_payload.get("state") or wait_payload.get("status") or "").strip().lower()
-                if self._runtime_uav_pose_sync_mode() and self.runtime_uav_non_capture_failure_nonfatal and wait_state in {"failed", "cancelled", "timeout", "missing"}:
-                    wait_payload["original_state"] = wait_state
-                    wait_payload["state"] = "warning"
-                    wait_payload["reason"] = "non_capture_visual_state_runtime_status_nonfatal"
-                    wait_status["status"] = wait_payload
-                    wait_status["non_capture_uav_visual_state_nonfatal"] = True
-                    wait_status["timed_out_accepted_running"] = True
-                self.event_controlled_entity_ids.add(entity_id)
-                self.uav_last_command_target_by_entity[entity_id] = list(command_position)
+            payload = {
+                "asset_id": self._script_target_asset_instance_id(action, entity_id, logical_asset_id),
+                "entity_id": entity_id,
+                "visual_state": visual_state,
+            }
+            if self.uav_scene_control_backend == "truth_frame_scene_sync":
                 return {
                     "status": "ok",
                     "entity_id": entity_id,
-                    "vehicle_name": vehicle_name,
+                    "asset_id": payload["asset_id"],
                     "visual_state": visual_state,
-                    "command": "runtime_multirotor_hold_state",
-                    "command_position_enu_m": command_position,
-                    "response": {"status": "skipped", "reason": "hover_does_not_issue_second_move"},
-                    "wait_status": wait_status,
+                    "response": {
+                        "payload": {
+                            "state": "skipped",
+                            "reason": "uav_visual_state_deferred_to_truth_frame_scene_sync",
+                        }
+                    },
                 }
-            return {
-                "status": "ok",
-                "entity_id": entity_id,
-                "vehicle_name": vehicle_name,
-                "visual_state": visual_state,
-                "runtime_uav_state_only": True,
-            }
+            response = self.client.move_asset(payload, map_id=self.map_id)
+            return {"status": "ok", "entity_id": entity_id, "asset_id": payload["asset_id"], "visual_state": visual_state, "response": response}
         payload: dict[str, Any] = {
             "asset_id": self._script_asset_instance_id(action, entity_id),
             "entity_id": entity_id,
@@ -6731,7 +5978,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             _, _, _, entity_records = self._apply_scene_frame(frame)
             _ = self._sync_pedestrians(frame)
             uav_status = self._sync_uavs(frame)
-            uav_debug = self._collect_runtime_uav_debug(frame, uav_status)
+            uav_debug = self._collect_uav_debug(frame, uav_status)
 
             # --- Event script interpreter ---
             if self.event_interpreter is not None:
@@ -6782,6 +6029,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                         )
 
             if tick in capture_ticks:
+                self._guard_runtime_resources(context=f"capture tick {tick}")
                 feedback_payload = self._poll_feedback()
                 self._capture_ground_views(batch, frame, weather_payload, entity_records, feedback_payload, uav_status, uav_debug)
                 self._capture_uav_views(batch, frame, weather_payload, entity_records, feedback_payload, uav_status, uav_debug)
@@ -6790,6 +6038,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         if self.client is None:
             self.connect()
         ensure_dir(self.output_dir)
+        self._guard_runtime_resources(context="capture startup")
         manifest_path = self._write_capture_storage_manifest()
         print(f"[EpisodeHost] Capture storage manifest written: {manifest_path}")
         if bool(getattr(self.args, "semantic_stencil_audit_only", False)):
@@ -6853,6 +6102,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max_batches", type=int, default=0, help="Run only the first N matching batches")
     parser.add_argument("--tick_stride", type=int, default=1, help="Capture every Nth tick. Simulation still updates every tick by default")
     parser.add_argument("--simulation_tick_stride", type=int, default=1, help="Advance runtime state every Nth tick; keep 1 for smooth actor motion")
+    parser.add_argument("--max_capture_frames", type=int, default=0, help="Hard cap on captured frames per batch after tick filters")
+    parser.add_argument("--min_free_memory_gb", type=float, default=3.0, help="Abort before capture when available system RAM is below this threshold")
+    parser.add_argument("--min_output_free_disk_gb", type=float, default=10.0, help="Abort before capture when output drive free space is below this threshold")
     parser.add_argument(
         "--preserve_capture_output_dir",
         action="store_true",
@@ -6891,12 +6143,11 @@ def parse_args() -> argparse.Namespace:
         help="Backend for UAV camera captures. Ground cameras still use editor hook RGB.",
     )
     parser.add_argument(
-        "--runtime-uav-control-backend",
-        choices=["airsim_move", "pose_sync"],
+        "--uav-scene-control-backend",
+        choices=["truth_frame_scene_sync"],
         default="",
         help=(
-            "Runtime UAV scene-control backend. Defaults to formal pose_sync. "
-            "airsim_move is allowed only when runtime_uav.allow_legacy_airsim_move=true for diagnostics."
+            "Formal non-capture UAV scene-control backend. AirSim controls only the rotating capture vehicle."
         ),
     )
     parser.add_argument(
@@ -6919,7 +6170,7 @@ def parse_args() -> argparse.Namespace:
         "--airsim-capture-entity",
         default="",
         help=(
-            "Runtime UAV entity id to replace with the AirSim capture platform. "
+            "Scene UAV entity id to replace with the AirSim capture platform. "
             "Required when camera-role includes uav; high-overview/fixed-world captures do not use it."
         ),
     )

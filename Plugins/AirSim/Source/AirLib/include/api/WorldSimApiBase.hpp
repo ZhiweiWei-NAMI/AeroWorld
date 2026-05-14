@@ -121,11 +121,6 @@ namespace airlib
         virtual std::string simAeroProjectGround(const std::string& request_json) = 0;
         virtual std::string simAeroQueryPedAnchor(const std::string& request_json) = 0;
         virtual std::string simAeroApplyWeather(const std::string& request_json) = 0;
-        virtual std::string simAeroCreateRuntimeMultirotor(const std::string& request_json) = 0;
-        virtual std::string simAeroMoveRuntimeMultirotor(const std::string& request_json) = 0;
-        virtual std::string simAeroGetRuntimeMultirotorStatus(const std::string& request_json) = 0;
-        virtual std::string simAeroRemoveRuntimeVehicle(const std::string& request_json) = 0;
-        virtual std::string simAeroGetRuntimeVehiclePose(const std::string& request_json) = 0;
         virtual bool setObjectScale(const std::string& object_name, const Vector3r& scale) = 0;
         virtual std::unique_ptr<std::vector<std::string>> swapTextures(const std::string& tag, int tex_id = 0, int component_id = 0, int material_id = 0) = 0;
         virtual bool setObjectMaterial(const std::string& object_name, const std::string& material_name, const int component_id = 0) = 0;

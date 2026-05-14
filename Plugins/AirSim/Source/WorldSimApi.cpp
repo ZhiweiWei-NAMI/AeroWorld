@@ -620,31 +620,6 @@ std::string WorldSimApi::simAeroApplyWeather(const std::string& request_json)
     return invokeAeroBridge("simAeroApplyWeather", "HandleApplyWeather", request_json);
 }
 
-std::string WorldSimApi::simAeroCreateRuntimeMultirotor(const std::string& request_json)
-{
-    return invokeAeroBridge("simAeroCreateRuntimeMultirotor", "HandleCreateRuntimeMultirotor", request_json);
-}
-
-std::string WorldSimApi::simAeroMoveRuntimeMultirotor(const std::string& request_json)
-{
-    return invokeAeroBridge("simAeroMoveRuntimeMultirotor", "HandleMoveRuntimeMultirotor", request_json);
-}
-
-std::string WorldSimApi::simAeroGetRuntimeMultirotorStatus(const std::string& request_json)
-{
-    return invokeAeroBridge("simAeroGetRuntimeMultirotorStatus", "HandleGetRuntimeMultirotorStatus", request_json);
-}
-
-std::string WorldSimApi::simAeroRemoveRuntimeVehicle(const std::string& request_json)
-{
-    return invokeAeroBridge("simAeroRemoveRuntimeVehicle", "HandleRemoveRuntimeVehicle", request_json);
-}
-
-std::string WorldSimApi::simAeroGetRuntimeVehiclePose(const std::string& request_json)
-{
-    return invokeAeroBridge("simAeroGetRuntimeVehiclePose", "HandleGetRuntimeVehiclePose", request_json);
-}
-
 std::vector<std::string> WorldSimApi::listInstanceSegmentationObjects() const
 {
     return simmode_->GetAllInstanceSegmentationMeshIDs();
@@ -1390,18 +1365,18 @@ std::vector<msr::airlib::DetectionInfo> WorldSimApi::getDetections(ImageCaptureB
 			else
 			{
                 nedWrtOrigin = ned_transform.toGlobalNed(detections[i].Actor->GetActorLocation());
-			}
+            }
             result[i].geo_point = msr::airlib::EarthUtils::nedToGeodetic(nedWrtOrigin,
-                                                                         AirSimSettings::singleton().origin_geopoint);
+                                                                         msr::airlib::AirSimSettings::singleton().origin_geopoint);
 
-            result[i].box2D.min = Vector2r(detections[i].Box2D.Min.X, detections[i].Box2D.Min.Y);
-            result[i].box2D.max = Vector2r(detections[i].Box2D.Max.X, detections[i].Box2D.Max.Y);
+            result[i].box2D.min = msr::airlib::Vector2r(detections[i].Box2D.Min.X, detections[i].Box2D.Min.Y);
+            result[i].box2D.max = msr::airlib::Vector2r(detections[i].Box2D.Max.X, detections[i].Box2D.Max.Y);
 
             result[i].box3D.min = ned_transform.toLocalNed(detections[i].Box3D.Min);
             result[i].box3D.max = ned_transform.toLocalNed(detections[i].Box3D.Max);
 
             const Vector3r& position = ned_transform.toLocalNed(detections[i].RelativeTransform.GetTranslation());
-            const Quaternionr& orientation = ned_transform.toNed(detections[i].RelativeTransform.GetRotation());
+            const msr::airlib::Quaternionr& orientation = ned_transform.toNed(detections[i].RelativeTransform.GetRotation());
 
             result[i].relative_pose = Pose(position, orientation);
         }

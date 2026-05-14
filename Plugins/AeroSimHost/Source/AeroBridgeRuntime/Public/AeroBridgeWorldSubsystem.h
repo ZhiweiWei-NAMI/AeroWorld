@@ -73,16 +73,6 @@ public:
 	FString HandleQueryPedAnchor(const FString& RequestJson);
 	UFUNCTION()
 	FString HandleApplyWeather(const FString& RequestJson);
-	UFUNCTION()
-	FString HandleCreateRuntimeMultirotor(const FString& RequestJson);
-	UFUNCTION()
-	FString HandleMoveRuntimeMultirotor(const FString& RequestJson);
-	UFUNCTION()
-	FString HandleGetRuntimeMultirotorStatus(const FString& RequestJson);
-	UFUNCTION()
-	FString HandleRemoveRuntimeVehicle(const FString& RequestJson);
-	UFUNCTION()
-	FString HandleGetRuntimeVehiclePose(const FString& RequestJson);
 
 	const FString& GetCurrentMapId() const
 	{

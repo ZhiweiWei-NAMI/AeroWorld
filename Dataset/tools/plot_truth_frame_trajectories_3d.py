@@ -36,6 +36,7 @@ CATEGORY_STYLE = {
     "V": {"marker": "s", "label": "V vehicle"},
     "U": {"marker": "^", "label": "U UAV"},
 }
+PLOT_CATEGORY_ORDER = {"U": 0, "V": 1, "P": 2}
 
 
 @dataclass
@@ -211,7 +212,7 @@ def _update_meta(meta: dict[str, Any], frame: dict[str, Any], tick: int) -> None
 
 def _plot_episode(episode_dir: Path, output_path: Path, sample_step_ticks: int) -> dict[str, Any]:
     tracks, meta = _load_sampled_tracks(episode_dir, sample_step_ticks)
-    ordered_tracks = sorted(tracks.values(), key=lambda t: (t.category, t.entity_id))
+    ordered_tracks = sorted(tracks.values(), key=lambda t: (PLOT_CATEGORY_ORDER[t.category], t.entity_id))
 
     fig = plt.figure(figsize=(11.5, 8.5), dpi=150)
     ax = fig.add_subplot(111, projection="3d")

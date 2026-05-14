@@ -272,26 +272,6 @@ namespace airlib
             return getWorldSimApi()->simAeroApplyWeather(request_json);
         });
 
-        pimpl_->server.bind("simAeroCreateRuntimeMultirotor", [&](const std::string& request_json) -> std::string {
-            return getWorldSimApi()->simAeroCreateRuntimeMultirotor(request_json);
-        });
-
-        pimpl_->server.bind("simAeroMoveRuntimeMultirotor", [&](const std::string& request_json) -> std::string {
-            return getWorldSimApi()->simAeroMoveRuntimeMultirotor(request_json);
-        });
-
-        pimpl_->server.bind("simAeroGetRuntimeMultirotorStatus", [&](const std::string& request_json) -> std::string {
-            return getWorldSimApi()->simAeroGetRuntimeMultirotorStatus(request_json);
-        });
-
-        pimpl_->server.bind("simAeroRemoveRuntimeVehicle", [&](const std::string& request_json) -> std::string {
-            return getWorldSimApi()->simAeroRemoveRuntimeVehicle(request_json);
-        });
-
-        pimpl_->server.bind("simAeroGetRuntimeVehiclePose", [&](const std::string& request_json) -> std::string {
-            return getWorldSimApi()->simAeroGetRuntimeVehiclePose(request_json);
-        });
-
         pimpl_->server.bind("simGetImages", [&](const std::vector<RpcLibAdaptorsBase::ImageRequest>& request_adapter, const std::string& vehicle_name) -> vector<RpcLibAdaptorsBase::ImageResponse> {
             const auto& response = getWorldSimApi()->getImages(RpcLibAdaptorsBase::ImageRequest::to(request_adapter), vehicle_name);
             return RpcLibAdaptorsBase::ImageResponse::from(response);

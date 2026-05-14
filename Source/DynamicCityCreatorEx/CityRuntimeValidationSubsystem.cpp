@@ -34,12 +34,14 @@ constexpr TCHAR* DemoStreetLightAssetId = TEXT("hud.asset.streetlight");
 constexpr TCHAR* DemoVehicleAssetId = TEXT("hud.asset.vehicle");
 constexpr TCHAR* DemoUavNamePrefix = TEXT("hud.uav.demo");
 constexpr TCHAR* DemoVehicleLogicalAssetId = TEXT("vehicle.emergency.suv.v1");
-constexpr TCHAR* DemoUavRuntimeLogicalAssetId = TEXT("airsim.uav.hud.v1");
+constexpr TCHAR* DemoUavLogicalAssetId = TEXT("uav.inspect.quad.v1");
 constexpr TCHAR* DemoConeLogicalAssetId = TEXT("prop.roadwork.traffic_cone.v1");
 constexpr TCHAR* DemoStreetLightLogicalAssetId = TEXT("prop.traffic_control.signal_light.v1");
 constexpr TCHAR* DemoPedVariantId = TEXT("adult_female_commuter");
 constexpr TCHAR* StepSpawnVehicle = TEXT("Spawn Vehicle Proxy");
 constexpr TCHAR* StepMoveVehicle = TEXT("Move Vehicle Proxy");
+constexpr TCHAR* StepSpawnUav = TEXT("Spawn Scene UAV");
+constexpr TCHAR* StepMoveUav = TEXT("Move Scene UAV");
 constexpr float GroundingToleranceCm = 18.0f;
 constexpr float DemoGroundSearchRadiusCm = 1500.0f;
 constexpr float DemoGroundSearchStepCm = 150.0f;
@@ -56,7 +58,6 @@ const FVector DemoUavMoveLocalOffsetCm(80.0f, -260.0f, 0.0f);
 constexpr float DemoPedYawOffsetDeg = 180.0f;
 constexpr float DemoVehicleYawOffsetDeg = 0.0f;
 constexpr float DemoUavYawOffsetDeg = 30.0f;
-constexpr float DemoUavMoveVelocityMps = 5.0f;
 
 FVector ApplyRoadLocalOffset(const FTransform& RoadAnchorWorld, const FVector& LocalOffsetCm)
 {
@@ -217,7 +218,6 @@ void UCityRuntimeValidationSubsystem::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	EnsurePanel();
 	ExecuteScheduledActions();
-	PollActiveHudUavMove();
 	UpdateTrackedObjects();
 }
 
@@ -324,9 +324,9 @@ void UCityRuntimeValidationSubsystem::ResetStepResults()
 		TEXT("Spawn Cone"),
 		TEXT("Spawn StreetLight Placeholder"),
 		StepSpawnVehicle,
-		TEXT("Spawn Runtime UAV"),
+		StepSpawnUav,
 		StepMoveVehicle,
-		TEXT("Move UAV"),
+		StepMoveUav,
 		TEXT("Poll Feedback"),
 		TEXT("Recheck Grounding")};
 	for (const FString& StepName : StepNames)
@@ -362,76 +362,6 @@ void UCityRuntimeValidationSubsystem::ExecuteScheduledActions()
 				Action();
 			}
 		}
-	}
-}
-
-void UCityRuntimeValidationSubsystem::PollActiveHudUavMove()
-{
-	bool bMoveStepRunning = false;
-	for (const FCityValidationStepResult& StepResult : StepResults)
-	{
-		if (StepResult.Name == TEXT("Move UAV") && StepResult.State == ECityValidationStepState::Running)
-		{
-			bMoveStepRunning = true;
-			break;
-		}
-	}
-
-	if (!bMoveStepRunning || ActiveHudUavName.IsEmpty())
-	{
-		return;
-	}
-
-	UAeroRuntimeOrchestrationSubsystem* RuntimeSubsystem = GetWorld() != nullptr ? GetWorld()->GetSubsystem<UAeroRuntimeOrchestrationSubsystem>() : nullptr;
-	if (RuntimeSubsystem == nullptr)
-	{
-		LastErrorMessage = TEXT("AeroRuntimeOrchestrationSubsystem unavailable.");
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Failed, LastErrorMessage);
-		return;
-	}
-
-	FAeroRuntimeMoveStatus MoveStatus;
-	FString Error;
-	if (!RuntimeSubsystem->GetMultirotorMoveStatus(ActiveHudUavName, MoveStatus, Error))
-	{
-		LastErrorMessage = Error;
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Failed, LastErrorMessage);
-		return;
-	}
-
-	switch (MoveStatus.State)
-	{
-	case EAeroRuntimeMoveState::Running:
-	case EAeroRuntimeMoveState::Idle:
-		return;
-	case EAeroRuntimeMoveState::Succeeded:
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Passed, MoveStatus.Message.IsEmpty() ? TEXT("AirSim UAV move completed.") : MoveStatus.Message);
-		if (!bDemoRunning && OverallState != ECityValidationStepState::Failed)
-		{
-			bool bHasRunningStep = false;
-			for (const FCityValidationStepResult& StepResult : StepResults)
-			{
-				if (StepResult.State == ECityValidationStepState::Running)
-				{
-					bHasRunningStep = true;
-					break;
-				}
-			}
-			if (!bHasRunningStep)
-			{
-				SetOverallState(ECityValidationStepState::Passed, TEXT("Full demo finished."));
-			}
-		}
-		return;
-	case EAeroRuntimeMoveState::Cancelled:
-		LastErrorMessage = MoveStatus.Message.IsEmpty() ? TEXT("AirSim UAV move was cancelled.") : MoveStatus.Message;
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Failed, LastErrorMessage);
-		return;
-	case EAeroRuntimeMoveState::Failed:
-	default:
-		LastErrorMessage = MoveStatus.Message.IsEmpty() ? TEXT("AirSim UAV move failed.") : MoveStatus.Message;
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Failed, LastErrorMessage);
-		return;
 	}
 }
 
@@ -510,7 +440,7 @@ FString UCityRuntimeValidationSubsystem::GetStatusSummaryText() const
 
 FString UCityRuntimeValidationSubsystem::GetCapabilitiesText() const
 {
-	return TEXT("Ped Variants: adult_male_commuter, adult_female_commuter, child_crossing, elder_observer\nModes: idle, stop, observe, start_cross, cross\nMontages: observe, start_cross, stop");
+	return TEXT("Ped Variants: adult_male_commuter, adult_female_commuter, child_crossing, elder_observer\nUAVs: scene-sync kinematic assets\nModes: idle, stop, observe, start_cross, cross\nMontages: observe, start_cross, stop");
 }
 
 FString UCityRuntimeValidationSubsystem::GetStepResultsText() const
@@ -533,7 +463,6 @@ FString UCityRuntimeValidationSubsystem::GetTrackedCountsText() const
 	int32 PedCount = 0;
 	int32 CrowdCount = 0;
 	int32 AssetCount = 0;
-	int32 RuntimeVehicleCount = 0;
 	int32 CollisionCount = 0;
 
 	for (const FCityTrackedRuntimeObject& TrackedObject : TrackedObjects)
@@ -549,9 +478,6 @@ FString UCityRuntimeValidationSubsystem::GetTrackedCountsText() const
 		case ECityTrackedObjectKind::Asset:
 			++AssetCount;
 			break;
-		case ECityTrackedObjectKind::RuntimeVehicle:
-			++RuntimeVehicleCount;
-			break;
 		}
 	}
 
@@ -563,7 +489,7 @@ FString UCityRuntimeValidationSubsystem::GetTrackedCountsText() const
 		}
 	}
 
-	return FString::Printf(TEXT("ped=%d | crowd=%d | assets=%d | runtime=%d | collisions=%d"), PedCount, CrowdCount, AssetCount, RuntimeVehicleCount, CollisionCount);
+	return FString::Printf(TEXT("ped=%d | crowd=%d | assets=%d | collisions=%d"), PedCount, CrowdCount, AssetCount, CollisionCount);
 }
 
 FString UCityRuntimeValidationSubsystem::GetFeedbackText() const
@@ -1404,12 +1330,6 @@ AActor* UCityRuntimeValidationSubsystem::ResolveAssetActor(const FString& AssetI
 	return Instance != nullptr && Instance->Actor.IsValid() ? Instance->Actor.Get() : nullptr;
 }
 
-AActor* UCityRuntimeValidationSubsystem::ResolveRuntimeVehicleActor(const FString& VehicleName) const
-{
-	UAeroRuntimeOrchestrationSubsystem* RuntimeSubsystem = GetWorld() != nullptr ? GetWorld()->GetSubsystem<UAeroRuntimeOrchestrationSubsystem>() : nullptr;
-	return RuntimeSubsystem != nullptr ? RuntimeSubsystem->ResolveSpawnedPawnByVehicleName(VehicleName) : nullptr;
-}
-
 void UCityRuntimeValidationSubsystem::TrackPedestrian(const FString& PedId, ECityTrackedObjectKind Kind, const FString& GroupId)
 {
 	for (FCityTrackedRuntimeObject& TrackedObject : TrackedObjects)
@@ -1456,28 +1376,6 @@ void UCityRuntimeValidationSubsystem::TrackAsset(const FString& AssetId, const F
 	TrackedObject.Actor = ResolveAssetActor(AssetId);
 }
 
-void UCityRuntimeValidationSubsystem::TrackRuntimeVehicle(const FString& VehicleName, const FString& LogicalAssetId)
-{
-	for (FCityTrackedRuntimeObject& TrackedObject : TrackedObjects)
-	{
-		if (TrackedObject.Id == VehicleName)
-		{
-			TrackedObject.Kind = ECityTrackedObjectKind::RuntimeVehicle;
-			TrackedObject.LogicalAssetId = LogicalAssetId;
-			TrackedObject.EntityId = VehicleName;
-			TrackedObject.Actor = ResolveRuntimeVehicleActor(VehicleName);
-			return;
-		}
-	}
-
-	FCityTrackedRuntimeObject& TrackedObject = TrackedObjects.AddDefaulted_GetRef();
-	TrackedObject.Id = VehicleName;
-	TrackedObject.Kind = ECityTrackedObjectKind::RuntimeVehicle;
-	TrackedObject.LogicalAssetId = LogicalAssetId;
-	TrackedObject.EntityId = VehicleName;
-	TrackedObject.Actor = ResolveRuntimeVehicleActor(VehicleName);
-}
-
 void UCityRuntimeValidationSubsystem::UntrackGroup(const FString& GroupId)
 {
 	TrackedObjects.RemoveAll([&GroupId](const FCityTrackedRuntimeObject& Item) { return Item.GroupId == GroupId; });
@@ -1505,9 +1403,6 @@ void UCityRuntimeValidationSubsystem::UpdateTrackedObjectActor(FCityTrackedRunti
 	case ECityTrackedObjectKind::Asset:
 		TrackedObject.Actor = ResolveAssetActor(TrackedObject.Id);
 		break;
-	case ECityTrackedObjectKind::RuntimeVehicle:
-		TrackedObject.Actor = ResolveRuntimeVehicleActor(TrackedObject.Id);
-		break;
 	default:
 		TrackedObject.Actor = ResolvePedestrianActor(TrackedObject.Id);
 		break;
@@ -1523,10 +1418,10 @@ void UCityRuntimeValidationSubsystem::UpdateGroundingState(FCityTrackedRuntimeOb
 		return;
 	}
 
-	if (TrackedObject.Kind == ECityTrackedObjectKind::RuntimeVehicle)
+	if (TrackedObject.LogicalAssetId.StartsWith(TEXT("uav.")))
 	{
 		TrackedObject.bGrounded = true;
-		TrackedObject.GroundingMessage = TEXT("airsim-flight-controlled");
+		TrackedObject.GroundingMessage = TEXT("kinematic-airborne-scene-asset");
 		return;
 	}
 
@@ -1589,31 +1484,6 @@ FString UCityRuntimeValidationSubsystem::BuildFeedbackSummary(const FAeroFeedbac
 		return FString::Printf(TEXT("%s | %s -> %s | speed=%.2f m/s"), *Event.Type, *SourceId, *OtherId, Event.Collision.RelativeSpeedMps);
 	}
 	return FString::Printf(TEXT("%s | %s -> %s"), *Event.Type, *SourceId, *OtherId);
-}
-
-bool UCityRuntimeValidationSubsystem::BindHudRuntimeVehicle(
-	AActor* Actor,
-	const FString& EntityId,
-	const FString& LogicalAssetId,
-	const TArray<FString>& Tags,
-	const FString& LabelClass)
-{
-	if (!IsValid(Actor))
-	{
-		LastErrorMessage = FString::Printf(TEXT("Cannot bind HUD runtime vehicle '%s': actor is invalid."), *EntityId);
-		return false;
-	}
-
-	FAeroSemanticBindingData BindingData;
-	BindingData.EntityId = EntityId.TrimStartAndEnd();
-	BindingData.InstanceId = BindingData.EntityId;
-	BindingData.LogicalAssetId = LogicalAssetId;
-	BindingData.Tags = Tags;
-	BindingData.LabelClass = LabelClass;
-	BindingData.FeedbackMode = EAeroFeedbackMode::Hit;
-	FAeroSemanticRuntimeHelpers::ApplySemanticBinding(Actor, BindingData);
-	FAeroSemanticRuntimeHelpers::EnsureCollisionRelay(Actor);
-	return true;
 }
 
 void UCityRuntimeValidationSubsystem::LoadContext()
@@ -1857,29 +1727,13 @@ void UCityRuntimeValidationSubsystem::SpawnSceneVehicle()
 	SetStepState(StepSpawnVehicle, ECityValidationStepState::Passed, FString::Printf(TEXT("Scene-sync vehicle '%s' spawned."), *ActiveHudVehicleName));
 }
 
-void UCityRuntimeValidationSubsystem::SpawnRuntimeUAV()
+void UCityRuntimeValidationSubsystem::SpawnSceneUAV()
 {
-	UAeroRuntimeOrchestrationSubsystem* RuntimeSubsystem = GetWorld() != nullptr ? GetWorld()->GetSubsystem<UAeroRuntimeOrchestrationSubsystem>() : nullptr;
-	if (RuntimeSubsystem == nullptr)
-	{
-		LastErrorMessage = TEXT("AeroRuntimeOrchestrationSubsystem unavailable.");
-		SetStepState(TEXT("Spawn Runtime UAV"), ECityValidationStepState::Failed, LastErrorMessage);
-		return;
-	}
-
-	FAeroRuntimeAirSimCapabilities Capabilities;
-	RuntimeSubsystem->GetCurrentAirSimCapabilities(Capabilities);
-	if (!Capabilities.bSupportsMultirotors)
-	{
-		SetStepUnavailable(TEXT("Spawn Runtime UAV"), FString::Printf(TEXT("Unavailable in SimMode '%s'."), *Capabilities.SimModeName));
-		return;
-	}
-
 	FTransform RoadAnchorWorld;
 	FSumoNearestLaneSample RoadSample;
 	if (!ResolveDemoRoadAnchor(RoadAnchorWorld, &RoadSample))
 	{
-		SetStepState(TEXT("Spawn Runtime UAV"), ECityValidationStepState::Failed, LastErrorMessage);
+		SetStepState(StepSpawnUav, ECityValidationStepState::Failed, LastErrorMessage);
 		return;
 	}
 
@@ -1889,42 +1743,28 @@ void UCityRuntimeValidationSubsystem::SpawnRuntimeUAV()
 	UE_LOG(
 		LogTemp,
 		Log,
-		TEXT("CityRuntimeValidation SpawnRuntimeUAV road anchored: lane='%s' spawn='%s' yaw=%.2f."),
+		TEXT("CityRuntimeValidation SpawnSceneUAV road anchored: lane='%s' spawn='%s' yaw=%.2f."),
 		*RoadSample.LaneId,
 		*UavSpawnWorldCm.ToString(),
 		UavSpawnRotation.Yaw);
 
-	SetStepState(TEXT("Spawn Runtime UAV"), ECityValidationStepState::Running, TEXT("Spawning AirSim runtime UAV."));
-	FString Error;
+	SetStepState(StepSpawnUav, ECityValidationStepState::Running, TEXT("Spawning scene-sync UAV asset."));
 	if (!ActiveHudUavName.IsEmpty())
 	{
-		RuntimeSubsystem->RemoveRuntimeVehicle(ActiveHudUavName, Error);
+		RemoveAssetInternal(ActiveHudUavName);
 		TrackedObjects.RemoveAll([this](const FCityTrackedRuntimeObject& Item) { return Item.Id == ActiveHudUavName; });
 		ActiveHudUavName.Reset();
 	}
 
-	if (!RuntimeSubsystem->CreateRuntimeMultirotor(UavName, UavSpawnWorldCm, UavSpawnRotation, Error))
+	if (!SpawnAssetInternal(UavName, DemoUavLogicalAssetId, UavSpawnWorldCm, UavSpawnRotation.Yaw, false))
 	{
-		LastErrorMessage = Error;
-		SetStepState(TEXT("Spawn Runtime UAV"), ECityValidationStepState::Failed, LastErrorMessage);
-		return;
-	}
-
-	AActor* UavActor = RuntimeSubsystem->ResolveSpawnedPawnByVehicleName(UavName);
-	if (!BindHudRuntimeVehicle(
-			UavActor,
-			UavName,
-			DemoUavRuntimeLogicalAssetId,
-			{TEXT("uav"), TEXT("airsim"), TEXT("hud")},
-			TEXT("uav")))
-	{
-		SetStepState(TEXT("Spawn Runtime UAV"), ECityValidationStepState::Failed, LastErrorMessage);
+		SetStepState(StepSpawnUav, ECityValidationStepState::Failed, LastErrorMessage);
 		return;
 	}
 
 	ActiveHudUavName = UavName;
-	TrackRuntimeVehicle(UavName, DemoUavRuntimeLogicalAssetId);
-	SetStepState(TEXT("Spawn Runtime UAV"), ECityValidationStepState::Passed, FString::Printf(TEXT("AirSim UAV '%s' spawned."), *UavName));
+	TrackAsset(UavName, DemoUavLogicalAssetId);
+	SetStepState(StepSpawnUav, ECityValidationStepState::Passed, FString::Printf(TEXT("Scene-sync UAV '%s' spawned."), *UavName));
 }
 
 void UCityRuntimeValidationSubsystem::MoveSceneVehicle()
@@ -1965,38 +1805,20 @@ void UCityRuntimeValidationSubsystem::MoveSceneVehicle()
 	}
 }
 
-void UCityRuntimeValidationSubsystem::MoveRuntimeUAV()
+void UCityRuntimeValidationSubsystem::MoveSceneUAV()
 {
-	UAeroRuntimeOrchestrationSubsystem* RuntimeSubsystem = GetWorld() != nullptr ? GetWorld()->GetSubsystem<UAeroRuntimeOrchestrationSubsystem>() : nullptr;
-	if (RuntimeSubsystem == nullptr)
-	{
-		LastErrorMessage = TEXT("AeroRuntimeOrchestrationSubsystem unavailable.");
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Failed, LastErrorMessage);
-		return;
-	}
-
-	FAeroRuntimeAirSimCapabilities Capabilities;
-	RuntimeSubsystem->GetCurrentAirSimCapabilities(Capabilities);
-	if (!Capabilities.bSupportsMultirotors)
-	{
-		SetStepUnavailable(TEXT("Move UAV"), FString::Printf(TEXT("Unavailable in SimMode '%s'."), *Capabilities.SimModeName));
-		return;
-	}
-
 	if (ActiveHudUavName.IsEmpty())
 	{
-		LastErrorMessage = TEXT("No active HUD AirSim UAV is available.");
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Failed, LastErrorMessage);
+		LastErrorMessage = TEXT("No active HUD scene-sync UAV is available.");
+		SetStepState(StepMoveUav, ECityValidationStepState::Failed, LastErrorMessage);
 		return;
 	}
 
-	FVector CurrentUavWorldCm = FVector::ZeroVector;
-	FRotator CurrentUavRotation = FRotator::ZeroRotator;
-	FString Error;
-	if (!RuntimeSubsystem->GetVehiclePose(ActiveHudUavName, CurrentUavWorldCm, CurrentUavRotation, Error))
+	AActor* UavActor = ResolveAssetActor(ActiveHudUavName);
+	if (!IsValid(UavActor))
 	{
-		LastErrorMessage = Error;
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Failed, LastErrorMessage);
+		LastErrorMessage = FString::Printf(TEXT("No scene-sync UAV actor is available for '%s'."), *ActiveHudUavName);
+		SetStepState(StepMoveUav, ECityValidationStepState::Failed, LastErrorMessage);
 		return;
 	}
 
@@ -2004,29 +1826,29 @@ void UCityRuntimeValidationSubsystem::MoveRuntimeUAV()
 	FSumoNearestLaneSample RoadSample;
 	if (!ResolveDemoRoadAnchor(RoadAnchorWorld, &RoadSample))
 	{
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Failed, LastErrorMessage);
+		SetStepState(StepMoveUav, ECityValidationStepState::Failed, LastErrorMessage);
 		return;
 	}
 
 	FVector UavTargetWorldCm = ApplyRoadLocalOffset(RoadAnchorWorld, DemoUavMoveLocalOffsetCm);
-	UavTargetWorldCm.Z = CurrentUavWorldCm.Z;
+	UavTargetWorldCm.Z = UavActor->GetActorLocation().Z;
+	const float UavYawDeg = ResolveRoadRelativeYawDeg(RoadAnchorWorld, DemoUavYawOffsetDeg);
 	UE_LOG(
 		LogTemp,
 		Log,
-		TEXT("CityRuntimeValidation MoveRuntimeUAV road anchored: lane='%s' target='%s' preserved_z=%.2f."),
+		TEXT("CityRuntimeValidation MoveSceneUAV road anchored: lane='%s' target='%s' preserved_z=%.2f."),
 		*RoadSample.LaneId,
 		*UavTargetWorldCm.ToString(),
-		CurrentUavWorldCm.Z);
+		UavTargetWorldCm.Z);
 
-	SetStepState(TEXT("Move UAV"), ECityValidationStepState::Running, TEXT("Starting async AirSim UAV move."));
-	if (RuntimeSubsystem->MoveMultirotorToPosition(ActiveHudUavName, UavTargetWorldCm, DemoUavMoveVelocityMps, Error))
+	SetStepState(StepMoveUav, ECityValidationStepState::Running, TEXT("Moving scene-sync UAV asset."));
+	if (MoveAssetInternal(ActiveHudUavName, UavTargetWorldCm, UavYawDeg, false))
 	{
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Running, TEXT("AirSim UAV move is running asynchronously."));
+		SetStepState(StepMoveUav, ECityValidationStepState::Passed, TEXT("Scene-sync UAV moved."));
 	}
 	else
 	{
-		LastErrorMessage = Error;
-		SetStepState(TEXT("Move UAV"), ECityValidationStepState::Failed, LastErrorMessage);
+		SetStepState(StepMoveUav, ECityValidationStepState::Failed, LastErrorMessage);
 	}
 }
 
@@ -2040,13 +1862,9 @@ void UCityRuntimeValidationSubsystem::RemoveAll()
 	{
 		RemoveSceneEntityInternal(ActiveHudVehicleName);
 	}
-	if (UAeroRuntimeOrchestrationSubsystem* RuntimeSubsystem = GetWorld() != nullptr ? GetWorld()->GetSubsystem<UAeroRuntimeOrchestrationSubsystem>() : nullptr)
+	if (!ActiveHudUavName.IsEmpty())
 	{
-		FString Error;
-		if (!ActiveHudUavName.IsEmpty())
-		{
-			RuntimeSubsystem->RemoveRuntimeVehicle(ActiveHudUavName, Error);
-		}
+		RemoveAssetInternal(ActiveHudUavName);
 	}
 	TrackedObjects.Reset();
 	RecentFeedbackEvents.Reset();
@@ -2059,18 +1877,6 @@ void UCityRuntimeValidationSubsystem::RunFullDemo()
 	ClearDemo();
 	SetOverallState(ECityValidationStepState::Running, TEXT("Running full demo."));
 	bDemoRunning = true;
-
-	FAeroRuntimeAirSimCapabilities Capabilities;
-	if (UAeroRuntimeOrchestrationSubsystem* RuntimeSubsystem = GetWorld() != nullptr ? GetWorld()->GetSubsystem<UAeroRuntimeOrchestrationSubsystem>() : nullptr)
-	{
-		RuntimeSubsystem->GetCurrentAirSimCapabilities(Capabilities);
-	}
-
-	if (!Capabilities.bSupportsMultirotors)
-	{
-		SetStepUnavailable(TEXT("Spawn Runtime UAV"), FString::Printf(TEXT("Unavailable in SimMode '%s'."), *Capabilities.SimModeName));
-		SetStepUnavailable(TEXT("Move UAV"), FString::Printf(TEXT("Unavailable in SimMode '%s'."), *Capabilities.SimModeName));
-	}
 
 	ScheduleAction(0.0, [this]() { LoadContext(); });
 	ScheduleAction(0.15, [this]() { SpawnPed(); });
@@ -2091,12 +1897,9 @@ void UCityRuntimeValidationSubsystem::RunFullDemo()
 	ScheduleAction(2.50, [this]() { SpawnCone(); });
 	ScheduleAction(2.65, [this]() { SpawnStreetLightPlaceholder(); });
 	ScheduleAction(2.80, [this]() { SpawnSceneVehicle(); });
+	ScheduleAction(2.95, [this]() { SpawnSceneUAV(); });
 	ScheduleAction(3.20, [this]() { MoveSceneVehicle(); });
-	if (Capabilities.bSupportsMultirotors)
-	{
-		ScheduleAction(2.95, [this]() { SpawnRuntimeUAV(); });
-		ScheduleAction(3.35, [this]() { MoveRuntimeUAV(); });
-	}
+	ScheduleAction(3.35, [this]() { MoveSceneUAV(); });
 	ScheduleAction(4.30, [this]() { PollFeedbackNow(); });
 	ScheduleAction(4.45, [this]() {
 		RecheckGrounding();

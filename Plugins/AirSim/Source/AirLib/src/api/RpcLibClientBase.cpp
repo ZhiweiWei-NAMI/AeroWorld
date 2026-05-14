@@ -859,31 +859,6 @@ __pragma(warning(disable : 4239))
             return pimpl_->client.call("simAeroApplyWeather", request_json).as<std::string>();
         }
 
-        std::string RpcLibClientBase::simAeroCreateRuntimeMultirotor(const std::string& request_json)
-        {
-            return pimpl_->client.call("simAeroCreateRuntimeMultirotor", request_json).as<std::string>();
-        }
-
-        std::string RpcLibClientBase::simAeroMoveRuntimeMultirotor(const std::string& request_json)
-        {
-            return pimpl_->client.call("simAeroMoveRuntimeMultirotor", request_json).as<std::string>();
-        }
-
-        std::string RpcLibClientBase::simAeroGetRuntimeMultirotorStatus(const std::string& request_json)
-        {
-            return pimpl_->client.call("simAeroGetRuntimeMultirotorStatus", request_json).as<std::string>();
-        }
-
-        std::string RpcLibClientBase::simAeroRemoveRuntimeVehicle(const std::string& request_json)
-        {
-            return pimpl_->client.call("simAeroRemoveRuntimeVehicle", request_json).as<std::string>();
-        }
-
-        std::string RpcLibClientBase::simAeroGetRuntimeVehiclePose(const std::string& request_json)
-        {
-            return pimpl_->client.call("simAeroGetRuntimeVehiclePose", request_json).as<std::string>();
-        }
-
         //return value of last task. It should be true if task completed without
         //cancellation or timeout
         RpcLibClientBase* RpcLibClientBase::waitOnLastTask(bool* task_result, float timeout_sec)

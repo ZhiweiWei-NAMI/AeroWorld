@@ -12,10 +12,8 @@
     "segmentation_backend": "ue_custom_stencil",
     "segmentation_kind": "ue_custom_stencil_class_id_u8",
     "uav_modalities": ["rgb", "depth", "seg"],
-    "uav_policy": "one_uav_per_episode",
-    "uav_control_backend": "pose_sync",
-    "runtime_uav_editor_hook_fallback_enabled": false,
-    "non_capture_runtime_uav_rpc_failure_nonfatal": true,
+    "uav_policy": "all_uavs_by_separate_runs",
+    "uav_scene_control_backend": "truth_frame_scene_sync",
     "airsim_capture_vehicle": "CaptureUAV_0",
     "host_run_timeout_s": 900.0,
     "max_private_memory_gb": 20.0,
@@ -36,8 +34,7 @@
     "single_modality_per_uav_host_run": true,
     "max_replaced_scene_uavs_per_host_run": 1,
     "capture_vehicle_is_single_airsim_platform": true,
-    "forbid_formal_runtime_uav_editor_hook_fallback": true,
-    "non_capture_runtime_uav_rpc_failure_nonfatal": true,
+    "non_capture_uav_scene_control": "truth_frame_scene_sync",
     "formal_segmentation_backend": "ue_custom_stencil",
     "forbid_airsim_native_segmentation_as_formal_output": true,
     "require_palette_preview": true,
@@ -60,15 +57,14 @@
     "one_uav_per_episode",
     "all_uavs_by_separate_runs"
   ],
-  "allowed_uav_control_backends": [
-    "pose_sync",
-    "airsim_move"
+  "allowed_uav_scene_control_backends": [
+    "truth_frame_scene_sync"
   ],
   "failure_statuses": [
     "ok",
     "failed",
     "fatal_runtime_unavailable",
-    "skipped_no_runtime_uav",
+    "skipped_no_active_uav",
     "skipped_by_one_uav_policy",
     "skipped_by_explicit_capture_entity"
   ]

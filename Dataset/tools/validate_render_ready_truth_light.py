@@ -78,7 +78,8 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
     scenario_plan_path = episode_dir / "scenario_plan.json"
     roster_path = episode_dir / "global_entity_roster.json"
     truth_path = episode_dir / "truth_frames.jsonl"
-    for path in (manifest_path, scenario_plan_path, roster_path, truth_path):
+    trajectory_path = episode_dir / "trajectories.jsonl"
+    for path in (manifest_path, scenario_plan_path, roster_path, truth_path, trajectory_path):
         if not path.exists():
             errors.append(f"missing artifact: {path.name}")
     if errors:
@@ -90,6 +91,7 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
     episode_id = str(manifest.get("episode_id") or episode_dir.name)
     duration_ticks = int(manifest.get("duration_ticks") or 0)
     expected_frames = duration_ticks + 1 if duration_ticks >= 0 else 0
+    manifest_record_counts = dict(manifest.get("record_counts") or {})
 
     manifest_sumo = dict(manifest.get("sumo_traffic") or {})
     manifest_uav = dict(manifest.get("uav_global_flow") or {})
@@ -129,10 +131,14 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
         errors.append(f"global UAV roster count {global_uav_roster_count} < {min_active_uavs}")
 
     if truth_check_mode == "manifest":
-        record_counts = dict(manifest.get("record_counts") or {})
-        truth_record_count = int(record_counts.get("truth_frames") or 0)
+        truth_record_count = int(manifest_record_counts.get("truth_frames") or 0)
+        trajectory_record_count = int(manifest_record_counts.get("trajectories") or 0)
         if expected_frames and truth_record_count != expected_frames:
             errors.append(f"manifest record_counts.truth_frames {truth_record_count} != expected {expected_frames}")
+        if trajectory_record_count < expected_frames * min_active_uavs:
+            errors.append(
+                f"manifest record_counts.trajectories {trajectory_record_count} is too small for truth-frame-derived global UAV flow"
+            )
         first_frame: dict[str, Any] | None = None
         with truth_path.open("r", encoding="utf-8-sig") as handle:
             for line_number, line in enumerate(handle, start=1):
@@ -196,6 +202,24 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
         missing_frame_categories = sorted(required_categories - frame_categories)
         if missing_frame_categories:
             errors.append(f"first frame missing categories: {missing_frame_categories}")
+        first_trajectory_row: dict[str, Any] | None = None
+        with trajectory_path.open("r", encoding="utf-8-sig") as handle:
+            for line_number, line in enumerate(handle, start=1):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    first_trajectory_row = json.loads(stripped)
+                except json.JSONDecodeError as exc:
+                    errors.append(f"trajectories.jsonl:{line_number}: first row invalid JSON: {exc}")
+                break
+        if first_trajectory_row is None:
+            errors.append("trajectories.jsonl has no rows")
+        else:
+            if "frame_id" not in first_trajectory_row or "sim_time_s" not in first_trajectory_row:
+                errors.append("trajectories.jsonl is not truth-frame-derived; missing frame_id/sim_time_s")
+            if "pos_enu" not in first_trajectory_row or "vel_mps" not in first_trajectory_row:
+                errors.append("trajectories.jsonl first row missing pos_enu/vel_mps")
         return episode_result(
             episode_dir,
             episode_id=episode_id,

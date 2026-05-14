@@ -148,11 +148,6 @@ namespace airlib
         std::string simAeroProjectGround(const std::string& request_json);
         std::string simAeroQueryPedAnchor(const std::string& request_json);
         std::string simAeroApplyWeather(const std::string& request_json);
-        std::string simAeroCreateRuntimeMultirotor(const std::string& request_json);
-        std::string simAeroMoveRuntimeMultirotor(const std::string& request_json);
-        std::string simAeroGetRuntimeMultirotorStatus(const std::string& request_json);
-        std::string simAeroRemoveRuntimeVehicle(const std::string& request_json);
-        std::string simAeroGetRuntimeVehiclePose(const std::string& request_json);
 
         // sensor APIs
         msr::airlib::LidarData getLidarData(const std::string& lidar_name = "", const std::string& vehicle_name = "") const;

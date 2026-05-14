@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import bisect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import math
 from pathlib import Path
@@ -47,6 +47,13 @@ def _position3(value: Any) -> tuple[float, float, float] | None:
         return float(value[0]), float(value[1]), z
     except (TypeError, ValueError):
         return None
+
+
+def _position2(value: Any) -> tuple[float, float] | None:
+    position = _position3(value)
+    if position is None:
+        return None
+    return position[0], position[1]
 
 
 def _clean_entity_token(value: str) -> str:
@@ -132,6 +139,13 @@ class UavSelection:
     active_count_min: int
     active_count_max: int
     active_count_mean: float
+    min_distance_m_by_uav_id: dict[str, float] = field(default_factory=dict)
+    frames_seen_by_uav_id: dict[str, int] = field(default_factory=dict)
+    motion_span_m_by_uav_id: dict[str, float] = field(default_factory=dict)
+    max_speed_mps_by_uav_id: dict[str, float] = field(default_factory=dict)
+    candidate_count: int = 0
+    observable_candidate_count: int = 0
+    visibility_padding_m: float = 0.0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -143,6 +157,19 @@ class UavSelection:
             "active_count_min": int(self.active_count_min),
             "active_count_max": int(self.active_count_max),
             "active_count_mean": round(float(self.active_count_mean), 6),
+            "candidate_count": int(self.candidate_count),
+            "observable_candidate_count": int(self.observable_candidate_count),
+            "visibility_padding_m": round(float(self.visibility_padding_m), 6),
+            "min_distance_m_by_uav_id": {
+                key: round(float(value), 6) for key, value in sorted(self.min_distance_m_by_uav_id.items())
+            },
+            "frames_seen_by_uav_id": dict(sorted(self.frames_seen_by_uav_id.items())),
+            "motion_span_m_by_uav_id": {
+                key: round(float(value), 6) for key, value in sorted(self.motion_span_m_by_uav_id.items())
+            },
+            "max_speed_mps_by_uav_id": {
+                key: round(float(value), 6) for key, value in sorted(self.max_speed_mps_by_uav_id.items())
+            },
         }
 
 
@@ -255,6 +282,74 @@ class UavGlobalFlowDataset:
             active_count_min=min(active_counts) if active_counts else 0,
             active_count_max=max(active_counts) if active_counts else 0,
             active_count_mean=(sum(active_counts) / len(active_counts)) if active_counts else 0.0,
+            candidate_count=len(ordered),
+            observable_candidate_count=len(ordered),
+        )
+
+    def select_visible_uavs(self, *, segment: UavSegment, visibility: Any) -> UavSelection:
+        min_distance_by_id: dict[str, float] = {}
+        frames_seen_by_id: dict[str, int] = {}
+        bounds_by_id: dict[str, list[float]] = {}
+        max_speed_by_id: dict[str, float] = {}
+        task_ids: dict[str, str] = {}
+        mission_type_by_uav_id: dict[str, str] = {}
+        observable_ids: set[str] = set()
+        observable_ids_by_frame: list[set[str]] = []
+        padding_m = float(getattr(visibility, "padding_m", 0.0) or 0.0)
+        for frame in self.frames:
+            time_s = float(frame.get("sim_time_s") or 0.0)
+            if time_s < segment.segment_start_s or time_s > segment.segment_end_s:
+                continue
+            frame_observable_ids: set[str] = set()
+            for uav in frame.get("uavs") or []:
+                uav_id = str(uav.get("uav_id") or "")
+                if not uav_id:
+                    continue
+                point = _position2(uav.get("position_enu_m"))
+                if point is None:
+                    continue
+                distance_m = float(visibility.observation_distance_m(point))
+                min_distance_by_id[uav_id] = min(distance_m, min_distance_by_id.get(uav_id, float("inf")))
+                frames_seen_by_id[uav_id] = frames_seen_by_id.get(uav_id, 0) + 1
+                if uav_id not in bounds_by_id:
+                    bounds_by_id[uav_id] = [point[0], point[0], point[1], point[1]]
+                else:
+                    bounds = bounds_by_id[uav_id]
+                    bounds[0] = min(bounds[0], point[0])
+                    bounds[1] = max(bounds[1], point[0])
+                    bounds[2] = min(bounds[2], point[1])
+                    bounds[3] = max(bounds[3], point[1])
+                max_speed_by_id[uav_id] = max(max_speed_by_id.get(uav_id, 0.0), float(uav.get("speed_mps") or 0.0))
+                task_ids[uav_id] = str(uav.get("task_id") or "")
+                mission_type_by_uav_id[uav_id] = str(uav.get("mission_type") or "")
+                if distance_m <= padding_m:
+                    observable_ids.add(uav_id)
+                    frame_observable_ids.add(uav_id)
+            observable_ids_by_frame.append(frame_observable_ids)
+
+        ordered = tuple(sorted(observable_ids))
+        selected_set = set(ordered)
+        active_counts = [len(frame_ids & selected_set) for frame_ids in observable_ids_by_frame]
+        motion_span_by_id = {
+            uav_id: math.hypot(bounds[1] - bounds[0], bounds[3] - bounds[2])
+            for uav_id, bounds in bounds_by_id.items()
+        }
+        return UavSelection(
+            uav_ids=ordered,
+            entity_ids={uav_id: uav_truth_entity_id(uav_id) for uav_id in ordered},
+            task_ids={uav_id: task_ids.get(uav_id, "") for uav_id in ordered},
+            mission_type_by_uav_id={uav_id: mission_type_by_uav_id.get(uav_id, "") for uav_id in ordered},
+            selected_count=len(ordered),
+            active_count_min=min(active_counts) if active_counts else 0,
+            active_count_max=max(active_counts) if active_counts else 0,
+            active_count_mean=(sum(active_counts) / len(active_counts)) if active_counts else 0.0,
+            min_distance_m_by_uav_id={uav_id: min_distance_by_id.get(uav_id, float("inf")) for uav_id in ordered},
+            frames_seen_by_uav_id={uav_id: frames_seen_by_id.get(uav_id, 0) for uav_id in ordered},
+            motion_span_m_by_uav_id={uav_id: motion_span_by_id.get(uav_id, 0.0) for uav_id in ordered},
+            max_speed_mps_by_uav_id={uav_id: max_speed_by_id.get(uav_id, 0.0) for uav_id in ordered},
+            candidate_count=len(min_distance_by_id),
+            observable_candidate_count=len(observable_ids),
+            visibility_padding_m=padding_m,
         )
 
     def source_summary(self) -> dict[str, Any]:
@@ -351,4 +446,3 @@ def load_uav_global_flow_dataset(output_dir: Path = DEFAULT_UAV_OUTPUT_DIR) -> U
         dataset = UavGlobalFlowDataset(resolved)
         _DATASET_CACHE[resolved] = dataset
     return dataset
-
