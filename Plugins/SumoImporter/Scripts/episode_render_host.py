@@ -2234,12 +2234,8 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             raise RuntimeError("Host is not connected.")
         if self.airsim_capture_vehicle_ready:
             return
-        try:
-            settings_text = self._retry("getSettingsString", self.client.get_settings_string)
-            settings = json.loads(settings_text)
-        except Exception as exc:
-            print(f"[EpisodeHost] AirSim settings inspection warning: {exc}")
-            settings = {}
+        settings_text = self._retry("getSettingsString", self.client.get_settings_string)
+        settings = json.loads(settings_text)
         view_mode = str(settings.get("ViewMode") or "").strip()
         if view_mode.lower() == "nodisplay":
             raise RuntimeError(
@@ -2252,16 +2248,12 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         park_position, park_rotation = self._airsim_capture_park_pose()
         vehicles = self._guard_airsim_native_capture_rpc()
         if self.airsim_capture_vehicle not in vehicles:
-            added = self._retry(
-                "simAddVehicle",
-                self.client.add_vehicle,
-                self.airsim_capture_vehicle,
-                vehicle_type="SimpleFlight",
-                position_enu_m=park_position,
-                rotation_deg=park_rotation,
+            raise RuntimeError(
+                f"AirSim capture vehicle '{self.airsim_capture_vehicle}' is not registered in the current PIE "
+                "vehicle list. This capture vehicle must be created from Huawei Share AirSim settings.json when "
+                "entering PIE so its configured bottom_center camera exists; runtime simAddVehicle is not allowed "
+                "for the formal UAV capture path."
             )
-            if not added:
-                raise RuntimeError(f"simAddVehicle failed for capture vehicle '{self.airsim_capture_vehicle}'.")
         self._retry("enableApiControl", self.client.enable_api_control, True, self.airsim_capture_vehicle)
         self._retry("armDisarm", self.client.arm_disarm, True, self.airsim_capture_vehicle)
         self._measure_airsim_capture_ned_origin_world_cm()
@@ -3372,14 +3364,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                 self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id
             ) else entity_id
             if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
-                target_enu_m = self._entity_position_enu(entity)
-                target_enu_m = self._ground_relative_position(
-                    target_enu_m,
-                    enabled=bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
-                    cache_namespace=f"capture_uav:{self.airsim_capture_vehicle}",
-                    use_cache=True,
-                )
-                rotation_deg = self._entity_rotation_deg(entity)
+                target_enu_m, rotation_deg = self._uav_pose_for_capture(entity, {})
                 wait_status = self._truth_frame_uav_status(
                     entity_id=entity_id,
                     vehicle_name=self.airsim_capture_vehicle,
@@ -3404,14 +3389,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                 self.uav_last_command_target_by_entity[entity_id] = list(target_enu_m)
                 continue
 
-            target_enu_m = self._entity_position_enu(entity)
-            target_enu_m = self._ground_relative_position(
-                target_enu_m,
-                enabled=bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
-                cache_namespace=f"uav:{entity_id}",
-                use_cache=True,
-            )
-            rotation_deg = self._entity_rotation_deg(entity)
+            target_enu_m, rotation_deg = self._uav_pose_for_capture(entity, {})
             wait_status = self._truth_frame_uav_status(
                 entity_id=entity_id,
                 vehicle_name=vehicle_name,
@@ -4658,27 +4636,20 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         entity: dict[str, Any],
         vehicle_status: dict[str, Any],
     ) -> tuple[list[float], dict[str, float]]:
-        try:
-            truth_position, truth_rotation = self._transformed_entity_pose(entity)
-            if len(truth_position) >= 3:
-                return (
-                    [float(truth_position[0]), float(truth_position[1]), float(truth_position[2])],
-                    self._add_rotation_offsets(dict(truth_rotation), None),
-                )
-        except Exception:
-            pass
-
-        pose = dict(vehicle_status.get("pose") or {})
-        status = dict(vehicle_status.get("status") or {})
-        position = pose.get("position_enu_m") or status.get("current_enu_m")
-        if not isinstance(position, Sequence) or isinstance(position, (str, bytes)) or len(position) < 2:
-            position = self._entity_position_enu(entity)
-        rotation = pose.get("rotation_deg")
-        if not isinstance(rotation, dict):
-            rotation = self._entity_rotation_deg(entity)
+        pose = entity.get("truth_pose")
+        if not isinstance(pose, dict):
+            raise RuntimeError(
+                f"UAV capture entity '{entity.get('entity_id', '')}' must provide truth_pose.position_enu_m[3]."
+            )
+        position = pose.get("position_enu_m") or pose.get("position_m")
+        if not isinstance(position, Sequence) or isinstance(position, (str, bytes)) or len(position) < 3:
+            raise RuntimeError(
+                f"UAV capture entity '{entity.get('entity_id', '')}' must provide truth_pose.position_enu_m[3]."
+            )
+        truth_position, truth_rotation = self._transformed_entity_pose(entity)
         return (
-            [float(position[0]), float(position[1]), float(position[2] if len(position) > 2 else 0.0)],
-            self._add_rotation_offsets(dict(rotation), None),
+            [float(truth_position[0]), float(truth_position[1]), float(truth_position[2])],
+            self._add_rotation_offsets(dict(truth_rotation), None),
         )
 
     def _capture_uav_airsim_native_modality(
@@ -4706,12 +4677,6 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             )
         uav_position_enu_m, uav_rotation_deg = self._uav_pose_for_capture(entity, vehicle_status)
         source_uav_position_enu_m = list(uav_position_enu_m)
-        uav_position_enu_m = self._ground_relative_position(
-            uav_position_enu_m,
-            enabled=bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
-            cache_namespace=f"capture_pre:{entity_id}",
-            use_cache=True,
-        )
         fov_degrees = float(preset.get("fov_degrees") or 85.0)
         camera_offset_body_m = [
             float(value)
