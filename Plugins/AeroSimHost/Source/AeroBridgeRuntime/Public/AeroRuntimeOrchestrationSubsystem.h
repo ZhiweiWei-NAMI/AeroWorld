@@ -6,7 +6,6 @@
 #include "AeroRuntimeOrchestrationSubsystem.generated.h"
 
 class AActor;
-class ASimModeBase;
 class UAnimationAsset;
 class UPedestrianWorldSubsystem;
 
@@ -36,6 +35,4 @@ public:
 
 private:
 	UPedestrianWorldSubsystem* ResolvePedestrianSubsystem(FString& OutError) const;
-	ASimModeBase* ResolveSimModeActor() const;
-	bool RegisterActorWithAirSimInstanceSegmentation(AActor* Actor, const FString& Context, int32 ObjectId) const;
 };

@@ -16,7 +16,6 @@
 #include "UObject/SoftObjectPath.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
-#include "SimMode/SimModeBase.h"
 
 namespace
 {
@@ -175,84 +174,6 @@ void ApplyCustomStencilOnlyRenderState(AActor* Actor, const FAeroSemanticBinding
 		PrimitiveComponent->SetRenderCustomDepth(true);
 		PrimitiveComponent->MarkRenderStateDirty();
 	}
-}
-
-int32 AirSimSegmentationObjectIdForLogicalAsset(const FString& LogicalAssetId)
-{
-	if (LogicalAssetId.StartsWith(TEXT("uav.")))
-	{
-		return 2;
-	}
-	if (LogicalAssetId.StartsWith(TEXT("vehicle.")))
-	{
-		return 3;
-	}
-	if (LogicalAssetId.StartsWith(TEXT("pedestrian.")))
-	{
-		return 4;
-	}
-	if (LogicalAssetId.StartsWith(TEXT("prop.roadwork.")))
-	{
-		return 5;
-	}
-	if (LogicalAssetId.StartsWith(TEXT("prop.traffic_control.")))
-	{
-		return 6;
-	}
-	if (LogicalAssetId.StartsWith(TEXT("facility.")))
-	{
-		return 7;
-	}
-	if (LogicalAssetId.StartsWith(TEXT("trigger.")) || LogicalAssetId.Contains(TEXT("hazard")))
-	{
-		return 8;
-	}
-	return 0;
-}
-
-void RegisterActorWithAirSimInstanceSegmentation(AActor* Actor, const FString& Context, const int32 ObjectId)
-{
-	if (!IsValid(Actor))
-	{
-		return;
-	}
-
-	ASimModeBase* SimModeActor = ASimModeBase::getSimMode();
-	if (!IsValid(SimModeActor) || SimModeActor->GetWorld() != Actor->GetWorld())
-	{
-		return;
-	}
-
-	TSet<FString> BeforeNames;
-	for (const std::string& Name : SimModeActor->GetAllInstanceSegmentationMeshIDs())
-	{
-		BeforeNames.Add(UTF8_TO_TCHAR(Name.c_str()));
-	}
-
-	const bool bRegistered = SimModeActor->AddNewActorToInstanceSegmentation(Actor, true);
-	TArray<FString> AddedNames;
-	for (const std::string& Name : SimModeActor->GetAllInstanceSegmentationMeshIDs())
-	{
-		const FString MeshName = UTF8_TO_TCHAR(Name.c_str());
-		if (!BeforeNames.Contains(MeshName))
-		{
-			AddedNames.Add(MeshName);
-			if (ObjectId > 0)
-			{
-				SimModeActor->SetMeshInstanceSegmentationID(TCHAR_TO_UTF8(*MeshName), ObjectId, false, true);
-			}
-		}
-	}
-
-	UE_LOG(
-		LogTemp,
-		Verbose,
-		TEXT("AirSim instance segmentation registration %s: actor='%s' context='%s' object_id=%d added_mesh_count=%d."),
-		bRegistered ? TEXT("succeeded") : TEXT("skipped"),
-		*Actor->GetName(),
-		*Context,
-		ObjectId,
-		AddedNames.Num());
 }
 
 void WriteVectorArrayField(const TSharedPtr<FJsonObject>& Object, const FString& FieldName, const FVector& VectorValue)
@@ -1259,10 +1180,6 @@ bool UAeroAssetPlacementSubsystem::SpawnActorForInstance(FAeroAssetInstanceState
 		Instance.RotationDeg = RotationDeg;
 		FAeroSemanticRuntimeHelpers::ApplySemanticBinding(Instance.Actor.Get(), BindingData);
 		ApplyInstanceVisualState(Instance.Actor.Get(), *TemplateDef, Instance);
-		RegisterActorWithAirSimInstanceSegmentation(
-			Instance.Actor.Get(),
-			Instance.InstanceId,
-			AirSimSegmentationObjectIdForLogicalAsset(Instance.LogicalAssetId));
 		if (TemplateDef->SpawnBackend.Equals(TEXT("trigger_zone"), ESearchCase::IgnoreCase))
 		{
 			FAeroTriggerShapeConfig ShapeConfig;
@@ -1427,10 +1344,6 @@ bool UAeroAssetPlacementSubsystem::SpawnActorForInstance(FAeroAssetInstanceState
 	Instance.PositionEnuM = ConvertWorldCmToEnuMeters(SpawnedActor->GetActorLocation());
 	Instance.LastResolvedWorldLocationCm = SpawnedActor->GetActorLocation();
 	Instance.RotationDeg = RotationDeg;
-	RegisterActorWithAirSimInstanceSegmentation(
-		SpawnedActor,
-		Instance.InstanceId,
-		AirSimSegmentationObjectIdForLogicalAsset(Instance.LogicalAssetId));
 	return true;
 }
 

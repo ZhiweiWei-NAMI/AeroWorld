@@ -1,13 +1,9 @@
 #include "AeroRuntimeOrchestrationSubsystem.h"
 
 #include "Animation/AnimationAsset.h"
-#include "EngineUtils.h"
 #include "PedestrianCharacter.h"
 #include "PedestrianWorldSubsystem.h"
-#include "SimMode/SimModeBase.h"
 #include "UObject/SoftObjectPath.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogAeroRuntimeOrchestration, Log, All);
 
 bool UAeroRuntimeOrchestrationSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
@@ -39,8 +35,6 @@ bool UAeroRuntimeOrchestrationSubsystem::SpawnPedestrian(
 		OutError = FString::Printf(TEXT("Failed to spawn pedestrian '%s'."), *PedId);
 		return false;
 	}
-
-	RegisterActorWithAirSimInstanceSegmentation(PedSubsystem->FindPedestrian(PedId), PedId, 4);
 
 	return true;
 }
@@ -271,10 +265,6 @@ bool UAeroRuntimeOrchestrationSubsystem::SpawnCrowd(
 	}
 
 	OutResult = PedSubsystem->SpawnCrowd(Request);
-	for (const FString& SpawnedId : OutResult.SpawnedIds)
-	{
-		RegisterActorWithAirSimInstanceSegmentation(PedSubsystem->FindPedestrian(SpawnedId), SpawnedId, 4);
-	}
 	return true;
 }
 
@@ -310,10 +300,6 @@ bool UAeroRuntimeOrchestrationSubsystem::RespawnCrowd(
 	}
 
 	OutResult = PedSubsystem->RespawnCrowd(GroupId, NewSeed);
-	for (const FString& SpawnedId : OutResult.SpawnedIds)
-	{
-		RegisterActorWithAirSimInstanceSegmentation(PedSubsystem->FindPedestrian(SpawnedId), SpawnedId, 4);
-	}
 	return true;
 }
 
@@ -334,68 +320,4 @@ UPedestrianWorldSubsystem* UAeroRuntimeOrchestrationSubsystem::ResolvePedestrian
 		OutError = TEXT("PedestrianWorldSubsystem unavailable.");
 	}
 	return PedSubsystem;
-}
-
-ASimModeBase* UAeroRuntimeOrchestrationSubsystem::ResolveSimModeActor() const
-{
-	if (ASimModeBase* SimModeActor = ASimModeBase::getSimMode())
-	{
-		if (SimModeActor->GetWorld() == GetWorld())
-		{
-			return SimModeActor;
-		}
-	}
-
-	for (TActorIterator<ASimModeBase> It(GetWorld()); It; ++It)
-	{
-		return *It;
-	}
-
-	return nullptr;
-}
-
-bool UAeroRuntimeOrchestrationSubsystem::RegisterActorWithAirSimInstanceSegmentation(AActor* Actor, const FString& Context, const int32 ObjectId) const
-{
-	if (!IsValid(Actor))
-	{
-		return false;
-	}
-
-	ASimModeBase* SimModeActor = ResolveSimModeActor();
-	if (!IsValid(SimModeActor))
-	{
-		return false;
-	}
-
-	TSet<FString> BeforeNames;
-	for (const std::string& Name : SimModeActor->GetAllInstanceSegmentationMeshIDs())
-	{
-		BeforeNames.Add(UTF8_TO_TCHAR(Name.c_str()));
-	}
-
-	const bool bRegistered = SimModeActor->AddNewActorToInstanceSegmentation(Actor, true);
-	int32 AddedMeshCount = 0;
-	for (const std::string& Name : SimModeActor->GetAllInstanceSegmentationMeshIDs())
-	{
-		const FString MeshName = UTF8_TO_TCHAR(Name.c_str());
-		if (!BeforeNames.Contains(MeshName))
-		{
-			++AddedMeshCount;
-			if (ObjectId > 0)
-			{
-				SimModeActor->SetMeshInstanceSegmentationID(TCHAR_TO_UTF8(*MeshName), ObjectId, false, true);
-			}
-		}
-	}
-
-	UE_LOG(
-		LogAeroRuntimeOrchestration,
-		Verbose,
-		TEXT("AirSim instance segmentation registration %s: actor='%s' context='%s' object_id=%d added_mesh_count=%d."),
-		bRegistered ? TEXT("succeeded") : TEXT("skipped"),
-		*Actor->GetName(),
-		*Context,
-		ObjectId,
-		AddedMeshCount);
-	return bRegistered;
 }
