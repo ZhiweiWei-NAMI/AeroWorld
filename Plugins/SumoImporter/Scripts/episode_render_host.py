@@ -4732,13 +4732,21 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 **set_camera_pose_kwargs,
             )
         if not uses_ue_custom_stencil:
-            self._retry("simSetCameraFov", self.client.set_camera_fov, self.airsim_capture_vehicle, camera_name, fov_degrees)
             camera_info_before_capture = self._retry(
                 "simGetCameraInfo",
                 self.client.get_camera_info,
                 self.airsim_capture_vehicle,
                 camera_name,
             )
+            observed_fov = float(camera_info_before_capture.get("fov_degrees", 0.0))
+            if not math.isfinite(observed_fov) or abs(observed_fov - fov_degrees) > 0.5:
+                raise RuntimeError(
+                    "AirSim capture camera FOV does not match the formal capture preset. "
+                    f"vehicle={self.airsim_capture_vehicle!r} camera={camera_name!r} "
+                    f"expected_fov_degrees={fov_degrees} observed_fov_degrees={observed_fov}. "
+                    "Fix Huawei Share AirSim settings.json and re-enter PIE; runtime simSetCameraFov is not part of "
+                    "the UAV capture contract."
+                )
             image_type = str(modality.get("image_type") or "Scene")
             airsim_proxy_capture_exclusion = self._apply_airsim_semantic_proxy_capture_exclusion(
                 camera_name=camera_name,
