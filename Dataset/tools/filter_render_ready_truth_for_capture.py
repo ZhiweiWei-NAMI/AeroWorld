@@ -233,6 +233,160 @@ def entity_initial_or_truth_position(entity: dict[str, Any]) -> list[float] | No
         return None
 
 
+def _orientation_xy(a: Sequence[float], b: Sequence[float], c: Sequence[float]) -> float:
+    return (float(b[0]) - float(a[0])) * (float(c[1]) - float(a[1])) - (
+        float(b[1]) - float(a[1])
+    ) * (float(c[0]) - float(a[0]))
+
+
+def _on_segment_xy(a: Sequence[float], b: Sequence[float], c: Sequence[float]) -> bool:
+    return (
+        min(float(a[0]), float(c[0])) - 1e-9 <= float(b[0]) <= max(float(a[0]), float(c[0])) + 1e-9
+        and min(float(a[1]), float(c[1])) - 1e-9 <= float(b[1]) <= max(float(a[1]), float(c[1])) + 1e-9
+    )
+
+
+def segments_intersect_xy(
+    a: Sequence[float],
+    b: Sequence[float],
+    c: Sequence[float],
+    d: Sequence[float],
+) -> bool:
+    o1 = _orientation_xy(a, b, c)
+    o2 = _orientation_xy(a, b, d)
+    o3 = _orientation_xy(c, d, a)
+    o4 = _orientation_xy(c, d, b)
+    if (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0):
+        return True
+    return (
+        abs(o1) <= 1e-9
+        and _on_segment_xy(a, c, b)
+        or abs(o2) <= 1e-9
+        and _on_segment_xy(a, d, b)
+        or abs(o3) <= 1e-9
+        and _on_segment_xy(c, a, d)
+        or abs(o4) <= 1e-9
+        and _on_segment_xy(c, b, d)
+    )
+
+
+def distance_point_to_segment_xy(point: Sequence[float], a: Sequence[float], b: Sequence[float]) -> float:
+    px, py = float(point[0]), float(point[1])
+    ax, ay = float(a[0]), float(a[1])
+    bx, by = float(b[0]), float(b[1])
+    dx = bx - ax
+    dy = by - ay
+    denom = dx * dx + dy * dy
+    if denom <= 1e-12:
+        return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / denom))
+    closest_x = ax + t * dx
+    closest_y = ay + t * dy
+    return ((px - closest_x) ** 2 + (py - closest_y) ** 2) ** 0.5
+
+
+def distance_segment_to_segment_xy(
+    a: Sequence[float],
+    b: Sequence[float],
+    c: Sequence[float],
+    d: Sequence[float],
+) -> float:
+    if segments_intersect_xy(a, b, c, d):
+        return 0.0
+    return min(
+        distance_point_to_segment_xy(a, c, d),
+        distance_point_to_segment_xy(b, c, d),
+        distance_point_to_segment_xy(c, a, b),
+        distance_point_to_segment_xy(d, a, b),
+    )
+
+
+def distance_segment_to_polygon_xy(
+    a: Sequence[float],
+    b: Sequence[float],
+    polygon: Sequence[Sequence[float]],
+) -> float:
+    if not polygon:
+        return float("inf")
+    if len(polygon) == 1:
+        return min(distance_point_to_segment_xy(polygon[0], a, b), distance_point_to_segment_xy(a, polygon[0], polygon[0]))
+    return min(
+        distance_segment_to_segment_xy(a, b, polygon[index], polygon[(index + 1) % len(polygon)])
+        for index in range(len(polygon))
+    )
+
+
+def distance_segment_to_polyline_xy(
+    a: Sequence[float],
+    b: Sequence[float],
+    polyline: Sequence[Sequence[float]],
+) -> float:
+    if len(polyline) < 2:
+        return float("inf")
+    return min(distance_segment_to_segment_xy(a, b, c, d) for c, d in zip(polyline, polyline[1:]))
+
+
+def oriented_box_polygon_xy(
+    a: Sequence[float],
+    b: Sequence[float],
+    half_width_m: float,
+    half_height_m: float,
+) -> list[list[float]]:
+    ax, ay = float(a[0]), float(a[1])
+    bx, by = float(b[0]), float(b[1])
+    dx = bx - ax
+    dy = by - ay
+    length = (dx * dx + dy * dy) ** 0.5
+    if length <= 1e-6:
+        return [
+            [ax - half_width_m, ay - half_height_m],
+            [ax + half_width_m, ay - half_height_m],
+            [ax + half_width_m, ay + half_height_m],
+            [ax - half_width_m, ay + half_height_m],
+        ]
+    ux = dx / length
+    uy = dy / length
+    nx = -uy
+    ny = ux
+    start_x = ax - ux * half_height_m
+    start_y = ay - uy * half_height_m
+    end_x = bx + ux * half_height_m
+    end_y = by + uy * half_height_m
+    return [
+        [start_x + nx * half_width_m, start_y + ny * half_width_m],
+        [end_x + nx * half_width_m, end_y + ny * half_width_m],
+        [end_x - nx * half_width_m, end_y - ny * half_width_m],
+        [start_x - nx * half_width_m, start_y - ny * half_width_m],
+    ]
+
+
+def visibility_segment_distance_m(
+    start: Sequence[float],
+    end: Sequence[float],
+    visibility: VisibilityGeometry,
+) -> float:
+    if visibility.is_observable(start) or visibility.is_observable(end):
+        return 0.0
+    half_width = visibility.footprint_half_width_m
+    half_height = visibility.footprint_half_height_m
+    for a, b in zip(visibility.inspect_route_enu_m, visibility.inspect_route_enu_m[1:]):
+        box = oriented_box_polygon_xy(a, b, half_width, half_height)
+        if distance_segment_to_polygon_xy(start, end, box) <= 1e-9:
+            return 0.0
+    return min(
+        distance_segment_to_polygon_xy(start, end, visibility.capture_polygon_enu_m),
+        distance_segment_to_polyline_xy(start, end, visibility.inspect_route_enu_m),
+    )
+
+
+def visibility_segment_is_observable(
+    start: Sequence[float],
+    end: Sequence[float],
+    visibility: VisibilityGeometry,
+) -> bool:
+    return visibility_segment_distance_m(start, end, visibility) <= visibility.padding_m
+
+
 def keep_entity_for_capture(entity: dict[str, Any], visibility: VisibilityGeometry) -> bool:
     category = entity_category(entity)
     if is_filterable_global_infrastructure(entity):
@@ -246,6 +400,32 @@ def keep_entity_for_capture(entity: dict[str, Any], visibility: VisibilityGeomet
     if position is None:
         return False
     return bool(visibility.is_observable(position))
+
+
+def dynamic_keep_sets_for_frames(
+    frames: Sequence[dict[str, Any]],
+    visibility: VisibilityGeometry,
+) -> list[set[str]]:
+    keep_by_frame: list[set[str]] = [set() for _ in frames]
+    previous: dict[str, tuple[int, list[float]]] = {}
+    for frame_index, frame in enumerate(frames):
+        for entity in frame.get("entities") or []:
+            if not isinstance(entity, dict) or entity_category(entity) not in PVU_CATEGORIES:
+                continue
+            entity_id = str(entity.get("entity_id") or "")
+            position = position_enu_from_entity(entity)
+            if not entity_id or position is None:
+                continue
+            if is_forced_keep_pvu(entity) or visibility.is_observable(position):
+                keep_by_frame[frame_index].add(entity_id)
+            prior = previous.get(entity_id)
+            if prior is not None:
+                prior_index, prior_position = prior
+                if visibility_segment_is_observable(prior_position, position, visibility):
+                    keep_by_frame[prior_index].add(entity_id)
+                    keep_by_frame[frame_index].add(entity_id)
+            previous[entity_id] = (frame_index, position)
+    return keep_by_frame
 
 
 def trajectory_row_from_entity(frame: dict[str, Any], entity: dict[str, Any]) -> dict[str, Any]:
@@ -506,7 +686,8 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
     ys: list[float] = []
     zs: list[float] = []
 
-    with input_truth_path.open("rb") as source, output_truth_path.open("wb") as truth_out, output_trajectory_path.open("wb") as traj_out:
+    frames: list[dict[str, Any]] = []
+    with input_truth_path.open("rb") as source:
         for line_number, line in enumerate(source, start=1):
             stripped = line.strip()
             if not stripped:
@@ -515,9 +696,28 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
                 frame = loads_jsonl_bytes(stripped)
             except (json.JSONDecodeError, ValueError) as exc:
                 raise ValueError(f"{input_truth_path}:{line_number}: invalid JSONL row: {exc}") from exc
+            frames.append(frame)
+
+    dynamic_keep_by_frame = dynamic_keep_sets_for_frames(frames, visibility)
+    with output_truth_path.open("wb") as truth_out, output_trajectory_path.open("wb") as traj_out:
+        for frame_index, frame in enumerate(frames):
             entities = list(frame.get("entities") or [])
             input_entity_count += len(entities)
-            kept_entities = [entity for entity in entities if isinstance(entity, dict) and keep_entity_for_capture(entity, visibility)]
+            dynamic_ids_for_frame = dynamic_keep_by_frame[frame_index]
+            kept_entities: list[dict[str, Any]] = []
+            for entity in entities:
+                if not isinstance(entity, dict):
+                    continue
+                category = entity_category(entity)
+                if category in PVU_CATEGORIES:
+                    entity_id = str(entity.get("entity_id") or "")
+                    if entity_id and entity_id in dynamic_ids_for_frame:
+                        kept_entities.append(entity)
+                    elif not entity_id and keep_entity_for_capture(entity, visibility):
+                        kept_entities.append(entity)
+                    continue
+                if keep_entity_for_capture(entity, visibility):
+                    kept_entities.append(entity)
             for entity in kept_entities:
                 entity_id = str(entity.get("entity_id") or "")
                 if entity_id:
@@ -545,7 +745,7 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
         "trajectory_rows": trajectory_count,
         "truth_entity_id_count": len(truth_entity_ids),
         "roster_entities": len(filtered_roster),
-        "dynamic_filter_rule": "keep_pvu_records_only_when_observable_during_that_frame",
+        "dynamic_filter_rule": "keep_pvu_records_when_point_or_adjacent_motion_segment_is_observable",
         "semantic_context_rule": "preserve_non_pvu_context_filter_global_uav_infrastructure_by_visibility",
     }
     roi_margin_m = 25.0

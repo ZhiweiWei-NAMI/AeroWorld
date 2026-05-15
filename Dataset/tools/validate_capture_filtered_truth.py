@@ -36,6 +36,8 @@ from filter_render_ready_truth_for_capture import (  # noqa: E402
     loads_jsonl_bytes,
     position_enu_from_entity,
     read_json,
+    visibility_segment_distance_m,
+    visibility_segment_is_observable,
     visibility_from_episode,
 )
 
@@ -86,6 +88,49 @@ def check_render_config(filtered_dir: Path, errors: list[str]) -> None:
         payload = dict(config.get(section) or {})
         if payload.get(key) is not False:
             errors.append(f"{filtered_dir.name}: render_host_config must set {section}.{key}=false")
+
+
+def dynamic_segment_ok(
+    position_by_frame: dict[int, dict[str, list[float]]],
+    frame_indexes: list[int],
+    current_offset: int,
+    entity_id: str,
+    visibility: Any,
+) -> bool:
+    current_index = frame_indexes[current_offset]
+    current = position_by_frame[current_index].get(entity_id)
+    if current is None:
+        return False
+    if visibility.is_observable(current):
+        return True
+    for neighbor_offset in (current_offset - 1, current_offset + 1):
+        if neighbor_offset < 0 or neighbor_offset >= len(frame_indexes):
+            continue
+        neighbor = position_by_frame[frame_indexes[neighbor_offset]].get(entity_id)
+        if neighbor is not None and visibility_segment_is_observable(current, neighbor, visibility):
+            return True
+    return False
+
+
+def dynamic_segment_distance(
+    position_by_frame: dict[int, dict[str, list[float]]],
+    frame_indexes: list[int],
+    current_offset: int,
+    entity_id: str,
+    visibility: Any,
+) -> float:
+    current_index = frame_indexes[current_offset]
+    current = position_by_frame[current_index].get(entity_id)
+    if current is None:
+        return float("inf")
+    distances = [visibility.observation_distance_m(current)]
+    for neighbor_offset in (current_offset - 1, current_offset + 1):
+        if neighbor_offset < 0 or neighbor_offset >= len(frame_indexes):
+            continue
+        neighbor = position_by_frame[frame_indexes[neighbor_offset]].get(entity_id)
+        if neighbor is not None:
+            distances.append(visibility_segment_distance_m(current, neighbor, visibility))
+    return min(distances)
 
 
 def validate_episode(filtered_dir: Path, source_root: Path, max_errors: int) -> dict[str, Any]:
@@ -139,50 +184,77 @@ def validate_episode(filtered_dir: Path, source_root: Path, max_errors: int) -> 
                 f"distance={distance:.3f}m padding={visibility.padding_m:.3f}m"
             )
 
+    frames: list[dict[str, Any]] = []
+    with truth_path.open("rb") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            frames.append(loads_jsonl_bytes(stripped))
+    frame_indexes = list(range(len(frames)))
+    position_by_frame: dict[int, dict[str, list[float]]] = {}
+    for frame_index, frame in enumerate(frames):
+        positions: dict[str, list[float]] = {}
+        for entity in frame.get("entities") or []:
+            if not isinstance(entity, dict) or entity_category(entity) not in PVU_CATEGORIES:
+                continue
+            entity_id = str(entity.get("entity_id") or "")
+            position = position_enu_from_entity(entity)
+            if entity_id and position is not None:
+                positions[entity_id] = position
+        position_by_frame[frame_index] = positions
+
     frame_count = 0
     pvu_records = 0
     pvu_ids: set[str] = set()
     global_infra_records = 0
-    with truth_path.open("rb") as handle:
-        for line_number, line in enumerate(handle, start=1):
-            stripped = line.strip()
-            if not stripped:
+    for frame_offset, frame in enumerate(frames):
+        frame_count += 1
+        tick = int(frame.get("tick") or 0)
+        for entity in frame.get("entities") or []:
+            if not isinstance(entity, dict):
                 continue
-            frame = loads_jsonl_bytes(stripped)
-            frame_count += 1
-            tick = int(frame.get("tick") or 0)
-            for entity in frame.get("entities") or []:
-                if not isinstance(entity, dict):
-                    continue
-                category = entity_category(entity)
-                entity_id = str(entity.get("entity_id") or "")
-                if category in PVU_CATEGORIES:
-                    position = position_enu_from_entity(entity)
-                    if position is None:
-                        errors.append(f"{filtered_dir.name}: tick {tick} dynamic entity {entity_id} missing position")
-                    elif not visibility.is_observable(position):
-                        distance = visibility.observation_distance_m(position)
-                        errors.append(
-                            f"{filtered_dir.name}: tick {tick} dynamic {category} {entity_id} outside capture visibility "
-                            f"distance={distance:.3f}m padding={visibility.padding_m:.3f}m"
-                        )
-                    else:
-                        pvu_records += 1
-                        if entity_id:
-                            pvu_ids.add(entity_id)
-                elif is_filterable_global_infrastructure(entity):
-                    global_infra_records += 1
-                    position = entity_initial_or_truth_position(entity)
-                    if position is None or not visibility.is_observable(position):
-                        distance = visibility.observation_distance_m(position) if position is not None else float("inf")
-                        errors.append(
-                            f"{filtered_dir.name}: tick {tick} global infrastructure {entity_id} outside capture visibility "
-                            f"distance={distance:.3f}m padding={visibility.padding_m:.3f}m"
-                        )
-                if len(errors) >= max_errors:
-                    break
+            category = entity_category(entity)
+            entity_id = str(entity.get("entity_id") or "")
+            if category in PVU_CATEGORIES:
+                position = position_enu_from_entity(entity)
+                if position is None:
+                    errors.append(f"{filtered_dir.name}: tick {tick} dynamic entity {entity_id} missing position")
+                elif entity_id and not dynamic_segment_ok(
+                    position_by_frame,
+                    frame_indexes,
+                    frame_offset,
+                    entity_id,
+                    visibility,
+                ):
+                    distance = dynamic_segment_distance(
+                        position_by_frame,
+                        frame_indexes,
+                        frame_offset,
+                        entity_id,
+                        visibility,
+                    )
+                    errors.append(
+                        f"{filtered_dir.name}: tick {tick} dynamic {category} {entity_id} has no point/adjacent segment in capture visibility "
+                        f"distance={distance:.3f}m padding={visibility.padding_m:.3f}m"
+                    )
+                else:
+                    pvu_records += 1
+                    if entity_id:
+                        pvu_ids.add(entity_id)
+            elif is_filterable_global_infrastructure(entity):
+                global_infra_records += 1
+                position = entity_initial_or_truth_position(entity)
+                if position is None or not visibility.is_observable(position):
+                    distance = visibility.observation_distance_m(position) if position is not None else float("inf")
+                    errors.append(
+                        f"{filtered_dir.name}: tick {tick} global infrastructure {entity_id} outside capture visibility "
+                        f"distance={distance:.3f}m padding={visibility.padding_m:.3f}m"
+                    )
             if len(errors) >= max_errors:
                 break
+        if len(errors) >= max_errors:
+            break
 
     missing_from_truth = sorted(roster_dynamic_ids - pvu_ids)
     if missing_from_truth:
