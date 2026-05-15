@@ -69,6 +69,7 @@ LANE_SAMPLES_CSV = (
     / "lane_center_samples.csv"
 )
 SUMO_NET_XML = ROOT / "Plugins" / "SumoImporter" / "Maps" / "donghu_road_topo" / "source" / "map.net.xml"
+ROAD_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "road" / "road.geojson"
 BUILDING_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "building" / "building.geojson"
 CAPTURE_PRESETS = ROOT / "Plugins" / "SumoImporter" / "Scripts" / "episode_capture_presets.json"
 WORLD_OFFSET_X_M = 7000.0
@@ -228,6 +229,12 @@ class LaneSample:
 
 
 @dataclass(frozen=True)
+class RoadLaneMetadata:
+    lanes: int
+    width_m: float
+
+
+@dataclass(frozen=True)
 class BackgroundVehiclePolicy:
     add_count: int
     min_uav_count: int = 0
@@ -292,6 +299,23 @@ class LaneSampleResolver:
         return min(edge_samples, key=lambda item: abs(item.s_m - s_m))
 
 
+def _load_road_lane_metadata(path: Path) -> dict[str, RoadLaneMetadata]:
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    result: dict[str, RoadLaneMetadata] = {}
+    for feature in payload.get("features") or []:
+        properties = dict(feature.get("properties") or {})
+        road_id = properties.get("id")
+        if road_id is None:
+            continue
+        try:
+            lanes = max(1, int(float(properties.get("lanes") or 1)))
+            width_m = max(0.0, float(properties.get("width") or 0.0))
+        except (TypeError, ValueError):
+            continue
+        result[f"cg_edge_{road_id}"] = RoadLaneMetadata(lanes=lanes, width_m=width_m)
+    return result
+
+
 class BuildingCatalog:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -317,6 +341,7 @@ class BuildingCatalog:
 
 SPATIAL = MapSpatialIndex.default(ROOT)
 LANES = SPATIAL.lanes
+ROAD_LANE_METADATA = _load_road_lane_metadata(ROAD_GEOJSON)
 SUMO_GROUND_FLOW = SumoGroundFlowPlanner(
     SUMO_NET_XML,
     max_start_snap_m=SUMO_TO_TRAFFIC_BUNDLE_MAX_SNAP_M,
@@ -364,6 +389,114 @@ def _side_sign_for_desired(sample: LaneSample, desired_pos_enu: list[float]) -> 
 def _offset_from_lane(sample: LaneSample, lateral_m: float, z_m: float = GROUND_Z_M) -> list[float]:
     nx, ny = _lane_normal(sample)
     return q(sample.x_m + lateral_m * nx, sample.y_m + lateral_m * ny, z_m)
+
+
+def _physical_vehicle_lane_offsets(sample: LaneSample) -> list[float]:
+    metadata = ROAD_LANE_METADATA.get(sample.edge_id)
+    if metadata is None or metadata.lanes <= 1:
+        return [0.0]
+    lane_spacing_m = metadata.width_m / float(metadata.lanes) if metadata.width_m > 0.0 else LANE_HALF_WIDTH_M * 2.0
+    return [
+        ((float(index) + 0.5) - 0.5 * float(metadata.lanes)) * lane_spacing_m
+        for index in range(metadata.lanes)
+    ]
+
+
+def _background_vehicle_lateral(sample: LaneSample, index: int) -> float:
+    offsets = [value for value in _physical_vehicle_lane_offsets(sample) if abs(value) > 1e-6]
+    if not offsets:
+        return 0.0
+    offsets.sort(key=lambda value: (abs(value), value))
+    return float(offsets[index % len(offsets)])
+
+
+def _physical_vehicle_lane_audit(sample: LaneSample, lateral_m: float) -> dict[str, Any]:
+    metadata = ROAD_LANE_METADATA.get(sample.edge_id)
+    offsets = _physical_vehicle_lane_offsets(sample)
+    return {
+        "placement_semantics": "physical_vehicle_lane_center",
+        "road_lane_count": int(metadata.lanes if metadata else 1),
+        "road_width_m": round(float(metadata.width_m if metadata else LANE_HALF_WIDTH_M * 2.0), 3),
+        "physical_lane_center_offsets_m": [round(float(value), 3) for value in offsets],
+        "selected_physical_lane_offset_m": round(float(lateral_m), 3),
+    }
+
+
+def _annotate_physical_vehicle_lane(scene: dict[str, Any], sample: LaneSample, lateral_m: float) -> None:
+    placement = dict(scene.get("placement") or {})
+    placement.update(_physical_vehicle_lane_audit(sample, lateral_m))
+    scene["placement"] = placement
+
+
+def _vehicle_physical_lateral_from_scene(scene: dict[str, Any], sample: LaneSample, index: int) -> float:
+    placement = dict(scene.get("placement") or {})
+    background = dict(scene.get("background_vehicle") or {})
+    for key, source in (
+        ("physical_lane_lateral_m", background),
+        ("selected_physical_lane_offset_m", placement),
+        ("resolved_lateral_from_center_m", placement),
+        ("lateral_offset_m", placement),
+    ):
+        try:
+            value = float(source.get(key))
+        except (TypeError, ValueError):
+            continue
+        if abs(value) > 1e-6:
+            return value
+    return _background_vehicle_lateral(sample, index)
+
+
+def _select_physical_vehicle_lateral(
+    sample: LaneSample,
+    requested_lateral_m: float,
+    desired_pos_enu: list[float] | None,
+    *,
+    index: int = 0,
+) -> float:
+    offsets = _physical_vehicle_lane_offsets(sample)
+    if not offsets:
+        return float(requested_lateral_m)
+    requested = float(requested_lateral_m)
+    if min(abs(requested - value) for value in offsets) <= 0.25:
+        return float(min(offsets, key=lambda value: abs(requested - value)))
+    reference = requested
+    if desired_pos_enu is not None:
+        nx, ny = _lane_normal(sample)
+        desired = (float(desired_pos_enu[0]) - sample.x_m) * nx + (float(desired_pos_enu[1]) - sample.y_m) * ny
+        if abs(desired) > 1e-6:
+            reference = desired
+    if abs(reference) <= 1e-6:
+        return _background_vehicle_lateral(sample, index)
+    same_side = [value for value in offsets if value * reference > 0.0]
+    candidates = same_side or offsets
+    return float(min(candidates, key=lambda value: abs(value - reference)))
+
+
+def _vehicle_lane_point_near(
+    pos_enu: list[float],
+    lateral_reference_m: float,
+    *,
+    index: int = 0,
+    z_m: float | None = None,
+) -> list[float]:
+    sample = LANES.nearest_to_xy(float(pos_enu[0]), float(pos_enu[1]))
+    lateral_m = _select_physical_vehicle_lateral(sample, lateral_reference_m, pos_enu, index=index)
+    return _offset_from_lane(sample, lateral_m, float(z_m if z_m is not None else (pos_enu[2] if len(pos_enu) > 2 else GROUND_Z_M)))
+
+
+def _project_vehicle_waypoints_to_physical_lanes(
+    waypoints: list[list[float]],
+    lateral_reference_m: float,
+    *,
+    index: int = 0,
+) -> list[list[float]]:
+    projected: list[list[float]] = []
+    for waypoint in waypoints:
+        if not isinstance(waypoint, list) or len(waypoint) < 2:
+            continue
+        z_m = float(waypoint[2] if len(waypoint) > 2 else GROUND_Z_M)
+        projected.append(_vehicle_lane_point_near(waypoint, lateral_reference_m, index=index, z_m=z_m))
+    return _dedupe_route_points(projected)
 
 
 def road_center_point(pos_enu: list[float], z_m: float = GROUND_Z_M) -> list[float]:
@@ -924,22 +1057,28 @@ def lane_entity(
     sign = _side_sign_for_desired(sample, pos_enu)
     requested_lateral = float(lateral)
     placement_semantics = "lane_center"
+    resolved_route = route
     if asset.startswith("prop.roadwork."):
         sign = 1.0 if float(lateral) >= 0.0 else -1.0
         offset_from_edge = max(abs(requested_lateral), ROADWORK_MIN_OFFSET_FROM_EDGE_M)
         requested_lateral = sign * (LANE_HALF_WIDTH_M + offset_from_edge)
         placement_semantics = "roadwork_shoulder"
+    elif asset.startswith("vehicle."):
+        requested_lateral = _select_physical_vehicle_lateral(sample, requested_lateral, pos_enu)
+        placement_semantics = "physical_vehicle_lane_center"
+        if route:
+            resolved_route = _project_vehicle_waypoints_to_physical_lanes(route, requested_lateral)
     pos_enu = _offset_from_lane(sample, requested_lateral, float(pos_enu[2] if len(pos_enu) > 2 else GROUND_Z_M))
     yaw = sample.yaw_deg
     spec, scene = world_entity(
-        entity_id, asset, category, pos_enu, yaw, mode, activation_tick, route, visual_state
+        entity_id, asset, category, pos_enu, yaw, mode, activation_tick, resolved_route, visual_state
     )
     scene["placement_mode"] = "lane_anchor"
     scene["placement"] = {
         "edge_id": sample.edge_id,
         "lane_index": sample.lane_index,
         "longitudinal_s": round(sample.s_m, 3),
-        "lateral_offset_m": round(lateral, 3),
+        "lateral_offset_m": round(requested_lateral if asset.startswith("vehicle.") else lateral, 3),
         "lane_half_width_m": LANE_HALF_WIDTH_M,
         "resolved_lateral_from_center_m": round(requested_lateral, 3),
         "placement_semantics": placement_semantics,
@@ -948,6 +1087,8 @@ def lane_entity(
         "source_edge_id_hint": edge_id,
         "source_longitudinal_s_hint": round(s, 3),
     }
+    if asset.startswith("vehicle."):
+        scene["placement"].update(_physical_vehicle_lane_audit(sample, requested_lateral))
     return spec, scene
 
 
@@ -1457,7 +1598,8 @@ def _find_free_lane_sample(
         for sample in _background_vehicle_candidate_samples(scenes, events):
             if not _lane_has_route_span(sample, BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M):
                 continue
-            candidate_pos = _offset_from_lane(sample, 0.0, GROUND_Z_M)
+            candidate_lateral_m = _background_vehicle_lateral(sample, index)
+            candidate_pos = _offset_from_lane(sample, candidate_lateral_m, GROUND_Z_M)
             if SPATIAL.validation_errors_for_point(
                 candidate_pos,
                 context="semantic contract vehicle candidate",
@@ -1471,7 +1613,7 @@ def _find_free_lane_sample(
                 continue
             if any(dist_xy(candidate_pos, other) < occupied_gap_m for other in occupied):
                 continue
-            if not _semantic_vehicle_route(sample, mode, index):
+            if not _semantic_vehicle_route(sample, mode, index, lateral_m=candidate_lateral_m):
                 continue
             occupied.append(candidate_pos)
             return sample
@@ -1564,19 +1706,26 @@ def _snap_sumo_route_to_traffic_bundle(route: list[list[float]], *, lateral_m: f
     return _dedupe_route_points(snapped)
 
 
-def _sumo_vehicle_route(start: list[float], index: int) -> list[list[float]]:
+def _sumo_vehicle_route(
+    plan_start: list[float],
+    index: int,
+    *,
+    lateral_m: float = 0.0,
+    span_start: list[float] | None = None,
+) -> list[list[float]]:
     min_span = BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M + index * 2.0
     try:
         route = SUMO_GROUND_FLOW.plan_vehicle_route_enu(
-            start,
+            plan_start,
             min_xy_span_m=min_span,
             min_path_length_m=max(32.0, min_span + 8.0),
             max_edges=24,
         )
     except SumoRouteError:
         return []
-    snapped = _snap_sumo_route_to_traffic_bundle(route)
-    if not snapped or _route_xy_span(start, snapped) < min_span:
+    snapped = _snap_sumo_route_to_traffic_bundle(route, lateral_m=lateral_m)
+    route_start = span_start if span_start is not None else plan_start
+    if not snapped or _route_xy_span(route_start, snapped) < min_span:
         return []
     return snapped
 
@@ -1608,9 +1757,10 @@ def _ground_flow_contract(
     }
 
 
-def _semantic_vehicle_route(sample: LaneSample, _mode: str, index: int) -> list[list[float]]:
-    start = _offset_from_lane(sample, 0.0, GROUND_Z_M)
-    return _sumo_vehicle_route(start, index)
+def _semantic_vehicle_route(sample: LaneSample, _mode: str, index: int, *, lateral_m: float = 0.0) -> list[list[float]]:
+    plan_start = _offset_from_lane(sample, 0.0, GROUND_Z_M)
+    truth_start = _offset_from_lane(sample, lateral_m, GROUND_Z_M)
+    return _sumo_vehicle_route(plan_start, index, lateral_m=lateral_m, span_start=truth_start)
 
 
 def _semantic_ped_route(anchor: Any, mode: str, index: int) -> list[list[float]]:
@@ -1660,8 +1810,9 @@ def _add_contract_vehicle(
     sample = _find_free_lane_sample(scenes, events, occupied, mode=moving_mode, index=index)
     entity_id = f"bg_vehicle_{safe_id(scenario_id)}_{index + 1:02d}"
     asset = BACKGROUND_VEHICLE_ASSETS[index % len(BACKGROUND_VEHICLE_ASSETS)]
-    start = _offset_from_lane(sample, 0.0, GROUND_Z_M)
-    route = _semantic_vehicle_route(sample, moving_mode, index)
+    lateral_m = _background_vehicle_lateral(sample, index)
+    start = _offset_from_lane(sample, lateral_m, GROUND_Z_M)
+    route = _semantic_vehicle_route(sample, moving_mode, index, lateral_m=lateral_m)
     if not route:
         raise RuntimeError(f"{scenario_id}: background vehicle {entity_id} lacks a valid continuous flow route")
     spec, scene = lane_entity(
@@ -1670,7 +1821,7 @@ def _add_contract_vehicle(
         "vehicle",
         sample.edge_id,
         sample.s_m,
-        0.0,
+        lateral_m,
         start,
         sample.yaw_deg,
         moving_mode,
@@ -1685,10 +1836,12 @@ def _add_contract_vehicle(
         ),
         prefer_edge_hint=True,
     )
+    _annotate_physical_vehicle_lane(scene, sample, lateral_m)
     scene["background_vehicle"] = {
         "policy": "semantic_event_contract_v1",
         "semantic_role": contract.vehicle_role,
         "contract_scenario_id": scenario_id,
+        "physical_lane_lateral_m": round(float(lateral_m), 3),
     }
     scene["ground_flow_contract"] = _ground_flow_contract(
         "vehicle",
@@ -1696,6 +1849,7 @@ def _add_contract_vehicle(
         [start, *route],
         route_source="sumo_net_projected_to_traffic_bundle",
     )
+    scene["ground_flow_contract"]["physical_lane_lateral_m"] = round(float(lateral_m), 3)
     add(specs, scenes, (spec, scene))
     return entity_id
 
@@ -2622,7 +2776,9 @@ def ensure_background_ground_flow_routes(
                     if edge_id in LANES.by_edge
                     else LANES.nearest_to_xy(start[0], start[1])
                 )
-                current_route = _semantic_vehicle_route(sample, mode, index)
+                lateral_m = _vehicle_physical_lateral_from_scene(scene, sample, index)
+                current_route = _semantic_vehicle_route(sample, mode, index, lateral_m=lateral_m)
+                _annotate_physical_vehicle_lane(scene, sample, lateral_m)
             route = current_route
             if not route or _route_xy_span(start, route) < BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M:
                 raise RuntimeError(f"{scenario_id}: background vehicle {entity_id} lacks continuous flow route")
@@ -2632,6 +2788,11 @@ def ensure_background_ground_flow_routes(
                 BACKGROUND_VEHICLE_FLOW_SPEED_MPS,
                 [start, *route],
                 route_source="sumo_net_projected_to_traffic_bundle",
+            )
+            placement = dict(scene.get("placement") or {})
+            scene["ground_flow_contract"]["physical_lane_lateral_m"] = round(
+                float(placement.get("resolved_lateral_from_center_m") or 0.0),
+                3,
             )
         else:
             mode = "walking"
@@ -2792,13 +2953,14 @@ def add_background_vehicles(
         return
 
     blockers = _background_vehicle_blockers(scenes, events)
-    selected: list[tuple[LaneSample, list[list[float]]]] = []
+    selected: list[tuple[LaneSample, float, list[list[float]]]] = []
     attempts = 0
     for sample in _background_vehicle_candidate_samples(scenes, events):
         attempts += 1
         if not _lane_has_route_span(sample, BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M):
             continue
-        candidate_pos = _offset_from_lane(sample, 0.0, GROUND_Z_M)
+        candidate_lateral_m = _background_vehicle_lateral(sample, len(selected))
+        candidate_pos = _offset_from_lane(sample, candidate_lateral_m, GROUND_Z_M)
         if SPATIAL.validation_errors_for_point(
             candidate_pos,
             context=f"{scenario_id}: background vehicle candidate",
@@ -2810,12 +2972,15 @@ def add_background_vehicles(
             continue
         if any(dist_xy(candidate_pos, point) < clearance_m for _label, point, clearance_m in blockers):
             continue
-        if any(dist_xy(candidate_pos, _offset_from_lane(other, 0.0, GROUND_Z_M)) < 8.0 for other, _route in selected):
+        if any(
+            dist_xy(candidate_pos, _offset_from_lane(other, other_lateral, GROUND_Z_M)) < 8.0
+            for other, other_lateral, _route in selected
+        ):
             continue
-        route = _semantic_vehicle_route(sample, "traffic_flow", len(selected))
+        route = _semantic_vehicle_route(sample, "traffic_flow", len(selected), lateral_m=candidate_lateral_m)
         if not route:
             continue
-        selected.append((sample, route))
+        selected.append((sample, candidate_lateral_m, route))
         if len(selected) >= policy.add_count:
             break
     if len(selected) < policy.add_count:
@@ -2825,7 +2990,7 @@ def add_background_vehicles(
         )
 
     added_ids: list[str] = []
-    for index, (sample, route) in enumerate(selected):
+    for index, (sample, lateral_m, route) in enumerate(selected):
         entity_id = f"bg_vehicle_{safe_id(scenario_id)}_{index + 1:02d}"
         asset = BACKGROUND_VEHICLE_ASSETS[index % len(BACKGROUND_VEHICLE_ASSETS)]
         spec, scene = lane_entity(
@@ -2834,8 +2999,8 @@ def add_background_vehicles(
             "vehicle",
             sample.edge_id,
             sample.s_m,
-            0.0,
-            _offset_from_lane(sample, 0.0, GROUND_Z_M),
+            lateral_m,
+            _offset_from_lane(sample, lateral_m, GROUND_Z_M),
             sample.yaw_deg,
             "traffic_flow",
             route=route,
@@ -2846,18 +3011,21 @@ def add_background_vehicles(
             },
             prefer_edge_hint=True,
         )
+        _annotate_physical_vehicle_lane(scene, sample, lateral_m)
         scene["background_vehicle"] = {
             "policy": "road_context_non_event_actor_v1",
             "reason": policy.reason,
             "min_clearance_rule": "background_vehicle_clearance",
+            "physical_lane_lateral_m": round(float(lateral_m), 3),
         }
-        start = _offset_from_lane(sample, 0.0, GROUND_Z_M)
+        start = _offset_from_lane(sample, lateral_m, GROUND_Z_M)
         scene["ground_flow_contract"] = _ground_flow_contract(
             "vehicle",
             BACKGROUND_VEHICLE_FLOW_SPEED_MPS,
             [start, *route],
             route_source="sumo_net_projected_to_traffic_bundle",
         )
+        scene["ground_flow_contract"]["physical_lane_lateral_m"] = round(float(lateral_m), 3)
         add(specs, scenes, (spec, scene))
         added_ids.append(entity_id)
 
@@ -2927,6 +3095,72 @@ def write_action_params(action_def: dict[str, Any], params: dict[str, Any]) -> N
         action_def["params"].update(params)
     else:
         action_def.update(params)
+
+
+def align_vehicle_lane_motion(
+    spec_entities: list[dict[str, Any]],
+    scene_entities: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> None:
+    spec_by_id = {str(spec.get("entity_id") or ""): spec for spec in spec_entities}
+    vehicle_laterals: dict[str, float] = {}
+    for index, scene in enumerate(scene_entities):
+        entity_id = str(scene.get("entity_id") or "")
+        asset_id = str(scene.get("logical_asset_id") or "")
+        if not asset_id.startswith("vehicle.") or scene.get("placement_mode") != "lane_anchor":
+            continue
+        placement = dict(scene.get("placement") or {})
+        edge_id = str(placement.get("edge_id") or "")
+        if edge_id in LANES.by_edge:
+            sample = LANES.resolve_edge_s(edge_id, float(placement.get("longitudinal_s") or 0.0))
+        else:
+            position = scene_pos(scene)
+            sample = LANES.nearest_to_xy(float(position[0]), float(position[1]))
+        position = scene_pos(scene)
+        requested_lateral = float(placement.get("resolved_lateral_from_center_m", placement.get("lateral_offset_m", 0.0)))
+        lateral_m = _select_physical_vehicle_lateral(sample, requested_lateral, position, index=index)
+        resolved_position = _offset_from_lane(sample, lateral_m, float(position[2] if len(position) > 2 else GROUND_Z_M))
+        route = _project_vehicle_waypoints_to_physical_lanes(
+            [list(point) for point in scene.get("route_waypoints_enu_m") or []],
+            lateral_m,
+            index=index,
+        )
+        placement.update(
+            {
+                "edge_id": sample.edge_id,
+                "longitudinal_s": round(sample.s_m, 3),
+                "lateral_offset_m": round(lateral_m, 3),
+                "resolved_lateral_from_center_m": round(lateral_m, 3),
+                "placement_semantics": "physical_vehicle_lane_center",
+                "resolved_position_enu_m": resolved_position,
+                "rotation_deg": rot(sample.yaw_deg),
+                **_physical_vehicle_lane_audit(sample, lateral_m),
+            }
+        )
+        scene["placement"] = placement
+        scene["route_waypoints_enu_m"] = route
+        spec = spec_by_id.get(entity_id)
+        if spec is not None:
+            spec["initial_pos_enu"] = resolved_position
+            spec["initial_rotation_deg"] = [0.0, 0.0, sample.yaw_deg]
+            spec["movement_waypoints"] = route
+        vehicle_laterals[entity_id] = lateral_m
+
+    for event_def in events:
+        for action_def in event_def.get("actions") or []:
+            if str(action_def.get("type") or "") != "move_entity":
+                continue
+            params = action_params(action_def)
+            entity_id = str(params.get("entity_id") or "")
+            if entity_id not in vehicle_laterals:
+                continue
+            waypoints = params.get("waypoints_enu_m") or []
+            projected = _project_vehicle_waypoints_to_physical_lanes(
+                [list(point) for point in waypoints if isinstance(point, list) and len(point) >= 2],
+                vehicle_laterals[entity_id],
+            )
+            if projected:
+                write_action_params(action_def, {"waypoints_enu_m": projected})
 
 
 def path_length_m(waypoints: list[list[float]]) -> float:
@@ -3278,6 +3512,7 @@ def make_bundle(
     validation_rules: list[dict[str, Any]] | None = None,
 ) -> ScenarioBundle:
     contract = apply_semantic_event_contract(scenario_id, spec_entities, scene_entities, events, parameters)
+    align_vehicle_lane_motion(spec_entities, scene_entities, events)
     ensure_uav_corridor_population(scenario_id, spec_entities, scene_entities, events, parameters)
     add_uav_lifecycle(scenario_id, spec_entities, scene_entities, events)
     provisional_capture_boundary = _capture_boundary_from_points(scenario_id, scene_entities, events)
@@ -4424,8 +4659,10 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         retreat = ped_scene["placement"]["opposite_curb_position_enu_m"]
         _, car_scene = add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_22", 58, 0, c0, 250, "moving"))
         car_start = scene_pos(car_scene)
-        car_conflict = road
-        car_stop = q(road[0] + 1.0, road[1] + 0.3, GROUND_Z_M)
+        car_lateral = float((car_scene.get("placement") or {}).get("resolved_lateral_from_center_m") or 0.0)
+        car_conflict = _vehicle_lane_point_near(road, car_lateral)
+        road = car_conflict
+        car_stop = _vehicle_lane_point_near(q(road[0] + 1.0, road[1] + 0.3, GROUND_Z_M), car_lateral)
         events = [
             event("ped_enters_roadway", tick(220), [move("move_ped_from_crosswalk_to_lane", ped, [p0, road], 1.6, activity_type="texting_walk"), move("move_car_toward_crosswalk", car, [car_start, car_conflict], 8.0)], 1, scenario_id, "Texting pedestrian moves from sidewalk into roadway", "pedestrian", [ped, car], "warning"),
             event("vehicle_ped_proximity", prox(ped, car, 4.0, 2, metric="xy_plus_z", horizontal_distance_m=4.0, vertical_distance_m=1.5), [move("move_car_hard_brake_ped", car, [car_conflict, car_stop], 0.8), screenshot("capture_ped_vehicle_conflict")], 2, scenario_id, "Vehicle brakes for pedestrian conflict", "vehicle", [ped, car], "critical"),

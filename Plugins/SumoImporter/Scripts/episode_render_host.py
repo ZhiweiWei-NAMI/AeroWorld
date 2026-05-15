@@ -476,6 +476,7 @@ class TrafficBundleRoadSnapper:
         }
         self.use_sample_z = bool(config.get("use_sample_z", True))
         self.use_sample_yaw = bool(config.get("use_sample_yaw", True))
+        self.preserve_truth_xy = bool(config.get("preserve_truth_xy", False))
         self.cell_size_m = max(1.0, float(config.get("cell_size_m", 20.0)))
         self.search_radius_m = max(1.0, float(config.get("search_radius_m", 35.0)))
         self.fallback_radius_m = max(self.search_radius_m, float(config.get("fallback_radius_m", 90.0)))
@@ -529,6 +530,7 @@ class TrafficBundleRoadSnapper:
         return (
             f"enabled={self.enabled} "
             f"categories={sorted(self.categories)} "
+            f"preserve_truth_xy={self.preserve_truth_xy} "
             f"samples={len(self.samples)} "
             f"path={self.lane_center_samples_path}"
         )
@@ -2596,8 +2598,8 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             )
             if snap_result is not None:
                 position_enu_m = [
-                    float(snap_result.position_enu_m[0]),
-                    float(snap_result.position_enu_m[1]),
+                    float(position_enu_m[0] if self.road_topology_snapper.preserve_truth_xy else snap_result.position_enu_m[0]),
+                    float(position_enu_m[1] if self.road_topology_snapper.preserve_truth_xy else snap_result.position_enu_m[1]),
                     float(snap_result.position_enu_m[2] if self.road_topology_snapper.use_sample_z else position_enu_m[2]),
                 ]
                 if self.road_topology_snapper.use_sample_yaw:
@@ -2605,21 +2607,23 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                     rotation_deg["yaw_deg"] = float(snap_result.yaw_deg)
                 snap_details = {
                     "kind": "road_topology_snap",
+                    "preserve_truth_xy": bool(self.road_topology_snapper.preserve_truth_xy),
                     **snap_result.to_dict(),
                 }
-                lane_offset_details = self._vehicle_lane_offset_details(
-                    entity,
-                    yaw_deg=float(rotation_deg.get("yaw_deg", 0.0)),
-                    edge_id=snap_result.edge_id,
-                )
-                if lane_offset_details is not None:
-                    left_normal_xy = lane_offset_details["left_normal_xy"]
-                    position_enu_m[0] += float(left_normal_xy[0]) * float(lane_offset_details["lane_offset_m"])
-                    position_enu_m[1] += float(left_normal_xy[1]) * float(lane_offset_details["lane_offset_m"])
-                    forward_xy = lane_offset_details["forward_xy"]
-                    position_enu_m[0] += float(forward_xy[0]) * float(lane_offset_details["longitudinal_offset_m"])
-                    position_enu_m[1] += float(forward_xy[1]) * float(lane_offset_details["longitudinal_offset_m"])
-                    snap_details.update(lane_offset_details)
+                if not self.road_topology_snapper.preserve_truth_xy:
+                    lane_offset_details = self._vehicle_lane_offset_details(
+                        entity,
+                        yaw_deg=float(rotation_deg.get("yaw_deg", 0.0)),
+                        edge_id=snap_result.edge_id,
+                    )
+                    if lane_offset_details is not None:
+                        left_normal_xy = lane_offset_details["left_normal_xy"]
+                        position_enu_m[0] += float(left_normal_xy[0]) * float(lane_offset_details["lane_offset_m"])
+                        position_enu_m[1] += float(left_normal_xy[1]) * float(lane_offset_details["lane_offset_m"])
+                        forward_xy = lane_offset_details["forward_xy"]
+                        position_enu_m[0] += float(forward_xy[0]) * float(lane_offset_details["longitudinal_offset_m"])
+                        position_enu_m[1] += float(forward_xy[1]) * float(lane_offset_details["longitudinal_offset_m"])
+                        snap_details.update(lane_offset_details)
         else:
             roadside_adjustment = self._roadside_adjustment(entity, position_enu_m)
             if roadside_adjustment is not None:

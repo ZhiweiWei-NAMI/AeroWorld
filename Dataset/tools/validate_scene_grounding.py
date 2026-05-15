@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATASET_ROOT = ROOT / "Dataset"
 DEFAULT_ASSET_CATALOG = ROOT / "Config" / "LowAltitude" / "asset_catalog.json"
 DEFAULT_TRAFFIC_BUNDLE = ROOT / "Config" / "LowAltitude" / "Maps" / "donghu_road_topo" / "traffic_bundle"
+DEFAULT_ROAD_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "road" / "road.geojson"
 DEFAULT_BUILDING_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "building" / "building.geojson"
 DEFAULT_RENDER_READY_ROOT = ROOT / "Dataset" / "render_ready_episodes"
 DEFAULT_RENDER_HOST_CONFIG = ROOT / "Plugins" / "SumoImporter" / "Scripts" / "episode_render_host_config.json"
@@ -131,6 +132,43 @@ class LaneSample:
     x_m: float
     y_m: float
     yaw_deg: float
+
+
+@dataclass(frozen=True)
+class RoadLaneMetadata:
+    lanes: int
+    width_m: float
+
+
+def load_road_lane_metadata(path: Path) -> dict[str, RoadLaneMetadata]:
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    result: dict[str, RoadLaneMetadata] = {}
+    for feature in payload.get("features") or []:
+        properties = dict(feature.get("properties") or {})
+        road_id = properties.get("id")
+        if road_id is None:
+            continue
+        try:
+            lanes = max(1, int(float(properties.get("lanes") or 1)))
+            width_m = max(0.0, float(properties.get("width") or 0.0))
+        except (TypeError, ValueError):
+            continue
+        result[f"cg_edge_{road_id}"] = RoadLaneMetadata(lanes=lanes, width_m=width_m)
+    return result
+
+
+ROAD_LANE_METADATA = load_road_lane_metadata(DEFAULT_ROAD_GEOJSON)
+
+
+def physical_vehicle_lane_offsets(edge_id: str) -> list[float]:
+    metadata = ROAD_LANE_METADATA.get(edge_id)
+    if metadata is None or metadata.lanes <= 1:
+        return [0.0]
+    lane_spacing_m = metadata.width_m / float(metadata.lanes) if metadata.width_m > 0.0 else LANE_HALF_WIDTH_M * 2.0
+    return [
+        ((float(index) + 0.5) - 0.5 * float(metadata.lanes)) * lane_spacing_m
+        for index in range(metadata.lanes)
+    ]
 
 
 class LaneResolver:
@@ -493,6 +531,28 @@ def offset_from_lane(sample: LaneSample, lateral_m: float, z_m: float = 0.0) -> 
 def nearest_lane_clearance(lanes: LaneResolver, point: list[float]) -> float:
     sample = lanes.nearest(point)
     return dist_xy(point, [sample.x_m, sample.y_m, 0.0])
+
+
+def lateral_from_lane(sample: LaneSample, point: list[float]) -> float:
+    nx, ny = lane_normal(sample)
+    return (float(point[0]) - sample.x_m) * nx + (float(point[1]) - sample.y_m) * ny
+
+
+def check_vehicle_physical_lane_point(
+    scenario_id: str,
+    context: str,
+    point: list[float],
+    lanes: LaneResolver,
+    issues: list[str],
+) -> None:
+    sample = lanes.nearest(point)
+    physical_offsets = physical_vehicle_lane_offsets(sample.edge_id)
+    lateral = lateral_from_lane(sample, point)
+    if physical_offsets and min(abs(lateral - value) for value in physical_offsets) > 0.35:
+        issues.append(
+            f"{scenario_id}: {context} lateral {lateral:.2f}m does not match physical lane centers "
+            f"{[round(value, 2) for value in physical_offsets]} on {sample.edge_id}"
+        )
 
 
 def check_landing_pad_spatial(context: str, position: list[float], spatial: MapSpatialIndex, issues: list[str]) -> None:
@@ -1003,8 +1063,32 @@ def check_placements(
                 required = float(placement.get("lane_half_width_m", LANE_HALF_WIDTH_M)) + abs(float(placement.get("lateral_offset_m", 0.0))) - 0.05
                 if abs(lateral) < required:
                     issues.append(f"{scene['scenario_id']}: roadwork {entity['entity_id']} is not outside lane edge")
-            elif asset_id.startswith("vehicle.") and abs(lateral) > LANE_HALF_WIDTH_M:
-                issues.append(f"{scene['scenario_id']}: vehicle {entity['entity_id']} lane_anchor is outside drivable lane")
+            elif asset_id.startswith("vehicle."):
+                semantics = str(placement.get("placement_semantics") or "")
+                physical_offsets = [
+                    float(value)
+                    for value in (
+                        placement.get("physical_lane_center_offsets_m")
+                        or physical_vehicle_lane_offsets(str(edge_id))
+                    )
+                ]
+                road_width_m = float(placement.get("road_width_m") or 0.0)
+                if road_width_m <= 0.0:
+                    metadata = ROAD_LANE_METADATA.get(str(edge_id))
+                    road_width_m = float(metadata.width_m if metadata else LANE_HALF_WIDTH_M * 2.0)
+                if semantics == "physical_vehicle_lane_center":
+                    road_half_width_m = max(LANE_HALF_WIDTH_M, road_width_m * 0.5)
+                    if abs(lateral) > road_half_width_m + 0.05:
+                        issues.append(f"{scene['scenario_id']}: vehicle {entity['entity_id']} physical lane offset is outside road width")
+                elif abs(lateral) > LANE_HALF_WIDTH_M:
+                    issues.append(f"{scene['scenario_id']}: vehicle {entity['entity_id']} lane_anchor is outside drivable lane")
+                if physical_offsets and min(abs(lateral - value) for value in physical_offsets) > 0.25:
+                    issues.append(f"{scene['scenario_id']}: vehicle {entity['entity_id']} lane offset does not match physical road lane centers")
+                if (
+                    semantics != "physical_vehicle_lane_center"
+                    and len([value for value in physical_offsets if abs(value) > 1e-6]) > 0
+                ):
+                    issues.append(f"{scene['scenario_id']}: vehicle {entity['entity_id']} lacks physical_vehicle_lane_center placement semantics")
 
         if mode == "sidewalk_anchor":
             edge_id = placement.get("lane_edge_id")
@@ -1144,6 +1228,13 @@ def check_event_positions(scene: dict[str, Any], script: dict[str, Any], lanes: 
                 for point in waypoints:
                     if abs(point[2]) > 0.75:
                         issues.append(f"{script['scenario_id']}: vehicle waypoint z is not ground level in {action.get('action_id')}: {point}")
+                    check_vehicle_physical_lane_point(
+                        script["scenario_id"],
+                        f"vehicle move_entity {action.get('action_id')} waypoint",
+                        point,
+                        lanes,
+                        issues,
+                    )
             if asset[entity_id].startswith("pedestrian."):
                 for field_name, moving in (("activity_type", True), ("post_activity_type", False)):
                     if field_name not in action:
@@ -2101,6 +2192,9 @@ def check_render_config_flags(config_path: Path, issues: list[str]) -> None:
         payload = dict(config.get(section) or {})
         if payload.get(key) is not False:
             issues.append(f"{config_path}: Dataset render config must set {section}.{key}=false")
+    road_topology = dict(config.get("road_topology_snap") or {})
+    if road_topology.get("enabled") is True and road_topology.get("preserve_truth_xy") is not True:
+        issues.append(f"{config_path}: road_topology_snap must preserve truth XY when enabled")
 
 
 def check_render_ready_configs(render_ready_root: Path, issues: list[str]) -> None:

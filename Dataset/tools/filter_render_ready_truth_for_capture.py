@@ -559,6 +559,10 @@ def update_render_host_config(output_episode_dir: Path, manifest: dict[str, Any]
         payload = dict(config.get(section) or {})
         payload["enabled"] = False
         config[section] = payload
+    road_topology = dict(config.get("road_topology_snap") or {})
+    if road_topology:
+        road_topology["preserve_truth_xy"] = True
+        config["road_topology_snap"] = road_topology
     strategy = dict(config.get("batch_strategy") or {})
     scenario_plan_path = output_episode_dir / "scenario_plan.json"
     if scenario_plan_path.exists():

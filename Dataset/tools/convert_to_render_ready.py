@@ -70,6 +70,11 @@ DEFAULT_TICK_HZ = 10
 UAV_GLOBAL_FLOW_SOURCE = "uav_global_flow"
 INTEREST_FILTER_CATEGORIES = {"pedestrian", "vehicle", "uav"}
 
+try:
+    from render_ready_vehicle_lanes import VehicleLaneProjector
+except ModuleNotFoundError:  # pragma: no cover - supports package imports from repo root.
+    from Dataset.tools.render_ready_vehicle_lanes import VehicleLaneProjector
+
 
 ENTITY_PROFILES: dict[str, dict[str, str]] = {
     "uav": {
@@ -1738,6 +1743,7 @@ def convert_episode(
     if not source_contract["inspect_observes_boundary"]:
         raise RuntimeError(f"{source_episode_dir.name}: source inspect route/sensor profile does not prove boundary observation")
     interest_visibility = VisibilityGeometry.from_contract(source_contract)
+    vehicle_lane_projector = VehicleLaneProjector(project_root, map_id)
 
     sumo_dataset: SumoTrafficDataset | None = None
     sumo_segment: Any | None = None
@@ -1841,6 +1847,8 @@ def convert_episode(
         first_position = normalized_position_for_render(first_row)
         first_velocity = normalize_vector3(first_row.get("vel_mps"))
         first_yaw = heading_deg_from_velocity(first_velocity)
+        if str(profile.get("entity_category") or "") == "vehicle":
+            first_position = vehicle_lane_projector.project_vehicle_position(first_position, yaw_deg=first_yaw)
         first_samples[entity_id] = {
             "row": first_row,
             "position_enu_m": first_position,
@@ -1904,10 +1912,12 @@ def convert_episode(
                     continue
             row = sample_row_at_tick(grouped[entity_id], tick, tick_hz)
             position = normalized_position_for_render(row)
-            if category in INTEREST_FILTER_CATEGORIES and not point_in_interest_xy(position, interest_visibility):
-                continue
             velocity = normalize_vector3(row.get("vel_mps"))
             yaw = heading_deg_from_velocity(velocity, fallback_deg=last_yaw_by_entity.get(entity_id, 0.0))
+            if category == "vehicle":
+                position = vehicle_lane_projector.project_vehicle_position(position, yaw_deg=yaw)
+            if category in INTEREST_FILTER_CATEGORIES and not point_in_interest_xy(position, interest_visibility):
+                continue
             if math.hypot(velocity[0], velocity[1]) > 1e-4:
                 last_yaw_by_entity[entity_id] = yaw
             activity_type = activity_for_sample(

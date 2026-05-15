@@ -88,6 +88,9 @@ def check_render_config(filtered_dir: Path, errors: list[str]) -> None:
         payload = dict(config.get(section) or {})
         if payload.get(key) is not False:
             errors.append(f"{filtered_dir.name}: render_host_config must set {section}.{key}=false")
+    road_topology = dict(config.get("road_topology_snap") or {})
+    if road_topology.get("enabled") is True and road_topology.get("preserve_truth_xy") is not True:
+        errors.append(f"{filtered_dir.name}: road_topology_snap must preserve truth XY when enabled")
 
 
 def dynamic_segment_ok(
