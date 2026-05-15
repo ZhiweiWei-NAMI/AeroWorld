@@ -5199,6 +5199,29 @@ except Exception as exc:
 
         uav_position_enu_m, uav_rotation_deg = self._uav_pose_for_capture(entity, vehicle_status)
         source_uav_position_enu_m = list(uav_position_enu_m)
+        capture_ground_projection: dict[str, Any] | None = None
+        if bool(self.ground_reference_cfg.get("uav_ground_relative", False)):
+            capture_ground_projection = self._project_ground_details(
+                uav_position_enu_m,
+                cache_namespace=f"uav_capture:{entity_id}",
+                use_cache=True,
+            )
+            ground_relative = (capture_ground_projection or {}).get("ground_relative_enu_m")
+            if (
+                not isinstance(ground_relative, Sequence)
+                or isinstance(ground_relative, (str, bytes))
+                or len(ground_relative) < 3
+            ):
+                raise RuntimeError(
+                    "Editor-hook UAV capture requested ground-relative pose, but simAeroProjectGround "
+                    f"did not return ground_relative_enu_m for entity_id={entity_id!r} "
+                    f"position_enu_m={source_uav_position_enu_m}"
+                )
+            uav_position_enu_m = [
+                float(ground_relative[0]),
+                float(ground_relative[1]),
+                float(ground_relative[2]),
+            ]
         fov_degrees = float(preset.get("fov_degrees") or 85.0)
         camera_offset_body_m = [
             float(value)
@@ -5293,6 +5316,10 @@ except Exception as exc:
             "source_uav_pose_enu_m": source_uav_position_enu_m,
             "expected_uav_pose_enu_m": uav_position_enu_m,
             "expected_uav_rotation_deg": uav_rotation_deg,
+            "capture_ground_reference": {
+                "uav_ground_relative_enabled": bool(self.ground_reference_cfg.get("uav_ground_relative", False)),
+                "projection": dict(capture_ground_projection or {}),
+            },
             "capture_source_coordinate_audit": self._coordinate_audit_entry(
                 entity_id=entity_id,
                 logical_asset_id=str(self._entity_resolution(entity).get("logical_asset_id") or ""),
