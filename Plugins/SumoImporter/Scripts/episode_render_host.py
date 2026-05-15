@@ -15,7 +15,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Iterable, Sequence
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -1002,7 +1002,17 @@ class EpisodeRenderHost:
             for value in (getattr(self.args, "modality", None) or [])
             if str(value).strip()
         }
-        self.uav_capture_backend = str(getattr(self.args, "uav_capture_backend", "airsim_native") or "airsim_native").strip().lower()
+        self.skip_scene_entities = bool(getattr(self.args, "skip_scene_entities", False))
+        self.skip_capture = bool(getattr(self.args, "skip_capture", False))
+        self.scene_sync_batch_size = max(0, int(getattr(self.args, "scene_sync_batch_size", 0) or 0))
+        self.scene_sync_delay_s = max(0.0, float(getattr(self.args, "scene_sync_delay_s", 0.0) or 0.0))
+        self.rpc_trace = bool(getattr(self.args, "rpc_trace", False))
+        self.airsim_camera_info_source = str(
+            getattr(self.args, "airsim_camera_info_source", "rpc") or "rpc"
+        ).strip().lower()
+        if self.airsim_camera_info_source not in {"rpc", "settings"}:
+            raise RuntimeError("--airsim-camera-info-source must be either 'rpc' or 'settings'.")
+        self.uav_capture_backend = str(getattr(self.args, "uav_capture_backend", "editor_hook") or "editor_hook").strip().lower()
         self.segmentation_backend = str(
             getattr(self.args, "segmentation_backend", "ue_custom_stencil") or "ue_custom_stencil"
         ).strip().lower()
@@ -2132,9 +2142,23 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         retries = int((self.config.get("timeouts") or {}).get("rpc_retry_count", 2))
         delay_s = float((self.config.get("timeouts") or {}).get("rpc_retry_delay_s", 1.0))
         for attempt in range(retries + 1):
+            start_s = time.perf_counter()
+            trace = bool(getattr(self, "rpc_trace", False))
+            if trace:
+                print(f"[EpisodeHost] RPC start {label} attempt={attempt + 1}/{retries + 1}")
             try:
-                return func(*args, **kwargs)
+                result = func(*args, **kwargs)
+                if trace:
+                    elapsed_s = time.perf_counter() - start_s
+                    print(f"[EpisodeHost] RPC ok {label} attempt={attempt + 1}/{retries + 1} duration_s={elapsed_s:.3f}")
+                return result
             except Exception as exc:
+                if trace:
+                    elapsed_s = time.perf_counter() - start_s
+                    print(
+                        f"[EpisodeHost] RPC failed {label} attempt={attempt + 1}/{retries + 1} "
+                        f"duration_s={elapsed_s:.3f}: {exc}"
+                    )
                 if attempt >= retries:
                     raise
                 print(f"[EpisodeHost] {label} failed (attempt {attempt + 1}/{retries + 1}): {exc}")
@@ -2197,6 +2221,17 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
     def _airsim_capture_enabled(self) -> bool:
         return self.uav_capture_backend == "airsim_native" and self._capture_role_enabled("uav")
 
+    def _uav_capture_enabled(self) -> bool:
+        return self.uav_capture_backend in {"airsim_native", "editor_hook"} and self._capture_role_enabled("uav")
+
+    def _uav_capture_source_name(self) -> str:
+        if self._airsim_capture_enabled():
+            return self.airsim_capture_vehicle
+        if self.uav_capture_backend == "editor_hook":
+            view_id = self.active_capture_view_id or self.requested_capture_view_id or "capture"
+            return safe_name(f"fixed_world_camera.uav.{view_id}")
+        return ""
+
     def _airsim_capture_pose_tolerance_m(self) -> float:
         return max(0.05, float(self._airsim_capture_cfg().get("pose_tolerance_m", 2.0)))
 
@@ -2217,13 +2252,78 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         except Exception as exc:
             raise RuntimeError(f"Unable to read AirSim settings.json at {settings_path}: {exc}") from exc
 
-    def _guard_airsim_native_capture_rpc(self) -> set[str]:
+    @staticmethod
+    def _airsim_image_type_id(image_type: str) -> int | None:
+        normalized = str(image_type or "").strip().lower()
+        image_type_ids = {
+            "scene": 0,
+            "depthplanar": 1,
+            "depthplanner": 1,
+            "depthperspective": 2,
+            "depthvis": 3,
+            "disparitynormalized": 4,
+            "segmentation": 5,
+            "surface normals": 6,
+            "surfacenormals": 6,
+            "infrared": 7,
+        }
+        return image_type_ids.get(normalized)
+
+    def _capture_camera_info_from_settings(self, camera_name: str, *, image_type: str) -> dict[str, Any]:
+        settings = self._load_airsim_settings()
+        vehicles_cfg = dict(settings.get("Vehicles") or {})
+        vehicle_cfg = dict(vehicles_cfg.get(self.airsim_capture_vehicle) or {})
+        cameras_cfg = dict(vehicle_cfg.get("Cameras") or {})
+        if camera_name not in cameras_cfg:
+            raise RuntimeError(
+                f"AirSim capture camera '{camera_name}' is missing from vehicle "
+                f"'{self.airsim_capture_vehicle}' in {self._airsim_settings_path()}."
+            )
+        camera_cfg = dict(cameras_cfg.get(camera_name) or {})
+        image_type_id = self._airsim_image_type_id(image_type)
+        capture_settings: list[dict[str, Any]] = []
+        for source_cfg in (camera_cfg, vehicle_cfg, dict(settings.get("CameraDefaults") or {}), settings):
+            raw_capture_settings = source_cfg.get("CaptureSettings")
+            if isinstance(raw_capture_settings, list):
+                capture_settings = [dict(item) for item in raw_capture_settings if isinstance(item, dict)]
+                if capture_settings:
+                    break
+        if not capture_settings:
+            raise RuntimeError(
+                f"AirSim camera '{camera_name}' has no CaptureSettings in {self._airsim_settings_path()}."
+            )
+        selected = None
+        for item in capture_settings:
+            try:
+                current_image_type_id = int(item.get("ImageType"))
+            except Exception:
+                continue
+            if image_type_id is not None and current_image_type_id == image_type_id:
+                selected = item
+                break
+        if selected is None:
+            selected = capture_settings[0]
+        try:
+            fov_degrees = float(selected.get("FOV_Degrees"))
+        except Exception as exc:
+            raise RuntimeError(
+                f"AirSim camera '{camera_name}' CaptureSettings entry has no numeric FOV_Degrees: {selected}"
+            ) from exc
+        return {
+            "vehicle_name": self.airsim_capture_vehicle,
+            "camera_name": camera_name,
+            "fov_degrees": fov_degrees,
+            "image_type": str(image_type),
+            "image_type_id": image_type_id,
+            "settings_path": str(self._airsim_settings_path()),
+            "source": "airsim_settings_json",
+        }
+
+    def _guard_airsim_native_capture_rpc(self) -> None:
         if self.client is None:
             raise RuntimeError("Host is not connected.")
         try:
             self._retry("airsim_native_preflight_ping", self.client.client.ping)
-            vehicles = set(self._retry("airsim_native_preflight_list_vehicles", self.client.list_vehicles))
-            return vehicles
         except Exception as exc:
             raise RuntimeError(
                 "AirSim native capture RPC guard failed before UAV capture. "
@@ -2268,14 +2368,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                 "The formal UAV capture path requires this preconfigured settings vehicle; runtime simAddVehicle is not allowed."
             )
         park_position, park_rotation = self._airsim_capture_park_pose()
-        vehicles = self._guard_airsim_native_capture_rpc()
-        if self.airsim_capture_vehicle not in vehicles:
-            raise RuntimeError(
-                f"AirSim capture vehicle '{self.airsim_capture_vehicle}' is not registered in the current PIE "
-                "vehicle list. This capture vehicle must be created from Huawei Share AirSim settings.json when "
-                "entering PIE so its configured bottom_center camera exists; runtime simAddVehicle is not allowed "
-                "for the formal UAV capture path."
-            )
+        self._guard_airsim_native_capture_rpc()
         self._retry("enableApiControl", self.client.enable_api_control, True, self.airsim_capture_vehicle)
         self._retry("armDisarm", self.client.arm_disarm, True, self.airsim_capture_vehicle)
         self._measure_airsim_capture_ned_origin_world_cm()
@@ -3094,6 +3187,47 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             self._best_effort("ped_clear_crowd", self.client.ped_clear_crowd, group_id, map_id=self.map_id)
         self._soft_reset_tracking()
 
+    def _apply_scene_frame_payload(self, payload: dict[str, Any], *, label: str) -> None:
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        batch_size = int(getattr(self, "scene_sync_batch_size", 0) or 0)
+        if batch_size <= 0:
+            self._retry(label, self.client.apply_frame, payload, map_id=self.map_id)
+            return
+
+        def chunks(items: list[dict[str, Any]]) -> Iterable[list[dict[str, Any]]]:
+            for start in range(0, len(items), batch_size):
+                yield items[start : start + batch_size]
+
+        base_payload = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"spawns", "updates", "removes"}
+        }
+        sequence = [
+            ("removes", list(payload.get("removes") or [])),
+            ("spawns", list(payload.get("spawns") or [])),
+            ("updates", list(payload.get("updates") or [])),
+        ]
+        chunk_index = 0
+        for field_name, items in sequence:
+            for item_chunk in chunks(items):
+                chunk_index += 1
+                chunk_payload = dict(base_payload)
+                chunk_payload["spawns"] = []
+                chunk_payload["updates"] = []
+                chunk_payload["removes"] = []
+                chunk_payload[field_name] = item_chunk
+                self._retry(
+                    f"{label}_{field_name}_{chunk_index}",
+                    self.client.apply_frame,
+                    chunk_payload,
+                    map_id=self.map_id,
+                )
+                delay_s = float(getattr(self, "scene_sync_delay_s", 0.0) or 0.0)
+                if delay_s > 0.0:
+                    time.sleep(delay_s)
+
     def _apply_scene_frame(self, frame: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         if self.client is None:
             raise RuntimeError("Host is not connected.")
@@ -3118,7 +3252,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         for entity, resolution, record in scene_candidates:
             entity_id = str(entity["entity_id"])
             if (
-                self._airsim_capture_enabled()
+                self._uav_capture_enabled()
                 and entity_id == self.active_airsim_capture_entity_id
                 and str(entity.get("entity_category") or "").strip().lower() == "uav"
             ):
@@ -3165,7 +3299,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                 "updates": updates,
                 "removes": removes,
             }
-            self._retry("apply_frame", self.client.apply_frame, payload, map_id=self.map_id)
+            self._apply_scene_frame_payload(payload, label="apply_frame")
 
         self.scene_active_ids = current_scene_ids
         return spawns, updates, removes, frame_records
@@ -3382,24 +3516,33 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                 continue
 
             entity_id = str(entity["entity_id"])
-            vehicle_name = self.airsim_capture_vehicle if (
-                self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id
+            vehicle_name = self._uav_capture_source_name() if (
+                self._uav_capture_enabled() and entity_id == self.active_airsim_capture_entity_id
             ) else entity_id
-            if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
+            if self._uav_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
                 target_enu_m, rotation_deg = self._uav_pose_for_capture(entity, {})
                 wait_status = self._truth_frame_uav_status(
                     entity_id=entity_id,
-                    vehicle_name=self.airsim_capture_vehicle,
+                    vehicle_name=vehicle_name,
                     target_enu_m=target_enu_m,
                     rotation_deg=rotation_deg,
                     operation="capture_source_truth_frame",
                 )
-                wait_status["capture_vehicle_name"] = self.airsim_capture_vehicle
+                wait_status["capture_vehicle_name"] = self.airsim_capture_vehicle if self._airsim_capture_enabled() else ""
+                wait_status["capture_camera_asset_id"] = vehicle_name if self.uav_capture_backend == "editor_hook" else ""
                 wait_status["source_entity_id"] = entity_id
                 wait_status["replaces_scene_uav_for_capture"] = True
-                wait_status["capture_pose_mode"] = "deferred_capture_tick_pin"
+                wait_status["capture_pose_mode"] = (
+                    "deferred_capture_tick_pin"
+                    if self._airsim_capture_enabled()
+                    else "editor_hook_fixed_world_truth_pose"
+                )
                 wait_status["path_used"] = "truth_frame_capture_source"
-                wait_status["status"]["reason"] = "capture_source_truth_frame_deferred_to_capture_tick_pin"
+                wait_status["status"]["reason"] = (
+                    "capture_source_truth_frame_deferred_to_capture_tick_pin"
+                    if self._airsim_capture_enabled()
+                    else "capture_source_truth_frame_fixed_world_camera"
+                )
                 wait_status["capture_gate"] = {
                     "wait_for_arrival": False,
                     "hover_before_capture": False,
@@ -3615,17 +3758,17 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
     def _select_airsim_capture_entity(self, batch: BatchPlan, capture_ticks: set[int]) -> None:
         self.active_airsim_capture_entity_id = ""
         self.active_capture_view_id = ""
-        if not self._airsim_capture_enabled():
+        if not self._uav_capture_enabled():
             return
         explicit = self.requested_airsim_capture_entity
         if not explicit:
             raise RuntimeError(
-                "AirSim native UAV capture requires exactly one explicit --airsim-capture-entity. "
-                "High-overview/fixed-world captures should run without camera-role uav."
+                f"UAV capture backend '{self.uav_capture_backend}' requires exactly one explicit "
+                "--airsim-capture-entity. This entity is the TruthFrame source pose for the camera."
             )
         if not self.requested_capture_view_id:
             raise RuntimeError(
-                "AirSim native UAV capture requires explicit stable --capture-view-id. "
+                f"UAV capture backend '{self.uav_capture_backend}' requires explicit stable --capture-view-id. "
                 "No deterministic fallback capture view id is allowed."
             )
         candidate_ticks = sorted(capture_ticks) if capture_ticks else [batch.tick_start]
@@ -3642,11 +3785,11 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                 f"Requested --airsim-capture-entity '{explicit}' is not an active UAV in batch {batch.batch_id}."
             )
         if not self.active_airsim_capture_entity_id:
-            raise RuntimeError(f"AirSim native UAV capture requested but no active UAV exists in batch {batch.batch_id}.")
+            raise RuntimeError(f"UAV capture backend '{self.uav_capture_backend}' requested but no active UAV exists in batch {batch.batch_id}.")
         self.active_capture_view_id = self.requested_capture_view_id
         print(
-            "[EpisodeHost] AirSim native capture source "
-            f"entity={self.active_airsim_capture_entity_id} vehicle={self.airsim_capture_vehicle} "
+            f"[EpisodeHost] UAV capture source backend={self.uav_capture_backend} "
+            f"entity={self.active_airsim_capture_entity_id} source={self._uav_capture_source_name()} "
             f"view_id={self.active_capture_view_id}"
         )
 
@@ -4060,6 +4203,43 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             if text:
                 print(f"[EpisodeHost] {text}")
 
+    def _collect_pie_garbage(self) -> None:
+        if self.fixed_world_capture_hook is None:
+            return
+        python_command = """
+import gc
+import unreal
+
+gc.collect()
+worlds = unreal.EditorLevelLibrary.get_pie_worlds(False)
+if worlds:
+    world = worlds[0]
+    for command in ("obj gc", "r.Streaming.FlushAsyncLoading"):
+        try:
+            unreal.SystemLibrary.execute_console_command(world, command)
+            print("PIE_GC_COMMAND", command)
+        except Exception as exc:
+            print("PIE_GC_COMMAND_FAILED", command, str(exc))
+try:
+    unreal.SystemLibrary.collect_garbage()
+    print("PIE_SYSTEM_COLLECT_GARBAGE")
+except Exception as exc:
+    print("PIE_SYSTEM_COLLECT_GARBAGE_FAILED", str(exc))
+"""
+        try:
+            result = self.fixed_world_capture_hook.remote.run_python(
+                python_command,
+                unattended=False,
+                raise_on_failure=True,
+            )
+        except Exception as exc:
+            print(f"[EpisodeHost] pie_gc warning: {exc}")
+            return
+        for item in result.get("output") or []:
+            text = str(item.get("output") or "").rstrip()
+            if text:
+                print(f"[EpisodeHost] {text}")
+
     def _ground_camera_asset_id(self, site_id: str, camera_id: str) -> str:
         key = (str(site_id), str(camera_id))
         if key not in self.ground_camera_asset_ids:
@@ -4186,7 +4366,11 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             "capture_route_contract": {
                 "ground_backend": "editor_hook_fixed_world_camera",
                 "ground_modalities": ["rgb"],
-                "uav_backend": "airsim_native_uav_camera",
+                "uav_backend": (
+                    "editor_hook_fixed_world_camera"
+                    if self.uav_capture_backend == "editor_hook"
+                    else "airsim_native_uav_camera"
+                ),
                 "uav_capture_vehicle": self.airsim_capture_vehicle,
                 "uav_modalities": ["rgb", "depth", "seg"],
                 "single_camera_single_modality_per_run": True,
@@ -4251,9 +4435,13 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
     @staticmethod
     def _editor_hook_output_format(modality_id: str) -> str:
         normalized = str(modality_id or "rgb").strip().lower()
+        if normalized == "depth":
+            return "npy_float32_m"
+        if normalized in {"rgb", "seg"}:
+            return "png"
         if normalized != "rgb":
             raise RuntimeError(
-                "Editor-hook fixed-world capture is restricted to rgb. "
+                "Editor-hook fixed-world capture supports rgb, depth, and seg. "
                 f"Unsupported modality: {modality_id}"
             )
         return "png"
@@ -4372,6 +4560,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         width: int,
         height: int,
         fov_degrees: float,
+        storage_view_id: str | None = None,
     ) -> None:
         modalities = dict(self.capture_presets.get("modalities") or {})
         modality = dict(modalities.get(modality_id) or {})
@@ -4402,7 +4591,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         sidecar.update(
             self._capture_storage_payload(
                 batch=batch,
-                view_id=camera_id,
+                view_id=storage_view_id or camera_id,
                 modality=normalized_modality,
                 modality_output_dir=image_path.parent,
                 primary_output_path=image_path,
@@ -4426,7 +4615,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         width: int,
         height: int,
         fov_degrees: float,
-        semantic_audit_path: Path,
+        semantic_audit_path: Path | None,
     ) -> None:
         sidecar_path = image_path.with_suffix(".json")
         sidecar = dict(common_sidecar)
@@ -4447,7 +4636,7 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "segmentation_kind": "ue_custom_stencil_class_id_u8",
                 "semantic_segmentation_claim": True,
                 "semantic_rules_path": str(self.semantic_rules_path),
-                "semantic_audit_path": str(semantic_audit_path),
+                "semantic_audit_path": str(semantic_audit_path or ""),
                 "semantic_class_by_id": dict(self.semantic_class_by_id),
                 "width": int(width),
                 "height": int(height),
@@ -4741,12 +4930,19 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "Configure the capture camera in AirSim settings.json and pin CaptureUAV_0 to the TruthFrame pose."
             )
         if not uses_ue_custom_stencil:
-            camera_info_before_capture = self._retry(
-                "simGetCameraInfo",
-                self.client.get_camera_info,
-                self.airsim_capture_vehicle,
-                camera_name,
-            )
+            image_type = str(modality.get("image_type") or "Scene")
+            if str(getattr(self, "airsim_camera_info_source", "rpc") or "rpc").strip().lower() == "settings":
+                camera_info_before_capture = self._capture_camera_info_from_settings(
+                    camera_name,
+                    image_type=image_type,
+                )
+            else:
+                camera_info_before_capture = self._retry(
+                    "simGetCameraInfo",
+                    self.client.get_camera_info,
+                    self.airsim_capture_vehicle,
+                    camera_name,
+                )
             observed_fov = float(camera_info_before_capture.get("fov_degrees", 0.0))
             if not math.isfinite(observed_fov) or abs(observed_fov - fov_degrees) > 0.5:
                 raise RuntimeError(
@@ -4756,7 +4952,6 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                     "Fix Huawei Share AirSim settings.json and re-enter PIE; runtime simSetCameraFov is not part of "
                     "the UAV capture contract."
                 )
-            image_type = str(modality.get("image_type") or "Scene")
             airsim_proxy_capture_exclusion = self._apply_airsim_semantic_proxy_capture_exclusion(
                 camera_name=camera_name,
                 modality_id=normalized_modality,
@@ -4970,6 +5165,205 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             fov_degrees=fov_degrees,
         )
 
+    def _capture_uav_editor_hook_modality(
+        self,
+        batch: BatchPlan,
+        frame: dict[str, Any],
+        *,
+        modality_id: str,
+        entity_id: str,
+        entity: dict[str, Any],
+        vehicle_status: dict[str, Any],
+        camera_id: str,
+        camera_name: str,
+        preset: dict[str, Any],
+        weather_payload: dict[str, Any],
+        entity_records: list[dict[str, Any]],
+        feedback_payload: dict[str, Any],
+        uav_debug: dict[str, Any],
+    ) -> None:
+        if self.client is None:
+            raise RuntimeError("Host is not connected.")
+        if entity_id != self.active_airsim_capture_entity_id:
+            raise RuntimeError(
+                f"Editor-hook UAV capture can only capture active source '{self.active_airsim_capture_entity_id}', got '{entity_id}'."
+            )
+        if not self.requested_capture_view_id:
+            raise RuntimeError(
+                "Editor-hook UAV capture requires explicit stable --capture-view-id. "
+                "No deterministic fallback capture view id is allowed."
+            )
+        normalized_modality = str(modality_id or "rgb").strip().lower()
+        if normalized_modality not in {"rgb", "depth", "seg"}:
+            raise RuntimeError(f"Editor-hook UAV capture does not support modality '{modality_id}'.")
+
+        uav_position_enu_m, uav_rotation_deg = self._uav_pose_for_capture(entity, vehicle_status)
+        source_uav_position_enu_m = list(uav_position_enu_m)
+        fov_degrees = float(preset.get("fov_degrees") or 85.0)
+        camera_offset_body_m = [
+            float(value)
+            for value in (preset.get("camera_offset_body_ned_m") or preset.get("camera_offset_body_m") or [0.0, 0.0, 0.0])
+        ][:3]
+        while len(camera_offset_body_m) < 3:
+            camera_offset_body_m.append(0.0)
+        camera_rotation_body_deg = dict(preset.get("fixed_rotation_offset_deg") or {})
+        if not camera_rotation_body_deg:
+            camera_rotation_body_deg = {"pitch_deg": 0.0, "yaw_deg": 0.0, "roll_deg": 0.0}
+        camera_world_rotation_deg = self._add_rotation_offsets(uav_rotation_deg, camera_rotation_body_deg)
+        set_capture_camera_pose = bool(preset.get("set_capture_camera_pose", False))
+        if set_capture_camera_pose:
+            raise RuntimeError(
+                "Editor-hook UAV capture uses the TruthFrame pose directly and must not request runtime camera mutation."
+            )
+
+        modalities = dict(self.capture_presets.get("modalities") or {})
+        modality = dict(modalities.get(normalized_modality) or {})
+        view_id = self.requested_capture_view_id
+        output_dir = self._uav_capture_view_output_dir(view_id) / safe_name(normalized_modality)
+        self._prepare_capture_output_dir(output_dir)
+        frame_stem = self.capture_orchestrator.frame_stem(frame)
+        extension = str(modality.get("extension") or ("npy" if normalized_modality == "depth" else "png"))
+        image_path = output_dir / f"{frame_stem}.{extension}"
+        semantic_audit_path = (
+            output_dir / f"{frame_stem}__seg_audit.json"
+            if bool(getattr(self.args, "write_semantic_audit", False))
+            else None
+        )
+
+        hook = self._fixed_world_capture_hook()
+        camera_asset_id = safe_name("fixed_world_camera.uav.shared_capture")
+        hook.ensure_fixed_world_camera(
+            map_id=self.map_id,
+            asset_id=camera_asset_id,
+            logical_asset_id="camera.fixed_world_capture.rgb.v1",
+            position_enu_m=uav_position_enu_m,
+            rotation_deg=camera_world_rotation_deg,
+        )
+        capture_response = hook.capture_modality(
+            map_id=self.map_id,
+            asset_id=camera_asset_id,
+            modality=normalized_modality,
+            output_path=image_path,
+            width=int(preset.get("width") or 1280),
+            height=int(preset.get("height") or 720),
+            fov_degrees=fov_degrees,
+            semantic_rules_path=self.semantic_rules_path if normalized_modality == "seg" else None,
+            semantic_audit_path=semantic_audit_path if normalized_modality == "seg" else None,
+        )
+
+        camera_info_before_capture = {
+            "source": "editor_hook_fixed_world_camera",
+            "vehicle_name": "",
+            "camera_name": camera_name,
+            "fov_degrees": fov_degrees,
+        }
+        capture_pose = {
+            "requested_position_enu_m": [float(value) for value in uav_position_enu_m],
+            "requested_rotation_deg": dict(camera_world_rotation_deg),
+            "pose": {},
+            "pose_error_m": 0.0,
+            "capture_pose_mode": "editor_hook_fixed_world_truth_pose",
+        }
+        sidecar = {
+            "episode_id": self.episode_id,
+            "logical_event_id": self.episode_id,
+            "logical_sample_id": f"{self.episode_id}:tick{int(frame['tick']):06d}:{view_id}",
+            "frame_id": str(frame.get("frame_id", "")),
+            "frame_seq": int(frame.get("frame_seq") or frame.get("tick") or 0),
+            "tick": int(frame["tick"]),
+            "sim_time_s": float(frame.get("sim_time_s", 0.0)),
+            "map_id": self.map_id,
+            "batch_id": batch.batch_id,
+            "site_id": batch.site_id,
+            "roi_id": batch.roi_id,
+            "weather": weather_payload,
+            "feedback": feedback_payload,
+            "uav_scene_status": vehicle_status,
+            "uav_debug": uav_debug,
+            "uav_entity_id": entity_id,
+            "source_uav_entity_id": entity_id,
+            "capture_vehicle_name": "",
+            "vehicle_name": "",
+            "camera_name": camera_name,
+            "requested_camera_pose_body_m": camera_offset_body_m,
+            "requested_camera_rotation_body_deg": camera_rotation_body_deg,
+            "set_capture_camera_pose": set_capture_camera_pose,
+            "camera_pose_frame": str(preset.get("camera_pose_frame") or preset.get("camera_pose_coordinate_frame") or "ned").strip().lower(),
+            "camera_info_before_capture": camera_info_before_capture,
+            "source_uav_pose_enu_m": source_uav_position_enu_m,
+            "expected_uav_pose_enu_m": uav_position_enu_m,
+            "expected_uav_rotation_deg": uav_rotation_deg,
+            "capture_source_coordinate_audit": self._coordinate_audit_entry(
+                entity_id=entity_id,
+                logical_asset_id=str(self._entity_resolution(entity).get("logical_asset_id") or ""),
+                source_coordinate_space="map_enu_m" if self._truth_frame_uses_map_enu() else "local_enu_m",
+                raw_position_enu_m=position_enu_from_truth(entity),
+                coordinate_transform_applied=not self._truth_frame_uses_map_enu(),
+                object_role="capture_source_uav",
+            ),
+            "requested_capture_pose_enu_m": capture_pose.get("requested_position_enu_m"),
+            "requested_capture_rotation_deg": capture_pose.get("requested_rotation_deg"),
+            "airsim_pose_before_capture": capture_pose.get("pose"),
+            "pose_error_m": capture_pose.get("pose_error_m"),
+            "capture_pose_mode": capture_pose.get("capture_pose_mode"),
+            "capture_camera_asset_id": camera_asset_id,
+            "ue_stencil_camera_asset_id": camera_asset_id if normalized_modality == "seg" else "",
+            "ue_stencil_camera_position_enu_m": uav_position_enu_m if normalized_modality == "seg" else [],
+            "ue_stencil_camera_rotation_deg": camera_world_rotation_deg if normalized_modality == "seg" else {},
+            "fixed_world_camera_position_enu_m": uav_position_enu_m,
+            "fixed_world_camera_rotation_deg": camera_world_rotation_deg,
+            "editor_hook_capture_response": capture_response,
+            "capture_alignment_key": f"{self.episode_id}:{batch.batch_id}:{int(frame['tick'])}:{view_id}",
+            "capture_alignment_source": "deterministic_episode_frame",
+            "capture_backend": (
+                "ue_custom_stencil_fixed_world_camera"
+                if normalized_modality == "seg"
+                else "editor_hook_fixed_world_camera"
+            ),
+            "uav_scene_control_backend": self.uav_scene_control_backend,
+            "coordinate_space_contract": self._coordinate_space_contract(),
+            "event_semantic_logical_region_policy": self._event_semantic_logical_region_policy(),
+            "event_semantic_objects": self.event_semantic_coordinate_audit,
+            "event_semantic_proxy_sanitizer": self.event_semantic_proxy_sanitizer_result,
+            "airsim_proxy_capture_exclusion": {
+                "status": "not_applicable",
+                "reason": "uav_editor_hook_capture_does_not_use_airsim_camera_rpc",
+                "target_count": len(self.event_semantic_proxy_capture_targets),
+            },
+            "static_map_objects": self.static_map_coordinate_audit,
+            "capture_view_id": view_id,
+            "entity_records": entity_records,
+            "roster_summary": frame.get("roster_summary", {}),
+        }
+        if normalized_modality == "seg":
+            self._write_ue_stencil_capture_output(
+                batch,
+                frame,
+                view_id=view_id,
+                camera_id=camera_id,
+                camera_name=camera_name,
+                image_path=image_path,
+                common_sidecar=sidecar,
+                width=int(preset.get("width") or 1280),
+                height=int(preset.get("height") or 720),
+                fov_degrees=fov_degrees,
+                semantic_audit_path=semantic_audit_path,
+            )
+            return
+        self._write_fixed_world_capture_output(
+            batch,
+            frame,
+            camera_id,
+            normalized_modality,
+            image_path,
+            sidecar,
+            camera_role="uav",
+            width=int(preset.get("width") or 1280),
+            height=int(preset.get("height") or 720),
+            fov_degrees=fov_degrees,
+            storage_view_id=view_id,
+        )
+
     def _capture_ground_views(
         self,
         batch: BatchPlan,
@@ -5169,9 +5563,59 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 )
             return
 
+        if self.uav_capture_backend == "editor_hook":
+            entity_id = self.active_airsim_capture_entity_id
+            if not entity_id:
+                raise RuntimeError("Editor-hook UAV capture has no active source entity.")
+            if entity_id not in uav_capture_status:
+                raise RuntimeError(
+                    f"Editor-hook UAV capture source '{entity_id}' has no capture status at tick {int(frame['tick'])}."
+                )
+            entity = frame_entities_by_id.get(entity_id) or self.roster_by_id.get(entity_id) or {}
+            vehicle_status = dict(uav_capture_status.get(entity_id) or {})
+            jobs: list[tuple[str, str, str, dict[str, Any]]] = []
+            for preset in self._uav_camera_presets():
+                camera_name = str(preset.get("camera_name", "front_center"))
+                camera_id = f"{safe_name(entity_id)}__{safe_name(str(preset.get('camera_id_suffix', camera_name)))}"
+                if not self._capture_camera_enabled(camera_id, str(preset.get("camera_id_suffix", "")), camera_name, entity_id):
+                    continue
+                modality_ids = self._filtered_modalities(
+                    list(preset.get("modalities") or self.capture_presets.get("default_modalities") or ["rgb", "depth", "seg"])
+                )
+                for modality_id in modality_ids:
+                    jobs.append((camera_id, camera_name, str(modality_id), preset))
+            if not jobs:
+                raise RuntimeError(
+                    "Editor-hook UAV capture found no camera/modality job. "
+                    "Check --camera-id and --modality filters."
+                )
+            matched_cameras = {(job[0], job[1]) for job in jobs}
+            if len(matched_cameras) != 1:
+                raise RuntimeError(
+                    "Editor-hook UAV capture requires exactly one camera per run. "
+                    f"Matched jobs: {[{'camera_id': job[0], 'camera_name': job[1], 'modality': job[2]} for job in jobs]}"
+                )
+            for camera_id, camera_name, modality_id, preset in jobs:
+                self._capture_uav_editor_hook_modality(
+                    batch,
+                    frame,
+                    modality_id=modality_id,
+                    entity_id=entity_id,
+                    entity=entity,
+                    vehicle_status=vehicle_status,
+                    camera_id=camera_id,
+                    camera_name=camera_name,
+                    preset=preset,
+                    weather_payload=weather_payload,
+                    entity_records=entity_records,
+                    feedback_payload=feedback_payload,
+                    uav_debug=uav_debug,
+                )
+            return
+
         raise RuntimeError(
-            "UAV image capture requires --uav-capture-backend airsim_native. "
-            "The editor-hook UAV capture fallback is disabled so long runs cannot silently switch capture routes."
+            "UAV image capture requires --uav-capture-backend editor_hook for formal runs "
+            "(airsim_native is diagnostic only)."
         )
 
     def _batch_ticks(self, batch: BatchPlan) -> list[int]:
@@ -5432,8 +5876,8 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             self.ped_active_ids.add(entity_id)
             return {"status": "ok", "entity_id": entity_id, "ped_id": entity_id, "response": response}
         if asset_kind == "uav" and self.uav_scene_control_backend == "truth_frame_scene_sync":
-            if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
-                self.uav_active_by_entity[entity_id] = self.airsim_capture_vehicle
+            if self._uav_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
+                self.uav_active_by_entity[entity_id] = self._uav_capture_source_name()
             self.uav_last_command_target_by_entity[entity_id] = list(position)
             return {
                 "status": "ok",
@@ -5536,31 +5980,39 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                 "reason": "pedestrian movement is applied deterministically from truth_frames before capture",
             }
         if asset_kind == "uav":
-            if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
+            if self._uav_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
                 command_rotation = rotation or self._entity_rotation_deg({"entity_id": entity_id})
                 wait_status = self._truth_frame_uav_status(
                     entity_id=entity_id,
-                    vehicle_name=self.airsim_capture_vehicle,
+                    vehicle_name=self._uav_capture_source_name(),
                     target_enu_m=position,
                     rotation_deg=command_rotation,
                     operation="capture_source_event_move",
                 )
-                wait_status["capture_vehicle_name"] = self.airsim_capture_vehicle
-                wait_status["capture_pose_mode"] = "deferred_capture_tick_pin"
+                wait_status["capture_vehicle_name"] = self.airsim_capture_vehicle if self._airsim_capture_enabled() else ""
+                wait_status["capture_pose_mode"] = (
+                    "deferred_capture_tick_pin"
+                    if self._airsim_capture_enabled()
+                    else "editor_hook_fixed_world_truth_pose"
+                )
                 wait_status["replaces_scene_uav_for_capture"] = True
                 response = {
                     "payload": {
-                        "vehicle_name": self.airsim_capture_vehicle,
+                        "vehicle_name": self._uav_capture_source_name(),
                         "source_entity_id": entity_id,
                         "state": "ok",
-                        "reason": "capture_source_event_move_deferred_to_capture_tick_pin",
+                        "reason": (
+                            "capture_source_event_move_deferred_to_capture_tick_pin"
+                            if self._airsim_capture_enabled()
+                            else "capture_source_event_move_fixed_world_camera"
+                        ),
                         "target_enu_m": [float(value) for value in position],
                         "rotation_deg": dict(command_rotation or {}),
                         "velocity_mps": float(action.get("velocity_mps", 5.0)),
                         "synthetic": True,
                     }
                 }
-                self.uav_active_by_entity[entity_id] = self.airsim_capture_vehicle
+                self.uav_active_by_entity[entity_id] = self._uav_capture_source_name()
                 self.uav_last_command_target_by_entity[entity_id] = list(position)
                 wait_status["path_used"] = "truth_frame_capture_source"
                 wait_status["source_entity_id"] = entity_id
@@ -5614,18 +6066,22 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
             self.ped_active_ids.discard(entity_id)
             return {"status": "ok", "entity_id": entity_id, "response": response}
         if asset_kind == "uav":
-            if self._airsim_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
+            if self._uav_capture_enabled() and entity_id == self.active_airsim_capture_entity_id:
                 self.uav_active_by_entity.pop(entity_id, None)
                 self.event_controlled_entity_ids.discard(entity_id)
                 self.uav_last_command_target_by_entity.pop(entity_id, None)
                 return {
                     "status": "ok",
                     "entity_id": entity_id,
-                    "capture_vehicle_name": self.airsim_capture_vehicle,
+                    "capture_vehicle_name": self.airsim_capture_vehicle if self._airsim_capture_enabled() else "",
                     "response": {
                         "payload": {
                             "state": "skipped",
-                            "reason": "capture_vehicle_is_retained_and_reused",
+                            "reason": (
+                                "capture_vehicle_is_retained_and_reused"
+                                if self._airsim_capture_enabled()
+                                else "fixed_world_capture_camera_is_retained_and_reused"
+                            ),
                         }
                     },
                 }
@@ -5957,10 +6413,21 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
         for tick in batch_ticks:
             frame = self.frames_by_tick[tick]
             weather_payload = self._apply_weather_if_needed(tick)
-            _, _, _, entity_records = self._apply_scene_frame(frame)
-            _ = self._sync_pedestrians(frame)
-            uav_status = self._sync_uavs(frame)
-            uav_debug = self._collect_uav_debug(frame, uav_status)
+            if self.skip_scene_entities:
+                entity_records = []
+                uav_status = self._sync_uavs(frame)
+                uav_debug = {
+                    "vehicles": {},
+                    "probe_meta": {
+                        "probe_disabled": True,
+                        "reason": "skip_scene_entities",
+                    },
+                }
+            else:
+                _, _, _, entity_records = self._apply_scene_frame(frame)
+                _ = self._sync_pedestrians(frame)
+                uav_status = self._sync_uavs(frame)
+                uav_debug = self._collect_uav_debug(frame, uav_status)
 
             # --- Event script interpreter ---
             if self.event_interpreter is not None:
@@ -6010,6 +6477,10 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                             + json.dumps(summary, ensure_ascii=False, default=str)
                         )
 
+            if self.skip_capture and tick in capture_ticks:
+                print(f"[EpisodeHost] Skipping capture at tick {tick} due to --skip-capture.")
+                continue
+
             if tick in capture_ticks:
                 self._guard_runtime_resources(context=f"capture tick {tick}")
                 feedback_payload = self._poll_feedback()
@@ -6054,13 +6525,21 @@ print("PIE_SKY_DOME_SANITIZE_COUNT",len(S))
                     _write_jsonl_util(event_path, event_log)
                     print(f"[EpisodeHost] Event trace written: {event_path} ({len(event_log)} events)")
         finally:
+            camera_asset_ids = sorted(set(self.ground_camera_asset_ids.values()))
+            if self.fixed_world_capture_hook is not None:
+                for asset_id in camera_asset_ids:
+                    try:
+                        self.fixed_world_capture_hook.remove_asset(map_id=self.map_id, asset_id=asset_id)
+                    except Exception as exc:
+                        print(f"[EpisodeHost] editor_hook remove_asset warning for {asset_id}: {exc}")
             if self.client is not None:
-                for asset_id in sorted(set(self.ground_camera_asset_ids.values())):
+                for asset_id in camera_asset_ids:
                     try:
                         self._retry("remove_asset", self.client.remove_asset, asset_id, map_id=self.map_id)
                     except Exception as exc:
                         print(f"[EpisodeHost] remove_asset warning for {asset_id}: {exc}")
             self.hard_reset_world_state()
+            self._collect_pie_garbage()
             if self.fixed_world_capture_hook is not None:
                 self.fixed_world_capture_hook.close()
 
@@ -6087,6 +6566,33 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max_capture_frames", type=int, default=0, help="Hard cap on captured frames per batch after tick filters")
     parser.add_argument("--min_free_memory_gb", type=float, default=3.0, help="Abort before capture when available system RAM is below this threshold")
     parser.add_argument("--min_output_free_disk_gb", type=float, default=10.0, help="Abort before capture when output drive free space is below this threshold")
+    parser.add_argument(
+        "--skip-scene-entities",
+        action="store_true",
+        help="Diagnostic mode: do not spawn/update/remove truth-frame scene entities or pedestrians.",
+    )
+    parser.add_argument(
+        "--skip-capture",
+        action="store_true",
+        help="Diagnostic mode: apply runtime scene updates without capturing images.",
+    )
+    parser.add_argument(
+        "--scene-sync-batch-size",
+        type=int,
+        default=0,
+        help="Diagnostic slow-load mode: split apply_frame scene operations into chunks of this size. 0 keeps one RPC.",
+    )
+    parser.add_argument(
+        "--scene-sync-delay-s",
+        type=float,
+        default=0.0,
+        help="Diagnostic slow-load mode: sleep this many seconds after each apply_frame chunk.",
+    )
+    parser.add_argument(
+        "--rpc-trace",
+        action="store_true",
+        help="Print start/end timing for capture/runtime RPC calls.",
+    )
     parser.add_argument(
         "--preserve_capture_output_dir",
         action="store_true",
@@ -6121,8 +6627,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--uav-capture-backend",
         choices=["editor_hook", "airsim_native"],
-        default="airsim_native",
-        help="Backend for UAV camera captures. Ground cameras still use editor hook RGB.",
+        default="editor_hook",
+        help="Backend for UAV camera captures. Formal capture uses editor_hook fixed-world UE capture.",
     )
     parser.add_argument(
         "--uav-scene-control-backend",
@@ -6146,7 +6652,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--airsim-capture-vehicle",
         default="CaptureUAV_0",
-        help="Single AirSim vehicle used as the native UAV capture platform.",
+        help="Legacy native AirSim capture vehicle name; unused by formal editor_hook capture.",
     )
     parser.add_argument(
         "--airsim-capture-entity",
@@ -6155,6 +6661,12 @@ def parse_args() -> argparse.Namespace:
             "Scene UAV entity id to replace with the AirSim capture platform. "
             "Required when camera-role includes uav; high-overview/fixed-world captures do not use it."
         ),
+    )
+    parser.add_argument(
+        "--airsim-camera-info-source",
+        choices=["rpc", "settings"],
+        default="rpc",
+        help="Validate AirSim capture camera FOV from simGetCameraInfo or the configured settings.json.",
     )
     parser.add_argument(
         "--capture-view-id",
@@ -6172,6 +6684,11 @@ def parse_args() -> argparse.Namespace:
         dest="write_depth_preview",
         action="store_false",
         help="Disable depth preview PNG output and keep only the depth .npy plus sidecar.",
+    )
+    parser.add_argument(
+        "--write-semantic-audit",
+        action="store_true",
+        help="Write large per-frame CustomStencil audit JSON files. Default keeps full capture outputs without audit dumps.",
     )
     parser.add_argument(
         "--semantic-stencil-audit-only",

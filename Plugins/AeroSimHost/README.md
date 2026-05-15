@@ -2,7 +2,7 @@
 
 This plugin owns the UE runtime bridge and the authoritative UE-side API surface.
 
-If Python code needs to drive UE, spawn/move assets, query grounding, control pedestrians, apply weather, or capture fixed-world images, the contract eventually resolves here.
+If Python code needs to drive UE, spawn/move assets, query grounding, control pedestrians, apply weather, or support fixed-world image capture, the contract eventually resolves here. Formal capture is invoked through the UE editor hook from `SumoImporter`.
 
 ## Read Order
 
@@ -69,6 +69,7 @@ This is why those files currently stay in `Config`, even if source map materials
   `simAeroApplyWeather`
 - capture:
   `simAeroCaptureWorldCamera`
+  This is the UE fixed-world capture API surface. Formal UAV image collection should reach it through the editor hook, not AirSim native camera capture.
 
 ## Boundary
 

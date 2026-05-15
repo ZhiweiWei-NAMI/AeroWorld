@@ -1,6 +1,6 @@
 # Low-Altitude Semantic Event-Chain Dataset
 
-This dataset is the canonical low-altitude AeroWorld program for 70 deterministic episode definitions.
+This dataset is the canonical low-altitude AeroWorld program for 70 deterministic episode definitions. Read `../HANDOFF_LOW_ALTITUDE_SEMANTIC_EVENT_CHAIN.md` before running generation or capture.
 
 ## Canonical Source
 
@@ -43,6 +43,9 @@ This dataset is the canonical low-altitude AeroWorld program for 70 deterministi
 - Reuse the existing UE PIE session and AirSim RPC `127.0.0.1:41451`.
 - Do not close UE/PIE unless C++ rebuild is required or the user explicitly requests it.
 - Capture scripts keep UE open by default.
+- Formal image capture uses the UE editor-hook fixed-world camera, not AirSim native camera capture.
+- Formal episode span is tick `0..900`, captured every `5` ticks.
+- Memory guard is 18GB; clear world state, temporary capture actors, and PIE garbage after each episode or host chunk.
 - Deterministic output roots only. No timestamp or version directories.
 - Failed runs keep UE open for inspection and resume.
 - AirSim settings live under Huawei Share.
@@ -52,8 +55,8 @@ This dataset is the canonical low-altitude AeroWorld program for 70 deterministi
 - Source scenarios: `Dataset/scenarios/...`
 - Deterministic episode roots: `Dataset/episodes/<scenario>__seed00`
 - Render-ready episode roots: `Dataset/render_ready_episodes/<scenario>__seed00`
-- Semantic capture root: `Saved/AirSim/semantic_70events_rgb_depth_seg_tick100`
-- Semantic capture summary: `Saved/AirSim/semantic_70events_rgb_depth_seg_tick100_summary.csv`
+- Formal UE capture root: `F:/aw_cap`
+- Formal UE capture summary: `F:/aw_cap_summary.csv`
 
 ## Canonical Artifacts
 
@@ -69,3 +72,4 @@ This dataset is the canonical low-altitude AeroWorld program for 70 deterministi
 - `trajectories.jsonl`
 - `weather_meta.jsonl`
 
+Formal UE capture input is `Dataset/render_ready_episodes_capture_filtered/<episode>/render_host_config.json`, not the unfiltered render-ready root.

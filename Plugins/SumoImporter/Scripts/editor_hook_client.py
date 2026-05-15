@@ -233,7 +233,7 @@ class UnrealEditorRemoteExecution:
         unattended: bool = False,
         raise_on_failure: bool = True,
     ) -> dict[str, Any]:
-        attempts = 2
+        attempts = 6
         last_exc: Exception | None = None
         for attempt in range(attempts):
             try:
@@ -245,7 +245,7 @@ class UnrealEditorRemoteExecution:
                 if attempt + 1 >= attempts or not self._is_retryable_command_error(exc):
                     raise
                 self.close()
-                time.sleep(0.5)
+                time.sleep(min(3.0, 0.5 + 0.5 * attempt))
         assert last_exc is not None
         raise last_exc
 

@@ -3,6 +3,7 @@
 This is the main plugin root for external Python development.
 
 If the work starts from Python, scenario generation, map-source materials, the canonical low-altitude semantic event-chain, capture orchestration, or postprocess, start here first.
+Read `../../HANDOFF_LOW_ALTITUDE_SEMANTIC_EVENT_CHAIN.md` before running capture.
 
 ## Read Order
 
@@ -11,7 +12,7 @@ If the work starts from Python, scenario generation, map-source materials, the c
 2. `DEVELOPMENT_LAYOUT.md`
    Read this for concrete placement rules across plugins.
 3. `Scripts/episode_render_host.py`
-   Main runtime executor that consumes `ScenarioPackage` outputs and drives UE/AirSim.
+   Main runtime executor that consumes `ScenarioPackage` outputs and drives UE through AirSim RPC plus the UE editor hook.
 4. `Scenarios/donghu_dense_uav_rain_fall/scripts/build.py`
    Current working example of a canonical scenario generator.
 5. `Demos/multiview/build_multiview_demo_assets.py`
@@ -34,7 +35,7 @@ The intended architecture is split into four layers:
 - `Scenario Package`
   Per-scenario truth, semantic actor rosters, weather, plans, render-ready sidecars, and manifests.
 - `Runtime Executor`
-  UE/AirSim execution driven from package outputs.
+  UE playback and editor-hook capture driven from package outputs.
 - `Postprocess`
   GIFs, timelines, and presentation artifacts built from runtime outputs.
 
@@ -47,7 +48,7 @@ Scenario generation should produce data packages, not directly mutate the world.
   Python wrapper around the UE bridge RPC surface.
 - `Scripts/episode_render_host_config.json`
   Main runtime config for package playback and capture.
-  UAV host runs require explicit `--airsim-capture-entity` and `--capture-view-id`; the event-chain runner creates those runs by rotating across every active scene UAV.
+  UAV host runs require explicit `--airsim-capture-entity`, `--capture-view-id`, `--uav-capture-backend editor_hook`, and one modality. The event-chain runner creates separate runs across every active scene UAV.
 - `Config/LowAltitude/Maps/<map_id>/map_package.json`
   Current summary of runtime map config and plugin-owned map-source inputs.
 - `Scripts/episode_template_resolver.json`
@@ -67,12 +68,12 @@ Scenario generation should produce data packages, not directly mutate the world.
    apply scene-sync semantic actors
    update truth-driven semantic actors, including background vehicles and pedestrians
    enforce physical motion for all relevant entities
-  sync scene UAVs from truth frames
-  trigger all cameras once for that tick by pinning `CaptureUAV_0` to the selected scene UAV
+   sync scene UAVs from truth frames
+   trigger high overview or one UAV modality through the UE editor-hook fixed-world camera
    write sidecars and images
 6. Run `Demos/multiview/build_multiview_demo_assets.py` for GIF/timeline outputs.
 
-Capture tasks are valid only when they provide stable `--airsim-capture-entity` and `--capture-view-id`; missing values fail closed.
+Capture tasks are valid only when they provide stable `--airsim-capture-entity`, `--capture-view-id`, `--uav-capture-backend editor_hook`, and exactly one modality; missing values fail closed.
 
 ## APIs That Matter
 
@@ -89,6 +90,7 @@ For Python developers, the most important RPC families are:
 - pedestrian RPCs such as `ped_spawn`, `ped_reset`, `ped_play_animation`
 - `apply_weather`
 - `capture_world_camera`
+  UE fixed-world capture path used by the editor hook.
 
 Background vehicles and pedestrians are semantic actors, not decoration, and their motion and state belong in the generated package outputs.
 

@@ -56,7 +56,7 @@ This project now has a stricter ownership split.
   `notes/`
   Human-readable assumptions, contracts, review notes, and visual-feasibility notes.
 
-- Capture tasks in those artifacts must carry stable `--airsim-capture-entity` and `--capture-view-id` when applicable.
+- Formal capture tasks must carry stable `--airsim-capture-entity`, `--capture-view-id`, `--uav-capture-backend editor_hook`, and exactly one modality when applicable.
 - Background vehicles and pedestrians are semantic actors, not decoration; their motion and state belong in the generated data.
 
 - The current `donghu_dense_uav_rain_fall` directory under `Scenarios/` is the canonical reference scenario.

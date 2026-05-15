@@ -8,7 +8,7 @@ The only supported low-altitude pipeline is:
 
 `spec_compiler.py -> regenerate_boundary_scenarios.py -> batch_generate.py -> convert_to_render_ready.py -> run_semantic_event_chain_every10.py -> episode_render_host.py -> validators`
 
-Capture tasks are valid only when they use stable `--airsim-capture-entity` and `--capture-view-id`.
+Formal capture tasks are valid only when they use stable `--airsim-capture-entity`, `--capture-view-id`, `--uav-capture-backend editor_hook`, and exactly one modality.
 Background vehicles and pedestrians are semantic actors, not decoration, and relevant entities must have physical motion.
 
 ## Recommended Structure

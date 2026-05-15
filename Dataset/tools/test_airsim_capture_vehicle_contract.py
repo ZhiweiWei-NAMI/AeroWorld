@@ -29,7 +29,7 @@ class AirSimCaptureVehicleContractTest(unittest.TestCase):
                 raise AssertionError("AirSim getSettingsString RPC must not be used for capture settings validation")
 
             def list_vehicles(self) -> list[str]:
-                return []
+                raise AssertionError("AirSim listVehicles RPC must not gate the formal capture vehicle contract")
 
             def add_vehicle(self, *_args: object, **_kwargs: object) -> bool:
                 self.add_vehicle_called = True
@@ -42,7 +42,7 @@ class AirSimCaptureVehicleContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             settings_path = Path(tmp) / "settings.json"
             settings_path.write_text(
-                json.dumps({"ViewMode": "FlyWithMe", "Vehicles": {"CaptureUAV_0": {"VehicleType": "SimpleFlight"}}}),
+                json.dumps({"ViewMode": "FlyWithMe", "Vehicles": {}}),
                 encoding="utf-8",
             )
             fake_client = Client()

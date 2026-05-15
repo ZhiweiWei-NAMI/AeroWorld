@@ -1,6 +1,6 @@
 # Semantic Capture Runbook
 
-This is the durable operating contract for the canonical low-altitude semantic event-chain pipeline.
+This is the durable operating contract for the canonical low-altitude semantic event-chain pipeline. The full handoff is `../../HANDOFF_LOW_ALTITUDE_SEMANTIC_EVENT_CHAIN.md`.
 
 ## Canonical Pipeline
 
@@ -12,6 +12,9 @@ This is the durable operating contract for the canonical low-altitude semantic e
 - Reuse AirSim RPC `127.0.0.1:41451`.
 - Do not close UE/PIE unless C++ rebuild is required or the user explicitly requests it.
 - Capture scripts keep UE open by default.
+- Use UE editor-hook fixed-world capture for formal images. Do not use AirSim native camera capture.
+- Use tick `0..900` with capture interval `5`.
+- Keep UE memory guards at 18GB and clear runtime state after each episode or host chunk.
 - Keep output roots deterministic.
 - Do not create timestamped or versioned directories.
 - AirSim settings are stored under Huawei Share.
@@ -23,6 +26,7 @@ This is the durable operating contract for the canonical low-altitude semantic e
 - Every scene entity is semantic and meaningful.
 - Background vehicles and pedestrians are semantic actors, not decoration.
 - `U_inspect` is long-lived, full-episode, and must move with orbit/racetrack behavior.
+- Formal UAV capture runs one UAV and one modality per host run. Complete episodes must include all active UAV views plus high overview.
 - No fallback, guessing, or compatibility path is allowed.
 
 ## Output Roots
@@ -30,7 +34,8 @@ This is the durable operating contract for the canonical low-altitude semantic e
 - Source scenarios: `Dataset/scenarios/...`
 - Deterministic episodes: `Dataset/episodes/<scenario>__seed00`
 - Render-ready episodes: `Dataset/render_ready_episodes/<scenario>__seed00`
-- Semantic capture root: `Saved/AirSim/semantic_70events_rgb_depth_seg_tick100`
+- Formal UE capture root: `F:/aw_cap`
+- Formal UE capture summary: `F:/aw_cap_summary.csv`
 
 ## Validation
 
@@ -38,4 +43,3 @@ This is the durable operating contract for the canonical low-altitude semantic e
 - The pipeline must preserve the required event per episode.
 - The pipeline must preserve scene and event file boundaries.
 - Validators run after render-ready generation and before capture sign-off.
-

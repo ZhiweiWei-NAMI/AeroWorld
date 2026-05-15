@@ -32,6 +32,10 @@
 
 - UE PIE session is reused.
 - AirSim RPC `127.0.0.1:41451` is reused.
+- Formal image capture uses UE editor-hook fixed-world capture, not AirSim native camera capture.
+- Formal episode span is tick `0..900`, captured every `5` ticks.
+- Formal output root is `F:/aw_cap`; summary is `F:/aw_cap_summary.csv`.
+- Each episode requires high overview plus every active UAV view, captured as single UAV and single modality host runs.
 - Output roots are deterministic only.
 - AirSim settings live under Huawei Share.
 - Capture validation must include truth frames, event trace, dynamic labels, and render-ready outputs.
@@ -42,4 +46,4 @@
 - `event_script.json` defines the event chain.
 - `spec.py` is the source scenario spec.
 - `render_ready_episodes/<scenario>__seed00` is the canonical deterministic episode output root.
-
+- Formal UE capture input is `render_ready_episodes_capture_filtered/<scenario>__seedXX`.

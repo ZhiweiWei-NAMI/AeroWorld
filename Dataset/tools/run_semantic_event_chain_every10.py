@@ -23,7 +23,7 @@ DEFAULT_OUTPUT_ROOT = Path("F:/aw_cap")
 DEFAULT_SUMMARY_PATH = Path("F:/aw_cap_summary.csv")
 DEFAULT_CONTRACT = PROJECT_ROOT / "Config" / "LowAltitude" / "semantic_capture_runtime_contract.json"
 DEFAULT_RULES = PROJECT_ROOT / "Config" / "LowAltitude" / "semantic_stencil_rules.json"
-DEFAULT_EPISODES_ROOT = PROJECT_ROOT / "Dataset" / "render_ready_episodes"
+DEFAULT_EPISODES_ROOT = PROJECT_ROOT / "Dataset" / "render_ready_episodes_capture_filtered"
 UAV_MODALITIES = ("rgb", "depth", "seg")
 MODALITY_EXT = {"rgb": "png", "depth": "npy", "seg": "png"}
 FATAL_RUNTIME_PATTERNS = (
@@ -31,6 +31,11 @@ FATAL_RUNTIME_PATTERNS = (
     "Client is closed, connection could not be set",
     "Unable to discover a matching Unreal Editor remote execution node",
     "AirSim RPC is unavailable",
+    "Unreal working-set memory guard tripped",
+    "Unreal private-memory guard tripped",
+    "Host child private-memory guard tripped",
+    "Host child working-set guard tripped",
+    "System free-memory guard tripped",
 )
 
 
@@ -164,8 +169,11 @@ def event_chain_output_dir(output_root: Path, index: int, view: str) -> Path:
     return output_root / "uav" / simple_episode_dir_name(index)
 
 
-def event_chain_uav_output_dir(output_root: Path, index: int, entity_id: str) -> Path:
-    return output_root / "uav" / safe_name(entity_id) / simple_episode_dir_name(index)
+def event_chain_uav_output_dir(output_root: Path, index: int, entity_id: str, capture_view_id: str = "") -> Path:
+    base_dir = output_root / "uav" / safe_name(entity_id) / simple_episode_dir_name(index)
+    if str(capture_view_id or "").strip():
+        return base_dir / safe_name(capture_view_id)
+    return base_dir
 
 
 def read_json(path: Path) -> Any:
@@ -295,6 +303,10 @@ def assert_runtime_available(args: argparse.Namespace) -> dict[str, float]:
 
 def looks_like_runtime_unavailable(message: str) -> bool:
     return any(pattern in message for pattern in FATAL_RUNTIME_PATTERNS)
+
+
+def is_fatal_runtime_error(exc: Exception) -> bool:
+    return isinstance(exc, FatalRuntimeUnavailable) or looks_like_runtime_unavailable(str(exc))
 
 
 def _kill_process(process: subprocess.Popen[str]) -> None:
@@ -542,10 +554,15 @@ def write_guarded_config(args: argparse.Namespace, episode_dir: Path, index: int
         "tick_start": int(args.tick_start),
         "tick_end": int(args.tick_end),
         "tick_step": int(args.tick_step),
+        "simulation_tick_stride": int(args.simulation_tick_stride),
         "capture_ticks_per_host_run": int(args.capture_ticks_per_host_run),
         "ground_modalities": ["rgb"],
         "uav_modalities": list(args.uav_modalities),
+        "uav_capture_backend": str(args.uav_capture_backend),
+        "scene_sync_batch_size": int(args.scene_sync_batch_size),
+        "scene_sync_delay_s": float(args.scene_sync_delay_s),
         "write_depth_preview": bool(args.write_depth_preview),
+        "write_semantic_audit": bool(args.write_semantic_audit),
         "oom_policy": "parent_guard_kills_host_child_keeps_ue_open",
     }
     target = args.output_root / "_meta" / "configs" / f"{simple_episode_dir_name(index)}_{short_stable_name(episode_dir.name, 'e')}.json"
@@ -627,13 +644,21 @@ def base_host_command(args: argparse.Namespace, guarded_config: Path, output_dir
         "--semantic-rules-path",
         str(args.rules),
         "--simulation_tick_stride",
-        "1",
+        str(int(args.simulation_tick_stride)),
         "--max_batches",
         "1",
         "--preserve_capture_output_dir",
     ]
+    if int(args.scene_sync_batch_size) > 0:
+        command.extend(["--scene-sync-batch-size", str(int(args.scene_sync_batch_size))])
+    if float(args.scene_sync_delay_s) > 0.0:
+        command.extend(["--scene-sync-delay-s", str(float(args.scene_sync_delay_s))])
     if bool(args.write_depth_preview):
         command.append("--write-depth-preview")
+    else:
+        command.append("--no-write-depth-preview")
+    if bool(args.write_semantic_audit):
+        command.append("--write-semantic-audit")
     return command
 
 
@@ -1098,6 +1123,17 @@ def write_uav_id_index(args: argparse.Namespace, plans: list[EpisodePlan]) -> Pa
     index_path.parent.mkdir(parents=True, exist_ok=True)
     write_header = not args.append_summary or not index_path.exists() or index_path.stat().st_size == 0
     mode = "a" if args.append_summary else "w"
+    existing_keys: set[tuple[str, str, str]] = set()
+    if args.append_summary and index_path.exists() and index_path.stat().st_size > 0:
+        with index_path.open("r", encoding="utf-8-sig", newline="") as existing_handle:
+            for row in csv.DictReader(existing_handle):
+                existing_keys.add(
+                    (
+                        str(row.get("episode_index") or ""),
+                        str(row.get("uav_entity_id") or ""),
+                        str(row.get("capture_view_id") or ""),
+                    )
+                )
     with index_path.open(mode, encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=UAV_INDEX_FIELDS)
         if write_header:
@@ -1108,6 +1144,9 @@ def write_uav_id_index(args: argparse.Namespace, plans: list[EpisodePlan]) -> Pa
                 if not active_ticks:
                     continue
                 capture_view_id = f"uav_view_{int(ordinal):03d}__{safe_name(entity_id)}"
+                key = (simple_episode_dir_name(plan.index), entity_id, capture_view_id)
+                if key in existing_keys:
+                    continue
                 writer.writerow(
                     {
                         "uav_entity_id": entity_id,
@@ -1119,10 +1158,52 @@ def write_uav_id_index(args: argparse.Namespace, plans: list[EpisodePlan]) -> Pa
                         "tick_start": active_ticks[0],
                         "tick_end": active_ticks[-1],
                         "tick_list": json_cell(active_ticks),
-                        "uav_capture_dir": str(event_chain_uav_output_dir(args.output_root, plan.index, entity_id)),
+                        "uav_capture_dir": str(event_chain_uav_output_dir(args.output_root, plan.index, entity_id, capture_view_id)),
                     }
                 )
     return index_path
+
+
+def completed_uav_entity(
+    args: argparse.Namespace,
+    plan: EpisodePlan,
+    *,
+    entity_id: str,
+    capture_view_id: str,
+    active_ticks: list[int],
+) -> bool:
+    if not bool(args.resume_completed_ok):
+        return False
+    if not args.summary.exists() or args.summary.stat().st_size == 0:
+        return False
+    expected_ticks = set(int(tick) for tick in active_ticks)
+    rows_by_tick: dict[int, dict[str, str]] = {}
+    with args.summary.open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if str(row.get("index") or "") != str(int(plan.index)):
+                continue
+            if str(row.get("view") or "") != "uav_event_chain":
+                continue
+            if str(row.get("status") or "") != "ok":
+                continue
+            if str(row.get("capture_entity_id") or "") != entity_id:
+                continue
+            if str(row.get("capture_view_id") or "") != capture_view_id:
+                continue
+            try:
+                tick = int(row.get("tick") or "")
+            except Exception:
+                continue
+            if tick in expected_ticks:
+                rows_by_tick[tick] = row
+    if set(rows_by_tick.keys()) != expected_ticks:
+        return False
+    for row in rows_by_tick.values():
+        for field_name in ("rgb_path", "depth_path", "seg_path", "seg_palette_path"):
+            path_text = str(row.get(field_name) or "").strip()
+            if not path_text or not Path(path_text).exists():
+                return False
+    return True
 
 
 def write_failure_row(
@@ -1202,7 +1283,7 @@ def run_uav_entity(
 ) -> None:
     capture_view_id = f"uav_view_{int(ordinal):03d}__{safe_name(entity_id)}"
     camera_id = f"{safe_name(entity_id)}__nadir_down"
-    out_dir = event_chain_uav_output_dir(args.output_root, plan.index, entity_id)
+    out_dir = event_chain_uav_output_dir(args.output_root, plan.index, entity_id, capture_view_id)
     active_ticks = plan.uav_active_ticks.get(entity_id, [])
     if not active_ticks:
         row = summary_base(
@@ -1225,16 +1306,17 @@ def run_uav_entity(
     log_dir = args.output_root / "_meta" / "logs" / simple_episode_dir_name(plan.index)
     for modality in args.uav_modalities:
         base_command = base_host_command(args, guarded_config, out_dir, plan.site_id)
+        base_command.extend(["--modality", modality])
         base_command.extend(
             [
                 "--camera-role",
                 "uav",
                 "--camera-id",
                 camera_id,
-                "--modality",
-                modality,
                 "--uav-scene-control-backend",
                 args.uav_scene_control_backend,
+                "--uav-capture-backend",
+                args.uav_capture_backend,
                 "--airsim-capture-entity",
                 entity_id,
                 "--capture-view-id",
@@ -1281,6 +1363,8 @@ def validate_contract(args: argparse.Namespace, contract: dict[str, Any]) -> Non
     must_follow = dict(contract.get("must_follow") or {})
     if str(args.segmentation_backend) != "ue_custom_stencil":
         raise RuntimeError("Formal event-chain runner must use UE CustomStencil segmentation.")
+    if str(args.uav_capture_backend) != "editor_hook":
+        raise RuntimeError("Formal event-chain UAV capture must use the UE editor-hook fixed-world camera.")
     if list(args.uav_modalities) != list(UAV_MODALITIES):
         raise RuntimeError(f"UAV modalities must be rgb/depth/seg, got {args.uav_modalities}")
     if looks_timestamped_or_versioned(args.output_root):
@@ -1298,11 +1382,11 @@ def validate_contract(args: argparse.Namespace, contract: dict[str, Any]) -> Non
             raise RuntimeError(f"Formal event-chain summary must be exactly {expected_summary}, got: {args.summary}")
     if args.tick_start != 0:
         raise RuntimeError("Event-chain capture must keep --tick-start 0 to avoid direct tick jumps.")
-    if args.tick_step != 10 and not args.allow_nonstandard_tick_step:
-        raise RuntimeError("Formal event-chain capture is every 10 ticks; pass --allow-nonstandard-tick-step only for debug.")
-    if float(args.max_private_memory_gb) > float(defaults.get("max_private_memory_gb", 20.0)):
+    if args.tick_step != 5 and not args.allow_nonstandard_tick_step:
+        raise RuntimeError("Formal event-chain capture is every 5 ticks; pass --allow-nonstandard-tick-step only for debug.")
+    if float(args.max_private_memory_gb) > float(defaults.get("max_private_memory_gb", 18.0)):
         raise RuntimeError("Private memory guard cannot exceed the contract default.")
-    if float(args.max_working_set_gb) > float(defaults.get("max_working_set_gb", 20.0)):
+    if float(args.max_working_set_gb) > float(defaults.get("max_working_set_gb", 18.0)):
         raise RuntimeError("Working-set memory guard cannot exceed the contract default.")
     if float(args.host_run_timeout_s) > float(defaults.get("host_run_timeout_s", 300.0)):
         raise RuntimeError("Host run timeout cannot exceed the contract default; reduce --capture-ticks-per-host-run instead.")
@@ -1362,19 +1446,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=41451)
     parser.add_argument("--tick-start", type=int, default=0)
     parser.add_argument("--tick-end", type=int, default=900)
-    parser.add_argument("--tick-step", type=int, default=10)
+    parser.add_argument("--tick-step", type=int, default=5)
     parser.add_argument("--capture-ticks-per-host-run", type=int, default=16)
+    parser.add_argument("--simulation-tick-stride", type=int, default=5)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--start-index", type=int, default=0)
     parser.add_argument("--editor-hook-capture-timeout-s", type=float, default=90.0)
     parser.add_argument("--host-run-timeout-s", type=float, default=900.0)
     parser.add_argument("--host-guard-poll-s", type=float, default=2.0)
-    parser.add_argument("--max-working-set-gb", type=float, default=20.0)
-    parser.add_argument("--max-private-memory-gb", type=float, default=20.0)
+    parser.add_argument("--max-working-set-gb", type=float, default=18.0)
+    parser.add_argument("--max-private-memory-gb", type=float, default=18.0)
     parser.add_argument("--max-child-working-set-gb", type=float, default=8.0)
     parser.add_argument("--max-child-private-memory-gb", type=float, default=8.0)
     parser.add_argument("--min-system-free-memory-gb", type=float, default=4.0)
     parser.add_argument("--uav-modalities", nargs="+", default=list(UAV_MODALITIES))
+    parser.add_argument("--uav-capture-backend", choices=["editor_hook", "airsim_native"], default="editor_hook")
+    parser.add_argument("--scene-sync-batch-size", type=int, default=24)
+    parser.add_argument("--scene-sync-delay-s", type=float, default=0.03)
     parser.add_argument("--segmentation-backend", default="ue_custom_stencil")
     parser.add_argument("--uav-scene-control-backend", choices=["truth_frame_scene_sync"], default="truth_frame_scene_sync")
     parser.add_argument("--airsim-capture-vehicle", default="CaptureUAV_0")
@@ -1386,12 +1474,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-high-overview", action="store_true")
     parser.add_argument("--skip-uav", action="store_true")
     parser.add_argument("--append-summary", action="store_true")
+    parser.add_argument("--resume-completed-ok", action="store_true")
     parser.add_argument("--continue-on-error", action="store_true")
     parser.add_argument("--allow-missing-capture-ticks", action="store_true")
     parser.add_argument("--allow-nonstandard-tick-step", action="store_true")
     parser.add_argument("--allow-single-host-full-chain", action="store_true")
     parser.add_argument("--write-depth-preview", dest="write_depth_preview", action="store_true", default=True)
     parser.add_argument("--no-write-depth-preview", dest="write_depth_preview", action="store_false")
+    parser.add_argument("--write-semantic-audit", action="store_true")
     parser.add_argument("--no-verify-seg-pixels", dest="verify_seg_pixels", action="store_false", default=True)
     parser.add_argument("--plan-only", action="store_true", help="Print deterministic plan and exit without touching UE.")
     args = parser.parse_args()
@@ -1446,6 +1536,9 @@ def main() -> int:
                     run_high_overview(args, writer, handle, contract, plan, guarded_config)
                     print("  high_overview_rgb: ok", flush=True)
                 except Exception as exc:
+                    if is_fatal_runtime_error(exc):
+                        print(f"  high_overview_rgb: runtime unavailable err={str(exc)[:180]}", flush=True)
+                        raise
                     write_failure_row(
                         args,
                         writer,
@@ -1471,6 +1564,17 @@ def main() -> int:
                 print("  uav_event_chain: skipped_no_active_uav", flush=True)
                 continue
             for uav_ordinal, entity_id in enumerate(sorted(plan.uav_active_ticks.keys())):
+                capture_view_id = f"uav_view_{int(uav_ordinal):03d}__{safe_name(entity_id)}"
+                active_ticks = plan.uav_active_ticks.get(entity_id, [])
+                if completed_uav_entity(
+                    args,
+                    plan,
+                    entity_id=entity_id,
+                    capture_view_id=capture_view_id,
+                    active_ticks=active_ticks,
+                ):
+                    print(f"  uav_event_chain: resume_skip_completed entity={entity_id}", flush=True)
+                    continue
                 try:
                     run_uav_entity(
                         args,
@@ -1484,7 +1588,9 @@ def main() -> int:
                     )
                     print(f"  uav_event_chain: ok entity={entity_id}", flush=True)
                 except Exception as exc:
-                    capture_view_id = f"uav_view_{int(uav_ordinal):03d}__{safe_name(entity_id)}"
+                    if is_fatal_runtime_error(exc):
+                        print(f"  uav_event_chain: runtime unavailable entity={entity_id} err={str(exc)[:180]}", flush=True)
+                        raise
                     write_failure_row(
                         args,
                         writer,
@@ -1493,7 +1599,7 @@ def main() -> int:
                         plan,
                         view="uav_event_chain",
                         error=exc,
-                        output_dir=event_chain_uav_output_dir(args.output_root, plan.index, entity_id),
+                        output_dir=event_chain_uav_output_dir(args.output_root, plan.index, entity_id, capture_view_id),
                         camera_id=f"{safe_name(entity_id)}__nadir_down",
                         capture_entity_id=entity_id,
                         capture_view_id=capture_view_id,

@@ -30,5 +30,5 @@ It participates in the canonical low-altitude semantic event-chain pipeline and 
 This directory owns the scenario package and scenario-local build logic.
 Reusable Python services stay in `Plugins/SumoImporter/Scripts/donghu_core/`.
 Render-ready outputs preserve engine-emitted task metadata such as `task_id`, `role`, and `state_sequence` when present.
-Capture tasks must provide stable `--airsim-capture-entity` and `--capture-view-id`.
+Formal capture tasks must provide stable `--airsim-capture-entity`, `--capture-view-id`, `--uav-capture-backend editor_hook`, and exactly one modality.
 Background vehicles and pedestrians are semantic actors, not decoration; relevant entities must have physical motion.

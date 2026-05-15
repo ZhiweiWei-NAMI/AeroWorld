@@ -27,6 +27,9 @@ This document defines the canonical scene configuration boundary for the 70-epis
 ## Placement and Motion
 
 - Scene entities use concrete placement modes such as `world_pose`, `lane_anchor`, `sidewalk_anchor`, `facade_anchor`, `pad_anchor`, `box_volume`, and `polygon_prism`.
+- Coordinates and offsets must flow through the shared SUMO/GeoJSON coordinate services. Do not duplicate coordinate conversion code.
+- Landing pads and other facilities need visual-origin offsets when their asset origin differs from the semantic anchor, following the same policy as pedestrians.
+- Vehicles need lane-derived lateral and longitudinal offsets from traffic-bundle lane metadata and lane samples.
 - Vehicle and pedestrian background actors must have task/state semantics in scene setup.
 - `U_inspect` must use orbit/racetrack motion, not static hover.
 - No compatibility fallback is allowed for scene boundary definitions.
@@ -36,4 +39,3 @@ This document defines the canonical scene configuration boundary for the 70-epis
 - `scene_setup.json` defines entities, placements, validation rules, cameras, and weather profile.
 - `event_script.json` defines triggers, actions, and the event chain.
 - `spec.py` is the compiled source scenario spec.
-
