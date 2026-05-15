@@ -248,66 +248,6 @@ def keep_entity_for_capture(entity: dict[str, Any], visibility: VisibilityGeomet
     return bool(visibility.is_observable(position))
 
 
-def semantic_rescue_rank(entity: dict[str, Any]) -> int:
-    if is_forced_keep_pvu(entity):
-        return 0
-    if isinstance(entity.get("ground_flow_contract"), dict):
-        return 1
-    role_text = " ".join(
-        str(entity.get(key) or "").strip().lower()
-        for key in ("role", "semantic_role", "background_role", "source")
-    )
-    if "semantic" in role_text or "background" in role_text:
-        return 2
-    return 3
-
-
-def ensure_pvu_category_coverage(
-    source_entities: Sequence[dict[str, Any]],
-    kept_entities: Sequence[dict[str, Any]],
-    visibility: VisibilityGeometry,
-    rescue_counts: Counter[str],
-) -> list[dict[str, Any]]:
-    kept = list(kept_entities)
-    kept_ids = {str(entity.get("entity_id") or "") for entity in kept}
-    kept_categories = {entity_category(entity) for entity in kept}
-    source_categories = {
-        entity_category(entity)
-        for entity in source_entities
-        if isinstance(entity, dict) and entity_category(entity) in PVU_CATEGORIES
-    }
-    for category in sorted(PVU_CATEGORIES):
-        if category in kept_categories or category not in source_categories:
-            continue
-        candidates: list[dict[str, Any]] = []
-        for entity in source_entities:
-            if not isinstance(entity, dict) or entity_category(entity) != category:
-                continue
-            entity_id = str(entity.get("entity_id") or "")
-            if entity_id and entity_id in kept_ids:
-                continue
-            if position_enu_from_entity(entity) is None:
-                continue
-            candidates.append(entity)
-        if not candidates:
-            continue
-
-        def score(entity: dict[str, Any]) -> tuple[int, float, str]:
-            position = position_enu_from_entity(entity) or [0.0, 0.0, 0.0]
-            return (
-                semantic_rescue_rank(entity),
-                float(visibility.observation_distance_m(position)),
-                str(entity.get("entity_id") or ""),
-            )
-
-        selected = min(candidates, key=score)
-        kept.append(selected)
-        kept_ids.add(str(selected.get("entity_id") or ""))
-        kept_categories.add(category)
-        rescue_counts[category] += 1
-    return kept
-
-
 def trajectory_row_from_entity(frame: dict[str, Any], entity: dict[str, Any]) -> dict[str, Any]:
     position = position_enu_from_entity(entity) or [0.0, 0.0, 0.0]
     row: dict[str, Any] = {
@@ -429,12 +369,16 @@ def update_render_host_config(output_episode_dir: Path, manifest: dict[str, Any]
         template_path = ROOT / "Plugins" / "SumoImporter" / "Scripts" / "episode_render_host_config.json"
         config = read_json(template_path) if template_path.exists() else {}
     config["episode_dir"] = repo_relative(output_episode_dir)
-    config["output_dir"] = f"Saved/AirSim/episode_render_host_capture_filtered/{output_episode_dir.name}"
+    config["output_dir"] = f"F:/aw_cap/_direct_render_host_capture_filtered/{output_episode_dir.name}"
     config["map_id"] = str(manifest.get("map_id") or config.get("map_id") or "donghu_road_topo")
     config["truth_frame_coordinate_space"] = "map_enu"
     source_event_script_path = str(manifest.get("source_event_script_path") or "").strip()
     if source_event_script_path:
         config["event_script_path"] = source_event_script_path
+    for section in ("vehicle_lane_offsets", "entity_overlap_filter", "pedestrian_roadside_projection"):
+        payload = dict(config.get(section) or {})
+        payload["enabled"] = False
+        config[section] = payload
     strategy = dict(config.get("batch_strategy") or {})
     scenario_plan_path = output_episode_dir / "scenario_plan.json"
     if scenario_plan_path.exists():
@@ -561,7 +505,6 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
     xs: list[float] = []
     ys: list[float] = []
     zs: list[float] = []
-    category_rescue_counts: Counter[str] = Counter()
 
     with input_truth_path.open("rb") as source, output_truth_path.open("wb") as truth_out, output_trajectory_path.open("wb") as traj_out:
         for line_number, line in enumerate(source, start=1):
@@ -575,7 +518,6 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
             entities = list(frame.get("entities") or [])
             input_entity_count += len(entities)
             kept_entities = [entity for entity in entities if isinstance(entity, dict) and keep_entity_for_capture(entity, visibility)]
-            kept_entities = ensure_pvu_category_coverage(entities, kept_entities, visibility, category_rescue_counts)
             for entity in kept_entities:
                 entity_id = str(entity.get("entity_id") or "")
                 if entity_id:
@@ -603,7 +545,8 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
         "trajectory_rows": trajectory_count,
         "truth_entity_id_count": len(truth_entity_ids),
         "roster_entities": len(filtered_roster),
-        "pvu_category_rescue_counts": dict(sorted(category_rescue_counts.items())),
+        "dynamic_filter_rule": "keep_pvu_records_only_when_observable_during_that_frame",
+        "semantic_context_rule": "preserve_non_pvu_context_filter_global_uav_infrastructure_by_visibility",
     }
     roi_margin_m = 25.0
     roi_bbox_enu_m = (
