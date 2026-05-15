@@ -16,6 +16,17 @@ Any agent that reads this file must first report in the chat before running capt
 
 The old handover file and several README files were stale. The stale items were: `Saved/AirSim/...` output roots, AirSim-native UAV image capture examples, one-channel wording that did not match the runner, 20GB memory guard defaults, and old wording that made AirSim sound like the image-capture backend. Current docs must point here instead of repeating long runtime recipes.
 
+## Documentation Policy
+
+Only four Markdown documents are intentionally kept:
+
+- `AGENTS.md`: short mandatory rules for agents entering this workspace.
+- `HANDOFF_LOW_ALTITUDE_SEMANTIC_EVENT_CHAIN.md`: authoritative project handoff and runtime contract for humans/agents.
+- `PROJECT_STRUCTURE.md`: compact repository map.
+- `Dataset/README.md`: compact dataset entrypoint.
+
+All scenario README files, plugin README files, historical audits, phased plans, runbooks, generated API notes, and one-off reading guides were removed. For episode details, use `scene_setup.json`, `event_script.json`, `scenario_plan.json`, `episode_manifest.json`, `truth_frames.jsonl`, and validators instead of Markdown summaries.
+
 ## Core Rules
 
 1. Reuse the existing UE PIE session and AirSim RPC `127.0.0.1:41451`. Do not close UE/PIE for normal episode or chunk transitions.
@@ -129,4 +140,4 @@ cd E:\DynamicCityCreatorSamples
 
 - The runner name still says `every10`; treat this as historical naming only.
 - UE automation can produce material/rendering surprises. Prefer user-opened PIE or verify screenshots before capture.
-- Existing scenario README files are lightweight event summaries. For formal episode execution, trust `scenario_plan.json`, `episode_manifest.json`, `event_script.json`, `truth_frames.jsonl`, and the validators.
+- Scenario README files were removed to prevent stale branch guidance. For formal episode execution, trust `scenario_plan.json`, `episode_manifest.json`, `event_script.json`, `truth_frames.jsonl`, and the validators.
