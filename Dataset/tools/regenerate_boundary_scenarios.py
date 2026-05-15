@@ -29,7 +29,12 @@ from spec_compiler import (  # noqa: E402
     TriggerSpec,
     WaypointSpec,
 )
-from map_spatial_index import MapSpatialIndex, PlannedSidewalkAnchor, SpatialValidationError  # noqa: E402
+from map_spatial_index import (  # noqa: E402
+    MapSpatialIndex,
+    PEDESTRIAN_ROAD_BUFFER_M,
+    PlannedSidewalkAnchor,
+    SpatialValidationError,
+)
 from pedestrian_activity_catalog import get_activity, normalize_activity_type  # noqa: E402
 from uav_corridor_planner import (  # noqa: E402
     HighAltitudeCorridorPlanner,
@@ -74,6 +79,7 @@ LANE_HALF_WIDTH_M = 1.9
 SIDEWALK_MIN_OFFSET_FROM_CURB_M = 1.2
 GATHERING_MIN_OFFSET_FROM_CURB_M = 4.5
 ROADWORK_MIN_OFFSET_FROM_EDGE_M = 1.5
+LANDING_PAD_MIN_OFFSET_FROM_CURB_M = GATHERING_MIN_OFFSET_FROM_CURB_M
 GROUND_Z_M = 0.0
 UAV_PAD_HOVER_Z_M = 3.0
 UAV_TAKEOFF_ENTRY_TICK = 30
@@ -373,6 +379,50 @@ def sidewalk_point(pos_enu: list[float], offset_from_curb_m: float = SIDEWALK_MI
         placement_semantics="sidewalk",
     )
     return anchor.position_enu_m
+
+
+def _validate_landing_pad_position(pos_enu: list[float], *, context: str) -> float:
+    errors = SPATIAL.validation_errors_for_point(
+        pos_enu,
+        context=context,
+        allow_road=False,
+        allow_green=True,
+        road_buffer_m=PEDESTRIAN_ROAD_BUFFER_M,
+    )
+    road_clearance_m = SPATIAL.nearest_lane_clearance(pos_enu)
+    if errors:
+        raise RuntimeError(f"Illegal landing pad placement for {context}: {errors[:4]}")
+    return round(road_clearance_m, 3)
+
+
+def landing_pad_anchor(
+    desired_pos_enu: list[float],
+    *,
+    context: str,
+    offset_from_curb_m: float = LANDING_PAD_MIN_OFFSET_FROM_CURB_M,
+) -> PlannedSidewalkAnchor:
+    anchor = SPATIAL.plan_sidewalk_anchor(
+        desired_pos_enu,
+        offset_from_curb_m=offset_from_curb_m,
+        allow_green=True,
+        placement_semantics="uav_pad",
+    )
+    _validate_landing_pad_position(anchor.position_enu_m, context=context)
+    return anchor
+
+
+def landing_pad_pose(
+    desired_pos_enu: list[float],
+    *,
+    context: str,
+    offset_from_curb_m: float = LANDING_PAD_MIN_OFFSET_FROM_CURB_M,
+) -> tuple[list[float], float, PlannedSidewalkAnchor]:
+    anchor = landing_pad_anchor(
+        desired_pos_enu,
+        context=context,
+        offset_from_curb_m=offset_from_curb_m,
+    )
+    return anchor.position_enu_m, float(anchor.sample.yaw_deg), anchor
 
 
 def gathering_point(pos_enu: list[float], extent_cm: list[float] | None = None) -> list[float]:
@@ -1046,16 +1096,30 @@ def pad_entity(
     pad_instance_id: str,
     approach_side: str,
     yaw: float = 0.0,
+    anchor: PlannedSidewalkAnchor | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    road_clearance_m = _validate_landing_pad_position(pos_enu, context=f"pad_entity {entity_id}")
     spec, scene = world_entity(entity_id, "facility.landing_pad.visible.v1", "facility", pos_enu, yaw, "available")
     scene["placement_mode"] = "pad_anchor"
-    scene["placement"] = {
+    placement = {
         "pad_instance_id": pad_instance_id,
         "approach_side": approach_side,
         "position_enu_m": pos_enu,
         "resolved_position_enu_m": pos_enu,
         "rotation_deg": rot(yaw),
+        "road_clearance_m": road_clearance_m,
     }
+    if anchor is not None:
+        placement.update(
+            {
+                "anchor_edge_id": anchor.sample.edge_id,
+                "anchor_lane_s_m": round(float(anchor.sample.s_m), 3),
+                "offset_from_curb_m": round(float(anchor.offset_from_curb_m), 3),
+                "resolved_lateral_from_center_m": round(float(anchor.resolved_lateral_from_center_m), 3),
+                "placement_semantics": anchor.placement_semantics,
+            }
+        )
+    scene["placement"] = placement
     return spec, scene
 
 
@@ -2289,7 +2353,7 @@ def _add_contract_facility(
     center = _contract_center(scenes, events)
     angle = math.radians((index * 73) % 360)
     offset = 10.0 + index * 3.0
-    pos = road_center_point(q(center[0] + math.cos(angle) * offset, center[1] + math.sin(angle) * offset, GROUND_Z_M))
+    desired_pos = q(center[0] + math.cos(angle) * offset, center[1] + math.sin(angle) * offset, GROUND_Z_M)
     facility_cycle = (
         ("facility.landing_pad.visible.v1", "facility", "available"),
         ("facility.charger.cityops.v1", "facility", "available"),
@@ -2298,21 +2362,39 @@ def _add_contract_facility(
     )
     asset, category, mode = facility_cycle[index % len(facility_cycle)]
     entity_id = f"contract_facility_{safe_id(scenario_id)}_{index + 1:02d}"
-    spec, scene = world_entity(
-        entity_id,
-        asset,
-        category,
-        pos,
-        float((index * 45) % 360),
-        mode,
-        visual_state=semantic_state(
-            task_id=f"{scenario_id}.facility_context.{index + 1:02d}",
-            role="semantic_facility",
-            state_sequence=[mode],
-            semantic_role="visible facility context required by low-altitude event-chain contract",
-            mode=mode,
-        ),
+    state = semantic_state(
+        task_id=f"{scenario_id}.facility_context.{index + 1:02d}",
+        role="semantic_facility",
+        state_sequence=[mode],
+        semantic_role="visible facility context required by low-altitude event-chain contract",
+        mode=mode,
     )
+    if asset == "facility.landing_pad.visible.v1":
+        pad_pos, pad_yaw, pad_anchor = landing_pad_pose(
+            desired_pos,
+            context=f"{scenario_id} contract landing pad {index + 1:02d}",
+        )
+        spec, scene = pad_entity(
+            entity_id,
+            pad_pos,
+            f"contract_{safe_id(scenario_id)}_{index + 1:02d}",
+            "contract",
+            pad_yaw,
+            pad_anchor,
+        )
+        spec["visual_state"] = {**(spec.get("visual_state") or {}), **state}
+        scene["initial_state"] = {**(scene.get("initial_state") or {}), **state}
+    else:
+        pos = road_center_point(desired_pos)
+        spec, scene = world_entity(
+            entity_id,
+            asset,
+            category,
+            pos,
+            float((index * 45) % 360),
+            mode,
+            visual_state=state,
+        )
     scene["contract_facility"] = {
         "policy": "semantic_event_contract_v1",
         "contract_scenario_id": scenario_id,
@@ -3013,8 +3095,12 @@ def uav_home_pad_pose(mission_start_enu: list[float], slot_index: int) -> tuple[
     side = 1.0 if slot_index % 2 == 0 else -1.0
     ring = slot_index // 2
     lateral = side * (base_offset + ring * 4.0)
-    pad_position = _offset_from_lane(sample, lateral, GROUND_Z_M)
-    yaw = sample.yaw_deg
+    desired_position = _offset_from_lane(sample, lateral, GROUND_Z_M)
+    pad_position, yaw, _ = landing_pad_pose(
+        desired_position,
+        context=f"home UAV pad slot {slot_index}",
+        offset_from_curb_m=GATHERING_MIN_OFFSET_FROM_CURB_M + ring * 4.0,
+    )
     return pad_position, yaw
 
 
@@ -4075,13 +4161,19 @@ def build_l2(scenario_id: str, idx: int) -> ScenarioBundle:
         start_a = p(ox - 12, oy + 12, 32)
         start_b = p(ox + 18, oy - 10, 30)
         hold_b = p(ox + 14, oy + 14, 36)
-        add(specs, scenes, pad_entity(pad, p(ox + 2, oy + 2, 0), f"pad_{sid}", "east"))
-        add(specs, scenes, world_entity(uav_a, "uav.inspect.quad.v1", "uav", start_a, 75, "emergency_landing", route=[p(ox + 2, oy + 2, 5)]))
+        pad_pos, pad_yaw, pad_anchor = landing_pad_pose(
+            p(ox + 2, oy + 2, 0),
+            context=f"{scenario_id} shared landing pad",
+        )
+        pad_hover = q(pad_pos[0], pad_pos[1], 5.0)
+        pad_touchdown = q(pad_pos[0], pad_pos[1], 1.2)
+        add(specs, scenes, pad_entity(pad, pad_pos, f"pad_{sid}", "east", pad_yaw, pad_anchor))
+        add(specs, scenes, world_entity(uav_a, "uav.inspect.quad.v1", "uav", start_a, 75, "emergency_landing", route=[pad_hover]))
         add(specs, scenes, world_entity(uav_b, "uav.airsim.flying_pawn.v1", "uav", start_b, 295, "landing_request", route=[hold_b]))
         events = [
-            event("dual_pad_approach", tick(230), [move("move_priority_uav_to_pad", uav_a, [start_a, p(ox - 4, oy + 6, 22), p(ox + 2, oy + 2, 5)], 5.0), move("move_second_uav_to_pad_hold", uav_b, [start_b, p(ox + 6, oy - 2, 24), hold_b], 5.5)], 1, scenario_id, "Two UAVs request the same landing pad", "uav_mission", [uav_a, uav_b, pad], "warning"),
+            event("dual_pad_approach", tick(230), [move("move_priority_uav_to_pad", uav_a, [start_a, p(ox - 4, oy + 6, 22), pad_hover], 5.0), move("move_second_uav_to_pad_hold", uav_b, [start_b, p(ox + 6, oy - 2, 24), hold_b], 5.5)], 1, scenario_id, "Two UAVs request the same landing pad", "uav_mission", [uav_a, uav_b, pad], "warning"),
             event("priority_arbitration", prox(uav_a, pad, 7.0, 2), [visual("set_pad_reserved_priority", pad, "reserved"), visual("set_second_uav_hold", uav_b, "hold")], 2, scenario_id, "Pad priority arbitration reserves pad for emergency UAV", "infrastructure", [uav_a, uav_b, pad], "warning"),
-            event("second_uav_diverted", fired("priority_arbitration"), [move("move_second_uav_diversion", uav_b, [hold_b, p(ox + 34, oy + 22, 34)], 8.0), move("move_priority_uav_landing", uav_a, [p(ox + 2, oy + 2, 5), p(ox + 2, oy + 2, 1.2)], 1.5)], 3, scenario_id, "Second UAV diverts while priority UAV lands", "uav_mission", [uav_a, uav_b, pad], "info"),
+            event("second_uav_diverted", fired("priority_arbitration"), [move("move_second_uav_diversion", uav_b, [hold_b, p(ox + 34, oy + 22, 34)], 8.0), move("move_priority_uav_landing", uav_a, [pad_hover, pad_touchdown], 1.5)], 3, scenario_id, "Second UAV diverts while priority UAV lands", "uav_mission", [uav_a, uav_b, pad], "info"),
         ]
         params["contention_distance_m"] = 7.0
         desc = "Landing pad emergency contention and priority diversion"
@@ -4735,14 +4827,23 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
         tower, pad_a, pad_b = "tower_x5_comm", "pad_x5_primary", "pad_x5_backup"
         uav_a, uav_b = "uav_x5_priority", "uav_x5_second"
         add(specs, scenes, world_entity(tower, "facility.radio.base_tower.v1", "facility", p(ox + 5, oy + 1, 0), 0, "online"))
-        add(specs, scenes, pad_entity(pad_a, p(ox + 2, oy + 4, 0), "pad_x5_a", "north"))
-        add(specs, scenes, pad_entity(pad_b, p(ox + 26, oy + 8, 0), "pad_x5_b", "east"))
+        pad_a_pos, pad_a_yaw, pad_a_anchor = landing_pad_pose(
+            p(ox + 2, oy + 4, 0),
+            context=f"{scenario_id} primary landing pad",
+        )
+        pad_b_pos, pad_b_yaw, pad_b_anchor = landing_pad_pose(
+            p(ox + 26, oy + 8, 0),
+            context=f"{scenario_id} backup landing pad",
+        )
+        pad_a_hover = q(pad_a_pos[0], pad_a_pos[1], 6.0)
+        add(specs, scenes, pad_entity(pad_a, pad_a_pos, "pad_x5_a", "north", pad_a_yaw, pad_a_anchor))
+        add(specs, scenes, pad_entity(pad_b, pad_b_pos, "pad_x5_b", "east", pad_b_yaw, pad_b_anchor))
         add(specs, scenes, world_entity(uav_a, "uav.inspect.quad.v1", "uav", p(ox - 18, oy + 12, 33), 60, "landing_request"))
         add(specs, scenes, world_entity(uav_b, "uav.airsim.flying_pawn.v1", "uav", p(ox + 18, oy - 12, 31), 280, "landing_request"))
         events = [
             event("station_failure", tick(220), [visual("set_x5_tower_failed", tower, "failed")], 1, scenario_id, "Communication station failure", "infrastructure", [tower], "critical"),
             event("backup_pad_unavailable", fired("station_failure"), [visual("set_x5_backup_pad_unavailable", pad_b, "unavailable")], 2, scenario_id, "Only one landing pad remains available", "infrastructure", [pad_a, pad_b], "warning"),
-            event("dual_uav_pad_contention", fired("backup_pad_unavailable"), [move("move_x5_uav_a_to_pad", uav_a, [p(ox - 18, oy + 12, 33), p(ox + 2, oy + 4, 6)], 5.0), move("move_x5_uav_b_to_pad_hold", uav_b, [p(ox + 18, oy - 12, 31), p(ox + 8, oy + 10, 34)], 5.0)], 3, scenario_id, "Two UAVs contend for one available pad", "uav_mission", [uav_a, uav_b, pad_a], "critical"),
+            event("dual_uav_pad_contention", fired("backup_pad_unavailable"), [move("move_x5_uav_a_to_pad", uav_a, [p(ox - 18, oy + 12, 33), pad_a_hover], 5.0), move("move_x5_uav_b_to_pad_hold", uav_b, [p(ox + 18, oy - 12, 31), p(ox + 8, oy + 10, 34)], 5.0)], 3, scenario_id, "Two UAVs contend for one available pad", "uav_mission", [uav_a, uav_b, pad_a], "critical"),
             event("pad_priority_arbitration", prox(uav_a, pad_a, 7.0, 2), [visual("set_x5_pad_reserved", pad_a, "reserved"), visual("set_x5_uav_b_hold", uav_b, "hold")], 4, scenario_id, "Priority arbitration reserves pad for first UAV", "infrastructure", [uav_a, uav_b, pad_a], "warning"),
             event("second_uav_reroute", fired("pad_priority_arbitration"), [move("move_x5_uav_b_reroute", uav_b, [p(ox + 8, oy + 10, 34), p(ox + 34, oy + 24, 34)], 8.0)], 5, scenario_id, "Second UAV reroutes after contention", "uav_mission", [uav_b], "info"),
             event("station_recovered", fired("second_uav_reroute"), [visual("set_x5_tower_restored", tower, "online")], 6, scenario_id, "Communication station recovers", "infrastructure", [tower], "info"),

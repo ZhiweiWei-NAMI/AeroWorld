@@ -11,10 +11,15 @@ from typing import Any, Sequence
 
 ROOT = Path(__file__).resolve().parents[3]
 TOOLS_DIR = ROOT / "Dataset" / "tools"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-from Dataset.tools.map_spatial_index import MapSpatialIndex  # noqa: E402
+from Dataset.tools.map_spatial_index import (  # noqa: E402
+    PEDESTRIAN_ROAD_BUFFER_M,
+    MapSpatialIndex,
+)
 from Dataset.tools.uav_corridor_planner import BuildingObstacleIndex  # noqa: E402
 from Dataset.tools.uav_global_flow.generate_uav_flow import (  # noqa: E402
     ALLOWED_ALTITUDE_LAYERS_M,
@@ -40,6 +45,15 @@ REQUIRED_UAV_FIELDS = {
     "speed_mps",
     "source",
 }
+REQUIRED_PAD_FIELDS = {
+    "pad_id",
+    "role",
+    "position_enu_m",
+    "grid_cell_id",
+    "lane_edge_id",
+    "lane_s_m",
+}
+PAD_ENDPOINT_TOLERANCE_M = 3.0
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -134,6 +148,55 @@ def validate_output(output_dir: Path, *, check_obstacles: bool = True) -> dict[s
     if counts and min(counts) < MIN_ACTIVE_UAVS:
         errors.append(f"active UAV floor violated: min={min(counts)} required={MIN_ACTIVE_UAVS}")
 
+    pads = list(task_plan.get("pads") or [])
+    if int(manifest.get("pad_count") or 0) != len(pads):
+        errors.append(f"manifest pad_count {manifest.get('pad_count')} != task_plan pads {len(pads)}")
+    pad_by_id: dict[str, dict[str, Any]] = {}
+    pad_positions: dict[str, tuple[float, float, float]] = {}
+    pad_road_clearance_min_m = float("inf")
+    if len(pads) < int(manifest.get("pad_count") or 0):
+        errors.append(f"task_plan pads count {len(pads)} is below manifest pad_count")
+    spatial: MapSpatialIndex | None = None
+    if pads:
+        try:
+            spatial = MapSpatialIndex.default(ROOT)
+        except Exception as exc:
+            errors.append(f"unable to load map spatial index for pad validation: {exc}")
+    for pad in pads:
+        if not isinstance(pad, dict):
+            errors.append(f"invalid pad record: {pad!r}")
+            break
+        missing = REQUIRED_PAD_FIELDS - set(pad)
+        if missing:
+            errors.append(f"pad record missing fields: {sorted(missing)}")
+            break
+        pad_id = str(pad.get("pad_id") or "")
+        if not pad_id:
+            errors.append("pad record has empty pad_id")
+            break
+        if pad_id in pad_by_id:
+            errors.append(f"duplicate pad_id: {pad_id}")
+            break
+        pos = _position(pad.get("position_enu_m"))
+        if pos is None:
+            errors.append(f"pad {pad_id} invalid position_enu_m")
+            break
+        pad_by_id[pad_id] = pad
+        pad_positions[pad_id] = pos
+        if spatial is not None:
+            pad_errors = spatial.validation_errors_for_point(
+                pos,
+                context=f"pad {pad_id}",
+                allow_road=False,
+                allow_green=True,
+                road_buffer_m=PEDESTRIAN_ROAD_BUFFER_M,
+            )
+            if pad_errors:
+                errors.extend(pad_errors)
+                break
+            clearance = spatial.nearest_lane_clearance(pos)
+            pad_road_clearance_min_m = min(pad_road_clearance_min_m, clearance)
+
     allowed_altitudes = {float(value) for value in ALLOWED_ALTITUDE_LAYERS_M}
     per_uav_positions: dict[str, list[tuple[float, tuple[float, float, float]]]] = {}
     source_values: set[str] = set()
@@ -153,6 +216,13 @@ def validate_output(output_dir: Path, *, check_obstacles: bool = True) -> dict[s
                 errors.append(f"UAV {uav.get('uav_id')} has invalid source={uav.get('source')}")
                 break
             source_values.add(str(uav.get("source")))
+            for ref_key in ("origin_pad_id", "target_pad_id"):
+                pad_id = str(uav.get(ref_key) or "")
+                if pad_id and pad_id not in pad_by_id:
+                    errors.append(f"UAV {uav.get('uav_id')} references unknown {ref_key}={pad_id} at tick={frame.get('tick')}")
+                    break
+            if errors:
+                break
             pos = _position(uav.get("position_enu_m"))
             if pos is None:
                 errors.append(f"UAV {uav.get('uav_id')} invalid position at tick={frame.get('tick')}")
@@ -241,6 +311,7 @@ def validate_output(output_dir: Path, *, check_obstacles: bool = True) -> dict[s
     missing_types = sorted(required_types - task_types)
     if missing_types:
         errors.append(f"missing required UAV task types: {missing_types}")
+    delivery_reference_checked_task_count = 0
     for task in tasks:
         route = task.get("route_waypoints_enu_m") or []
         if len(route) < 2:
@@ -252,10 +323,44 @@ def validate_output(output_dir: Path, *, check_obstacles: bool = True) -> dict[s
         if _path_length(route) < 15.0:
             errors.append(f"task {task.get('task_id')} route too short")
             break
+        origin_pad_id = str(task.get("origin_pad_id") or "")
+        target_pad_id = str(task.get("target_pad_id") or "")
+        target_cell_id = str(task.get("target_cell_id") or "")
+        if origin_pad_id and origin_pad_id not in pad_by_id:
+            errors.append(f"task {task.get('task_id')} references unknown origin_pad_id={origin_pad_id}")
+            break
+        if target_pad_id and target_pad_id not in pad_by_id:
+            errors.append(f"task {task.get('task_id')} references unknown target_pad_id={target_pad_id}")
+            break
+        if target_pad_id and target_cell_id:
+            target_cell = str((pad_by_id.get(target_pad_id) or {}).get("grid_cell_id") or "")
+            if target_cell and target_cell_id != target_cell:
+                errors.append(
+                    f"task {task.get('task_id')} target_cell_id={target_cell_id} does not match {target_pad_id}.grid_cell_id={target_cell}"
+                )
+                break
+        if str(task.get("mission_type") or "") == "logistics_delivery":
+            delivery_reference_checked_task_count += 1
+            if not origin_pad_id or not target_pad_id:
+                errors.append(f"delivery task {task.get('task_id')} must declare origin_pad_id and target_pad_id")
+                break
+            if origin_pad_id == target_pad_id:
+                errors.append(f"delivery task {task.get('task_id')} origin and target pads must differ")
+                break
+            origin_pos = pad_positions.get(origin_pad_id)
+            target_pos = pad_positions.get(target_pad_id)
+            route_start = _position(route[0])
+            route_end = _position(route[-1])
+            if origin_pos and route_start and _dist_xy(route_start, origin_pos) > PAD_ENDPOINT_TOLERANCE_M:
+                errors.append(f"delivery task {task.get('task_id')} route start is not at origin pad {origin_pad_id}")
+                break
+            if target_pos and route_end and _dist_xy(route_end, target_pos) > PAD_ENDPOINT_TOLERANCE_M:
+                errors.append(f"delivery task {task.get('task_id')} route end is not at target pad {target_pad_id}")
+                break
 
     obstacle_checked_tasks = 0
     if check_obstacles and not errors:
-        spatial = MapSpatialIndex.default(ROOT)
+        spatial = spatial or MapSpatialIndex.default(ROOT)
         buildings = BuildingObstacleIndex(spatial)
         for task in tasks:
             route = task.get("route_waypoints_enu_m") or []
@@ -279,8 +384,11 @@ def validate_output(output_dir: Path, *, check_obstacles: bool = True) -> dict[s
         "active_uav_count_max": max(counts) if counts else 0,
         "active_uav_count_mean": round(sum(counts) / len(counts), 3) if counts else 0.0,
         "unique_uav_count": len(per_uav_positions),
+        "pad_count": len(pads),
+        "pad_road_clearance_min_m": round(pad_road_clearance_min_m, 3) if math.isfinite(pad_road_clearance_min_m) else None,
         "task_count": len(tasks),
         "baseline_task_count": len(baseline_tasks),
+        "delivery_reference_checked_task_count": delivery_reference_checked_task_count,
         "event_binding_count": len(event_bindings),
         "source_values": sorted(source_values),
         "same_layer_min_distance_m": round(same_layer_min_distance_m, 3) if math.isfinite(same_layer_min_distance_m) else None,

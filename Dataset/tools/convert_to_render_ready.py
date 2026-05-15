@@ -1257,6 +1257,7 @@ def build_uav_pad_roster_entries(
     uav_dataset: UavGlobalFlowDataset,
     site_id: str,
     roi_id: str,
+    visibility: VisibilityGeometry | None = None,
 ) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for pad in uav_dataset.pads:
@@ -1264,6 +1265,8 @@ def build_uav_pad_roster_entries(
         if not pad_id:
             continue
         position = normalize_vector3(pad.get("position_enu_m"))
+        if visibility is not None and not visibility.is_observable(position):
+            continue
         entries.append(
             {
                 "entity_id": uav_pad_truth_entity_id(pad_id),
@@ -1809,6 +1812,7 @@ def convert_episode(
             uav_dataset=uav_dataset,
             site_id=site_id,
             roi_id=roi_id,
+            visibility=interest_visibility,
         )
         if len(uav_roster_entities) != uav_selection.selected_count:
             raise RuntimeError(

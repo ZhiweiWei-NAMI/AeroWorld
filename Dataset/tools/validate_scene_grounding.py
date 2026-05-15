@@ -30,6 +30,7 @@ DEFAULT_ASSET_CATALOG = ROOT / "Config" / "LowAltitude" / "asset_catalog.json"
 DEFAULT_TRAFFIC_BUNDLE = ROOT / "Config" / "LowAltitude" / "Maps" / "donghu_road_topo" / "traffic_bundle"
 DEFAULT_BUILDING_GEOJSON = ROOT / "Content" / "Maps" / "donghu_road_topo" / "building" / "building.geojson"
 DEFAULT_RENDER_READY_ROOT = ROOT / "Dataset" / "render_ready_episodes"
+DEFAULT_RENDER_HOST_CONFIG = ROOT / "Plugins" / "SumoImporter" / "Scripts" / "episode_render_host_config.json"
 LANE_HALF_WIDTH_M = 1.9
 PEDESTRIAN_ROAD_BUFFER_M = 0.25
 CROWD_ROAD_BUFFER_M = 0.5
@@ -114,6 +115,12 @@ MAX_WAYPOINT_SEGMENT_M = {
     "asset": 120.0,
 }
 _BUILDING_INDEX_CACHE: BuildingObstacleIndex | None = None
+LANDING_PAD_LOGICAL_ASSET_ID = "facility.landing_pad.visible.v1"
+RENDER_CONFIG_DISABLED_FLAGS = (
+    ("entity_overlap_filter", "enabled"),
+    ("vehicle_lane_offsets", "enabled"),
+    ("pedestrian_roadside_projection", "enabled"),
+)
 
 
 @dataclass(frozen=True)
@@ -486,6 +493,17 @@ def offset_from_lane(sample: LaneSample, lateral_m: float, z_m: float = 0.0) -> 
 def nearest_lane_clearance(lanes: LaneResolver, point: list[float]) -> float:
     sample = lanes.nearest(point)
     return dist_xy(point, [sample.x_m, sample.y_m, 0.0])
+
+
+def check_landing_pad_spatial(context: str, position: list[float], spatial: MapSpatialIndex, issues: list[str]) -> None:
+    for error in spatial.validation_errors_for_point(
+        position,
+        context=context,
+        allow_road=False,
+        allow_green=True,
+        road_buffer_m=PEDESTRIAN_ROAD_BUFFER_M,
+    ):
+        issues.append(error)
 
 
 def action_iter(script: dict[str, Any]):
@@ -909,6 +927,13 @@ def check_placements(
         check_roi_point(scene["scenario_id"], f"entity {entity['entity_id']} position", position, lanes, issues)
         asset_id = entity.get("logical_asset_id", "")
         category = entity.get("category", "")
+        if str(asset_id) == LANDING_PAD_LOGICAL_ASSET_ID:
+            check_landing_pad_spatial(
+                f"{scene['scenario_id']}: landing pad {entity['entity_id']}",
+                position,
+                spatial,
+                issues,
+            )
         if str(asset_id).startswith("pedestrian."):
             initial_state = dict(entity.get("initial_state") or {})
             activity_state = dict((initial_state.get("state_facets") or {}).get("activity") or {})
@@ -2067,14 +2092,22 @@ def execute_validation_rules(scene: dict[str, Any], script: dict[str, Any], know
             issues.append(f"{script['scenario_id']}: validation_rule failed or unsupported: {name}")
 
 
+def check_render_config_flags(config_path: Path, issues: list[str]) -> None:
+    if not config_path.exists():
+        issues.append(f"{config_path}: missing render config")
+        return
+    config = load_json(config_path)
+    for section, key in RENDER_CONFIG_DISABLED_FLAGS:
+        payload = dict(config.get(section) or {})
+        if payload.get(key) is not False:
+            issues.append(f"{config_path}: Dataset render config must set {section}.{key}=false")
+
+
 def check_render_ready_configs(render_ready_root: Path, issues: list[str]) -> None:
     if not render_ready_root.exists():
         return
     for config_path in sorted(render_ready_root.rglob("render_host_config.json")):
-        config = load_json(config_path)
-        projection = dict(config.get("pedestrian_roadside_projection") or {})
-        if bool(projection.get("enabled", False)):
-            issues.append(f"{config_path}: Dataset render config must disable pedestrian_roadside_projection.enabled")
+        check_render_config_flags(config_path, issues)
 
 
 def _render_ready_entity_counts(episode_dir: Path) -> dict[str, int]:
@@ -2459,6 +2492,7 @@ def main() -> None:
     parser.add_argument("--traffic-bundle", default=str(DEFAULT_TRAFFIC_BUNDLE))
     parser.add_argument("--building-geojson", default=str(DEFAULT_BUILDING_GEOJSON))
     parser.add_argument("--render-ready-root", default=str(DEFAULT_RENDER_READY_ROOT))
+    parser.add_argument("--render-host-config", default=str(DEFAULT_RENDER_HOST_CONFIG))
     parser.add_argument("--skip-render-ready-configs", action="store_true")
     parser.add_argument("--limit", type=int, default=0, help="Stop after N scenario files for debugging")
     args = parser.parse_args()
@@ -2478,6 +2512,7 @@ def main() -> None:
     all_issues.extend(f"pedestrian activity catalog: {issue}" for issue in validate_local_animation_assets(ROOT))
     for scene_path in scene_paths:
         all_issues.extend(validate_scenario(scene_path, lanes, spatial, known_assets, known_buildings))
+    check_render_config_flags(Path(args.render_host_config).resolve(), all_issues)
     if not args.skip_render_ready_configs:
         check_render_ready_configs(Path(args.render_ready_root).resolve(), all_issues)
         check_render_ready_contract(Path(args.render_ready_root).resolve(), all_issues)

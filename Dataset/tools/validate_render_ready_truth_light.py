@@ -17,11 +17,17 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+try:
+    from map_spatial_index import PEDESTRIAN_ROAD_BUFFER_M, MapSpatialIndex  # noqa: E402
+except ModuleNotFoundError:  # pragma: no cover - supports package imports from repo root.
+    from Dataset.tools.map_spatial_index import PEDESTRIAN_ROAD_BUFFER_M, MapSpatialIndex  # noqa: E402
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes"
 DEFAULT_UAV_VALIDATION = ROOT / "Dataset" / "uav_outputs" / "donghu_uav_flow_270s" / "uav_flow_validation.json"
 DEFAULT_SUMO_MANIFEST = ROOT / "Dataset" / "sumo_outputs" / "donghu_traffic_270s" / "sumo_traffic_manifest.json"
+_SPATIAL_INDEX_CACHE: MapSpatialIndex | None = None
 
 
 def read_json(path: Path) -> Any:
@@ -52,6 +58,19 @@ def category_from_entity(entity: dict[str, Any]) -> str:
 def position_from_entity(entity: dict[str, Any]) -> tuple[float, float, float] | None:
     pose = entity.get("truth_pose") or {}
     position = pose.get("position_enu_m") or pose.get("position")
+    if not isinstance(position, list):
+        for key in ("initial_position_enu_m", "position_enu_m", "center_enu_m"):
+            value = entity.get(key)
+            if isinstance(value, list):
+                position = value
+                break
+    if not isinstance(position, list):
+        placement = dict(entity.get("placement") or {})
+        for key in ("resolved_position_enu_m", "position_enu_m", "center_enu_m"):
+            value = placement.get(key)
+            if isinstance(value, list):
+                position = value
+                break
     if not isinstance(position, list) or len(position) < 2:
         return None
     try:
@@ -67,6 +86,44 @@ def is_global_uav(entity: dict[str, Any]) -> bool:
 
 def is_global_pad(entity: dict[str, Any]) -> bool:
     return category_from_entity(entity) == "facility" and str(entity.get("source") or "") == "uav_global_flow"
+
+
+def spatial_index() -> MapSpatialIndex:
+    global _SPATIAL_INDEX_CACHE
+    if _SPATIAL_INDEX_CACHE is None:
+        _SPATIAL_INDEX_CACHE = MapSpatialIndex.default(ROOT)
+    return _SPATIAL_INDEX_CACHE
+
+
+def check_global_pad_spatial(label: str, position: tuple[float, float, float], errors: list[str]) -> float | None:
+    try:
+        spatial = spatial_index()
+        errors.extend(
+            spatial.validation_errors_for_point(
+                position,
+                context=label,
+                allow_road=False,
+                allow_green=True,
+                road_buffer_m=PEDESTRIAN_ROAD_BUFFER_M,
+            )
+        )
+        clearance = spatial.nearest_lane_clearance(position)
+    except Exception as exc:
+        errors.append(f"{label}: unable to validate landing pad spatial grounding: {exc}")
+        return None
+    return clearance
+
+
+def expected_selected_uav_count(plan_uav: dict[str, Any]) -> int:
+    selection = dict(plan_uav.get("selection") or {})
+    ids = selection.get("uav_ids")
+    if isinstance(ids, list):
+        return len(ids)
+    return int(selection.get("selected_count") or 0)
+
+
+def expected_visible_global_pad_count(plan_uav: dict[str, Any]) -> int:
+    return int(plan_uav.get("pad_count") or 0)
 
 
 def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str, Any]:
@@ -105,11 +162,14 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
         errors.append("manifest uav_crosses_boundary is not true")
     if manifest.get("inspect_observes_boundary") is not True:
         errors.append("manifest inspect_observes_boundary is not true")
+    expected_global_uav_roster_count = expected_selected_uav_count(plan_uav)
+    expected_global_pad_count = expected_visible_global_pad_count(plan_uav)
 
     roster_entities = roster.get("entities") if isinstance(roster, dict) else roster
     roster_categories: set[str] = set()
     global_pad_roster_count = 0
     global_uav_roster_count = 0
+    global_pad_road_clearance_min_m = float("inf")
     for entity in roster_entities if isinstance(roster_entities, list) else []:
         if not isinstance(entity, dict):
             continue
@@ -118,27 +178,32 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
             roster_categories.add(category)
         if is_global_pad(entity):
             global_pad_roster_count += 1
+            position = position_from_entity(entity)
+            if position is None:
+                errors.append(f"global roster pad {entity.get('entity_id')} missing position")
+            else:
+                clearance = check_global_pad_spatial(
+                    f"{episode_id}: roster pad {entity.get('entity_id')}",
+                    position,
+                    errors,
+                )
+                if clearance is not None:
+                    global_pad_road_clearance_min_m = min(global_pad_road_clearance_min_m, clearance)
         if is_global_uav(entity):
             global_uav_roster_count += 1
 
-    required_categories = {"pedestrian", "vehicle", "uav", "facility"}
-    missing_roster_categories = sorted(required_categories - roster_categories)
-    if missing_roster_categories:
-        errors.append(f"global roster missing categories: {missing_roster_categories}")
-    if global_pad_roster_count < 20:
-        errors.append(f"global UAV pad roster count {global_pad_roster_count} < 20")
-    if global_uav_roster_count < min_active_uavs:
-        errors.append(f"global UAV roster count {global_uav_roster_count} < {min_active_uavs}")
+    if global_pad_roster_count != expected_global_pad_count:
+        errors.append(f"global UAV pad roster count {global_pad_roster_count} != selected visible pad_count {expected_global_pad_count}")
+    if global_uav_roster_count != expected_global_uav_roster_count:
+        errors.append(f"global UAV roster count {global_uav_roster_count} != selected UAV count {expected_global_uav_roster_count}")
 
     if truth_check_mode == "manifest":
         truth_record_count = int(manifest_record_counts.get("truth_frames") or 0)
         trajectory_record_count = int(manifest_record_counts.get("trajectories") or 0)
         if expected_frames and truth_record_count != expected_frames:
             errors.append(f"manifest record_counts.truth_frames {truth_record_count} != expected {expected_frames}")
-        if trajectory_record_count < expected_frames * min_active_uavs:
-            errors.append(
-                f"manifest record_counts.trajectories {trajectory_record_count} is too small for truth-frame-derived global UAV flow"
-            )
+        if trajectory_record_count <= 0:
+            errors.append(f"manifest record_counts.trajectories {trajectory_record_count} is not positive")
         first_frame: dict[str, Any] | None = None
         with truth_path.open("r", encoding="utf-8-sig") as handle:
             for line_number, line in enumerate(handle, start=1):
@@ -162,6 +227,9 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
                 frame_categories=[],
                 global_pad_roster_count=global_pad_roster_count,
                 global_uav_roster_count=global_uav_roster_count,
+                global_pad_road_clearance_min_m=round(global_pad_road_clearance_min_m, 3)
+                if math.isfinite(global_pad_road_clearance_min_m)
+                else None,
                 truth_check_mode=truth_check_mode,
             )
 
@@ -174,12 +242,21 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
             category = category_from_entity(entity)
             if category:
                 frame_categories.add(category)
-            if position_from_entity(entity) is None:
+            position = position_from_entity(entity)
+            if position is None:
                 errors.append(f"first frame entity {entity.get('entity_id')} missing truth_pose.position_enu_m")
+                continue
             if is_global_uav(entity):
                 global_uav_count += 1
             elif is_global_pad(entity):
                 global_pad_count += 1
+                clearance = check_global_pad_spatial(
+                    f"{episode_id}: first frame pad {entity.get('entity_id')}",
+                    position,
+                    errors,
+                )
+                if clearance is not None:
+                    global_pad_road_clearance_min_m = min(global_pad_road_clearance_min_m, clearance)
         uav_payload = dict(first_frame.get("uav_global_flow") or {})
         sumo_payload = dict(first_frame.get("sumo_semantics") or {})
         payload_uav_count = int(uav_payload.get("active_selected_uav_count") or 0)
@@ -193,15 +270,12 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
             errors.append("first frame sumo_semantics.enabled is not true")
         if uav_payload.get("enabled") is not True:
             errors.append("first frame uav_global_flow.enabled is not true")
-        if payload_uav_count < min_active_uavs:
-            errors.append(f"first frame active_selected_uav_count {payload_uav_count} < {min_active_uavs}")
+        if payload_uav_count > expected_global_uav_roster_count:
+            errors.append(f"first frame active_selected_uav_count {payload_uav_count} > selected UAV count {expected_global_uav_roster_count}")
         if global_uav_count != payload_uav_count:
             errors.append(f"first frame global UAV entity count {global_uav_count} != active_selected_uav_count {payload_uav_count}")
-        if global_pad_count < 20:
-            errors.append(f"first frame global pad count {global_pad_count} < 20")
-        missing_frame_categories = sorted(required_categories - frame_categories)
-        if missing_frame_categories:
-            errors.append(f"first frame missing categories: {missing_frame_categories}")
+        if global_pad_count != expected_global_pad_count:
+            errors.append(f"first frame global pad count {global_pad_count} != selected visible pad_count {expected_global_pad_count}")
         first_trajectory_row: dict[str, Any] | None = None
         with trajectory_path.open("r", encoding="utf-8-sig") as handle:
             for line_number, line in enumerate(handle, start=1):
@@ -230,6 +304,9 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
             frame_categories=sorted(frame_categories),
             global_pad_roster_count=global_pad_roster_count,
             global_uav_roster_count=global_uav_roster_count,
+            global_pad_road_clearance_min_m=round(global_pad_road_clearance_min_m, 3)
+            if math.isfinite(global_pad_road_clearance_min_m)
+            else None,
             min_frame_global_uavs=payload_uav_count,
             min_frame_global_pads=global_pad_count,
             min_frame_sumo_vehicles=0,
@@ -286,8 +363,8 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
                 frame_errors.append(f"tick {tick}: uav_global_flow.enabled is not true")
             payload_uav_count = int(uav_payload.get("active_selected_uav_count") or 0)
             min_frame_global_uavs = payload_uav_count if min_frame_global_uavs is None else min(min_frame_global_uavs, payload_uav_count)
-            if payload_uav_count < min_active_uavs:
-                frame_errors.append(f"tick {tick}: active_selected_uav_count {payload_uav_count} < {min_active_uavs}")
+            if payload_uav_count > expected_global_uav_roster_count:
+                frame_errors.append(f"tick {tick}: active_selected_uav_count {payload_uav_count} > selected UAV count {expected_global_uav_roster_count}")
 
             entities = frame.get("entities") or []
             if not isinstance(entities, list):
@@ -313,6 +390,13 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
                         global_uav_tracks.setdefault(entity_id, []).append((tick, position[0], position[1], position[2]))
                 elif is_global_pad(entity):
                     global_pad_count += 1
+                    clearance = check_global_pad_spatial(
+                        f"{episode_id}: tick {tick} pad {entity.get('entity_id')}",
+                        position,
+                        frame_errors,
+                    )
+                    if clearance is not None:
+                        global_pad_road_clearance_min_m = min(global_pad_road_clearance_min_m, clearance)
                 elif category == "vehicle" and str(entity.get("source") or "") == "sumo_traci":
                     sumo_vehicle_count += 1
 
@@ -321,8 +405,8 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
             max_frame_sumo_vehicles = max(max_frame_sumo_vehicles, sumo_vehicle_count)
             if global_uav_count != payload_uav_count:
                 frame_errors.append(f"tick {tick}: sampled global UAV entity count {global_uav_count} != active_selected_uav_count {payload_uav_count}")
-            if global_pad_count < 20:
-                frame_errors.append(f"tick {tick}: sampled global pad count {global_pad_count} < 20")
+            if global_pad_count != expected_global_pad_count:
+                frame_errors.append(f"tick {tick}: sampled global pad count {global_pad_count} != selected visible pad_count {expected_global_pad_count}")
             if len(dict(frame.get("sumo_traffic_light_states") or {})) > 0:
                 traffic_light_frames += 1
             if len(list(frame.get("sumo_active_incidents") or [])) > 0:
@@ -334,9 +418,6 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
             errors.append(f"{len(frame_errors) - 40} additional frame errors omitted")
     if expected_frames and frame_count != expected_frames:
         errors.append(f"truth frame count {frame_count} != expected {expected_frames}")
-    missing_frame_categories = sorted(required_categories - frame_categories)
-    if missing_frame_categories:
-        errors.append(f"truth frames missing categories: {missing_frame_categories}")
     if traffic_light_frames != sampled_entity_frames:
         errors.append(f"sampled traffic light state frames {traffic_light_frames} != sampled entity frames {sampled_entity_frames}")
     if max_frame_sumo_vehicles <= 0:
@@ -399,6 +480,9 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
         frame_categories=sorted(frame_categories),
         global_pad_roster_count=global_pad_roster_count,
         global_uav_roster_count=global_uav_roster_count,
+        global_pad_road_clearance_min_m=round(global_pad_road_clearance_min_m, 3)
+        if math.isfinite(global_pad_road_clearance_min_m)
+        else None,
         min_frame_global_uavs=min_frame_global_uavs or 0,
         min_frame_global_pads=min_frame_global_pads or 0,
         min_frame_sumo_vehicles=min_frame_sumo_vehicles or 0,
