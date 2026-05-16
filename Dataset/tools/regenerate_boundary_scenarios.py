@@ -1957,11 +1957,11 @@ def _min_route_clearance_m(
     route_b: list[list[float]],
     speed_b_mps: float,
 ) -> float:
-    if len(route_a) < 2 or len(route_b) < 2:
+    if not route_a or not route_b:
         return float("inf")
-    max_tick = min(_route_duration_ticks(route_a, speed_a_mps), _route_duration_ticks(route_b, speed_b_mps))
+    max_tick = max(_route_duration_ticks(route_a, speed_a_mps), _route_duration_ticks(route_b, speed_b_mps))
     if max_tick <= 0:
-        return float("inf")
+        return dist_xy(route_a[0], route_b[0])
     min_distance = float("inf")
     for tick_value in range(0, max_tick + 1):
         pos_a = _route_position_at_tick(route_a, speed_a_mps, tick_value)
@@ -2010,7 +2010,7 @@ def _vehicle_pedestrian_dynamic_clearance_ok(
         if not str(scene.get("logical_asset_id") or "").startswith("pedestrian."):
             continue
         pedestrian_route = _scene_route_points(scene)
-        if len(pedestrian_route) < 2:
+        if not pedestrian_route:
             continue
         speed_mps = float((scene.get("ground_flow_contract") or {}).get("speed_mps") or BACKGROUND_PEDESTRIAN_FLOW_SPEED_MPS)
         clearance_m = _min_route_clearance_m(
@@ -4841,6 +4841,7 @@ def build_l1(scenario_id: str, idx: int) -> ScenarioBundle:
         events[1]["log_title"] = "Noncooperative intruder enters constrained airspace"
         if scenario_id.startswith("L1-3_v2"):
             events[1]["log_title"] = "Fast intruder crossing constrained airspace"
+            events[2]["trigger"] = fired("boundary_conflict", delay_ticks=130)
         events[1]["log_target_ids"].append(intruder)
     events[1]["require_conditions"] = ["trig_approach_boundary"]
     if scenario_id.startswith("L1-4"):
@@ -5228,14 +5229,40 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
         car = f"car_under_uav_{sid}"
         u0 = p(ox - 18, oy - 5, 20)
         c0 = p(ox + 4, oy - 18, 0)
-        impact_u = p(ox + 2, oy + 2, 2.6)
-        impact_c = p(ox + 2, oy + 2, 0)
         add(specs, scenes, world_entity(uav, "uav.inspect.quad.v1", "uav", u0, 70, "unstable"))
         _, car_scene = add(specs, scenes, lane_entity(car, "vehicle.ground.boxcar.v1", "vehicle", "cg_edge_20", 46, 0, c0, 0, "moving"))
         car_start = scene_pos(car_scene)
+        car_placement = dict(car_scene.get("placement") or {})
+        car_edge_id = str(car_placement.get("edge_id") or "")
+        car_s = float(car_placement.get("longitudinal_s") or 0.0)
+        car_lateral = float(car_placement.get("resolved_lateral_from_center_m") or 0.0)
+        car_min_s, car_max_s = LANES.edge_s_bounds(car_edge_id)
+        contact_s: float | None = None
+        impact_c: list[float] | None = None
+        impact_u: list[float] | None = None
+        for delta_s in (18.0, 24.0, 30.0, 36.0, 44.0, 54.0, 66.0, 80.0, -18.0, -30.0, -42.0):
+            candidate_s = max(car_min_s, min(car_max_s, car_s + delta_s))
+            candidate_ground = _offset_from_lane(LANES.resolve_edge_s(car_edge_id, candidate_s), car_lateral, GROUND_Z_M)
+            candidate_uav = q(candidate_ground[0], candidate_ground[1], 2.6)
+            candidate_mid = q((u0[0] + candidate_uav[0]) / 2.0, (u0[1] + candidate_uav[1]) / 2.0, 12)
+            try:
+                repaired = _repair_uav_profile_waypoints(scenario_id, "move_uav_falling_cross", [u0, candidate_mid, candidate_uav])
+            except RuntimeError:
+                continue
+            if repaired and dist_xy(repaired[-1], candidate_uav) <= 0.25 and abs(float(repaired[-1][2]) - candidate_uav[2]) <= 0.1:
+                contact_s = candidate_s
+                impact_c = candidate_ground
+                impact_u = candidate_uav
+                break
+        if impact_c is None or impact_u is None or contact_s is None:
+            raise RuntimeError(f"{scenario_id}: unable to find building-clear lane contact point for UAV-vehicle crossing")
+        crossing_mid_s = max(car_min_s, min(car_max_s, (car_s + contact_s) / 2.0))
+        crossing_mid = _offset_from_lane(LANES.resolve_edge_s(car_edge_id, crossing_mid_s), car_lateral, GROUND_Z_M)
+        brake_end = _offset_from_lane(LANES.resolve_edge_s(car_edge_id, max(car_min_s, min(car_max_s, contact_s + 3.0))), car_lateral, GROUND_Z_M)
+        debris_ground = q(impact_c[0] + 2.0, impact_c[1] + 1.0, 0.4)
         events = [
-            event("crossing_trajectories", tick(240), [move("move_uav_falling_cross", uav, [u0, p(ox - 7, oy - 1, 12), impact_u], 5.5), move("move_car_crossing_path", car, [car_start, p(ox + 3, oy - 7, 0), impact_c], 7.0)], 1, scenario_id, "UAV and vehicle trajectories cross", "uav_mission", [uav, car], "critical"),
-            event("vehicle_roof_contact", prox(uav, car, 3.0, 1), [move("move_vehicle_emergency_brake", car, [impact_c, p(ox + 2.5, oy + 2.5, 0)], 0.5), move("move_uav_debris_ground", uav, [impact_u, p(ox + 4, oy + 3, 0.4)], 1.0), visual("set_uav_debris", uav, "debris"), screenshot("capture_uav_vehicle_contact")], 2, scenario_id, "UAV contacts vehicle roof and vehicle brakes", "vehicle", [uav, car], "critical"),
+            event("crossing_trajectories", tick(240), [move("move_uav_falling_cross", uav, [u0, q((u0[0] + impact_u[0]) / 2.0, (u0[1] + impact_u[1]) / 2.0, 12), impact_u], 5.5), move("move_car_crossing_path", car, [car_start, crossing_mid, impact_c], 7.0)], 1, scenario_id, "UAV and vehicle trajectories cross", "uav_mission", [uav, car], "critical"),
+            event("vehicle_roof_contact", prox(uav, car, 3.0, 1), [move("move_vehicle_emergency_brake", car, [impact_c, brake_end], 0.5), move("move_uav_debris_ground", uav, [impact_u, debris_ground], 1.0), visual("set_uav_debris", uav, "debris"), screenshot("capture_uav_vehicle_contact")], 2, scenario_id, "UAV contacts vehicle roof and vehicle brakes", "vehicle", [uav, car], "critical"),
         ]
         desc = "UAV falls onto moving ground vehicle"
         rules.append({"rule": "trajectory_intersection_required", "description": "UAV and vehicle trajectories intersect rather than running parallel"})
@@ -5255,6 +5282,7 @@ def build_l4(scenario_id: str, idx: int) -> ScenarioBundle:
             event("pedestrian_near_miss", prox(uav, ped, 5.0, 2, metric="xy_plus_z", horizontal_distance_m=3.0, vertical_distance_m=6.0), [visual("set_uav_hover_nearmiss", uav, "hover"), move("move_uav_pull_up_after_nearmiss", uav, [over, pull_up], 6.0), screenshot("capture_ped_nearmiss")], 2, scenario_id, "UAV near-miss with pedestrian triggers pull-up", "uav_mission", [uav, ped], "critical"),
             event("pedestrian_clears_area", fired("pedestrian_near_miss"), [move("move_ped_clear_nearmiss", ped, [ped_start, ped_clear], 1.5)], 3, scenario_id, "Pedestrian clears UAV operating area", "pedestrian", [ped], "info"),
         ]
+        events[1]["require_conditions"] = ["uav_low_descent"]
         desc = "UAV low-altitude pedestrian near-miss"
     elif scenario_id.startswith("L4-6_"):
         ped = f"ped_jaywalk_{sid}"
@@ -5603,11 +5631,13 @@ def build_x(short_id: str, dirname: str, idx: int) -> ScenarioBundle:
             event("rain_onset", tick(180), [set_weather("set_x1_rain_onset", "rain", rain=0.62, visibility_m=1600.0)], 1, scenario_id, "Rain onset is applied before C2 coupling", "weather", [uav, tower], "info"),
             event("rain_threshold", weather("rain", "gte", 0.5, 5), [set_weather("set_x1_rain", "rain", rain=0.65, visibility_m=1500.0)], 1, scenario_id, "Rain threshold triggers L5 degradation", "weather", [uav, tower], "warning"),
             event("c2_loss_tick", tick(260), [visual("set_x1_tower_stressed", tower, "rain_stressed")], 2, scenario_id, "C2 loss timing condition becomes true", "digital_layer", [tower], "warning"),
-            event("c2_loss_after_rain", composite("AND", ["rain_threshold", "c2_loss_tick"]), [visual("set_x1_tower_c2_loss", tower, "link_lost"), move("move_x1_uav_degraded", uav, [start, p(ox + 9, oy + 4, 26)], 6.0)], 3, scenario_id, "Rain and C2 condition combine into C2 loss", "digital_layer", [uav, tower], "critical"),
+            event("c2_loss_after_rain", fired("c2_loss_tick", delay_ticks=10), [visual("set_x1_tower_c2_loss", tower, "link_lost"), move("move_x1_uav_degraded", uav, [start, p(ox + 9, oy + 4, 26)], 6.0)], 3, scenario_id, "Rain and C2 condition combine into C2 loss", "digital_layer", [uav, tower], "critical"),
             event("forced_landing_descent", fired("c2_loss_after_rain"), [move("move_x1_forced_landing", uav, [p(ox + 9, oy + 4, 26), low, landing], 6.0)], 4, scenario_id, "C2 loss causes forced landing near crowd", "uav_mission", [uav, ped], "critical"),
             event("crowd_reacts_to_landing", prox(uav, ped, 5.0, 2), [move("move_x1_ped_evade", ped, [ped_start, ped_evade], 2.0), screenshot("capture_x1_forced_landing")], 5, scenario_id, "Crowd reacts to forced landing", "pedestrian", [uav, ped], "warning"),
             event("x1_recovery", fired("crowd_reacts_to_landing"), [visual("set_x1_tower_restored", tower, "online"), visual("set_x1_uav_landed", uav, "landed_safe")], 6, scenario_id, "Cross-layer chain recovers", "digital_layer", [uav, tower], "info"),
         ]
+        events[3]["require_conditions"] = ["rain_threshold"]
+        events[6]["require_conditions"] = ["forced_landing_descent"]
         desc = "Rain to C2 loss to forced landing cross-layer chain"
     elif short_id == "X2":
         scenario_id = dirname

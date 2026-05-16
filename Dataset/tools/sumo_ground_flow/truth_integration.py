@@ -211,7 +211,7 @@ class VisibilityGeometry:
     hfov_deg: float
     vfov_deg: float
     altitude_m: float
-    padding_m: float = 25.0
+    padding_m: float = 60.0
 
     @classmethod
     def from_contract(cls, source_contract: dict[str, Any]) -> "VisibilityGeometry":
@@ -366,7 +366,7 @@ class SumoTrafficDataset:
         prev_time = float(prev_frame.get("sim_time_s") or 0.0)
         next_time = float(next_frame.get("sim_time_s") or prev_time)
         if abs(time_s - prev_time) <= 1e-9:
-            return prev_frame, prev_frame, 0.0
+            return prev_frame, next_frame, 0.0
         span = max(1e-9, next_time - prev_time)
         alpha = max(0.0, min(1.0, (time_s - prev_time) / span))
         return prev_frame, next_frame, alpha

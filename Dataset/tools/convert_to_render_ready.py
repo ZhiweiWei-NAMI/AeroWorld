@@ -2175,11 +2175,6 @@ def convert_episode(
             )
             speed_xy_mps = math.hypot(velocity[0], velocity[1])
             speed_3d_mps = math.sqrt(sum(float(value) ** 2 for value in velocity[:3]))
-            if category == "uav" and speed_3d_mps < 0.5:
-                state_text = str(row.get("state") or "").lower()
-                terminal_state = any(token in state_text for token in ("crash", "collision", "forced", "landing", "fault", "failure"))
-                if not terminal_state and activity_type in {"idle", "hover", "preflight_on_pad", "flight"}:
-                    continue
             entity = {
                 "entity_id": entity_id,
                 "entity_category": category,

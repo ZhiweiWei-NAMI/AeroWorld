@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes"
 DEFAULT_OUTPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes_capture_filtered"
 PVU_CATEGORIES = {"pedestrian", "vehicle", "uav"}
-CAPTURE_VISIBILITY_PADDING_M = 45.0
+CAPTURE_VISIBILITY_PADDING_M = 60.0
 REGENERATED_FILES = {
     "truth_frames.jsonl",
     "trajectories.jsonl",

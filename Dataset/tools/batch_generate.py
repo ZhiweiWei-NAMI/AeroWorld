@@ -962,6 +962,13 @@ def keep_ground_entities_moving(
         entity = entities.get(entity_id) or {}
         if _has_continuous_ground_flow_contract(entity):
             continue
+        if not (
+            bool(entity.get("background_vehicle"))
+            or bool(entity.get("background_pedestrian"))
+            or str(entity.get("role") or "") in {"semantic_background_vehicle", "semantic_background_pedestrian"}
+            or str(entity.get("background_role") or "") == "semantic_context"
+        ):
+            continue
         moving_flags = [_row_xy_speed(row) > GROUND_MOTION_SPEED_EPS_MPS for row in entity_rows]
         moving_ratio = sum(1 for flag in moving_flags if flag) / float(len(entity_rows))
         tick0_moving = _row_xy_speed(entity_rows[0]) > GROUND_MOTION_SPEED_EPS_MPS

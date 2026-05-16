@@ -66,6 +66,31 @@ def _scenario_incident_overlaps_seed(manifest: dict[str, Any], seed_index: int) 
     return False
 
 
+def _observable_sumo_selection_summary(sumo_manifest: dict[str, Any]) -> dict[str, Any]:
+    selection = dict(sumo_manifest.get("selection") or {})
+    visibility = dict(sumo_manifest.get("visibility_geometry") or {})
+    try:
+        padding_m = float(visibility.get("padding_m") or 0.0)
+    except (TypeError, ValueError):
+        padding_m = 0.0
+    distances: list[float] = []
+    for value in dict(selection.get("min_distance_m_by_vehicle_id") or {}).values():
+        try:
+            distance_m = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(distance_m):
+            distances.append(distance_m)
+    observable_count = sum(1 for distance_m in distances if distance_m <= padding_m)
+    return {
+        "selected_count": int(selection.get("selected_count") or 0),
+        "padding_m": padding_m,
+        "nearest_distance_m": min(distances) if distances else float("inf"),
+        "observable_selected_count": observable_count,
+        "has_observable_selection": observable_count > 0,
+    }
+
+
 def validate_episode(episode_dir: Path) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -92,11 +117,13 @@ def validate_episode(episode_dir: Path) -> dict[str, Any]:
         errors.append("manifest SUMO segment_start_s does not match seed")
     if float(manifest_segment.get("segment_end_s", -1.0)) != expected_segment.segment_end_s:
         errors.append("manifest SUMO segment_end_s does not match seed")
+    observable_selection = _observable_sumo_selection_summary(sumo_manifest)
+    has_observable_sumo_selection = bool(observable_selection["has_observable_selection"])
 
     roster = read_json(roster_path)
     roster_entities = list(roster.get("entities") or [])
     roster_sumo_count = sum(1 for entity in roster_entities if str(entity.get("source") or "") == "sumo_traci")
-    if roster_sumo_count <= 0:
+    if roster_sumo_count <= 0 and has_observable_sumo_selection:
         errors.append("global roster has no SUMO traffic vehicles")
 
     frame_count = 0
@@ -194,7 +221,7 @@ def validate_episode(episode_dir: Path) -> dict[str, Any]:
     for required_category in ("uav", "pedestrian", "vehicle"):
         if category_presence[required_category] <= 0:
             errors.append(f"truth has no {required_category} entities")
-    if sumo_entity_frame_count <= 0:
+    if sumo_entity_frame_count <= 0 and has_observable_sumo_selection:
         errors.append("truth has no active SUMO vehicles")
     moving_background = 0
     for motion in sumo_motion.values():
@@ -203,8 +230,17 @@ def validate_episode(episode_dir: Path) -> dict[str, Any]:
         span = math.hypot(float(last[0]) - float(first[0]), float(last[1]) - float(first[1]))
         if str(motion.get("control_role") or "") == "background" and (span >= 2.0 or float(motion.get("max_speed") or 0.0) >= 0.5):
             moving_background += 1
-    if moving_background <= 0:
+    if moving_background <= 0 and has_observable_sumo_selection and active_incident_frame_count <= 0:
         errors.append("truth has no moving SUMO background vehicle")
+    if not has_observable_sumo_selection:
+        nearest = float(observable_selection["nearest_distance_m"])
+        nearest_label = f"{nearest:.3f}m" if math.isfinite(nearest) else "none"
+        warnings.append(
+            "no selected SUMO vehicle enters the episode visibility geometry "
+            f"(padding={float(observable_selection['padding_m']):.1f}m, nearest={nearest_label})"
+        )
+    elif moving_background <= 0 and active_incident_frame_count > 0:
+        warnings.append("SUMO traffic appears only as incident-controlled vehicles inside visibility geometry")
 
     source_min = min(source_vehicle_counts) if source_vehicle_counts else 0
     source_max = max(source_vehicle_counts) if source_vehicle_counts else 0
@@ -246,6 +282,12 @@ def validate_episode(episode_dir: Path) -> dict[str, Any]:
             "moving_background_sumo_vehicles": moving_background,
             "active_incident_frame_count": active_incident_frame_count,
             "max_observation_distance_m": round(max_observation_distance_m, 6),
+            "sumo_observable_selected_vehicle_count": int(observable_selection["observable_selected_count"]),
+            "sumo_nearest_selected_distance_m": (
+                round(float(observable_selection["nearest_distance_m"]), 6)
+                if math.isfinite(float(observable_selection["nearest_distance_m"]))
+                else None
+            ),
         },
     }
 

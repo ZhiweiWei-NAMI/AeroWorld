@@ -11,7 +11,9 @@ from typing import Any, Sequence
 
 
 VEHICLE_LANE_CENTER_TOLERANCE_M = 0.35
-VEHICLE_CENTERLINE_TOLERANCE_M = 0.60
+VEHICLE_LANE_OFFSET_TIE_M = 0.25
+VEHICLE_ROAD_EDGE_MARGIN_M = 1.50
+VEHICLE_LANE_ALIGNMENT_MIN_ABS_COS = 0.80
 VEHICLE_LANE_GRID_CELL_M = 25.0
 
 
@@ -140,7 +142,14 @@ class VehicleLaneProjector:
             int(math.floor(float(y_m) / VEHICLE_LANE_GRID_CELL_M)),
         )
 
-    def _nearest_sample(self, position_enu_m: Sequence[float]) -> VehicleLaneSample:
+    @staticmethod
+    def _sample_aligned_with_yaw(sample: VehicleLaneSample, yaw_deg: float | None) -> bool:
+        if yaw_deg is None or not math.isfinite(float(yaw_deg)):
+            return True
+        alignment = abs(math.cos(math.radians(float(yaw_deg) - sample.yaw_deg)))
+        return alignment >= VEHICLE_LANE_ALIGNMENT_MIN_ABS_COS
+
+    def _nearest_sample(self, position_enu_m: Sequence[float], yaw_deg: float | None = None) -> VehicleLaneSample:
         x_m = float(position_enu_m[0])
         y_m = float(position_enu_m[1])
         cx, cy = self._grid_key(x_m, y_m)
@@ -150,6 +159,8 @@ class VehicleLaneProjector:
             for gx in range(cx - radius, cx + radius + 1):
                 for gy in range(cy - radius, cy + radius + 1):
                     for sample in self._grid.get((gx, gy), []):
+                        if not self._sample_aligned_with_yaw(sample, yaw_deg):
+                            continue
                         d2 = (sample.x_m - x_m) ** 2 + (sample.y_m - y_m) ** 2
                         if d2 < best_d2:
                             best = sample
@@ -158,6 +169,10 @@ class VehicleLaneProjector:
                 break
         if best is not None:
             return best
+        if yaw_deg is not None and math.isfinite(float(yaw_deg)):
+            aligned_samples = [sample for sample in self.samples if self._sample_aligned_with_yaw(sample, yaw_deg)]
+            if aligned_samples:
+                return min(aligned_samples, key=lambda item: (item.x_m - x_m) ** 2 + (item.y_m - y_m) ** 2)
         return min(self.samples, key=lambda item: (item.x_m - x_m) ** 2 + (item.y_m - y_m) ** 2)
 
     def _sample_for_vehicle(
@@ -167,6 +182,7 @@ class VehicleLaneProjector:
         edge_id: str | None = None,
         lane_position_m: Any = None,
         lane_id: str | None = None,
+        yaw_deg: float | None = None,
     ) -> VehicleLaneSample:
         resolved_edge_id = str(edge_id or "").strip() or edge_id_from_lane_id(lane_id)
         edge_samples = self.by_edge.get(resolved_edge_id)
@@ -185,7 +201,7 @@ class VehicleLaneProjector:
                     candidates.append(edge_samples[index - 1])
                 if candidates:
                     return min(candidates, key=lambda item: abs(item.s_m - s_m))
-        return self._nearest_sample(position_enu_m)
+        return self._nearest_sample(position_enu_m, yaw_deg=yaw_deg)
 
     def _physical_offsets(self, edge_id: str) -> list[float]:
         metadata = self.road_metadata.get(edge_id)
@@ -197,21 +213,25 @@ class VehicleLaneProjector:
             for index in range(metadata.lanes)
         ]
 
-    def _target_offset(self, sample: VehicleLaneSample, offsets: list[float], yaw_deg: float, lane_id: str | None) -> float:
-        lane_index = parse_lane_index_from_lane_id(lane_id)
-        align = math.cos(math.radians(float(yaw_deg) - sample.yaw_deg))
-        if align >= 0.0:
-            side_offsets = [value for value in offsets if value < -1e-6]
-        else:
-            side_offsets = [value for value in offsets if value > 1e-6]
-        if not side_offsets:
-            side_offsets = [value for value in offsets if abs(value) > 1e-6]
-        if not side_offsets:
+    def _target_offset(self, offsets: list[float], lateral_m: float, lane_id: str | None) -> float:
+        nonzero_offsets = [value for value in offsets if abs(value) > 1e-6]
+        if not nonzero_offsets:
             return 0.0
-        side_offsets = sorted(side_offsets, key=lambda value: abs(value))
-        if lane_index is not None and 0 <= lane_index < len(side_offsets):
-            return side_offsets[lane_index]
-        return side_offsets[0]
+        best_delta = min(abs(float(lateral_m) - value) for value in nonzero_offsets)
+        candidates = [
+            value
+            for value in nonzero_offsets
+            if abs(float(lateral_m) - value) <= best_delta + VEHICLE_LANE_OFFSET_TIE_M
+        ]
+        if abs(float(lateral_m)) > 1e-6:
+            same_side = [value for value in candidates if math.copysign(1.0, value) == math.copysign(1.0, float(lateral_m))]
+            if same_side:
+                return sorted(same_side, key=lambda value: (abs(value), abs(float(lateral_m) - value), value))[0]
+        if len(candidates) > 1:
+            lane_index = parse_lane_index_from_lane_id(lane_id)
+            if lane_index is not None:
+                return sorted(candidates)[lane_index % len(candidates)]
+        return sorted(candidates, key=lambda value: (abs(float(lateral_m) - value), abs(value), value))[0]
 
     def project_vehicle_position(
         self,
@@ -223,15 +243,21 @@ class VehicleLaneProjector:
         lane_id: str | None = None,
     ) -> list[float]:
         position = normalize_vector3(position_enu_m)
-        sample = self._sample_for_vehicle(position, edge_id=edge_id, lane_position_m=lane_position_m, lane_id=lane_id)
+        sample = self._sample_for_vehicle(
+            position,
+            edge_id=edge_id,
+            lane_position_m=lane_position_m,
+            lane_id=lane_id,
+            yaw_deg=float(yaw_deg),
+        )
         offsets = self._physical_offsets(sample.edge_id)
         if not offsets or all(abs(value) <= 1e-6 for value in offsets):
             return position
         lateral = vehicle_lateral_from_lane(sample, position)
         if min(abs(lateral - value) for value in offsets) <= VEHICLE_LANE_CENTER_TOLERANCE_M:
             return position
-        if abs(lateral) > VEHICLE_CENTERLINE_TOLERANCE_M:
+        if abs(lateral) > max(abs(value) for value in offsets) + VEHICLE_ROAD_EDGE_MARGIN_M:
             return position
-        target = self._target_offset(sample, offsets, yaw_deg, lane_id)
+        target = self._target_offset(offsets, lateral, lane_id)
         nx, ny = vehicle_lane_normal(sample)
-        return [sample.x_m + target * nx, sample.y_m + target * ny, position[2]]
+        return [position[0] + (target - lateral) * nx, position[1] + (target - lateral) * ny, position[2]]
