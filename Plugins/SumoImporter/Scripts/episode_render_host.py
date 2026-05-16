@@ -4356,8 +4356,8 @@ except Exception as exc:
             "storage_rule": "Primary image paths stay short; complex episode/view identifiers live in sidecars and this manifest.",
             "simple_path_contract": {
                 "formal_default_output_root": "F:/aw_cap",
-                "uav_route": "F:/aw_cap/uav/eNN/vNN/<modality>/tick_NNNNNN.<ext>",
-                "high_overview_route": "F:/aw_cap/hi/eNN/tick_NNNNNN.<ext>",
+                "uav_route": "F:/aw_cap/<scenario_id>/<seed_label>/<uav_view_id>/<modality>/tick_NNNNNN.<ext>",
+                "high_overview_route": "F:/aw_cap/<scenario_id>/<seed_label>/high/rgb/tick_NNNNNN.png",
                 "meta_route": "F:/aw_cap/_meta",
                 "complex_identifiers_live_in_sidecars": True,
             },
@@ -5459,7 +5459,10 @@ except Exception as exc:
                 rotation_deg=resolved_camera_rotation_deg,
             )
             frame_stem = self.capture_orchestrator.frame_stem(frame)
-            output_dir = self.output_dir / batch.batch_id / safe_name(camera_id) / "rgb"
+            if self.output_dir.name == "high":
+                output_dir = self.output_dir / "rgb"
+            else:
+                output_dir = self.output_dir / batch.batch_id / safe_name(camera_id) / "rgb"
             self._prepare_capture_output_dir(output_dir)
             image_path = output_dir / f"{frame_stem}.{str((modalities.get('rgb') or {}).get('extension', 'png'))}"
             hook.capture_modality(

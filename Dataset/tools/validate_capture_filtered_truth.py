@@ -10,6 +10,7 @@ in that episode's capture visibility geometry.
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from pathlib import Path
 import sys
@@ -162,6 +163,14 @@ def validate_episode(filtered_dir: Path, source_root: Path, max_errors: int) -> 
     filter_payload = dict(manifest.get("capture_visible_truth_filter") or {})
     if not filter_payload:
         errors.append(f"{filtered_dir.name}: missing episode_manifest.capture_visible_truth_filter")
+    else:
+        visibility_payload = dict(filter_payload.get("visibility_geometry") or {})
+        padding_m = visibility_payload.get("padding_m", filter_payload.get("visibility_padding_m"))
+        if padding_m is not None:
+            try:
+                visibility = replace(visibility, padding_m=max(float(visibility.padding_m), float(padding_m)))
+            except (TypeError, ValueError):
+                errors.append(f"{filtered_dir.name}: invalid capture visibility padding_m={padding_m!r}")
 
     check_render_config(filtered_dir, errors)
 

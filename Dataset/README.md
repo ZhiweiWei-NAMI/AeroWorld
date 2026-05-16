@@ -1,6 +1,6 @@
 # Low-Altitude Semantic Event-Chain Dataset
 
-This dataset is the canonical low-altitude AeroWorld program for 70 deterministic episode definitions. Read `../HANDOFF_LOW_ALTITUDE_SEMANTIC_EVENT_CHAIN.md` before running generation or capture.
+This dataset is the canonical low-altitude AeroWorld program for 70 deterministic episode definitions and 210 formal capture units across `seed00..seed02`. Read `../HANDOFF_LOW_ALTITUDE_SEMANTIC_EVENT_CHAIN.md` before running generation or capture.
 
 ## Canonical Source
 
@@ -38,6 +38,8 @@ This dataset is the canonical low-altitude AeroWorld program for 70 deterministi
 
 `spec_compiler.py -> regenerate_boundary_scenarios.py -> batch_generate.py -> convert_to_render_ready.py -> run_semantic_event_chain_every10.py -> episode_render_host.py -> validators`
 
+`convert_to_render_ready.py` always writes the formal filtered capture root, `Dataset/render_ready_episodes_capture_filtered`, in the same run as full render-ready conversion.
+
 ## Runtime Rules
 
 - Reuse the existing UE PIE session and AirSim RPC `127.0.0.1:41451`.
@@ -53,8 +55,9 @@ This dataset is the canonical low-altitude AeroWorld program for 70 deterministi
 ## Main Output Roots
 
 - Source scenarios: `Dataset/scenarios/...`
-- Deterministic episode roots: `Dataset/episodes/<scenario>__seed00`
-- Render-ready episode roots: `Dataset/render_ready_episodes/<scenario>__seed00`
+- Deterministic episode roots: `Dataset/episodes/<scenario>__seedNN`
+- Render-ready episode roots: `Dataset/render_ready_episodes/<scenario>__seedNN`
+- Formal filtered capture input roots: `Dataset/render_ready_episodes_capture_filtered/<scenario>__seedNN`
 - Formal UE capture root: `F:/aw_cap`
 - Formal UE capture summary: `F:/aw_cap_summary.csv`
 

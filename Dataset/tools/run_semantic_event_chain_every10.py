@@ -77,10 +77,13 @@ class HostRunResult:
 class EpisodePlan:
     index: int
     episode_dir: Path
+    scenario_id: str
+    seed_label: str
     site_id: str
     high_camera_id: str
     capture_ticks: list[int]
     uav_active_ticks: dict[str, list[int]]
+    uav_ordinals: dict[str, int] = field(default_factory=dict)
 
     @property
     def episode_id(self) -> str:
@@ -90,6 +93,8 @@ class EpisodePlan:
 SUMMARY_FIELDS = [
     "index",
     "episode",
+    "scenario_id",
+    "seed_label",
     "view",
     "status",
     "tick",
@@ -132,6 +137,8 @@ UAV_INDEX_FIELDS = [
     "uav_entity_id",
     "episode_index",
     "episode",
+    "scenario_id",
+    "seed_label",
     "capture_view_id",
     "camera_id",
     "active_tick_count",
@@ -162,18 +169,45 @@ def simple_capture_view_dir_name(capture_view_id: str) -> str:
     return short_stable_name(str(capture_view_id), "v")
 
 
-def event_chain_output_dir(output_root: Path, index: int, view: str) -> Path:
+def episode_id_parts(episode_id: str, manifest: dict[str, Any] | None = None) -> tuple[str, str]:
+    manifest = dict(manifest or {})
+    scenario_id = str(manifest.get("scenario_id") or "").strip()
+    if not scenario_id:
+        scenario_id = re.sub(r"__seed\d+$", "", str(episode_id or "").strip())
+    raw_seed = manifest.get("seed")
+    seed_index: int | None = None
+    if raw_seed not in (None, ""):
+        try:
+            seed_index = int(raw_seed)
+        except Exception:
+            seed_index = None
+    if seed_index is None:
+        match = re.search(r"__seed(\d+)$", str(episode_id or ""))
+        if match:
+            seed_index = int(match.group(1))
+    seed_label = f"seed{int(seed_index or 0):02d}"
+    return safe_name(scenario_id or str(episode_id or "episode")), seed_label
+
+
+def event_chain_episode_root(output_root: Path, plan: EpisodePlan) -> Path:
+    return output_root / safe_name(plan.scenario_id) / safe_name(plan.seed_label)
+
+
+def event_chain_output_dir(output_root: Path, plan: EpisodePlan, view: str) -> Path:
     normalized = str(view or "").strip().lower()
     if normalized.startswith("high"):
-        return output_root / "hi" / simple_episode_dir_name(index)
-    return output_root / "uav" / simple_episode_dir_name(index)
+        return event_chain_episode_root(output_root, plan) / "high"
+    return event_chain_episode_root(output_root, plan)
 
 
-def event_chain_uav_output_dir(output_root: Path, index: int, entity_id: str, capture_view_id: str = "") -> Path:
-    base_dir = output_root / "uav" / safe_name(entity_id) / simple_episode_dir_name(index)
+def event_chain_uav_output_dir(output_root: Path, plan: EpisodePlan, entity_id: str, capture_view_id: str = "") -> Path:
     if str(capture_view_id or "").strip():
-        return base_dir / safe_name(capture_view_id)
-    return base_dir
+        return event_chain_episode_root(output_root, plan) / safe_name(capture_view_id)
+    return event_chain_episode_root(output_root, plan) / safe_name(entity_id)
+
+
+def event_chain_meta_episode_dir(output_root: Path, plan: EpisodePlan, kind: str) -> Path:
+    return output_root / "_meta" / kind / safe_name(plan.scenario_id) / safe_name(plan.seed_label)
 
 
 def read_json(path: Path) -> Any:
@@ -528,7 +562,8 @@ def high_overview_camera_id_from_presets(presets: dict[str, Any], site_id: str) 
     raise RuntimeError(f"No overview_top camera for site {site_id}")
 
 
-def write_guarded_config(args: argparse.Namespace, episode_dir: Path, index: int, presets_path: Path) -> Path:
+def write_guarded_config(args: argparse.Namespace, plan: EpisodePlan, presets_path: Path) -> Path:
+    episode_dir = plan.episode_dir
     source_config = episode_dir / "render_host_config.json"
     config = read_json(source_config)
     config["capture_presets_path"] = str(presets_path)
@@ -565,12 +600,14 @@ def write_guarded_config(args: argparse.Namespace, episode_dir: Path, index: int
         "write_semantic_audit": bool(args.write_semantic_audit),
         "oom_policy": "parent_guard_kills_host_child_keeps_ue_open",
     }
-    target = args.output_root / "_meta" / "configs" / f"{simple_episode_dir_name(index)}_{short_stable_name(episode_dir.name, 'e')}.json"
+    target = event_chain_meta_episode_dir(args.output_root, plan, "configs") / "render_host_config.json"
     write_json(target, config)
     return target
 
 
 def build_episode_plan(args: argparse.Namespace, episode_dir: Path, index: int, presets: dict[str, Any]) -> EpisodePlan:
+    manifest = read_json(episode_dir / "episode_manifest.json")
+    scenario_id, seed_label = episode_id_parts(episode_dir.name, manifest)
     ticks = event_chain_capture_ticks(
         episode_dir,
         tick_start=args.tick_start,
@@ -582,6 +619,7 @@ def build_episode_plan(args: argparse.Namespace, episode_dir: Path, index: int, 
     camera_id = high_overview_camera_id_from_presets(presets, site_id)
     active_by_entity = scene_uav_active_ticks_by_entity(episode_dir, ticks)
     active_by_entity = {entity_id: tick_list for entity_id, tick_list in active_by_entity.items() if tick_list}
+    uav_ordinals = {entity_id: ordinal for ordinal, entity_id in enumerate(sorted(active_by_entity))}
     explicit = str(args.airsim_capture_entity or "").strip()
     if explicit and explicit not in active_by_entity:
         raise RuntimeError(
@@ -592,10 +630,13 @@ def build_episode_plan(args: argparse.Namespace, episode_dir: Path, index: int, 
     return EpisodePlan(
         index=index,
         episode_dir=episode_dir,
+        scenario_id=scenario_id,
+        seed_label=seed_label,
         site_id=site_id,
         high_camera_id=camera_id,
         capture_ticks=ticks,
         uav_active_ticks=active_by_entity,
+        uav_ordinals=uav_ordinals,
     )
 
 
@@ -909,8 +950,36 @@ def validate_uav_event_chain_outputs(
     return rows
 
 
+def completed_uav_modality_ticks(
+    *,
+    out_dir: Path,
+    modality: str,
+    ticks: list[int],
+    episode_id: str,
+    entity_id: str,
+    capture_view_id: str,
+    verify_seg_pixels: bool,
+) -> set[int]:
+    completed: set[int] = set()
+    for tick in ticks:
+        try:
+            validate_uav_modality_outputs(
+                out_dir=out_dir,
+                modality=modality,
+                ticks=[int(tick)],
+                episode_id=episode_id,
+                entity_id=entity_id,
+                capture_view_id=capture_view_id,
+                verify_seg_pixels=verify_seg_pixels,
+            )
+            completed.add(int(tick))
+        except Exception:
+            continue
+    return completed
+
+
 def high_rgb_dir(out_dir: Path, site_id: str, camera_id: str) -> Path:
-    return out_dir / safe_name(site_id) / safe_name(camera_id) / "rgb"
+    return out_dir / "rgb"
 
 
 def validate_high_outputs(
@@ -991,6 +1060,8 @@ def summary_base(
     return {
         "index": plan.index,
         "episode": plan.episode_id,
+        "scenario_id": plan.scenario_id,
+        "seed_label": plan.seed_label,
         "view": view,
         "status": "pending",
         "tick": tick,
@@ -1129,7 +1200,7 @@ def write_uav_id_index(args: argparse.Namespace, plans: list[EpisodePlan]) -> Pa
             for row in csv.DictReader(existing_handle):
                 existing_keys.add(
                     (
-                        str(row.get("episode_index") or ""),
+                        str(row.get("episode") or ""),
                         str(row.get("uav_entity_id") or ""),
                         str(row.get("capture_view_id") or ""),
                     )
@@ -1139,12 +1210,13 @@ def write_uav_id_index(args: argparse.Namespace, plans: list[EpisodePlan]) -> Pa
         if write_header:
             writer.writeheader()
         for plan in plans:
-            for ordinal, entity_id in enumerate(sorted(plan.uav_active_ticks.keys())):
+            for fallback_ordinal, entity_id in enumerate(sorted(plan.uav_active_ticks.keys())):
+                ordinal = int(plan.uav_ordinals.get(entity_id, fallback_ordinal))
                 active_ticks = sorted(set(int(tick) for tick in plan.uav_active_ticks.get(entity_id, [])))
                 if not active_ticks:
                     continue
                 capture_view_id = f"uav_view_{int(ordinal):03d}__{safe_name(entity_id)}"
-                key = (simple_episode_dir_name(plan.index), entity_id, capture_view_id)
+                key = (plan.episode_id, entity_id, capture_view_id)
                 if key in existing_keys:
                     continue
                 writer.writerow(
@@ -1152,13 +1224,15 @@ def write_uav_id_index(args: argparse.Namespace, plans: list[EpisodePlan]) -> Pa
                         "uav_entity_id": entity_id,
                         "episode_index": simple_episode_dir_name(plan.index),
                         "episode": plan.episode_id,
+                        "scenario_id": plan.scenario_id,
+                        "seed_label": plan.seed_label,
                         "capture_view_id": capture_view_id,
                         "camera_id": f"{safe_name(entity_id)}__nadir_down",
                         "active_tick_count": len(active_ticks),
                         "tick_start": active_ticks[0],
                         "tick_end": active_ticks[-1],
                         "tick_list": json_cell(active_ticks),
-                        "uav_capture_dir": str(event_chain_uav_output_dir(args.output_root, plan.index, entity_id, capture_view_id)),
+                        "uav_capture_dir": str(event_chain_uav_output_dir(args.output_root, plan, entity_id, capture_view_id)),
                     }
                 )
     return index_path
@@ -1180,7 +1254,11 @@ def completed_uav_entity(
     rows_by_tick: dict[int, dict[str, str]] = {}
     with args.summary.open("r", encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
-            if str(row.get("index") or "") != str(int(plan.index)):
+            row_episode = str(row.get("episode") or "")
+            if row_episode:
+                if row_episode != plan.episode_id:
+                    continue
+            elif str(row.get("index") or "") != str(int(plan.index)):
                 continue
             if str(row.get("view") or "") != "uav_event_chain":
                 continue
@@ -1247,11 +1325,11 @@ def run_high_overview(
     plan: EpisodePlan,
     guarded_config: Path,
 ) -> None:
-    out_dir = event_chain_output_dir(args.output_root, plan.index, "high_overview_rgb")
+    out_dir = event_chain_output_dir(args.output_root, plan, "high_overview_rgb")
     clear_output_targets([high_rgb_dir(out_dir, plan.site_id, plan.high_camera_id)], args.output_root)
     base_command = base_host_command(args, guarded_config, out_dir, plan.site_id)
     base_command.extend(["--camera-role", "ground", "--camera-id", plan.high_camera_id, "--modality", "rgb"])
-    log_dir = args.output_root / "_meta" / "logs" / simple_episode_dir_name(plan.index)
+    log_dir = event_chain_meta_episode_dir(args.output_root, plan, "logs")
     result = run_host_chunks(
         args,
         base_command=base_command,
@@ -1283,7 +1361,7 @@ def run_uav_entity(
 ) -> None:
     capture_view_id = f"uav_view_{int(ordinal):03d}__{safe_name(entity_id)}"
     camera_id = f"{safe_name(entity_id)}__nadir_down"
-    out_dir = event_chain_uav_output_dir(args.output_root, plan.index, entity_id, capture_view_id)
+    out_dir = event_chain_uav_output_dir(args.output_root, plan, entity_id, capture_view_id)
     active_ticks = plan.uav_active_ticks.get(entity_id, [])
     if not active_ticks:
         row = summary_base(
@@ -1301,10 +1379,41 @@ def run_uav_entity(
         writer.writerow(row)
         handle.flush()
         return
-    clear_output_targets([out_dir / modality for modality in args.uav_modalities], args.output_root)
+    modality_ticks_to_capture = {modality: list(active_ticks) for modality in args.uav_modalities}
+    if bool(getattr(args, "resume_partial_modalities", False)):
+        modality_ticks_to_capture = {}
+        for modality in args.uav_modalities:
+            completed_ticks = completed_uav_modality_ticks(
+                out_dir=out_dir,
+                modality=modality,
+                ticks=active_ticks,
+                episode_id=plan.episode_id,
+                entity_id=entity_id,
+                capture_view_id=capture_view_id,
+                verify_seg_pixels=bool(args.verify_seg_pixels),
+            )
+            missing_ticks = [int(tick) for tick in active_ticks if int(tick) not in completed_ticks]
+            if not missing_ticks:
+                print(
+                    f"  uav_event_chain: resume_skip_completed_modality entity={entity_id} modality={modality}",
+                    flush=True,
+                )
+                continue
+            if completed_ticks:
+                print(
+                    f"  uav_event_chain: resume_modality_missing_ticks "
+                    f"entity={entity_id} modality={modality} "
+                    f"completed={len(completed_ticks)} missing={len(missing_ticks)}",
+                    flush=True,
+                )
+            modality_ticks_to_capture[modality] = missing_ticks
+    if bool(getattr(args, "resume_partial_modalities", False)):
+        clear_output_targets([], args.output_root)
+    else:
+        clear_output_targets([out_dir / modality for modality in modality_ticks_to_capture], args.output_root)
     combined_result = HostRunResult()
-    log_dir = args.output_root / "_meta" / "logs" / simple_episode_dir_name(plan.index)
-    for modality in args.uav_modalities:
+    log_dir = event_chain_meta_episode_dir(args.output_root, plan, "logs")
+    for modality, modality_ticks in modality_ticks_to_capture.items():
         base_command = base_host_command(args, guarded_config, out_dir, plan.site_id)
         base_command.extend(["--modality", modality])
         base_command.extend(
@@ -1328,7 +1437,7 @@ def run_uav_entity(
         result = run_host_chunks(
             args,
             base_command=base_command,
-            capture_ticks=active_ticks,
+            capture_ticks=modality_ticks,
             log_dir=log_dir,
             log_stem=f"{simple_capture_view_dir_name(capture_view_id)}_{modality}",
             label=f"uav {plan.episode_id} {capture_view_id} {modality}",
@@ -1415,7 +1524,7 @@ def print_plan(plans: list[EpisodePlan], args: argparse.Namespace) -> None:
                 chunk_count_uav += len(args.uav_modalities) * len(chunk_ticks(ticks, args.capture_ticks_per_host_run))
         total_host_runs += chunk_count_high + chunk_count_uav
         print(
-            f"{simple_episode_dir_name(plan.index)} {plan.episode_id} "
+            f"{simple_episode_dir_name(plan.index)} {plan.episode_id} {plan.scenario_id}/{plan.seed_label} "
             f"site={plan.site_id} ticks={len(plan.capture_ticks)} high_files={high_files} "
             f"uav_entities={len(plan.uav_active_ticks)} uav_files={uav_files} "
             f"host_runs={chunk_count_high + chunk_count_uav}",
@@ -1475,6 +1584,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-uav", action="store_true")
     parser.add_argument("--append-summary", action="store_true")
     parser.add_argument("--resume-completed-ok", action="store_true")
+    parser.add_argument("--resume-partial-modalities", action="store_true")
     parser.add_argument("--continue-on-error", action="store_true")
     parser.add_argument("--allow-missing-capture-ticks", action="store_true")
     parser.add_argument("--allow-nonstandard-tick-step", action="store_true")
@@ -1525,7 +1635,7 @@ def main() -> int:
         if write_header:
             writer.writeheader()
         for ordinal_plan, plan in enumerate(plans, start=1):
-            guarded_config = write_guarded_config(args, plan.episode_dir, plan.index, virtual_presets_path)
+            guarded_config = write_guarded_config(args, plan, virtual_presets_path)
             print(
                 f"[{ordinal_plan}/{len(plans)}] {simple_episode_dir_name(plan.index)} {plan.episode_id} "
                 f"ticks={len(plan.capture_ticks)} uavs={len(plan.uav_active_ticks)}",
@@ -1547,7 +1657,7 @@ def main() -> int:
                         plan,
                         view="high_overview_rgb",
                         error=exc,
-                        output_dir=event_chain_output_dir(args.output_root, plan.index, "high_overview_rgb"),
+                        output_dir=event_chain_output_dir(args.output_root, plan, "high_overview_rgb"),
                         camera_id=plan.high_camera_id,
                     )
                     print(f"  high_overview_rgb: failed err={str(exc)[:180]}", flush=True)
@@ -1563,7 +1673,8 @@ def main() -> int:
                 handle.flush()
                 print("  uav_event_chain: skipped_no_active_uav", flush=True)
                 continue
-            for uav_ordinal, entity_id in enumerate(sorted(plan.uav_active_ticks.keys())):
+            for fallback_ordinal, entity_id in enumerate(sorted(plan.uav_active_ticks.keys())):
+                uav_ordinal = int(plan.uav_ordinals.get(entity_id, fallback_ordinal))
                 capture_view_id = f"uav_view_{int(uav_ordinal):03d}__{safe_name(entity_id)}"
                 active_ticks = plan.uav_active_ticks.get(entity_id, [])
                 if completed_uav_entity(
@@ -1599,7 +1710,7 @@ def main() -> int:
                         plan,
                         view="uav_event_chain",
                         error=exc,
-                        output_dir=event_chain_uav_output_dir(args.output_root, plan.index, entity_id, capture_view_id),
+                        output_dir=event_chain_uav_output_dir(args.output_root, plan, entity_id, capture_view_id),
                         camera_id=f"{safe_name(entity_id)}__nadir_down",
                         capture_entity_id=entity_id,
                         capture_view_id=capture_view_id,

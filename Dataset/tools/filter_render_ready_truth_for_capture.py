@@ -14,6 +14,7 @@ import argparse
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import copy
+from dataclasses import replace
 import json
 from pathlib import Path
 import shutil
@@ -31,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes"
 DEFAULT_OUTPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes_capture_filtered"
 PVU_CATEGORIES = {"pedestrian", "vehicle", "uav"}
+CAPTURE_VISIBILITY_PADDING_M = 45.0
 REGENERATED_FILES = {
     "truth_frames.jsonl",
     "trajectories.jsonl",
@@ -185,7 +187,11 @@ def visibility_from_episode(source_episode_dir: Path, manifest: dict[str, Any], 
         "inspect_route_enu_m": route,
         "inspect_contract": inspect_contract,
     }
-    return VisibilityGeometry.from_contract(source_contract)
+    visibility = VisibilityGeometry.from_contract(source_contract)
+    return replace(
+        visibility,
+        padding_m=max(float(visibility.padding_m), CAPTURE_VISIBILITY_PADDING_M),
+    )
 
 
 def entity_category(entity: dict[str, Any]) -> str:
@@ -621,6 +627,8 @@ def update_manifest(
     updated["capture_visible_truth_filter"] = {
         "policy": "preserve_non_pvu_semantics_filter_pvu_by_capture_visibility_v1",
         "coordinate_policy": "copy_truth_pose_map_enu_without_transform",
+        "visibility_padding_policy": "expanded_for_editor_hook_uav_rgb_capture_margin_v1",
+        "visibility_padding_m": CAPTURE_VISIBILITY_PADDING_M,
         "visibility_geometry": visibility.as_dict(),
         "filtered_roi_bbox_enu_m": roi_bbox_enu_m,
         "stats": filter_stats,
@@ -652,6 +660,8 @@ def update_scenario_plan(
     summary["capture_visible_truth_filter"] = {
         "policy": "preserve_non_pvu_semantics_filter_pvu_by_capture_visibility_v1",
         "coordinate_policy": "copy_truth_pose_map_enu_without_transform",
+        "visibility_padding_policy": "expanded_for_editor_hook_uav_rgb_capture_margin_v1",
+        "visibility_padding_m": CAPTURE_VISIBILITY_PADDING_M,
         "visibility_geometry": visibility.as_dict(),
         "filtered_roi_bbox_enu_m": roi_bbox_enu_m,
         "stats": filter_stats,

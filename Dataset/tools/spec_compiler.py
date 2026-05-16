@@ -111,6 +111,9 @@ class EventStepSpec:
     causal_chain_id: str = ""
     causal_predecessor_intent: str = ""
     target_roles: list[str] = field(default_factory=list)
+    validation_event_type: str = ""
+    validation_reason: str = ""
+    validation_skip_checks: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -288,6 +291,10 @@ class SpecCompiler:
             event["causal_predecessor_intent"] = step.causal_predecessor_intent
             if step.target_roles:
                 event["target_roles"] = list(step.target_roles)
+            if step.validation_event_type:
+                event["validation_event_type"] = step.validation_event_type
+                event["validation_reason"] = step.validation_reason
+                event["validation_skip_checks"] = list(step.validation_skip_checks)
             if step.log_topic:
                 event["log_event"] = {
                     "topic": step.log_topic,

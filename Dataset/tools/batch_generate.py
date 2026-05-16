@@ -76,6 +76,11 @@ PRESERVED_ENTITY_FIELDS = (
     "min_path_length_m",
     "full_episode_presence",
 )
+PRESERVED_EVENT_VALIDATION_FIELDS = (
+    "validation_event_type",
+    "validation_reason",
+    "validation_skip_checks",
+)
 
 
 def read_json(path: Path) -> Any:
@@ -103,6 +108,70 @@ def project_relative(path: Path, dataset_root: Path) -> str:
 
 def remove_prefix(value: str, prefix: str) -> str:
     return value[len(prefix) :] if value.startswith(prefix) else value
+
+
+def event_log_candidate_ids(row: dict[str, Any], scenario_id: str) -> list[str]:
+    prefix = f"evt_{scenario_id}_"
+    candidates: list[str] = []
+
+    def add(value: Any) -> None:
+        text = str(value or "").strip()
+        if not text:
+            return
+        normalized = remove_prefix(text, prefix)
+        if normalized and normalized not in candidates:
+            candidates.append(normalized)
+
+    for key in ("event_id", "source_event_id", "topic"):
+        add(row.get(key))
+    for nested_key in ("payload", "metadata"):
+        nested = row.get(nested_key)
+        if not isinstance(nested, dict):
+            continue
+        for key in ("event_id", "source_event_id", "topic"):
+            add(nested.get(key))
+    return candidates
+
+
+def enrich_event_log_validation_fields(
+    event_log: list[dict[str, Any]],
+    script: dict[str, Any],
+    scenario_id: str,
+) -> None:
+    event_defs = {
+        str(event_def.get("event_id") or ""): event_def
+        for event_def in script.get("events") or []
+        if event_def.get("event_id")
+    }
+    for row in event_log:
+        source_event: dict[str, Any] | None = None
+        for event_id in event_log_candidate_ids(row, scenario_id):
+            source_event = event_defs.get(event_id)
+            if source_event is not None:
+                break
+        if source_event is None:
+            continue
+
+        copied: dict[str, Any] = {}
+        for field in PRESERVED_EVENT_VALIDATION_FIELDS:
+            value = source_event.get(field)
+            if value not in (None, "", []):
+                copied[field] = copy.deepcopy(value)
+        if not copied:
+            continue
+
+        payload = row.get("payload")
+        if not isinstance(payload, dict):
+            payload = {}
+            row["payload"] = payload
+        metadata = row.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+            row["metadata"] = metadata
+        for field, value in copied.items():
+            row[field] = copy.deepcopy(value)
+            payload[field] = copy.deepcopy(value)
+            metadata[field] = copy.deepcopy(value)
 
 
 def resolve_param(value: Any, params: dict[str, Any]) -> Any:
@@ -1490,6 +1559,7 @@ class EpisodeStateEngine:
             interpreter.tick(tick)
 
         event_log = interpreter.get_event_log()
+        enrich_event_log_validation_fields(event_log, self.script, self.scenario_id)
         fired_event_ids = {
             remove_prefix(str(row.get("topic") or row.get("source_event_id") or ""), f"evt_{self.scenario_id}_")
             for row in event_log

@@ -78,8 +78,7 @@ Canonical data flow:
 semantic_event_contract.py
 -> regenerate_boundary_scenarios.py
 -> batch_generate.py
--> convert_to_render_ready.py
--> filter_render_ready_truth_for_capture.py
+-> convert_to_render_ready.py  (always writes Dataset/render_ready_episodes_capture_filtered)
 -> run_semantic_event_chain_every10.py
 -> episode_render_host.py
 -> validators
