@@ -373,6 +373,8 @@ def base_runner_command(args: argparse.Namespace, *, episode_index: int, chunk_s
         "18.0",
         "--max-private-memory-gb",
         "18.0",
+        "--min-system-free-memory-gb",
+        str(args.min_system_free_memory_gb),
         "--uav-capture-backend",
         "editor_hook",
         "--uav-scene-control-backend",
@@ -452,6 +454,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--capture-ticks-per-host-run", type=int, default=32)
     parser.add_argument("--high-capture-ticks-per-host-run", type=int, default=32)
     parser.add_argument("--fallback-capture-ticks-per-host-run", type=parse_csv_ints, default=parse_csv_ints("16,8"))
+    parser.add_argument("--min-system-free-memory-gb", type=float, default=1.0)
     parser.add_argument("--max-attempts-per-high", type=int, default=8)
     parser.add_argument("--max-attempts-per-entity", type=int, default=24)
     parser.add_argument("--unreal-editor", type=Path, default=DEFAULT_UNREAL_EDITOR)
