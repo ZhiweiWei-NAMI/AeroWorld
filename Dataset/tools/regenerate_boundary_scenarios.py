@@ -160,6 +160,13 @@ BACKGROUND_PEDESTRIAN_OFFSET_PRIORITY_M = (4.8, 6.2, 8.0, 10.0, 12.0, 3.6, 2.4, 
 PEDESTRIAN_VEHICLE_DYNAMIC_CLEARANCE_MIN_M = 4.0
 GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO = 0.85
 GROUND_FLOW_ROUTE_DURATION_TICKS = 900
+BACKGROUND_PEDESTRIAN_TARGET_ROUTE_LENGTH_M = (
+    BACKGROUND_PEDESTRIAN_FLOW_SPEED_MPS
+    * (GROUND_FLOW_ROUTE_DURATION_TICKS / 10.0)
+    * GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO
+)
+BACKGROUND_PEDESTRIAN_ROUTE_STEP_M = 8.0
+BACKGROUND_PEDESTRIAN_ROUTE_EDGE_MARGIN_M = 6.0
 BACKGROUND_VEHICLE_MIN_ROUTE_SPAN_M = 24.0
 BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M = 9.0
 SUMO_TO_TRAFFIC_BUNDLE_MAX_SNAP_M = 15.0
@@ -2010,6 +2017,135 @@ def _route_position_at_tick(route: list[list[float]], speed_mps: float, tick_val
     return list(route[-1])
 
 
+def _sidewalk_point_for_sample(sample: LaneSample, side_sign: float, offset_from_curb_m: float) -> list[float]:
+    return _offset_from_lane(
+        sample,
+        side_sign * (LANE_HALF_WIDTH_M + max(float(offset_from_curb_m), SIDEWALK_MIN_OFFSET_FROM_CURB_M)),
+        GROUND_Z_M,
+    )
+
+
+def _append_sidewalk_leg(
+    points: list[list[float]],
+    *,
+    edge_id: str,
+    start_s: float,
+    target_s: float,
+    side_sign: float,
+    offset_from_curb_m: float,
+) -> None:
+    distance = float(target_s) - float(start_s)
+    if abs(distance) <= 1e-6:
+        return
+    steps = max(1, int(math.ceil(abs(distance) / BACKGROUND_PEDESTRIAN_ROUTE_STEP_M)))
+    for step in range(1, steps + 1):
+        s_m = float(start_s) + distance * (float(step) / float(steps))
+        sample = LANES.resolve_edge_s(edge_id, s_m)
+        points.append(_sidewalk_point_for_sample(sample, side_sign, offset_from_curb_m))
+
+
+def _validated_sidewalk_route(
+    points: list[list[float]],
+    *,
+    allow_green: bool,
+    context: str,
+) -> list[list[float]]:
+    route = _dedupe_route_points(points)
+    if len(route) < 2:
+        return []
+    for index, point in enumerate(route):
+        if SPATIAL.validation_errors_for_point(
+            point,
+            context=f"{context} point {index}",
+            allow_road=False,
+            allow_green=allow_green,
+        ):
+            return []
+    for index, (a, b) in enumerate(zip(route, route[1:])):
+        try:
+            SPATIAL.validate_segment(
+                a,
+                b,
+                context=f"{context} segment {index}",
+                allow_road=False,
+                allow_green=allow_green,
+            )
+        except SpatialValidationError:
+            return []
+    return route
+
+
+def _long_sidewalk_ground_flow_route(
+    start: list[float],
+    sample: LaneSample,
+    *,
+    side_sign: float,
+    offset_from_curb_m: float,
+    min_path_length_m: float,
+    min_xy_span_m: float,
+    allow_green: bool,
+    context: str,
+) -> list[list[float]]:
+    min_s, max_s = LANES.edge_s_bounds(sample.edge_id)
+    edge_span_m = max(0.0, max_s - min_s)
+    edge_margin_m = min(BACKGROUND_PEDESTRIAN_ROUTE_EDGE_MARGIN_M, edge_span_m / 4.0)
+    route_min_s = min_s + edge_margin_m
+    route_max_s = max_s - edge_margin_m
+    if route_max_s <= route_min_s:
+        route_min_s, route_max_s = min_s, max_s
+    start_s = max(route_min_s, min(route_max_s, float(sample.s_m)))
+    forward_available = max(0.0, route_max_s - start_s)
+    backward_available = max(0.0, start_s - route_min_s)
+    direction_order = (1.0, -1.0) if forward_available >= backward_available else (-1.0, 1.0)
+
+    def candidate_for_s_values(s_values: list[float]) -> list[list[float]]:
+        points = [list(start)]
+        current_s = start_s
+        for target_s in s_values:
+            clamped = max(route_min_s, min(route_max_s, float(target_s)))
+            _append_sidewalk_leg(
+                points,
+                edge_id=sample.edge_id,
+                start_s=current_s,
+                target_s=clamped,
+                side_sign=side_sign,
+                offset_from_curb_m=offset_from_curb_m,
+            )
+            current_s = clamped
+        validated = _validated_sidewalk_route(points, allow_green=allow_green, context=context)
+        if not validated:
+            return []
+        route = validated[1:]
+        if path_length_m(validated) + 0.25 < min_path_length_m:
+            return []
+        if _route_xy_span(start, route) + 0.25 < min_xy_span_m:
+            return []
+        return route
+
+    for direction in direction_order:
+        available = forward_available if direction > 0.0 else backward_available
+        if available + 0.25 >= min_path_length_m:
+            target_s = start_s + direction * min_path_length_m
+            route = candidate_for_s_values([target_s])
+            if route:
+                return route
+
+    for direction in direction_order:
+        first_boundary = route_max_s if direction > 0.0 else route_min_s
+        second_boundary = route_min_s if direction > 0.0 else route_max_s
+        first_leg_m = abs(first_boundary - start_s)
+        if first_leg_m <= 1.0:
+            continue
+        remaining_m = max(0.0, min_path_length_m - first_leg_m)
+        second_leg_m = min(abs(first_boundary - second_boundary), remaining_m)
+        second_target = first_boundary - direction * second_leg_m
+        route = candidate_for_s_values([first_boundary, second_target])
+        if route:
+            return route
+
+    return []
+
+
 def _allows_pedestrian_vehicle_collision(scenario_id: str, events: list[dict[str, Any]]) -> bool:
     for event_def in events:
         event_type = str(event_def.get("validation_event_type") or "")
@@ -2103,36 +2239,20 @@ def _semantic_vehicle_route(sample: LaneSample, _mode: str, index: int, *, later
 
 
 def _semantic_ped_route(anchor: Any, mode: str, index: int) -> list[list[float]]:
-    min_s, max_s = LANES.edge_s_bounds(anchor.sample.edge_id)
-    travel_m = 5.5 + index * 1.4
-    if mode in {"evacuating"}:
-        travel_m = 12.0 + index * 1.2
-    travel_m = max(travel_m, BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M + 1.5 + index * 1.0)
     side_sign = _side_sign_for_desired(anchor.sample, anchor.position_enu_m)
-    for signed_travel_m in (travel_m, -travel_m, travel_m * 0.75, -travel_m * 0.75):
-        target_sample = LANES.resolve_edge_s(
-            anchor.sample.edge_id,
-            max(min_s, min(max_s, anchor.sample.s_m + signed_travel_m)),
-        )
-        target = _offset_from_lane(
-            target_sample,
-            side_sign * (LANE_HALF_WIDTH_M + anchor.offset_from_curb_m),
-            GROUND_Z_M,
-        )
-        if dist_xy(anchor.position_enu_m, target) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
-            continue
-        try:
-            SPATIAL.validate_segment(
-                anchor.position_enu_m,
-                target,
-                context="semantic contract pedestrian route",
-                allow_road=False,
-                allow_green=True,
-            )
-            return [target]
-        except SpatialValidationError:
-            continue
-    return []
+    target_length_m = BACKGROUND_PEDESTRIAN_TARGET_ROUTE_LENGTH_M + float(index) * 3.0
+    if mode in {"evacuating"}:
+        target_length_m = max(target_length_m, BACKGROUND_PEDESTRIAN_TARGET_ROUTE_LENGTH_M + 10.0)
+    return _long_sidewalk_ground_flow_route(
+        list(anchor.position_enu_m),
+        anchor.sample,
+        side_sign=side_sign,
+        offset_from_curb_m=float(anchor.offset_from_curb_m),
+        min_path_length_m=target_length_m,
+        min_xy_span_m=BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M,
+        allow_green=True,
+        context="semantic contract pedestrian route",
+    )
 
 
 def _add_contract_vehicle(
@@ -3074,36 +3194,25 @@ def _pedestrian_flow_seed_route(
     lateral = float(placement.get("resolved_lateral_from_center_m") or 0.0)
     side_sign = 1.0 if lateral >= 0.0 else -1.0
     offset_from_curb = max(float(placement.get("offset_from_curb_m") or SIDEWALK_MIN_OFFSET_FROM_CURB_M), SIDEWALK_MIN_OFFSET_FROM_CURB_M)
-    min_s, max_s = LANES.edge_s_bounds(sample.edge_id)
-    travel_m = max(7.0 + index * 1.5, BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M + 1.5 + index * 1.0)
-    for signed_travel_m in (travel_m, -travel_m, travel_m * 0.75, -travel_m * 0.75):
-        target_sample = LANES.resolve_edge_s(sample.edge_id, max(min_s, min(max_s, sample.s_m + signed_travel_m)))
-        target = _offset_from_lane(
-            target_sample,
-            side_sign * (LANE_HALF_WIDTH_M + offset_from_curb),
-            GROUND_Z_M,
-        )
-        if dist_xy(start, target) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
-            continue
-        try:
-            SPATIAL.validate_segment(
-                start,
-                target,
-                context="background pedestrian continuous flow route",
-                allow_road=False,
-                allow_green=bool(placement.get("allow_green", True)),
-            )
-            if scenes is not None and events is not None and not _pedestrian_vehicle_dynamic_clearance_ok(
-                scenario_id,
-                scenes,
-                events,
-                [start, target],
-            ):
-                continue
-            return [target]
-        except SpatialValidationError:
-            continue
-    return []
+    target_length_m = BACKGROUND_PEDESTRIAN_TARGET_ROUTE_LENGTH_M + float(index) * 3.0
+    route = _long_sidewalk_ground_flow_route(
+        start,
+        sample,
+        side_sign=side_sign,
+        offset_from_curb_m=offset_from_curb,
+        min_path_length_m=target_length_m,
+        min_xy_span_m=BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M,
+        allow_green=bool(placement.get("allow_green", True)),
+        context="background pedestrian continuous flow route",
+    )
+    if route and scenes is not None and events is not None and not _pedestrian_vehicle_dynamic_clearance_ok(
+        scenario_id,
+        scenes,
+        events,
+        [start, *route],
+    ):
+        return []
+    return route
 
 
 def ensure_background_ground_flow_routes(

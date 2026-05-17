@@ -30,6 +30,26 @@ class GroundFlowGenerationTest(unittest.TestCase):
         self.assertEqual(len(schedules), 1)
         self.assertEqual(schedules[0]["waypoints_enu_m"], route)
 
+    def test_short_background_pedestrian_route_ends_in_semantic_idle(self) -> None:
+        route = [[10.0, 0.0, 0.0]]
+        schedules = route_motion_schedule(
+            scenario_id="S",
+            entity_id="bg_pedestrian",
+            label_class="pedestrian",
+            initial_pos=[0.0, 0.0, 0.0],
+            route_waypoints=route,
+            initial_state="walking",
+            ground_flow_contract={
+                "policy": "continuous_capture_ground_flow_v1",
+                "speed_mps": 1.25,
+                "route_duration_ticks": 900,
+            },
+        )
+
+        self.assertEqual(len(schedules), 1)
+        self.assertEqual(schedules[0]["activity_type"], "walking")
+        self.assertIn(schedules[0]["post_activity_type"], {"phone_call", "chatting"})
+
     def test_continuous_ground_flow_rows_are_not_overwritten_by_ambient_motion(self) -> None:
         rows = [
             {

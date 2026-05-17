@@ -35,6 +35,7 @@ AMBIENT_GROUND_MOTION_SPEED_MPS = {
 INSPECT_UAV_LOOP_SPEED_MPS = 5.0
 INSPECT_UAV_MIN_MOTION_RATIO = 1.05
 GROUND_MOTION_SPEED_EPS_MPS = 0.05
+BACKGROUND_PEDESTRIAN_IDLE_ACTIVITIES = ("phone_call", "chatting")
 WEATHER_PROFILES: dict[str, dict[str, Any]] = {
     "clear": {"condition": "clear", "rain": 0.0, "fog": 0.0, "fog_density": 0.0, "wind_speed": 2.0, "visibility_m": 20000.0, "visibility": 20000.0},
     "rain": {"condition": "rain", "rain": 0.55, "fog": 0.0, "fog_density": 0.0, "wind_speed": 4.0, "visibility_m": 2200.0, "visibility": 2200.0, "wetness": 0.75},
@@ -800,6 +801,11 @@ def _continuous_activity_state(label_class: str) -> str:
     return "moving"
 
 
+def _background_pedestrian_idle_activity(entity_id: str) -> str:
+    digest = hashlib.sha256(str(entity_id).encode("utf-8")).digest()
+    return BACKGROUND_PEDESTRIAN_IDLE_ACTIVITIES[digest[0] % len(BACKGROUND_PEDESTRIAN_IDLE_ACTIVITIES)]
+
+
 def _write_continuous_ground_row(
     row: dict[str, Any],
     *,
@@ -1243,6 +1249,7 @@ def route_motion_schedule(
     elif label_class == "pedestrian":
         velocity = 1.25
     ground_flow = dict(ground_flow_contract or {})
+    is_continuous_ground_flow = str(ground_flow.get("policy") or "") == "continuous_capture_ground_flow_v1"
     if str(ground_flow.get("policy") or "") == "continuous_capture_ground_flow_v1":
         velocity = max(0.1, _to_float(ground_flow.get("speed_mps", velocity), velocity))
         route_waypoints = [vector3(waypoint) for waypoint in route_waypoints]
@@ -1251,9 +1258,18 @@ def route_motion_schedule(
     if label_class == "pedestrian":
         activity_type = normalize_activity_type("walking", moving=True)
         post_activity_type = normalize_activity_type(initial_state or "waiting")
-        if str(ground_flow.get("policy") or "") == "continuous_capture_ground_flow_v1":
-            post_activity_type = activity_type
-    elif str(ground_flow.get("policy") or "") == "continuous_capture_ground_flow_v1":
+        if is_continuous_ground_flow:
+            route_ticks = int(math.ceil(path_length_m([vector3(initial_pos), *route_waypoints]) / velocity * TICK_HZ))
+            try:
+                contract_ticks = int(ground_flow.get("route_duration_ticks") or 0)
+            except (TypeError, ValueError):
+                contract_ticks = 0
+            post_activity_type = (
+                _background_pedestrian_idle_activity(entity_id)
+                if contract_ticks > 0 and route_ticks < contract_ticks
+                else activity_type
+            )
+    elif is_continuous_ground_flow:
         post_activity_type = activity_type
     return [
         {

@@ -2072,6 +2072,18 @@ def check_ground_flow_contracts(scene: dict[str, Any], script: dict[str, Any], i
         loop_policy = str(contract.get("loop_policy") or "")
         if loop_policy in FORBIDDEN_GROUND_FLOW_LOOP_POLICIES:
             issues.append(f"{sid}: background ground-flow entity uses forbidden loop_policy={loop_policy}: {entity_id}")
+        if role == "semantic_background_pedestrian":
+            route = scene_route_points(entity)
+            speed_mps = max(0.1, float(contract.get("speed_mps") or 1.25))
+            duration_ticks = max(0, int(contract.get("route_duration_ticks") or 0))
+            min_motion_ratio = float(contract.get("min_visible_motion_ratio") or GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO)
+            required_path_m = speed_mps * (float(duration_ticks) / SCRIPT_TICK_HZ) * min_motion_ratio
+            actual_path_m = path_length_m(route)
+            if required_path_m > 0.0 and actual_path_m + 0.25 < required_path_m:
+                issues.append(
+                    f"{sid}: background pedestrian ground-flow path too short: {entity_id} "
+                    f"{actual_path_m:.2f}m < required {required_path_m:.2f}m"
+                )
 
 
 def check_capture_boundary_contract(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
@@ -2594,8 +2606,15 @@ def check_render_ready_ground_flow(episode_name: str, truths: list[dict[str, Any
                     "ys": [],
                     "ticks": [],
                     "positions": [],
+                    "min_motion_ratio": GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO,
                 },
             )
+            contract = dict(entity.get("ground_flow_contract") or {})
+            if "min_visible_motion_ratio" in contract:
+                row["min_motion_ratio"] = max(
+                    float(row["min_motion_ratio"]),
+                    float(contract.get("min_visible_motion_ratio") or GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO),
+                )
             if not visible:
                 continue
             row["visible"] += 1
@@ -2634,6 +2653,14 @@ def check_render_ready_ground_flow(episode_name: str, truths: list[dict[str, Any
         xs = list(row["xs"])
         ys = list(row["ys"])
         xy_span = math.hypot(max(xs) - min(xs), max(ys) - min(ys)) if xs and ys else 0.0
+        if row["category"] == "pedestrian":
+            moving_ratio = float(row["moving"]) / float(visible)
+            min_motion_ratio = float(row["min_motion_ratio"])
+            if moving_ratio + 1e-6 < min_motion_ratio:
+                issues.append(
+                    f"{episode_name}: background pedestrian {entity_id} moving ratio too small: "
+                    f"{moving_ratio:.3f} < {min_motion_ratio:.3f}"
+                )
         reversals = ground_flow_direction_reversals(positions)
         if reversals > GROUND_FLOW_PINGPONG_REVERSAL_LIMIT and xy_span <= GROUND_FLOW_PINGPONG_SPAN_M[str(row["category"])]:
             issues.append(
