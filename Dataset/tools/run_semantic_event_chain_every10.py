@@ -686,6 +686,8 @@ def base_host_command(args: argparse.Namespace, guarded_config: Path, output_dir
         str(args.rules),
         "--simulation_tick_stride",
         str(int(args.simulation_tick_stride)),
+        "--min_free_memory_gb",
+        str(float(args.min_system_free_memory_gb)),
         "--max_batches",
         "1",
         "--preserve_capture_output_dir",
