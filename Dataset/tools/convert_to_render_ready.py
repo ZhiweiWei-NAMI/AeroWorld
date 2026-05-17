@@ -460,6 +460,73 @@ def truth_pose(position_enu_m: Sequence[float], yaw_deg: float, velocity_enu_mps
     }
 
 
+def _truth_entity_position(entity: dict[str, Any]) -> list[float]:
+    pose = dict(entity.get("truth_pose") or {})
+    return normalize_vector3(pose.get("position_enu_m"))
+
+
+def _truth_entity_yaw(entity: dict[str, Any]) -> float:
+    pose = dict(entity.get("truth_pose") or {})
+    rotation = dict(pose.get("rotation_deg") or {})
+    try:
+        return float(rotation.get("yaw_deg") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _set_truth_entity_motion(entity: dict[str, Any], velocity: Sequence[float], yaw_deg: float) -> None:
+    pose = dict(entity.get("truth_pose") or {})
+    rotation = dict(pose.get("rotation_deg") or {})
+    rotation["yaw_deg"] = round(float(yaw_deg), 6)
+    pose["rotation_deg"] = rotation
+    pose["velocity_enu_mps"] = [round(float(value), 6) for value in list(velocity)[:3]]
+    entity["truth_pose"] = pose
+    annotations = entity.get("annotations")
+    if isinstance(annotations, dict):
+        speed_mps = math.sqrt(sum(float(value) ** 2 for value in list(velocity)[:3]))
+        annotations["speed_mps"] = round(speed_mps, 4)
+
+
+def align_dynamic_entity_motion_to_final_positions(truth_frames: list[dict[str, Any]], tick_hz: int) -> None:
+    tracks: dict[str, list[tuple[int, int, dict[str, Any]]]] = defaultdict(list)
+    for frame_index, frame in enumerate(truth_frames):
+        tick = int(frame.get("tick", frame_index))
+        for entity in frame.get("entities") or []:
+            category = str(entity.get("entity_category") or entity.get("label_class") or "")
+            if category not in {"pedestrian", "vehicle", "uav"}:
+                continue
+            entity_id = str(entity.get("entity_id") or "")
+            if entity_id:
+                tracks[entity_id].append((frame_index, tick, entity))
+
+    for samples in tracks.values():
+        if not samples:
+            continue
+        last_yaw = _truth_entity_yaw(samples[0][2])
+        for index, (_, tick, entity) in enumerate(samples):
+            position = _truth_entity_position(entity)
+            if index > 0:
+                _, previous_tick, previous_entity = samples[index - 1]
+                previous_position = _truth_entity_position(previous_entity)
+                dt_s = max(1e-6, float(tick - previous_tick) / float(tick_hz))
+                delta = [position[i] - previous_position[i] for i in range(3)]
+            elif len(samples) > 1:
+                _, next_tick, next_entity = samples[index + 1]
+                next_position = _truth_entity_position(next_entity)
+                dt_s = max(1e-6, float(next_tick - tick) / float(tick_hz))
+                delta = [next_position[i] - position[i] for i in range(3)]
+            else:
+                delta = [0.0, 0.0, 0.0]
+                dt_s = 1.0 / float(tick_hz)
+
+            velocity = [delta[i] / dt_s for i in range(3)]
+            if math.hypot(velocity[0], velocity[1]) > 1e-5:
+                last_yaw = math.degrees(math.atan2(velocity[1], velocity[0]))
+            else:
+                velocity = [0.0, 0.0, 0.0]
+            _set_truth_entity_motion(entity, velocity, last_yaw)
+
+
 def render_presence(roi_id: str) -> dict[str, Any]:
     return {
         "global_roster": True,
@@ -2338,6 +2405,8 @@ def convert_episode(
                 "entities": entities,
             }
         )
+
+    align_dynamic_entity_motion_to_final_positions(truth_frames, tick_hz)
 
     output_episode_dir.mkdir(parents=True, exist_ok=True)
     for name in ("event_trace.jsonl",):

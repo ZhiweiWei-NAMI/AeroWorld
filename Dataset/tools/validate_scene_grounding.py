@@ -659,6 +659,42 @@ def referenced_events(script: dict[str, Any]) -> set[str]:
     return refs
 
 
+def script_event_trigger_ticks(script: dict[str, Any]) -> dict[str, int]:
+    trigger_by_id = {str(trigger.get("trigger_id") or ""): trigger for trigger in script.get("triggers", [])}
+    event_by_id = {str(event.get("event_id") or ""): event for event in script.get("events", []) if event.get("event_id")}
+    resolved: dict[str, int] = {}
+    pending = dict(event_by_id)
+    while pending:
+        progressed = False
+        for event_id, event in list(pending.items()):
+            trigger = trigger_by_id.get(str(event.get("trigger_ref") or ""), {})
+            trigger_type = str(trigger.get("type") or "")
+            tick_value: int | None = None
+            if trigger_type == "tick":
+                try:
+                    tick_value = int(trigger.get("tick"))
+                except (TypeError, ValueError):
+                    tick_value = None
+            elif trigger_type in {"event_fired", "event_fired_after"}:
+                ref_id = str(trigger.get("event_id") or trigger.get("event_ref") or "")
+                if ref_id in resolved:
+                    delay = 0
+                    if trigger_type == "event_fired_after":
+                        try:
+                            delay = int(trigger.get("delay_ticks") or 0)
+                        except (TypeError, ValueError):
+                            delay = 0
+                    tick_value = resolved[ref_id] + max(0, delay)
+            if tick_value is None:
+                continue
+            resolved[event_id] = tick_value
+            pending.pop(event_id)
+            progressed = True
+        if not progressed:
+            break
+    return resolved
+
+
 def contract_stage_terms(text: str) -> list[list[str]]:
     stages: list[list[str]] = []
     for raw_stage in str(text or "").split(">"):
@@ -850,6 +886,15 @@ def check_contract_payload(scene: dict[str, Any], script: dict[str, Any], issues
 def check_event_intent_contract(scene: dict[str, Any], script: dict[str, Any], issues: list[str]) -> None:
     contract = get_contract(scene.get("scenario_id") or script.get("scenario_id") or "")
     events = [dict(event) for event in script.get("events", [])]
+    event_ticks = script_event_trigger_ticks(script)
+    intent_ticks: dict[str, list[int]] = {}
+    for event in events:
+        event_id = str(event.get("event_id") or "")
+        payload = dict(event.get("payload") or {})
+        intent = str(event.get("intent") or payload.get("intent") or "")
+        tick_value = event_ticks.get(event_id)
+        if intent and tick_value is not None:
+            intent_ticks.setdefault(intent, []).append(tick_value)
     for index, event in enumerate(events):
         event_id = str(event.get("event_id") or event.get("topic") or index)
         payload = dict(event.get("payload") or {})
@@ -863,6 +908,14 @@ def check_event_intent_contract(scene: dict[str, Any], script: dict[str, Any], i
             issues.append(f"{script['scenario_id']}: event missing causal_predecessor_intent field: {event_id}")
         if not isinstance(event.get("target_roles"), list) or not event.get("target_roles"):
             issues.append(f"{script['scenario_id']}: event missing target_roles: {event_id}")
+        predecessor = str(event.get("causal_predecessor_intent") or "")
+        event_tick = event_ticks.get(str(event.get("event_id") or ""))
+        predecessor_ticks = intent_ticks.get(predecessor, [])
+        if predecessor and event_tick is not None and predecessor_ticks and min(predecessor_ticks) > event_tick:
+            issues.append(
+                f"{script['scenario_id']}: event {event_id} causal_predecessor_intent points to future intent "
+                f"{predecessor} at tick {min(predecessor_ticks)} > event tick {event_tick}"
+            )
     ok, matched = required_intent_sequence_matches(contract.required_intents, events)
     if not ok:
         issues.append(f"{script['scenario_id']}: required_intents declaration order mismatch: {contract.required_intents} (matched={matched})")

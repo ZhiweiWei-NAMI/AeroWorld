@@ -894,8 +894,49 @@ def _target_roles(targets: list[str]) -> list[str]:
     return roles or ["semantic_context"]
 
 
+def _event_trigger_tick(event_def: dict[str, Any], resolved_ticks: dict[str, int]) -> int | None:
+    trigger = dict(event_def.get("trigger") or {})
+    trigger_type = str(trigger.get("type") or "")
+    if trigger_type == "tick":
+        try:
+            return int(trigger.get("tick"))
+        except (TypeError, ValueError):
+            return None
+    if trigger_type in {"event_fired", "event_fired_after"}:
+        event_ref = str(trigger.get("event_ref") or trigger.get("event_id") or "")
+        if event_ref not in resolved_ticks:
+            return None
+        delay = 0
+        if trigger_type == "event_fired_after":
+            try:
+                delay = int(trigger.get("delay_ticks") or 0)
+            except (TypeError, ValueError):
+                delay = 0
+        return resolved_ticks[event_ref] + max(0, delay)
+    return None
+
+
+def _event_trigger_ticks(events: list[dict[str, Any]]) -> dict[str, int]:
+    resolved: dict[str, int] = {}
+    pending = {str(item.get("event_id") or ""): item for item in events if item.get("event_id")}
+    while pending:
+        progressed = False
+        for event_id, event_def in list(pending.items()):
+            tick_value = _event_trigger_tick(event_def, resolved)
+            if tick_value is None:
+                continue
+            resolved[event_id] = tick_value
+            pending.pop(event_id)
+            progressed = True
+        if not progressed:
+            break
+    return resolved
+
+
 def finalize_event_semantics(events: list[dict[str, Any]], scenario_id: str) -> None:
+    trigger_ticks = _event_trigger_ticks(events)
     predecessor = ""
+    predecessor_tick: int | None = None
     for index, item in enumerate(events):
         locked_intent = bool(item.pop("_intent_locked", False))
         if locked_intent and item.get("intent"):
@@ -909,9 +950,14 @@ def finalize_event_semantics(events: list[dict[str, Any]], scenario_id: str) -> 
         item["intent"] = intent
         item["intent_stage"] = str(item.get("intent_stage") or f"{index:02d}.{intent}")
         item["causal_chain_id"] = str(item.get("causal_chain_id") or f"{scenario_id}.semantic_event_chain")
-        item["causal_predecessor_intent"] = predecessor
+        event_tick = trigger_ticks.get(str(item.get("event_id") or ""))
+        if predecessor and predecessor_tick is not None and event_tick is not None and predecessor_tick > event_tick:
+            item["causal_predecessor_intent"] = ""
+        else:
+            item["causal_predecessor_intent"] = predecessor
         item["target_roles"] = list(item.get("target_roles") or _target_roles(list(item.get("log_target_ids") or [])))
         predecessor = intent
+        predecessor_tick = event_tick
 
 
 def event(
@@ -1365,7 +1411,8 @@ def add_evacuation_ped_cohort(
         start_sample: LaneSample,
         target_sample: LaneSample,
         side_sign: float,
-        offset_from_curb: float,
+        start_offset_from_curb: float,
+        target_offset_from_curb: float,
         start: list[float],
         target: list[float],
     ) -> list[list[float]]:
@@ -1374,7 +1421,9 @@ def add_evacuation_ped_cohort(
         steps = max(1, int(math.ceil(abs(s1 - s0) / 18.0)))
         points: list[list[float]] = [start]
         for step in range(1, steps):
-            s_m = s0 + (s1 - s0) * step / float(steps)
+            alpha = step / float(steps)
+            s_m = s0 + (s1 - s0) * alpha
+            offset_from_curb = start_offset_from_curb + (target_offset_from_curb - start_offset_from_curb) * alpha
             sample = LANES.resolve_edge_s(start_sample.edge_id, s_m)
             points.append(_offset_from_lane(sample, side_sign * (LANE_HALF_WIDTH_M + offset_from_curb), GROUND_Z_M))
         points.append(target)
@@ -1424,24 +1473,47 @@ def add_evacuation_ped_cohort(
         min_s, max_s = LANES.edge_s_bounds(start_sample.edge_id)
         errors: list[str] = []
         for dir_sign in (evacuation_direction, -evacuation_direction):
-            for travel_m in (24.0, 21.0, 18.0, 15.0, 12.0, 9.0, 6.0):
+            for travel_m in (36.0, 30.0, 24.0, 21.0, 18.0, 15.0, 12.0, 9.0, 6.0):
                 target_s = max(min_s, min(max_s, start_sample.s_m + dir_sign * travel_m))
                 target_sample = LANES.resolve_edge_s(start_sample.edge_id, target_s)
-                for extra_offset in (0.0, 0.8, 1.6, 3.0, 5.0):
-                    target = _offset_from_lane(
+                for extra_offset in (0.0, 0.8, 1.6, 3.0, 5.0, 8.0, 12.0, 16.0):
+                    desired_target = _offset_from_lane(
                         target_sample,
                         side_sign * (LANE_HALF_WIDTH_M + start_offset + extra_offset),
                         GROUND_Z_M,
                     )
-                    point_errors = SPATIAL.validation_errors_for_point(
-                        target,
-                        context="sidewalk_evacuation_safe_target",
-                        allow_road=False,
-                        allow_green=True,
-                    )
+                    try:
+                        target_anchor = SPATIAL.plan_sidewalk_anchor(
+                            desired_target,
+                            edge_id_hint=start_sample.edge_id,
+                            s_hint=target_s,
+                            offset_from_curb_m=max(SIDEWALK_MIN_OFFSET_FROM_CURB_M, start_offset + extra_offset),
+                            allow_green=True,
+                            placement_semantics="sidewalk_evacuation_safe_target",
+                        )
+                    except SpatialValidationError as exc:
+                        errors.append(str(exc))
+                        continue
+                    if target_anchor.sample.edge_id != start_sample.edge_id:
+                        errors.append(f"sidewalk_evacuation_safe_target changed edge: {target_anchor.sample.edge_id}")
+                        continue
+                    target_side_sign = _side_sign_for_desired(target_anchor.sample, target_anchor.position_enu_m)
+                    if target_side_sign * side_sign <= 0.0:
+                        errors.append(f"sidewalk_evacuation_safe_target crossed roadway side: {target_anchor.position_enu_m}")
+                        continue
+                    target = target_anchor.position_enu_m
+                    point_errors = SPATIAL.validation_errors_for_point(target, context="sidewalk_evacuation_safe_target", allow_road=False, allow_green=True)
                     if not point_errors and math.hypot(start[0] - target[0], start[1] - target[1]) >= 4.0:
                         try:
-                            route = cohort_route(start_sample, target_sample, side_sign, start_offset + extra_offset, start, target)
+                            route = cohort_route(
+                                start_sample,
+                                target_anchor.sample,
+                                side_sign,
+                                start_offset,
+                                target_anchor.offset_from_curb_m,
+                                start,
+                                target,
+                            )
                             if any(route_fraction_min_distance(route, existing_route) < 0.9 for existing_route in occupied_routes):
                                 continue
                             return target, route
