@@ -30,7 +30,10 @@ DEFAULT_SUMO_MANIFEST = ROOT / "Dataset" / "sumo_outputs" / "donghu_traffic_270s
 GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO = 0.85
 GROUND_FLOW_SPEED_EPS_MPS = 0.05
 BACKGROUND_PEDESTRIAN_MAX_SPEED_MPS = 6.0
-BACKGROUND_PEDESTRIAN_SEMANTIC_IDLE = {"phone_call", "chatting"}
+BACKGROUND_PEDESTRIAN_SEMANTIC_IDLE = {"phone_call", "chatting", "observing"}
+RUNTIME_BOUNDARY_PADDING_M = 60.0
+RUNTIME_SPATIAL_CROP_POLICY = "roi_polygon_expanded_60m_runtime_truth_crop_v1"
+UAV_CAMERA_CAPTURE_ROI_POLICY = "camera_only_while_uav_position_inside_capture_roi_polygon_v1"
 _SPATIAL_INDEX_CACHE: MapSpatialIndex | None = None
 
 
@@ -82,6 +85,139 @@ def position_from_entity(entity: dict[str, Any]) -> tuple[float, float, float] |
         return float(position[0]), float(position[1]), z
     except (TypeError, ValueError):
         return None
+
+
+def resolve_repo_path(value: Any, episode_dir: Path) -> Path:
+    path_text = str(value or "").strip()
+    if not path_text:
+        return episode_dir / "__missing__"
+    path = Path(path_text)
+    if path.is_absolute():
+        return path
+    return ROOT / path
+
+
+def source_boundary_payload(event_script: dict[str, Any]) -> dict[str, Any]:
+    params = dict(event_script.get("parameters") or {})
+    contract = dict(params.get("semantic_event_contract") or {})
+    boundary = {
+        **dict(contract.get("capture_boundary") or {}),
+        **dict(params.get("capture_boundary") or {}),
+    }
+    return boundary
+
+
+def capture_polygon_from_manifest(episode_dir: Path, manifest: dict[str, Any]) -> list[list[float]]:
+    event_script_path = resolve_repo_path(manifest.get("source_event_script_path"), episode_dir)
+    event_script = read_json(event_script_path)
+    boundary = source_boundary_payload(event_script)
+    polygon: list[list[float]] = []
+    for point in boundary.get("polygon_enu_m") or []:
+        if isinstance(point, list) and len(point) >= 2:
+            polygon.append([float(point[0]), float(point[1])])
+    if not polygon:
+        raise RuntimeError(f"{episode_dir.name}: source capture boundary polygon is missing")
+    return polygon
+
+
+def point_in_polygon_xy(point: tuple[float, float, float] | list[float], polygon: list[list[float]]) -> bool:
+    x = float(point[0])
+    y = float(point[1])
+    inside = False
+    count = len(polygon)
+    for index in range(count):
+        x1, y1 = float(polygon[index][0]), float(polygon[index][1])
+        x2, y2 = float(polygon[(index + 1) % count][0]), float(polygon[(index + 1) % count][1])
+        if (y1 > y) != (y2 > y):
+            x_intersect = (x2 - x1) * (y - y1) / (y2 - y1 + 1e-12) + x1
+            if x < x_intersect:
+                inside = not inside
+    return inside
+
+
+def distance_to_segment_xy(point: tuple[float, float, float] | list[float], a: list[float], b: list[float]) -> float:
+    px, py = float(point[0]), float(point[1])
+    ax, ay = float(a[0]), float(a[1])
+    bx, by = float(b[0]), float(b[1])
+    dx = bx - ax
+    dy = by - ay
+    denom = dx * dx + dy * dy
+    if denom <= 1e-12:
+        return math.hypot(px - ax, py - ay)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / denom))
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+
+
+def distance_to_polygon_xy(point: tuple[float, float, float] | list[float], polygon: list[list[float]]) -> float:
+    if not polygon:
+        return float("inf")
+    if point_in_polygon_xy(point, polygon):
+        return 0.0
+    return min(distance_to_segment_xy(point, polygon[index], polygon[(index + 1) % len(polygon)]) for index in range(len(polygon)))
+
+
+def validate_runtime_spatial_crop(episode_dir: Path, manifest: dict[str, Any], roster_entities: list[dict[str, Any]]) -> tuple[list[str], dict[str, Any]]:
+    errors: list[str] = []
+    try:
+        polygon = capture_polygon_from_manifest(episode_dir, manifest)
+    except Exception as exc:
+        return [str(exc)], {"checked": False}
+    runtime_crop = dict(manifest.get("runtime_spatial_crop") or {})
+    padding_m = float(runtime_crop.get("expanded_boundary_padding_m") or RUNTIME_BOUNDARY_PADDING_M)
+    if runtime_crop.get("policy") != RUNTIME_SPATIAL_CROP_POLICY:
+        errors.append(f"{episode_dir.name}: runtime_spatial_crop.policy is not {RUNTIME_SPATIAL_CROP_POLICY}")
+    roster_ids = {str(entity.get("entity_id") or "") for entity in roster_entities if isinstance(entity, dict)}
+    dynamic_roster_ids = {
+        str(entity.get("entity_id") or "")
+        for entity in roster_entities
+        if isinstance(entity, dict) and category_from_entity(entity) in {"pedestrian", "vehicle", "uav"}
+    }
+    truth_dynamic_ids: set[str] = set()
+    checked_entities = 0
+    runtime_distance_max_m = 0.0
+    truth_path = episode_dir / "truth_frames.jsonl"
+    for _, frame in iter_jsonl(truth_path):
+        tick = int(frame.get("tick") if frame.get("tick") is not None else frame.get("frame_seq") or 0)
+        for entity in frame.get("entities") or []:
+            if not isinstance(entity, dict):
+                continue
+            entity_id = str(entity.get("entity_id") or "")
+            category = category_from_entity(entity)
+            position = position_from_entity(entity)
+            if position is None:
+                continue
+            checked_entities += 1
+            if entity_id and entity_id not in roster_ids:
+                errors.append(f"{episode_dir.name}: tick {tick} entity {entity_id} missing from roster")
+            distance_m = distance_to_polygon_xy(position, polygon)
+            runtime_distance_max_m = max(runtime_distance_max_m, float(distance_m))
+            if distance_m > padding_m + 1e-6:
+                errors.append(
+                    f"{episode_dir.name}: tick {tick} entity {entity_id or '<missing>'} outside expanded runtime boundary "
+                    f"distance={distance_m:.3f}m > {padding_m:.3f}m"
+                )
+            if category in {"pedestrian", "vehicle", "uav"} and entity_id:
+                truth_dynamic_ids.add(entity_id)
+            if category == "uav":
+                visibility = dict(entity.get("uav_visibility") or {})
+                expected_roi_eligible = distance_m <= 1e-6
+                if bool(visibility.get("roi_capture_eligible")) != expected_roi_eligible:
+                    errors.append(
+                        f"{episode_dir.name}: tick {tick} UAV {entity_id} roi_capture_eligible="
+                        f"{visibility.get('roi_capture_eligible')} but original ROI eligibility is {expected_roi_eligible}"
+                    )
+    missing_dynamic = sorted(dynamic_roster_ids - truth_dynamic_ids)
+    if missing_dynamic:
+        errors.append(f"{episode_dir.name}: dynamic roster entities have no truth frame after crop: {missing_dynamic[:20]}")
+    return errors[:80], {
+        "checked": True,
+        "runtime_policy": runtime_crop.get("policy"),
+        "padding_m": padding_m,
+        "checked_entities": checked_entities,
+        "dynamic_roster_ids": len(dynamic_roster_ids),
+        "truth_dynamic_ids": len(truth_dynamic_ids),
+        "runtime_distance_max_m": round(runtime_distance_max_m, 3),
+    }
 
 
 def velocity_xy_speed_from_entity(entity: dict[str, Any]) -> float:
@@ -136,6 +272,7 @@ def validate_background_pedestrian_motion(episode_dir: Path, episode_id: str) ->
                 {
                     "visible": 0,
                     "moving": 0,
+                    "semantic_idle": 0,
                     "min_motion_ratio": max(
                         GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO,
                         float(contract.get("min_visible_motion_ratio") or GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO),
@@ -145,22 +282,25 @@ def validate_background_pedestrian_motion(episode_dir: Path, episode_id: str) ->
                 },
             )
             row["visible"] = int(row["visible"]) + 1
-            speed = velocity_xy_speed_from_entity(entity)
-            if speed > GROUND_FLOW_SPEED_EPS_MPS:
-                row["moving"] = int(row["moving"]) + 1
-            else:
-                activity = activity_type_from_entity(entity)
-                if activity not in BACKGROUND_PEDESTRIAN_SEMANTIC_IDLE and row["first_nonsemantic_stop"] is None:
-                    row["first_nonsemantic_stop"] = {
-                        "tick": tick,
-                        "activity_type": activity,
-                        "speed_mps": round(speed, 4),
-                    }
             position = position_from_entity(entity)
             if position is None:
                 errors.append(f"{episode_id}: background pedestrian {entity_id} missing position at tick {tick}")
                 continue
             prior = previous.get(entity_id)
+            segment_start = prior is None or tick - int(prior[0]) > 1
+            speed = velocity_xy_speed_from_entity(entity)
+            if speed > GROUND_FLOW_SPEED_EPS_MPS:
+                row["moving"] = int(row["moving"]) + 1
+            elif not segment_start:
+                activity = activity_type_from_entity(entity)
+                if activity in BACKGROUND_PEDESTRIAN_SEMANTIC_IDLE:
+                    row["semantic_idle"] = int(row["semantic_idle"]) + 1
+                elif row["first_nonsemantic_stop"] is None:
+                    row["first_nonsemantic_stop"] = {
+                        "tick": tick,
+                        "activity_type": activity,
+                        "speed_mps": round(speed, 4),
+                    }
             if prior is not None:
                 prior_tick, prior_position = prior
                 dt_s = max(1e-6, float(tick - prior_tick) / 10.0)
@@ -179,11 +319,14 @@ def validate_background_pedestrian_motion(episode_dir: Path, episode_id: str) ->
             errors.append(f"{episode_id}: background pedestrian {entity_id} is never visible")
             continue
         moving_ratio = float(row["moving"]) / float(visible)
+        acceptable_ratio = float(int(row["moving"]) + int(row["semantic_idle"])) / float(visible)
         min_motion_ratio = float(row["min_motion_ratio"])
-        if moving_ratio + 1e-6 < min_motion_ratio:
+        if int(row["moving"]) <= 0:
+            errors.append(f"{episode_id}: background pedestrian {entity_id} has no moving records")
+        if acceptable_ratio + 1e-6 < min_motion_ratio:
             errors.append(
-                f"{episode_id}: background pedestrian {entity_id} moving ratio too small: "
-                f"{moving_ratio:.3f} < {min_motion_ratio:.3f}"
+                f"{episode_id}: background pedestrian {entity_id} moving-or-semantic-idle ratio too small: "
+                f"{acceptable_ratio:.3f} < {min_motion_ratio:.3f}"
             )
         if row["first_nonsemantic_stop"] is not None:
             stop = dict(row["first_nonsemantic_stop"] or {})
@@ -203,8 +346,17 @@ def validate_background_pedestrian_motion(episode_dir: Path, episode_id: str) ->
         "background_pedestrian_count": len(stats),
         "visible_records": sum(int(row["visible"]) for row in stats.values()),
         "moving_records": sum(int(row["moving"]) for row in stats.values()),
+        "semantic_idle_records": sum(int(row["semantic_idle"]) for row in stats.values()),
         "min_moving_ratio": min(
             (float(row["moving"]) / float(row["visible"]) for row in stats.values() if int(row["visible"]) > 0),
+            default=None,
+        ),
+        "min_moving_or_semantic_idle_ratio": min(
+            (
+                float(int(row["moving"]) + int(row["semantic_idle"])) / float(row["visible"])
+                for row in stats.values()
+                if int(row["visible"]) > 0
+            ),
             default=None,
         ),
     }
@@ -331,6 +483,15 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
     if global_uav_roster_count != expected_global_uav_roster_count:
         errors.append(f"global UAV roster count {global_uav_roster_count} != selected UAV count {expected_global_uav_roster_count}")
 
+    runtime_crop_errors, runtime_crop_summary = validate_runtime_spatial_crop(
+        episode_dir,
+        manifest,
+        list(roster_entities if isinstance(roster_entities, list) else []),
+    )
+    errors.extend(runtime_crop_errors[:40])
+    if len(runtime_crop_errors) > 40:
+        errors.append(f"{len(runtime_crop_errors) - 40} additional runtime spatial crop errors omitted")
+
     if truth_check_mode == "manifest":
         truth_record_count = int(manifest_record_counts.get("truth_frames") or 0)
         trajectory_record_count = int(manifest_record_counts.get("trajectories") or 0)
@@ -366,6 +527,7 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
                 else None,
                 truth_check_mode=truth_check_mode,
                 background_pedestrian_motion=pedestrian_motion_summary,
+                runtime_spatial_crop=runtime_crop_summary,
             )
 
         frame_categories: set[str] = set()
@@ -454,6 +616,7 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
             global_uav_track_count=global_uav_roster_count,
             static_global_uav_track_count=0,
             background_pedestrian_motion=pedestrian_motion_summary,
+            runtime_spatial_crop=runtime_crop_summary,
         )
 
     frame_count = 0
@@ -507,6 +670,7 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
                 frame_errors.append(f"tick {tick}: entities is not a list")
                 entities = []
             global_uav_count = 0
+            roi_capture_eligible_global_uav_count = 0
             global_pad_count = 0
             sumo_vehicle_count = 0
             for entity in entities:
@@ -519,8 +683,30 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
                 if position is None:
                     frame_errors.append(f"tick {tick}: entity {entity.get('entity_id')} missing truth_pose.position_enu_m")
                     continue
+                if category == "uav":
+                    visibility = dict(entity.get("uav_visibility") or {})
+                    if not visibility:
+                        frame_errors.append(f"tick {tick}: UAV {entity.get('entity_id')} missing uav_visibility capture gate")
+                    else:
+                        roi_eligible = visibility.get("roi_capture_eligible")
+                        selected = visibility.get("selected_for_capture_truth")
+                        policy = str(visibility.get("capture_roi_policy") or "")
+                        if policy != UAV_CAMERA_CAPTURE_ROI_POLICY:
+                            frame_errors.append(
+                                f"tick {tick}: UAV {entity.get('entity_id')} unexpected capture_roi_policy {policy!r}"
+                            )
+                        if not isinstance(roi_eligible, bool):
+                            frame_errors.append(f"tick {tick}: UAV {entity.get('entity_id')} roi_capture_eligible is not bool")
+                        if not isinstance(selected, bool):
+                            frame_errors.append(f"tick {tick}: UAV {entity.get('entity_id')} selected_for_capture_truth is not bool")
+                        if isinstance(roi_eligible, bool) and isinstance(selected, bool) and roi_eligible != selected:
+                            frame_errors.append(
+                                f"tick {tick}: UAV {entity.get('entity_id')} selected_for_capture_truth must match roi_capture_eligible"
+                            )
                 if is_global_uav(entity):
                     global_uav_count += 1
+                    if bool(dict(entity.get("uav_visibility") or {}).get("roi_capture_eligible")):
+                        roi_capture_eligible_global_uav_count += 1
                     entity_id = str(entity.get("entity_id") or "")
                     if entity_id:
                         global_uav_tracks.setdefault(entity_id, []).append((tick, position[0], position[1], position[2]))
@@ -541,6 +727,12 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
             max_frame_sumo_vehicles = max(max_frame_sumo_vehicles, sumo_vehicle_count)
             if global_uav_count != payload_uav_count:
                 frame_errors.append(f"tick {tick}: sampled global UAV entity count {global_uav_count} != active_selected_uav_count {payload_uav_count}")
+            payload_roi_uav_count = int(uav_payload.get("roi_capture_eligible_uav_count") or 0)
+            if roi_capture_eligible_global_uav_count != payload_roi_uav_count:
+                frame_errors.append(
+                    f"tick {tick}: sampled ROI-capture global UAV count {roi_capture_eligible_global_uav_count} "
+                    f"!= roi_capture_eligible_uav_count {payload_roi_uav_count}"
+                )
             if global_pad_count != expected_global_pad_count:
                 frame_errors.append(f"tick {tick}: sampled global pad count {global_pad_count} != selected visible pad_count {expected_global_pad_count}")
             if len(dict(frame.get("sumo_traffic_light_states") or {})) > 0:
@@ -630,6 +822,7 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
         global_uav_track_count=len(global_uav_tracks),
         static_global_uav_track_count=len(static_tracks),
         background_pedestrian_motion=pedestrian_motion_summary,
+        runtime_spatial_crop=runtime_crop_summary,
     )
 
 

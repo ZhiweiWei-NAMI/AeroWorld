@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Materialize formal UE replay truth packages without corrective filtering.
 
-The full render-ready truth is the authoritative semantic record.  Formal UE
+The spatial-cropped render-ready truth is the authoritative semantic record.  Formal UE
 capture still consumes ``Dataset/render_ready_episodes_capture_filtered`` for
-historical path compatibility, but this tool now copies the full truth through
+historical path compatibility, but this tool now copies render-ready truth through
 unchanged and only rewrites package paths / render-host config for that formal
 root.  Dynamic P/V/U visibility mistakes must be exposed by validators and fixed
-in generators, not hidden by deleting frame records after conversion.
+in conversion/generation, not hidden by deleting frame records after conversion.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ DEFAULT_OUTPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes_capture_filtered
 PVU_CATEGORIES = {"pedestrian", "vehicle", "uav"}
 CAPTURE_VISIBILITY_PADDING_M = 60.0
 CAPTURE_SYNC_ROI_MARGIN_M = 25.0
-CAPTURE_SYNC_POLICY = "full_truth_passthrough_generator_authoritative_v1"
+CAPTURE_SYNC_POLICY = "render_ready_spatial_cropped_authoritative_passthrough_v1"
 REGENERATED_FILES = {
     "truth_frames.jsonl",
     "trajectories.jsonl",
@@ -395,8 +395,8 @@ def update_manifest(
     generation["truth_filter_source_root"] = repo_relative(source_episode_dir)
     generation["truth_filter_contract"] = CAPTURE_SYNC_POLICY
     generation["capture_truth_sync_policy"] = CAPTURE_SYNC_POLICY
-    generation["trajectory_source"] = "source_trajectories_passthrough"
-    generation["trajectory_contract"] = "full_truth_trajectory_passthrough_v1"
+    generation["trajectory_source"] = "render_ready_spatial_cropped_trajectories_passthrough"
+    generation["trajectory_contract"] = "render_ready_spatial_cropped_trajectory_passthrough_v1"
     updated["generation"] = generation
     capture_sync_payload = {
         "policy": CAPTURE_SYNC_POLICY,
@@ -404,7 +404,7 @@ def update_manifest(
         "dynamic_pvu_filtering_enabled": False,
         "coordinate_policy": "copy_truth_pose_map_enu_without_transform",
         "visibility_policy": "metadata_only_generator_must_produce_visible_truth",
-        "visibility_padding_policy": "expanded_for_editor_hook_uav_rgb_capture_margin_v1",
+        "visibility_padding_policy": "render_ready_runtime_boundary_already_expanded_v1",
         "visibility_padding_m": CAPTURE_VISIBILITY_PADDING_M,
         "visibility_geometry": visibility.as_dict(),
         "formal_roi_bbox_enu_m": roi_bbox_enu_m,
@@ -442,7 +442,7 @@ def update_scenario_plan(
         "dynamic_pvu_filtering_enabled": False,
         "coordinate_policy": "copy_truth_pose_map_enu_without_transform",
         "visibility_policy": "metadata_only_generator_must_produce_visible_truth",
-        "visibility_padding_policy": "expanded_for_editor_hook_uav_rgb_capture_margin_v1",
+        "visibility_padding_policy": "render_ready_runtime_boundary_already_expanded_v1",
         "visibility_padding_m": CAPTURE_VISIBILITY_PADDING_M,
         "visibility_geometry": visibility.as_dict(),
         "formal_roi_bbox_enu_m": roi_bbox_enu_m,
@@ -537,8 +537,8 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
         "trajectory_rows": trajectory_count,
         "truth_entity_id_count": len(truth_entity_ids),
         "roster_entities": len(synced_roster),
-        "dynamic_filter_rule": "none_full_truth_records_preserved",
-        "semantic_context_rule": "preserve_full_roster_without_visibility_filter",
+        "dynamic_filter_rule": "none_render_ready_spatial_crop_preserved",
+        "semantic_context_rule": "preserve_render_ready_roster_without_additional_visibility_filter",
         "generator_authority_rule": "validators_must_fail_generation_errors_instead_of_deleting_truth",
     }
     roi_bbox_enu_m = capture_visibility_bbox_enu_m(visibility)
@@ -603,7 +603,7 @@ def select_episode_dirs(input_root: Path, names: list[str]) -> list[Path]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Sync full render-ready truth into the formal UE replay root without filtering.")
+    parser = argparse.ArgumentParser(description="Sync spatial-cropped render-ready truth into the formal UE replay root without filtering.")
     parser.add_argument("--input-root", type=Path, default=DEFAULT_INPUT_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--episode", action="append", default=[])

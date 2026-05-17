@@ -459,6 +459,15 @@ def truth_visibility_state(entity: dict[str, Any]) -> str:
     return str(render_presence.get("visibility_state") or "").strip()
 
 
+def truth_uav_camera_capture_eligible(entity: dict[str, Any]) -> bool:
+    uav_visibility = dict(entity.get("uav_visibility") or {})
+    if "roi_capture_eligible" in uav_visibility:
+        return bool(uav_visibility.get("roi_capture_eligible"))
+    if "selected_for_capture_truth" in uav_visibility:
+        return bool(uav_visibility.get("selected_for_capture_truth"))
+    return True
+
+
 def scene_uav_ids_from_roster(episode_dir: Path) -> set[str]:
     roster = read_json(episode_dir / "global_entity_roster.json")
     return {
@@ -491,6 +500,8 @@ def scene_uav_active_ticks_by_entity(episode_dir: Path, capture_ticks: list[int]
                 if truth_submission_state(entity) not in {"", "submit_to_ue"}:
                     continue
                 if truth_visibility_state(entity) not in {"", "visible"}:
+                    continue
+                if not truth_uav_camera_capture_eligible(entity):
                     continue
                 result.setdefault(entity_id, []).append(tick)
     return {entity_id: sorted(set(ticks)) for entity_id, ticks in result.items()}

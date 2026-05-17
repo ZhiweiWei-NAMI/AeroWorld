@@ -2134,11 +2134,26 @@ def check_capture_boundary_contract(scene: dict[str, Any], script: dict[str, Any
     if inside_required_for:
         pad_inside_required = inside_required_for.intersection({"pad_contention", "priority_landing_arbitration", "terminal_pad_queue"})
         if pad_inside_required:
+            event_referenced_ids: set[str] = set()
+            for event_def in script.get("events", []):
+                for target_id in event_def.get("target_ids") or event_def.get("log_target_ids") or []:
+                    event_referenced_ids.add(str(target_id))
+                trigger = dict(event_def.get("trigger") or {})
+                for key in ("entity_id", "entity_a", "entity_b"):
+                    if trigger.get(key):
+                        event_referenced_ids.add(str(trigger.get(key)))
+                for action in event_def.get("actions") or []:
+                    params = dict(action.get("params") or action)
+                    for key in ("entity_id", "ped_id", "target_id"):
+                        if params.get(key):
+                            event_referenced_ids.add(str(params.get(key)))
             pads = [
                 entity
                 for entity in entities.values()
                 if str(entity.get("logical_asset_id") or "") == "facility.landing_pad.visible.v1"
                 and not str(entity.get("entity_id") or "").startswith("pad_home_")
+                and str(entity.get("entity_id") or "") in event_referenced_ids
+                and not entity.get("contract_facility")
             ]
             if not pads:
                 issues.append(f"{sid}: pad boundary policy requires event pads but none are declared")

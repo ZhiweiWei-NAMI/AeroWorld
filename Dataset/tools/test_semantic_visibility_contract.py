@@ -17,24 +17,27 @@ from verify_semantic_visibility_contract import (  # noqa: E402
     find_truth_candidates,
     validate_sample_row,
 )
-from run_semantic_70_dual_view_tick100 import (  # noqa: E402
-    DEFAULT_OUTPUT_ROOT,
-    DEFAULT_SUMMARY_PATH,
-    is_f_drive_path,
-    output_dir,
-    uav_output_dir,
-)
 from run_semantic_event_chain_every10 import (  # noqa: E402
     DEFAULT_CAPTURE_PRESETS,
     DEFAULT_OUTPUT_ROOT as EVENT_CHAIN_DEFAULT_OUTPUT_ROOT,
     DEFAULT_SUMMARY_PATH as EVENT_CHAIN_DEFAULT_SUMMARY_PATH,
+    EpisodePlan,
     event_chain_capture_ticks,
     event_chain_output_dir,
     event_chain_uav_output_dir,
     filter_event_chain_capture_presets,
+    is_f_drive_path,
     scene_uav_active_ticks_by_entity,
     validate_contract,
     write_guarded_config,
+)
+from convert_to_render_ready import (  # noqa: E402
+    RUNTIME_BOUNDARY_PADDING_M,
+    UavSelection,
+    point_in_capture_roi_xy,
+    point_in_runtime_boundary_xy,
+    source_runtime_visible_ticks_by_entity,
+    subset_uav_selection_for_runtime,
 )
 
 
@@ -163,6 +166,7 @@ class SceneSyncCoordinateContractTest(unittest.TestCase):
         class FakeRoadTopologySnapper:
             use_sample_z = True
             use_sample_yaw = True
+            preserve_truth_xy = True
 
             def should_snap(self, entity: dict) -> bool:
                 return entity.get("entity_category") == "vehicle"
@@ -223,39 +227,37 @@ class SceneSyncCoordinateContractTest(unittest.TestCase):
         resolved_position, resolved_rotation, snap_details = host._resolve_entity_pose(entity)
 
         self.assertEqual(host.road_topology_snapper.query_position_enu_m, [7126.023, 6496.149, 6.84])
-        self.assertEqual(host.road_geometry.edge_id, "cg_edge_50")
+        self.assertFalse(hasattr(host.road_geometry, "edge_id"))
         self.assertAlmostEqual(resolved_position[0], 7126.023, places=3)
-        self.assertAlmostEqual(resolved_position[1], 6497.899, places=3)
+        self.assertAlmostEqual(resolved_position[1], 6496.149, places=3)
         self.assertAlmostEqual(resolved_position[2], 6.84, places=3)
         self.assertEqual(resolved_rotation["yaw_deg"], 0.0)
         self.assertIsNotNone(snap_details)
-        self.assertEqual(snap_details["road_lanes"], 2)
-        self.assertEqual(snap_details["road_width_m"], 7.0)
-        self.assertEqual(snap_details["lane_spacing_m"], 3.5)
+        self.assertTrue(snap_details["preserve_truth_xy"])
         self.assertEqual(host._apply_frame_position_enu(resolved_position), resolved_position)
 
 
-class FormalCapturePathContractTest(unittest.TestCase):
-    def test_default_formal_outputs_are_on_f_drive(self) -> None:
-        self.assertTrue(is_f_drive_path(DEFAULT_OUTPUT_ROOT))
-        self.assertTrue(is_f_drive_path(DEFAULT_SUMMARY_PATH))
-
-    def test_primary_output_dirs_are_short_and_stable(self) -> None:
-        root = Path("F:/aw_cap")
-        episode = "X6_crowd_evacuation_to_airspace_lockdown__seed00"
-        view_id = "uav_view_000__uav_observer_x6_crowd_evacuation_to_airspace_lockdown_3"
-
-        self.assertEqual(output_dir(root, 69, episode, "high_overview"), root / "hi" / "e69")
-        self.assertEqual(uav_output_dir(root, 69, episode, view_id), root / "uav" / "e69" / "v000")
-
-
 class EventChainCaptureContractTest(unittest.TestCase):
+    def test_default_formal_outputs_are_on_f_drive(self) -> None:
+        self.assertTrue(is_f_drive_path(EVENT_CHAIN_DEFAULT_OUTPUT_ROOT))
+        self.assertTrue(is_f_drive_path(EVENT_CHAIN_DEFAULT_SUMMARY_PATH))
+
     def test_event_chain_outputs_are_short_and_stable(self) -> None:
         root = Path("F:/aw_cap")
+        plan = EpisodePlan(
+            index=69,
+            episode_dir=Path("X6_crowd_evacuation_to_airspace_lockdown__seed00"),
+            scenario_id="X6_crowd_evacuation_to_airspace_lockdown",
+            seed_label="seed00",
+            site_id="site.intersection_a",
+            high_camera_id="site.intersection_a_overview_top",
+            capture_ticks=[],
+            uav_active_ticks={},
+        )
         view_id = "uav_view_012__uav_observer_x6_crowd_evacuation_to_airspace_lockdown_3"
 
-        self.assertEqual(event_chain_output_dir(root, 69, "high_overview_rgb"), root / "hi" / "e69")
-        self.assertEqual(event_chain_uav_output_dir(root, 69, view_id), root / "uav" / "e69" / "v012")
+        self.assertEqual(event_chain_output_dir(root, plan, "high_overview_rgb"), root / plan.scenario_id / "seed00" / "high")
+        self.assertEqual(event_chain_uav_output_dir(root, plan, "uav_observer", view_id), root / plan.scenario_id / "seed00" / view_id)
 
     def test_every10_tick_selection_and_scene_uav_active_ticks_are_explicit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -293,6 +295,44 @@ class EventChainCaptureContractTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 event_chain_capture_ticks(episode_dir, tick_start=0, tick_end=30, tick_step=10, strict=True)
 
+    def test_scene_uav_active_ticks_stop_when_roi_capture_eligible_is_false(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            episode_dir = Path(tmp) / "episode_event_chain"
+            episode_dir.mkdir()
+            write_json(
+                episode_dir / "global_entity_roster.json",
+                {"entities": [{"entity_id": "uav_alpha", "entity_category": "uav", "mode": "scene_sync"}]},
+            )
+            frames = []
+            for tick, eligible in ((0, True), (5, False), (10, True), (15, False)):
+                frames.append(
+                    json.dumps(
+                        {
+                            "tick": tick,
+                            "entities": [
+                                {
+                                    "entity_id": "uav_alpha",
+                                    "entity_category": "uav",
+                                    "render_presence": {
+                                        "submission_state": "submit_to_ue",
+                                        "visibility_state": "visible",
+                                    },
+                                    "uav_visibility": {
+                                        "roi_capture_eligible": eligible,
+                                        "selected_for_capture_truth": eligible,
+                                    },
+                                }
+                            ],
+                        }
+                    )
+                )
+            (episode_dir / "truth_frames.jsonl").write_text("\n".join(frames) + "\n", encoding="utf-8")
+
+            ticks = event_chain_capture_ticks(episode_dir, tick_start=0, tick_end=15, tick_step=5, strict=True)
+            active = scene_uav_active_ticks_by_entity(episode_dir, ticks)
+
+            self.assertEqual(active["uav_alpha"], [0, 10])
+
     def test_event_chain_capture_presets_keep_only_high_rgb_overviews(self) -> None:
         presets = filter_event_chain_capture_presets(DEFAULT_CAPTURE_PRESETS)
         for cameras in presets["ground_cameras"].values():
@@ -306,9 +346,10 @@ class EventChainCaptureContractTest(unittest.TestCase):
             output_root = EVENT_CHAIN_DEFAULT_OUTPUT_ROOT
             summary = EVENT_CHAIN_DEFAULT_SUMMARY_PATH
             segmentation_backend = "ue_custom_stencil"
+            uav_capture_backend = "editor_hook"
             uav_modalities = ["rgb", "depth", "seg"]
             tick_start = 0
-            tick_step = 10
+            tick_step = 5
             allow_nonstandard_tick_step = False
             max_private_memory_gb = 20.0
             max_working_set_gb = 20.0
@@ -339,9 +380,15 @@ class EventChainCaptureContractTest(unittest.TestCase):
             uav_scene_control_backend = "truth_frame_scene_sync"
             tick_start = 0
             tick_end = 900
-            tick_step = 10
+            tick_step = 5
+            simulation_tick_stride = 1
             capture_ticks_per_host_run = 16
             uav_modalities = ["rgb", "depth", "seg"]
+            uav_capture_backend = "editor_hook"
+            scene_sync_batch_size = 96
+            scene_sync_delay_s = 0.0
+            write_depth_preview = False
+            write_semantic_audit = True
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -357,11 +404,86 @@ class EventChainCaptureContractTest(unittest.TestCase):
             Args.output_root = root / "out"
             presets_path = root / "presets.json"
             write_json(presets_path, {"ground_cameras": {}})
+            plan = EpisodePlan(
+                index=0,
+                episode_dir=episode_dir,
+                scenario_id="episode",
+                seed_label="seed00",
+                site_id="site.intersection_a",
+                high_camera_id="site.intersection_a_overview_top",
+                capture_ticks=[],
+                uav_active_ticks={},
+            )
 
-            guarded = write_guarded_config(Args, episode_dir, 0, presets_path)
+            guarded = write_guarded_config(Args, plan, presets_path)
             payload = json.loads(guarded.read_text(encoding="utf-8"))
 
             self.assertEqual(payload["batch_strategy"]["tick_window_size"], 0)
+
+
+class RenderReadySpatialCropContractTest(unittest.TestCase):
+    def test_runtime_boundary_expands_roi_but_camera_gate_does_not(self) -> None:
+        polygon = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]
+
+        self.assertTrue(point_in_capture_roi_xy([5.0, 5.0, 0.0], polygon))
+        self.assertTrue(point_in_runtime_boundary_xy([5.0, 5.0, 0.0], polygon))
+        self.assertFalse(point_in_capture_roi_xy([65.0, 5.0, 0.0], polygon))
+        self.assertTrue(point_in_runtime_boundary_xy([65.0, 5.0, 0.0], polygon))
+        self.assertFalse(point_in_runtime_boundary_xy([10.0 + RUNTIME_BOUNDARY_PADDING_M + 0.1, 5.0, 0.0], polygon))
+
+    def test_source_runtime_visible_ticks_crop_enter_and_exit(self) -> None:
+        source_contract = {
+            "capture_boundary_id": "roi.test",
+            "capture_boundary_polygon_enu_m": [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]],
+        }
+        roster = [
+            {
+                "entity_id": "ped_enter_exit",
+                "label_class": "pedestrian",
+                "asset_id": "pedestrian.cityops.basic.v1",
+                "entity_category": "pedestrian",
+                "role": "semantic_background_pedestrian",
+                "ground_flow_contract": {"route_duration_ticks": 15},
+            }
+        ]
+        grouped = {
+            "ped_enter_exit": [
+                {"entity_id": "ped_enter_exit", "tick": 0, "label_class": "pedestrian", "pos_enu": [101.0, 5.0, 0.0], "vel_mps": [0.0, 0.0, 0.0]},
+                {"entity_id": "ped_enter_exit", "tick": 5, "label_class": "pedestrian", "pos_enu": [65.0, 5.0, 0.0], "vel_mps": [-1.0, 0.0, 0.0]},
+                {"entity_id": "ped_enter_exit", "tick": 10, "label_class": "pedestrian", "pos_enu": [5.0, 5.0, 0.0], "vel_mps": [-1.0, 0.0, 0.0]},
+                {"entity_id": "ped_enter_exit", "tick": 15, "label_class": "pedestrian", "pos_enu": [70.2, 5.0, 0.0], "vel_mps": [1.0, 0.0, 0.0]},
+            ]
+        }
+
+        visible = source_runtime_visible_ticks_by_entity(
+            roster_entities=roster,
+            grouped=grouped,
+            ticks=[0, 5, 10, 15],
+            tick_hz=10,
+            source_contract=source_contract,
+        )
+
+        self.assertEqual(visible["ped_enter_exit"], {5, 10})
+
+    def test_global_uav_selection_is_reduced_to_runtime_visible_ids(self) -> None:
+        selection = UavSelection(
+            uav_ids=("uav_outside", "uav_inside"),
+            entity_ids={"uav_outside": "global_uav_outside", "uav_inside": "global_uav_inside"},
+            task_ids={"uav_outside": "task_outside", "uav_inside": "task_inside"},
+            mission_type_by_uav_id={"uav_outside": "delivery", "uav_inside": "delivery"},
+            selected_count=2,
+            active_count_min=2,
+            active_count_max=2,
+            active_count_mean=2.0,
+            candidate_count=2,
+            observable_candidate_count=2,
+        )
+
+        reduced = subset_uav_selection_for_runtime(selection, {"uav_inside"})
+
+        self.assertEqual(reduced.uav_ids, ("uav_inside",))
+        self.assertEqual(reduced.selected_count, 1)
+        self.assertEqual(reduced.entity_ids, {"uav_inside": "global_uav_inside"})
 
 
 class SemanticVisibilityOutputContractTest(unittest.TestCase):

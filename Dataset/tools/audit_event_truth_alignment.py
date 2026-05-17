@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes_capture_filtered"
 TICK_HZ = 10
 PVU_CATEGORIES = {"pedestrian", "vehicle", "uav"}
+RUNTIME_SPATIAL_CROP_POLICY = "roi_polygon_expanded_60m_runtime_truth_crop_v1"
 TRACE_ONLY_ACTIONS = {"capture_screenshot"}
 WAYPOINT_TOLERANCE_M = 5.0
 SPAWN_TOLERANCE_M = 3.0
@@ -37,6 +38,66 @@ LIFECYCLE_INTENTS = {
     "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
     "landing_or_terminal_resolution",
 }
+
+
+def pad_boundary_policy_from_event(event: dict[str, Any], row: dict[str, Any]) -> Any:
+    log_event = dict(event.get("log_event") or {})
+    for payload in (
+        event,
+        log_event,
+        row,
+        dict(row.get("metadata") or {}),
+        dict(row.get("payload") or {}),
+    ):
+        policy = payload.get("pad_boundary_policy")
+        if policy not in (None, ""):
+            return policy
+    return {}
+
+
+def event_target_roles(event: dict[str, Any], row: dict[str, Any]) -> set[str]:
+    roles: set[str] = set()
+    log_event = dict(event.get("log_event") or {})
+    for payload in (
+        event,
+        log_event,
+        row,
+        dict(row.get("metadata") or {}),
+        dict(row.get("payload") or {}),
+    ):
+        for role in payload.get("target_roles") or []:
+            role_text = str(role or "").strip().lower()
+            if role_text:
+                roles.add(role_text)
+    return roles
+
+
+def target_id_is_landing_pad(target_id: str) -> bool:
+    lowered = target_id.lower()
+    return lowered.startswith("pad_") or "landing_pad" in lowered or "landing-pad" in lowered
+
+
+def event_allows_external_landing_pad_target(event: dict[str, Any], row: dict[str, Any], target_id: str) -> bool:
+    if not target_id_is_landing_pad(target_id):
+        return False
+    roles = event_target_roles(event, row)
+    if roles and "landing_pad" not in roles:
+        return False
+    policy = pad_boundary_policy_from_event(event, row)
+    if isinstance(policy, str):
+        default_policy = policy
+        inside_required_for: list[Any] = []
+    elif isinstance(policy, dict):
+        default_policy = str(policy.get("default") or "")
+        inside_required_for = list(policy.get("inside_required_for") or [])
+    else:
+        default_policy = ""
+        inside_required_for = []
+    required = {str(value or "").strip().lower() for value in inside_required_for if str(value or "").strip()}
+    if target_id.lower() in required or "landing_pad" in required or "all" in required:
+        return False
+    return default_policy.lower() == "outside_allowed"
+
 
 if str(ROOT / "Dataset" / "tools") not in sys.path:
     sys.path.insert(0, str(ROOT / "Dataset" / "tools"))
@@ -600,6 +661,7 @@ def validate_action(
     trace_by_event_id: dict[str, dict[str, Any]],
     truth: EpisodeTruth,
     weather_by_tick: dict[int, dict[str, Any]],
+    runtime_spatial_crop_enabled: bool = False,
 ) -> list[str]:
     issues: list[str] = []
     action_type = str(action.get("type") or "")
@@ -617,6 +679,8 @@ def validate_action(
         start_tick, end_tick = action_window(trace_tick, action, next_tick, truth.duration_ticks)
         samples = truth.samples_in_window(entity_id, start_tick, end_tick)
         if not samples:
+            if runtime_spatial_crop_enabled and truth.entity_ticks(entity_id):
+                return issues
             if is_lifecycle_intent(event) and truth.entity_ticks(entity_id):
                 return issues
             return [f"{action_id}: target {entity_id} absent from truth window [{start_tick}, {end_tick}]"]
@@ -644,7 +708,7 @@ def validate_action(
         end_tick = min(truth.duration_ticks, next_tick - 1 if next_tick is not None else trace_tick + STATE_WINDOW_TICKS)
         samples = truth.samples_in_window(entity_id, trace_tick, end_tick)
         if not samples:
-            if not truth.entity_ticks(entity_id):
+            if not truth.entity_ticks(entity_id) and not runtime_spatial_crop_enabled:
                 issues.append(f"{action_id}: target {entity_id} absent from truth state window [{trace_tick}, {end_tick}]")
         elif mode:
             if not expected_value_present(mode, samples):
@@ -656,7 +720,8 @@ def validate_action(
         end_tick = min(truth.duration_ticks, next_tick - 1 if next_tick is not None else trace_tick + STATE_WINDOW_TICKS * 4)
         samples = truth.samples_in_window(entity_id, trace_tick, end_tick)
         if not samples:
-            issues.append(f"{action_id}: target {entity_id} absent from truth activity window")
+            if not (runtime_spatial_crop_enabled and truth.entity_ticks(entity_id)):
+                issues.append(f"{action_id}: target {entity_id} absent from truth activity window")
         elif activity and not expected_value_present(activity, samples):
             issues.append(f"{action_id}: activity_type={activity} not reflected in truth")
     elif action_type == "spawn_entity":
@@ -664,7 +729,8 @@ def validate_action(
         position = pos3(action.get("position_enu_m"))
         samples = truth.samples_in_window(entity_id, trace_tick, min(truth.duration_ticks, trace_tick + STATE_WINDOW_TICKS))
         if not samples:
-            issues.append(f"{action_id}: spawned entity {entity_id} absent from truth")
+            if not (runtime_spatial_crop_enabled and truth.entity_ticks(entity_id)):
+                issues.append(f"{action_id}: spawned entity {entity_id} absent from truth")
         elif position is not None:
             distance = min_distance_to_point(samples, position)
             if distance > SPAWN_TOLERANCE_M:
@@ -757,6 +823,9 @@ def validate_episode(episode_dir: Path) -> dict[str, Any]:
     manifest = read_json(episode_dir / "episode_manifest.json")
     scenario_id = str(manifest.get("scenario_id") or episode_dir.name.split("__seed")[0])
     duration_ticks = int(manifest.get("duration_ticks") or 900)
+    runtime_spatial_crop_enabled = (
+        str((manifest.get("runtime_spatial_crop") or {}).get("policy") or "") == RUNTIME_SPATIAL_CROP_POLICY
+    )
     script_path = resolve_manifest_path(manifest.get("source_event_script_path"), episode_dir)
     script = read_json(script_path)
     events = list(script.get("events") or [])
@@ -861,6 +930,8 @@ def validate_episode(episode_dir: Path) -> dict[str, Any]:
             if target_id == capture_boundary_id:
                 continue
             if target_id not in roster_ids and target_id not in truth_ids:
+                if event_allows_external_landing_pad_target(event, row, target_id):
+                    continue
                 errors.append(f"{event_id}: target {target_id} missing from roster/truth")
                 continue
 
@@ -876,19 +947,21 @@ def validate_episode(episode_dir: Path) -> dict[str, Any]:
                 trace_by_event_id,
                 truth,
                 weather_by_tick,
+                runtime_spatial_crop_enabled=runtime_spatial_crop_enabled,
             ):
                 errors.append(f"{event_id}: {issue}")
 
         for issue in validate_intent_semantics(event, trace_tick, truth, capture_boundary_id, capture_polygon_enu_m):
             errors.append(f"{event_id}: {issue}")
 
-    missing_categories = sorted(PVU_CATEGORIES - truth.categories_any)
-    if missing_categories:
-        errors.append(f"episode truth missing PVU categories over capture window: {missing_categories}")
-    if "facility" not in truth.categories_first:
-        errors.append("first truth frame missing facility")
-    if "airspace_corridor" not in truth.categories_first:
-        errors.append("first truth frame missing airspace_corridor")
+    if not runtime_spatial_crop_enabled:
+        missing_categories = sorted(PVU_CATEGORIES - truth.categories_any)
+        if missing_categories:
+            errors.append(f"episode truth missing PVU categories over capture window: {missing_categories}")
+        if "facility" not in truth.categories_first:
+            errors.append("first truth frame missing facility")
+        if "airspace_corridor" not in truth.categories_first:
+            errors.append("first truth frame missing airspace_corridor")
 
     return {
         "episode_id": episode_dir.name,

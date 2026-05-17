@@ -10,7 +10,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Iterable, Sequence
 
 try:
     import orjson
@@ -74,6 +74,9 @@ DEFAULT_CAPTURE_FILTER_OUTPUT_ROOT = Path("Dataset/render_ready_episodes_capture
 UAV_GLOBAL_FLOW_SOURCE = "uav_global_flow"
 DYNAMIC_ENTITY_CATEGORIES = {"pedestrian", "vehicle", "uav"}
 PEDESTRIAN_VEHICLE_DYNAMIC_CLEARANCE_MIN_M = 4.0
+RUNTIME_BOUNDARY_PADDING_M = 60.0
+RUNTIME_SPATIAL_CROP_POLICY = "roi_polygon_expanded_60m_runtime_truth_crop_v1"
+UAV_CAMERA_CAPTURE_ROI_POLICY = "camera_only_while_uav_position_inside_capture_roi_polygon_v1"
 
 try:
     from render_ready_vehicle_lanes import VehicleLaneProjector
@@ -777,6 +780,13 @@ def normalized_position_for_render(row: dict[str, Any]) -> list[float]:
     return normalize_vector3(row.get("pos_enu"))
 
 
+def source_position_for_runtime(row: dict[str, Any], category: str) -> list[float]:
+    position = normalized_position_for_render(row)
+    if str(category) == "vehicle":
+        position = source_vehicle_truth_position(position)
+    return position
+
+
 def event_text(row: dict[str, Any]) -> str:
     payload = dict(row.get("payload") or {})
     parts = [
@@ -867,6 +877,7 @@ def activity_for_sample(
     row_activity_type: str = "",
     velocity_enu_mps: Sequence[float],
     overrides: dict[str, list[tuple[int, str]]],
+    semantic_idle_when_stationary: bool = False,
 ) -> str:
     # The batch generator writes explicit pedestrian activity fields when the
     # source scenario carries semantic activity actions. Prefer those over text
@@ -881,13 +892,26 @@ def activity_for_sample(
         else:
             break
     if activity:
-        return normalize_activity_type(activity, moving=speed_xy > 0.15) if category == "pedestrian" else str(activity)
+        if category == "pedestrian":
+            normalized_activity = normalize_activity_type(activity, moving=speed_xy > 0.15)
+            if (
+                semantic_idle_when_stationary
+                and speed_xy <= 0.15
+                and normalized_activity in {"walking", "crossing", "evacuating", "texting_walk"}
+            ):
+                return "phone_call" if sum(ord(ch) for ch in entity_id) % 2 == 0 else "chatting"
+            return normalized_activity
+        return str(activity)
     if category == "pedestrian":
         row_activity = str(row_activity_type or "").strip().lower()
+        if semantic_idle_when_stationary and speed_xy <= 0.15 and row_activity in {"walking", "crossing", "evacuating", "texting_walk", "moving"}:
+            return "phone_call" if sum(ord(ch) for ch in entity_id) % 2 == 0 else "chatting"
         if row_activity:
             return normalize_activity_type(row_activity, moving=speed_xy > 0.15)
     if category == "pedestrian":
         row_activity = state_text if state_text not in {"moving", "idle"} else ""
+        if semantic_idle_when_stationary and speed_xy <= 0.15 and row_activity in {"walking", "crossing", "evacuating", "texting_walk", "moving"}:
+            return "phone_call" if sum(ord(ch) for ch in entity_id) % 2 == 0 else "chatting"
         if row_activity:
             return normalize_activity_type(row_activity, moving=speed_xy > 0.15)
         return "walking" if speed_xy > 0.15 or state_text == "moving" else "waiting"
@@ -1136,6 +1160,56 @@ def point_in_polygon_xy(point: Sequence[float], polygon: Sequence[Sequence[float
     return inside
 
 
+def distance_to_segment_xy(point: Sequence[float], a: Sequence[float], b: Sequence[float]) -> float:
+    px, py = float(point[0]), float(point[1])
+    ax, ay = float(a[0]), float(a[1])
+    bx, by = float(b[0]), float(b[1])
+    dx = bx - ax
+    dy = by - ay
+    denom = dx * dx + dy * dy
+    if denom <= 1e-12:
+        return math.hypot(px - ax, py - ay)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / denom))
+    cx = ax + t * dx
+    cy = ay + t * dy
+    return math.hypot(px - cx, py - cy)
+
+
+def distance_to_polygon_xy(point: Sequence[float], polygon: Sequence[Sequence[float]]) -> float:
+    if not polygon:
+        return float("inf")
+    if point_in_polygon_xy(point, polygon):
+        return 0.0
+    return min(distance_to_segment_xy(point, polygon[index], polygon[(index + 1) % len(polygon)]) for index in range(len(polygon)))
+
+
+def point_in_capture_roi_xy(point: Sequence[float], polygon: Sequence[Sequence[float]], *, edge_epsilon_m: float = 1e-6) -> bool:
+    return distance_to_polygon_xy(point, polygon) <= float(edge_epsilon_m)
+
+
+def point_in_runtime_boundary_xy(
+    point: Sequence[float],
+    polygon: Sequence[Sequence[float]],
+    *,
+    padding_m: float = RUNTIME_BOUNDARY_PADDING_M,
+) -> bool:
+    return distance_to_polygon_xy(point, polygon) <= float(padding_m)
+
+
+def runtime_boundary_bbox_enu_m(source_contract: dict[str, Any], *, padding_m: float = RUNTIME_BOUNDARY_PADDING_M) -> list[float]:
+    polygon = source_contract.get("capture_boundary_polygon_enu_m") or []
+    xs = [float(point[0]) for point in polygon if isinstance(point, Sequence) and not isinstance(point, (str, bytes)) and len(point) >= 2]
+    ys = [float(point[1]) for point in polygon if isinstance(point, Sequence) and not isinstance(point, (str, bytes)) and len(point) >= 2]
+    if not xs or not ys:
+        return []
+    return [
+        round(min(xs) - float(padding_m), 3),
+        round(min(ys) - float(padding_m), 3),
+        round(max(xs) + float(padding_m), 3),
+        round(max(ys) + float(padding_m), 3),
+    ]
+
+
 def segment_intersects_polygon_xy(a: Sequence[float], b: Sequence[float], polygon: Sequence[Sequence[float]]) -> bool:
     def ccw(p1: Sequence[float], p2: Sequence[float], p3: Sequence[float]) -> bool:
         return (float(p3[1]) - float(p1[1])) * (float(p2[0]) - float(p1[0])) > (float(p2[1]) - float(p1[1])) * (float(p3[0]) - float(p1[0]))
@@ -1195,6 +1269,43 @@ def source_boundary_polygon(event_script: dict[str, Any]) -> list[list[float]]:
 
 def point_in_interest_xy(point: Sequence[float], visibility: VisibilityGeometry) -> bool:
     return float(visibility.observation_distance_m(point)) <= float(visibility.padding_m)
+
+
+def runtime_boundary_distance_m(position: Sequence[float], source_contract: dict[str, Any]) -> float:
+    return distance_to_polygon_xy(position, source_contract.get("capture_boundary_polygon_enu_m") or [])
+
+
+def point_in_runtime_boundary_for_contract(position: Sequence[float], source_contract: dict[str, Any]) -> bool:
+    return runtime_boundary_distance_m(position, source_contract) <= RUNTIME_BOUNDARY_PADDING_M
+
+
+def runtime_visibility_payload(position: Sequence[float], source_contract: dict[str, Any]) -> dict[str, Any]:
+    distance_m = runtime_boundary_distance_m(position, source_contract)
+    return {
+        "policy": RUNTIME_SPATIAL_CROP_POLICY,
+        "expanded_boundary_padding_m": RUNTIME_BOUNDARY_PADDING_M,
+        "distance_to_capture_boundary_m": round(float(distance_m), 6) if math.isfinite(float(distance_m)) else None,
+        "runtime_visible": bool(distance_m <= RUNTIME_BOUNDARY_PADDING_M),
+    }
+
+
+def uav_camera_capture_visibility_payload(
+    position: Sequence[float],
+    *,
+    source_contract: dict[str, Any],
+    interest_visibility: VisibilityGeometry,
+) -> dict[str, Any]:
+    capture_polygon = source_contract.get("capture_boundary_polygon_enu_m") or []
+    roi_distance_m = distance_to_polygon_xy(position, capture_polygon)
+    roi_capture_eligible = point_in_capture_roi_xy(position, capture_polygon)
+    return {
+        "inspect_observation_distance_m": round(float(interest_visibility.observation_distance_m(position)), 6),
+        "roi_capture_distance_m": round(float(roi_distance_m), 6) if math.isfinite(float(roi_distance_m)) else None,
+        "roi_capture_eligible": bool(roi_capture_eligible),
+        "selected_for_capture_truth": bool(roi_capture_eligible),
+        "capture_roi_policy": UAV_CAMERA_CAPTURE_ROI_POLICY,
+        "camera_call_policy": "do_not_call_camera_when_roi_capture_eligible_is_false",
+    }
 
 
 def dist_xy(a: Sequence[float], b: Sequence[float]) -> float:
@@ -1624,6 +1735,321 @@ def source_vehicle_truth_position(position: Sequence[float]) -> list[float]:
     return normalize_vector3(position)
 
 
+def runtime_spatial_crop_payload(source_contract: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "enabled": True,
+        "policy": RUNTIME_SPATIAL_CROP_POLICY,
+        "capture_boundary_id": source_contract["capture_boundary_id"],
+        "expanded_boundary_padding_m": RUNTIME_BOUNDARY_PADDING_M,
+        "bbox_enu_m": runtime_boundary_bbox_enu_m(source_contract),
+        "dynamic_frame_rule": "write_only_ticks_inside_expanded_runtime_boundary",
+        "uav_camera_rule": UAV_CAMERA_CAPTURE_ROI_POLICY,
+    }
+
+
+def source_entity_visible_at_tick(
+    *,
+    roster_entry: dict[str, Any],
+    grouped: dict[str, list[dict[str, Any]]],
+    tick: int,
+    tick_hz: int,
+    source_contract: dict[str, Any],
+    visible_until_tick_by_background_ground_flow: dict[str, int],
+    first_moving_tick_by_local_uav: dict[str, int],
+) -> bool:
+    entity_id = str(roster_entry["entity_id"])
+    if entity_id in visible_until_tick_by_background_ground_flow:
+        visible_until_tick = int(visible_until_tick_by_background_ground_flow[entity_id])
+        if visible_until_tick < 0 or tick > visible_until_tick:
+            return False
+    profile = profile_for_entity(roster_entry, grouped[entity_id][0])
+    category = str(profile["entity_category"])
+    if category == "uav" and entity_id in first_moving_tick_by_local_uav:
+        first_motion_tick = int(first_moving_tick_by_local_uav[entity_id])
+        if first_motion_tick < 0:
+            return False
+        if first_motion_tick > 0 and tick < first_motion_tick:
+            return False
+    row = sample_row_at_tick(grouped[entity_id], tick, tick_hz)
+    position = source_position_for_runtime(row, category)
+    return point_in_runtime_boundary_for_contract(position, source_contract)
+
+
+def source_runtime_visible_ticks_by_entity(
+    *,
+    roster_entities: Sequence[dict[str, Any]],
+    grouped: dict[str, list[dict[str, Any]]],
+    ticks: Sequence[int],
+    tick_hz: int,
+    source_contract: dict[str, Any],
+) -> dict[str, set[int]]:
+    visible_until_tick_by_background_ground_flow = {
+        str(entry["entity_id"]): visible_until_tick_for_ground_flow(grouped[str(entry["entity_id"])], tick_hz, entry)
+        for entry in roster_entities
+        if str(entry.get("entity_id") or "") in grouped and is_background_ground_flow_actor(entry)
+    }
+    first_moving_tick_by_local_uav = {
+        str(entry["entity_id"]): first_moving_tick(grouped[str(entry["entity_id"])])
+        for entry in roster_entities
+        if str(entry.get("entity_id") or "") in grouped
+        and str(entry.get("entity_category") or entry.get("label_class") or "") == "uav"
+    }
+    visible_ticks_by_entity: dict[str, set[int]] = {}
+    for entry in roster_entities:
+        entity_id = str(entry.get("entity_id") or "")
+        if entity_id not in grouped:
+            continue
+        visible_ticks_by_entity[entity_id] = {
+            int(tick)
+            for tick in ticks
+            if source_entity_visible_at_tick(
+                roster_entry=entry,
+                grouped=grouped,
+                tick=int(tick),
+                tick_hz=tick_hz,
+                source_contract=source_contract,
+                visible_until_tick_by_background_ground_flow=visible_until_tick_by_background_ground_flow,
+                first_moving_tick_by_local_uav=first_moving_tick_by_local_uav,
+            )
+        }
+    return visible_ticks_by_entity
+
+
+def retarget_source_roster_initial_pose(
+    *,
+    roster_entry: dict[str, Any],
+    grouped: dict[str, list[dict[str, Any]]],
+    first_visible_tick: int,
+    tick_hz: int,
+    fallback_yaw_deg: float,
+) -> tuple[list[float], list[float], float, dict[str, Any]]:
+    entity_id = str(roster_entry["entity_id"])
+    row = sample_row_at_tick(grouped[entity_id], int(first_visible_tick), tick_hz)
+    profile = profile_for_entity(roster_entry, row)
+    category = str(profile["entity_category"])
+    position = source_position_for_runtime(row, category)
+    velocity = normalize_vector3(row.get("vel_mps"))
+    yaw = heading_deg_from_velocity(velocity, fallback_deg=fallback_yaw_deg)
+    roster_entry["initial_position_enu_m"] = position
+    roster_entry["initial_yaw_deg"] = round(float(yaw), 6)
+    return position, velocity, yaw, row
+
+
+def iter_event_entity_references(event_rows: Sequence[dict[str, Any]]) -> Iterable[tuple[int, str, dict[str, Any]]]:
+    for row in event_rows:
+        try:
+            tick = int(row.get("tick") if row.get("tick") is not None else row.get("activated_tick") or 0)
+        except Exception:
+            tick = 0
+        candidates: list[Any] = []
+        candidates.append(row.get("target_id"))
+        candidates.extend(list(row.get("target_ids") or []))
+        scope = dict(row.get("scope") or {})
+        candidates.append(scope.get("target_id"))
+        candidates.extend(list(scope.get("entities") or []))
+        payload = dict(row.get("payload") or {})
+        candidates.append(payload.get("target_id"))
+        candidates.extend(list(payload.get("target_ids") or []))
+        for value in candidates:
+            entity_id = str(value or "").strip()
+            if entity_id:
+                yield tick, entity_id, row
+
+
+def event_pad_boundary_policy(row: dict[str, Any]) -> Any:
+    for payload in (row, dict(row.get("metadata") or {}), dict(row.get("payload") or {})):
+        policy = payload.get("pad_boundary_policy")
+        if policy not in (None, ""):
+            return policy
+    return {}
+
+
+def event_target_roles(row: dict[str, Any]) -> set[str]:
+    roles: set[str] = set()
+    for payload in (row, dict(row.get("metadata") or {}), dict(row.get("payload") or {})):
+        for role in payload.get("target_roles") or []:
+            role_text = str(role or "").strip().lower()
+            if role_text:
+                roles.add(role_text)
+    return roles
+
+
+def source_entity_is_landing_pad(entity_id: str, source_roster: dict[str, dict[str, Any]]) -> bool:
+    entry = dict(source_roster.get(entity_id) or {})
+    haystack = " ".join(
+        str(entry.get(key) or "").lower()
+        for key in ("entity_id", "label_class", "asset_id", "entity_category", "category", "semantic_role")
+    )
+    return "landing_pad" in haystack or "landing pad" in haystack or entity_id.lower().startswith("pad_")
+
+
+def event_allows_external_landing_pad(row: dict[str, Any], entity_id: str, source_roster: dict[str, dict[str, Any]]) -> bool:
+    if not source_entity_is_landing_pad(entity_id, source_roster):
+        return False
+    roles = event_target_roles(row)
+    if roles and "landing_pad" not in roles:
+        return False
+    policy = event_pad_boundary_policy(row)
+    if isinstance(policy, str):
+        default_policy = policy
+        inside_required_for: list[Any] = []
+    elif isinstance(policy, dict):
+        default_policy = str(policy.get("default") or "")
+        inside_required_for = list(policy.get("inside_required_for") or [])
+    else:
+        default_policy = ""
+        inside_required_for = []
+    required = {str(value or "").strip().lower() for value in inside_required_for if str(value or "").strip()}
+    if entity_id.lower() in required or "landing_pad" in required or "all" in required:
+        return False
+    return default_policy.lower() == "outside_allowed"
+
+
+def validate_event_references_survive_runtime_crop(
+    *,
+    source_episode_name: str,
+    event_rows: Sequence[dict[str, Any]],
+    source_roster: dict[str, dict[str, Any]],
+    visible_ticks_by_entity: dict[str, set[int]],
+) -> None:
+    missing: list[str] = []
+    seen: set[tuple[int, str]] = set()
+    for tick, entity_id, row in iter_event_entity_references(event_rows):
+        if (tick, entity_id) in seen:
+            continue
+        seen.add((tick, entity_id))
+        if entity_id not in source_roster:
+            continue
+        if not visible_ticks_by_entity.get(entity_id):
+            if event_allows_external_landing_pad(row, entity_id, source_roster):
+                continue
+            missing.append(f"{entity_id}@tick{tick}")
+    if missing:
+        preview = ", ".join(missing[:20])
+        raise RuntimeError(
+            f"{source_episode_name}: event semantic entity references have no expanded-boundary runtime truth: {preview}"
+        )
+
+
+def subset_vehicle_selection_for_runtime(selection: VehicleSelection, visible_vehicle_ids: set[str]) -> VehicleSelection:
+    selected = tuple(vehicle_id for vehicle_id in selection.vehicle_ids if vehicle_id in visible_vehicle_ids)
+    moving_ids = {
+        vehicle_id
+        for vehicle_id in selected
+        if selection.motion_span_m_by_vehicle_id.get(vehicle_id, 0.0) >= 1e-6
+        or selection.max_speed_mps_by_vehicle_id.get(vehicle_id, 0.0) >= 1e-6
+    }
+    return VehicleSelection(
+        vehicle_ids=selected,
+        entity_ids={vehicle_id: selection.entity_ids[vehicle_id] for vehicle_id in selected},
+        min_distance_m_by_vehicle_id={vehicle_id: selection.min_distance_m_by_vehicle_id.get(vehicle_id, 0.0) for vehicle_id in selected},
+        frames_seen_by_vehicle_id={vehicle_id: selection.frames_seen_by_vehicle_id.get(vehicle_id, 0) for vehicle_id in selected},
+        motion_span_m_by_vehicle_id={vehicle_id: selection.motion_span_m_by_vehicle_id.get(vehicle_id, 0.0) for vehicle_id in selected},
+        max_speed_mps_by_vehicle_id={vehicle_id: selection.max_speed_mps_by_vehicle_id.get(vehicle_id, 0.0) for vehicle_id in selected},
+        scenario_vehicle_ids=tuple(vehicle_id for vehicle_id in selection.scenario_vehicle_ids if vehicle_id in visible_vehicle_ids),
+        candidate_count=selection.candidate_count,
+        moving_candidate_count=len(moving_ids),
+        selected_count=len(selected),
+        min_visible_vehicle_target=selection.min_visible_vehicle_target,
+        max_visible_vehicle_target=selection.max_visible_vehicle_target,
+        expanded_to_nearest=selection.expanded_to_nearest,
+    )
+
+
+def runtime_visible_sumo_vehicle_ids(
+    *,
+    sumo_dataset: SumoTrafficDataset,
+    sumo_segment: Any,
+    sumo_selection: VehicleSelection,
+    vehicle_lane_projector: VehicleLaneProjector,
+    source_contract: dict[str, Any],
+    ticks: Sequence[int],
+    tick_hz: int,
+    scenario_id: str,
+) -> set[str]:
+    visible: set[str] = set()
+    for tick in ticks:
+        sample = sumo_dataset.sample(
+            segment=sumo_segment,
+            episode_sim_time_s=int(tick) / float(tick_hz),
+            selected_vehicle_ids=sumo_selection.vehicle_ids,
+            scenario_id=scenario_id,
+        )
+        for vehicle in sample.get("vehicles") or []:
+            vehicle_id = str(vehicle.get("vehicle_id") or "")
+            if not vehicle_id or vehicle_id in visible:
+                continue
+            position = projected_sumo_vehicle_position(vehicle, vehicle_lane_projector)
+            if point_in_runtime_boundary_for_contract(position, source_contract):
+                visible.add(vehicle_id)
+    return visible
+
+
+def subset_uav_selection_for_runtime(selection: UavSelection, visible_uav_ids: set[str]) -> UavSelection:
+    selected = tuple(uav_id for uav_id in selection.uav_ids if uav_id in visible_uav_ids)
+    moving_ids = {
+        uav_id
+        for uav_id in selected
+        if selection.motion_span_m_by_uav_id.get(uav_id, 0.0) >= 1e-6
+        or selection.max_speed_mps_by_uav_id.get(uav_id, 0.0) >= 1e-6
+    }
+    return UavSelection(
+        uav_ids=selected,
+        entity_ids={uav_id: selection.entity_ids[uav_id] for uav_id in selected},
+        task_ids={uav_id: selection.task_ids.get(uav_id, "") for uav_id in selected},
+        mission_type_by_uav_id={uav_id: selection.mission_type_by_uav_id.get(uav_id, "") for uav_id in selected},
+        selected_count=len(selected),
+        active_count_min=0,
+        active_count_max=selection.active_count_max,
+        active_count_mean=selection.active_count_mean,
+        min_distance_m_by_uav_id={uav_id: selection.min_distance_m_by_uav_id.get(uav_id, 0.0) for uav_id in selected},
+        frames_seen_by_uav_id={uav_id: selection.frames_seen_by_uav_id.get(uav_id, 0) for uav_id in selected},
+        motion_span_m_by_uav_id={uav_id: selection.motion_span_m_by_uav_id.get(uav_id, 0.0) for uav_id in selected},
+        max_speed_mps_by_uav_id={uav_id: selection.max_speed_mps_by_uav_id.get(uav_id, 0.0) for uav_id in selected},
+        candidate_count=selection.candidate_count,
+        observable_candidate_count=len(selected),
+        visibility_padding_m=RUNTIME_BOUNDARY_PADDING_M,
+    )
+
+
+def runtime_visible_global_uav_ids(
+    *,
+    uav_dataset: UavGlobalFlowDataset,
+    uav_segment: UavSegment,
+    uav_selection: UavSelection,
+    source_contract: dict[str, Any],
+    ticks: Sequence[int],
+    tick_hz: int,
+) -> set[str]:
+    visible: set[str] = set()
+    for tick in ticks:
+        sample = uav_dataset.sample(
+            segment=uav_segment,
+            episode_sim_time_s=int(tick) / float(tick_hz),
+            selected_uav_ids=uav_selection.uav_ids,
+        )
+        for uav in sample.get("uavs") or []:
+            uav_id = str(uav.get("uav_id") or "")
+            if not uav_id or uav_id in visible:
+                continue
+            position = normalize_vector3(uav.get("position_enu_m"))
+            if point_in_runtime_boundary_for_contract(position, source_contract):
+                visible.add(uav_id)
+    return visible
+
+
+def filter_runtime_visible_uav_pad_roster_entries(
+    entries: Sequence[dict[str, Any]],
+    source_contract: dict[str, Any],
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for entry in entries:
+        position = normalize_vector3(entry.get("initial_position_enu_m"))
+        if point_in_runtime_boundary_for_contract(position, source_contract):
+            filtered.append(dict(entry))
+    return filtered
+
+
 def logical_asset_for_sumo_vehicle(vehicle: dict[str, Any]) -> str:
     vehicle_type = str(vehicle.get("vehicle_type") or "").lower()
     vehicle_id = str(vehicle.get("vehicle_id") or "").lower()
@@ -1877,6 +2303,7 @@ def convert_episode(
     if not source_contract["inspect_observes_boundary"]:
         raise RuntimeError(f"{source_episode_dir.name}: source inspect route/sensor profile does not prove boundary observation")
     interest_visibility = VisibilityGeometry.from_contract(source_contract)
+    runtime_spatial_crop = runtime_spatial_crop_payload(source_contract)
     vehicle_lane_projector = VehicleLaneProjector(project_root, map_id)
     semantic_pedestrians_by_tick = semantic_pedestrian_positions_by_tick(
         grouped_rows=grouped,
@@ -1913,10 +2340,23 @@ def convert_episode(
             segment=sumo_segment,
             scenario_id=scenario_id,
         )
+        sumo_selection = subset_vehicle_selection_for_runtime(
+            sumo_selection,
+            runtime_visible_sumo_vehicle_ids(
+                sumo_dataset=sumo_dataset,
+                sumo_segment=sumo_segment,
+                sumo_selection=sumo_selection,
+                vehicle_lane_projector=vehicle_lane_projector,
+                source_contract=source_contract,
+                ticks=ticks,
+                tick_hz=tick_hz,
+                scenario_id=scenario_id,
+            ),
+        )
         sumo_pedestrian_clearance_filter = {
             "enabled": False,
             "policy": "validator_reports_pedestrian_vehicle_clearance_no_sumo_selection_deletion_v1",
-            "reason": "SUMO segment selection preserves all vehicles; generator/validator owns conflict fixes",
+            "reason": "SUMO vehicle truth is cropped only by expanded runtime boundary; generator/validator owns conflict fixes",
         }
         sumo_roster_entities = build_sumo_vehicle_roster_entries(
             sumo_dataset=sumo_dataset,
@@ -1953,6 +2393,17 @@ def convert_episode(
                 f"to bind UAV seed segments; found {duration_ticks / float(tick_hz):.3f}s"
             )
         uav_selection = uav_dataset.select_segment_uavs(segment=uav_segment)
+        uav_selection = subset_uav_selection_for_runtime(
+            uav_selection,
+            runtime_visible_global_uav_ids(
+                uav_dataset=uav_dataset,
+                uav_segment=uav_segment,
+                uav_selection=uav_selection,
+                source_contract=source_contract,
+                ticks=ticks,
+                tick_hz=tick_hz,
+            ),
+        )
         uav_roster_entities = build_uav_roster_entries(
             uav_dataset=uav_dataset,
             uav_segment=uav_segment,
@@ -1968,6 +2419,10 @@ def convert_episode(
             uav_dataset=uav_dataset,
             site_id=site_id,
             roi_id=roi_id,
+        )
+        uav_pad_roster_entities = filter_runtime_visible_uav_pad_roster_entries(
+            uav_pad_roster_entities,
+            source_contract,
         )
         if len(uav_roster_entities) != uav_selection.selected_count:
             raise RuntimeError(
@@ -2032,6 +2487,53 @@ def convert_episode(
             roster_entry["route_waypoints_enu_m"] = [list(point) for point in source_contract["inspect_route_enu_m"]]
         roster_entities.append(roster_entry)
 
+    source_visible_ticks_by_entity = source_runtime_visible_ticks_by_entity(
+        roster_entities=roster_entities,
+        grouped=grouped,
+        ticks=ticks,
+        tick_hz=tick_hz,
+        source_contract=source_contract,
+    )
+    validate_event_references_survive_runtime_crop(
+        source_episode_name=source_episode_dir.name,
+        event_rows=event_rows,
+        source_roster=source_roster,
+        visible_ticks_by_entity=source_visible_ticks_by_entity,
+    )
+    cropped_source_roster_entities: list[dict[str, Any]] = []
+    for roster_entry in roster_entities:
+        entity_id = str(roster_entry["entity_id"])
+        visible_ticks = source_visible_ticks_by_entity.get(entity_id, set())
+        if not visible_ticks:
+            continue
+        first_visible_tick = min(visible_ticks)
+        fallback_yaw = float(last_yaw_by_entity.get(entity_id, 0.0))
+        first_position, first_velocity, first_yaw, first_row = retarget_source_roster_initial_pose(
+            roster_entry=roster_entry,
+            grouped=grouped,
+            first_visible_tick=first_visible_tick,
+            tick_hz=tick_hz,
+            fallback_yaw_deg=fallback_yaw,
+        )
+        first_samples[entity_id] = {
+            "row": first_row,
+            "position_enu_m": first_position,
+            "velocity_enu_mps": first_velocity,
+            "yaw_deg": first_yaw,
+            "label_class": roster_entry.get("label_class"),
+            "profile": profile_for_entity(roster_entry, first_row),
+        }
+        last_yaw_by_entity[entity_id] = first_yaw
+        roster_entry["runtime_visibility"] = {
+            "policy": RUNTIME_SPATIAL_CROP_POLICY,
+            "first_visible_tick": int(first_visible_tick),
+            "last_visible_tick": int(max(visible_ticks)),
+            "visible_tick_count": int(len(visible_ticks)),
+            "expanded_boundary_padding_m": RUNTIME_BOUNDARY_PADDING_M,
+        }
+        cropped_source_roster_entities.append(roster_entry)
+    roster_entities = cropped_source_roster_entities
+
     truth_frames: list[dict[str, Any]] = []
     visible_until_tick_by_background_ground_flow = {
         str(entry["entity_id"]): visible_until_tick_for_ground_flow(grouped[str(entry["entity_id"])], tick_hz, entry)
@@ -2047,6 +2549,8 @@ def convert_episode(
         entities: list[dict[str, Any]] = []
         for roster_entry in roster_entities:
             entity_id = str(roster_entry["entity_id"])
+            if tick not in source_visible_ticks_by_entity.get(entity_id, set()):
+                continue
             if entity_id in visible_until_tick_by_background_ground_flow:
                 visible_until_tick = int(visible_until_tick_by_background_ground_flow[entity_id])
                 if visible_until_tick < 0 or tick > visible_until_tick:
@@ -2060,11 +2564,9 @@ def convert_episode(
                 if first_motion_tick > 0 and tick < first_motion_tick:
                     continue
             row = sample_row_at_tick(grouped[entity_id], tick, tick_hz)
-            position = normalized_position_for_render(row)
+            position = source_position_for_runtime(row, category)
             velocity = normalize_vector3(row.get("vel_mps"))
             yaw = heading_deg_from_velocity(velocity, fallback_deg=last_yaw_by_entity.get(entity_id, 0.0))
-            if category == "vehicle":
-                position = source_vehicle_truth_position(position)
             if math.hypot(velocity[0], velocity[1]) > 1e-4:
                 last_yaw_by_entity[entity_id] = yaw
             activity_type = activity_for_sample(
@@ -2075,6 +2577,7 @@ def convert_episode(
                 row_activity_type=str(row.get("activity_type") or ""),
                 velocity_enu_mps=velocity,
                 overrides=activity_overrides,
+                semantic_idle_when_stationary=is_background_ground_flow_actor(roster_entry),
             )
             speed_xy_mps = math.hypot(velocity[0], velocity[1])
             speed_3d_mps = math.sqrt(sum(float(value) ** 2 for value in velocity[:3]))
@@ -2095,7 +2598,14 @@ def convert_episode(
                 "state_revision": int(tick) + 1,
                 "visual_revision": 1,
             }
+            entity["runtime_visibility"] = runtime_visibility_payload(position, source_contract)
             entity.update(preserved_fields_from(row, roster_entry))
+            if category == "uav":
+                entity["uav_visibility"] = uav_camera_capture_visibility_payload(
+                    position,
+                    source_contract=source_contract,
+                    interest_visibility=interest_visibility,
+                )
             if entity_id == source_contract["inspect_entity_id"]:
                 entity["route_waypoints_enu_m"] = [list(point) for point in source_contract["inspect_route_enu_m"]]
             if str(entity.get("role") or "") == "semantic_facility" and category == "facility":
@@ -2119,20 +2629,22 @@ def convert_episode(
                 if not roster_entry:
                     continue
                 position = projected_sumo_vehicle_position(vehicle, vehicle_lane_projector)
+                if not point_in_runtime_boundary_for_contract(position, source_contract):
+                    continue
                 observation_distance_m = sumo_visibility.observation_distance_m(position)
-                visible_sumo_vehicle_count += 1
-                entities.append(
-                    sumo_vehicle_truth_entity(
-                        vehicle=vehicle,
-                        roster_entry=roster_entry,
-                        vehicle_lane_projector=vehicle_lane_projector,
-                        tick=tick,
-                        site_id=site_id,
-                        roi_id=roi_id,
-                        capture_boundary_id=source_contract["capture_boundary_id"],
-                        observation_distance_m=observation_distance_m,
-                    )
+                entity = sumo_vehicle_truth_entity(
+                    vehicle=vehicle,
+                    roster_entry=roster_entry,
+                    vehicle_lane_projector=vehicle_lane_projector,
+                    tick=tick,
+                    site_id=site_id,
+                    roi_id=roi_id,
+                    capture_boundary_id=source_contract["capture_boundary_id"],
+                    observation_distance_m=observation_distance_m,
                 )
+                entity["runtime_visibility"] = runtime_visibility_payload(position, source_contract)
+                visible_sumo_vehicle_count += 1
+                entities.append(entity)
             sumo_truth_payload = sumo_frame_truth_payload(
                 sumo_dataset=sumo_dataset,
                 sumo_segment=sumo_segment,
@@ -2150,27 +2662,32 @@ def convert_episode(
         uav_truth_payload: dict[str, Any] | None = None
         if uav_dataset is not None and uav_segment is not None and uav_selection is not None:
             for pad_entry in uav_pad_roster_entities:
-                entities.append(
-                    uav_pad_truth_entity(
-                        roster_entry=pad_entry,
-                        tick=tick,
-                        site_id=site_id,
-                        roi_id=roi_id,
-                    )
+                pad_entity = uav_pad_truth_entity(
+                    roster_entry=pad_entry,
+                    tick=tick,
+                    site_id=site_id,
+                    roi_id=roi_id,
                 )
+                pad_entity["runtime_visibility"] = runtime_visibility_payload(
+                    normalize_vector3(pad_entry.get("initial_position_enu_m")),
+                    source_contract,
+                )
+                entities.append(pad_entity)
             uav_sample = uav_dataset.sample(
                 segment=uav_segment,
                 episode_sim_time_s=tick / float(tick_hz),
                 selected_uav_ids=uav_selection.uav_ids,
             )
             active_uav_count = 0
+            roi_capture_eligible_uav_count = 0
             for uav in uav_sample.get("uavs") or []:
                 uav_id = str(uav.get("uav_id") or "")
                 roster_entry = uav_roster_by_uav_id.get(uav_id)
                 if not roster_entry:
                     continue
                 position = normalize_vector3(uav.get("position_enu_m"))
-                observation_distance_m = interest_visibility.observation_distance_m(position)
+                if not point_in_runtime_boundary_for_contract(position, source_contract):
+                    continue
                 active_uav_count += 1
                 entity = uav_global_truth_entity(
                     uav=uav,
@@ -2179,10 +2696,14 @@ def convert_episode(
                     site_id=site_id,
                     roi_id=roi_id,
                 )
-                entity["uav_visibility"] = {
-                    "inspect_observation_distance_m": round(float(observation_distance_m), 6),
-                    "selected_for_capture_truth": True,
-                }
+                entity["uav_visibility"] = uav_camera_capture_visibility_payload(
+                    position,
+                    source_contract=source_contract,
+                    interest_visibility=interest_visibility,
+                )
+                entity["runtime_visibility"] = runtime_visibility_payload(position, source_contract)
+                if bool(entity["uav_visibility"].get("roi_capture_eligible")):
+                    roi_capture_eligible_uav_count += 1
                 entities.append(entity)
             uav_truth_payload = uav_frame_truth_payload(
                 uav_dataset=uav_dataset,
@@ -2191,6 +2712,8 @@ def convert_episode(
                 uav_sample=uav_sample,
                 active_uav_count=active_uav_count,
             )
+            uav_truth_payload["roi_capture_eligible_uav_count"] = int(roi_capture_eligible_uav_count)
+            uav_truth_payload["camera_capture_roi_policy"] = UAV_CAMERA_CAPTURE_ROI_POLICY
 
         counts = Counter(str(entity["entity_category"]) for entity in entities)
         boundary_summary = truth_boundary_summary(
@@ -2247,28 +2770,14 @@ def convert_episode(
     weather_rows = expand_weather_rows(source_weather_rows, ticks)
     dynamic_labels = build_dynamic_labels(event_rows, episode_id)
     entity_counts = Counter(str(entity.get("entity_category") or "") for entity in all_roster_entities)
-    xs = [
-        float(entity["truth_pose"]["position_enu_m"][0])
-        for frame in truth_frames
-        for entity in frame["entities"]
-    ]
-    ys = [
-        float(entity["truth_pose"]["position_enu_m"][1])
-        for frame in truth_frames
-        for entity in frame["entities"]
-    ]
-    margin_m = 25.0
     roi_window = {
         "roi_id": roi_id,
         "site_id": site_id,
         "tick_start": ticks[0],
         "tick_end": ticks[-1],
-        "bbox_enu_m": [
-            round(min(xs) - margin_m, 3),
-            round(min(ys) - margin_m, 3),
-            round(max(xs) + margin_m, 3),
-            round(max(ys) + margin_m, 3),
-        ] if xs and ys else [],
+        "bbox_enu_m": list(runtime_spatial_crop["bbox_enu_m"]),
+        "bbox_source": RUNTIME_SPATIAL_CROP_POLICY,
+        "expanded_boundary_padding_m": RUNTIME_BOUNDARY_PADDING_M,
     }
     site_contract = {
         "site_id": site_id,
@@ -2282,6 +2791,7 @@ def convert_episode(
         "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
         "pad_boundary_policy": source_contract["pad_boundary_policy"],
         "source_background_vehicle_clearance_filter": copy.deepcopy(source_background_vehicle_clearance_filter),
+        "runtime_spatial_crop": copy.deepcopy(runtime_spatial_crop),
     }
     compiled_summary = {
         "site_contracts": {site_id: site_contract},
@@ -2292,6 +2802,7 @@ def convert_episode(
         "uav_crosses_boundary": source_contract["uav_crosses_boundary"],
         "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
         "pad_boundary_policy": source_contract["pad_boundary_policy"],
+        "runtime_spatial_crop": copy.deepcopy(runtime_spatial_crop),
     }
     if sumo_dataset is not None and sumo_segment is not None and sumo_selection is not None and sumo_visibility is not None:
         compiled_summary["sumo_traffic"] = {
@@ -2300,6 +2811,7 @@ def convert_episode(
             "segment": sumo_segment.as_dict(),
             "visibility_geometry": sumo_visibility.as_dict(),
             "selection": sumo_selection.as_dict(),
+            "runtime_spatial_crop": copy.deepcopy(runtime_spatial_crop),
             "pedestrian_vehicle_clearance_filter": copy.deepcopy(sumo_pedestrian_clearance_filter),
             "scenario_incidents": [
                 {
@@ -2320,6 +2832,8 @@ def convert_episode(
             "segment": uav_segment.as_dict(),
             "selection": uav_selection.as_dict(),
             "pad_count": len(uav_pad_roster_entities),
+            "runtime_spatial_crop": copy.deepcopy(runtime_spatial_crop),
+            "camera_capture_roi_policy": UAV_CAMERA_CAPTURE_ROI_POLICY,
         }
     scenario_plan = {
         "schema_name": "scenario_plan",
@@ -2332,6 +2846,7 @@ def convert_episode(
         "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
         "pad_boundary_policy": source_contract["pad_boundary_policy"],
         "source_background_vehicle_clearance_filter": copy.deepcopy(source_background_vehicle_clearance_filter),
+        "runtime_spatial_crop": copy.deepcopy(runtime_spatial_crop),
         "sumo_traffic": copy.deepcopy(compiled_summary.get("sumo_traffic") or {"enabled": False}),
         "uav_global_flow": copy.deepcopy(compiled_summary.get("uav_global_flow") or {"enabled": False}),
         "runtime_contract": {
@@ -2390,6 +2905,7 @@ def convert_episode(
             "uav_crosses_boundary": source_contract["uav_crosses_boundary"],
             "inspect_observes_boundary": source_contract["inspect_observes_boundary"],
             "pad_boundary_policy": source_contract["pad_boundary_policy"],
+            "runtime_spatial_crop": copy.deepcopy(runtime_spatial_crop),
             "sumo_traffic": copy.deepcopy(compiled_summary.get("sumo_traffic") or {"enabled": False}),
             "uav_global_flow": copy.deepcopy(compiled_summary.get("uav_global_flow") or {"enabled": False}),
             "generation": {

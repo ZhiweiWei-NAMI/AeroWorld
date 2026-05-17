@@ -1739,19 +1739,22 @@ def _iter_free_sidewalk_anchors(
     semantic: str,
     allow_green: bool = True,
     offset_priority_m: Sequence[float] | None = None,
+    min_route_length_m: float | None = None,
 ):
-    base = LANES.nearest_to_xy(float(origin[0]), float(origin[1]))
-    nearby_bases: list[LaneSample] = [base]
-    seen_edges = {base.edge_id}
+    min_required_route_m = float(min_route_length_m or 0.0)
+    nearby_bases: list[LaneSample] = []
+    seen_edges: set[str] = set()
     for sample in sorted(LANES.samples, key=lambda item: (item.x_m - float(origin[0])) ** 2 + (item.y_m - float(origin[1])) ** 2):
         if sample.edge_id in seen_edges:
             continue
         min_edge_s, max_edge_s = LANES.edge_s_bounds(sample.edge_id)
         if max_edge_s - min_edge_s < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
             continue
+        if min_required_route_m > 0.0 and _sidewalk_edge_route_capacity_m(sample.edge_id) + 0.25 < min_required_route_m:
+            continue
         seen_edges.add(sample.edge_id)
         nearby_bases.append(sample)
-        if len(nearby_bases) >= 24:
+        if len(nearby_bases) >= 48:
             break
     def point_errors(point: list[float]) -> list[str]:
         probe = SPATIAL._point_geometry(point)
@@ -2044,6 +2047,17 @@ def _append_sidewalk_leg(
         points.append(_sidewalk_point_for_sample(sample, side_sign, offset_from_curb_m))
 
 
+def _usable_sidewalk_edge_span_m(edge_id: str) -> float:
+    min_s, max_s = LANES.edge_s_bounds(edge_id)
+    edge_span_m = max(0.0, max_s - min_s)
+    edge_margin_m = min(BACKGROUND_PEDESTRIAN_ROUTE_EDGE_MARGIN_M, edge_span_m / 4.0)
+    return max(0.0, edge_span_m - 2.0 * edge_margin_m)
+
+
+def _sidewalk_edge_route_capacity_m(edge_id: str) -> float:
+    return 2.0 * _usable_sidewalk_edge_span_m(edge_id)
+
+
 def _validated_sidewalk_route(
     points: list[list[float]],
     *,
@@ -2093,6 +2107,8 @@ def _long_sidewalk_ground_flow_route(
     route_max_s = max_s - edge_margin_m
     if route_max_s <= route_min_s:
         route_min_s, route_max_s = min_s, max_s
+    if (route_max_s - route_min_s) * 2.0 + 0.25 < min_path_length_m:
+        return []
     start_s = max(route_min_s, min(route_max_s, float(sample.s_m)))
     forward_available = max(0.0, route_max_s - start_s)
     backward_available = max(0.0, start_s - route_min_s)
@@ -2238,11 +2254,16 @@ def _semantic_vehicle_route(sample: LaneSample, _mode: str, index: int, *, later
     return _sumo_vehicle_route(plan_start, index, lateral_m=lateral_m, span_start=truth_start)
 
 
-def _semantic_ped_route(anchor: Any, mode: str, index: int) -> list[list[float]]:
-    side_sign = _side_sign_for_desired(anchor.sample, anchor.position_enu_m)
+def _background_pedestrian_target_length_m(mode: str, index: int) -> float:
     target_length_m = BACKGROUND_PEDESTRIAN_TARGET_ROUTE_LENGTH_M + float(index) * 3.0
     if mode in {"evacuating"}:
         target_length_m = max(target_length_m, BACKGROUND_PEDESTRIAN_TARGET_ROUTE_LENGTH_M + 10.0)
+    return target_length_m
+
+
+def _semantic_ped_route(anchor: Any, mode: str, index: int) -> list[list[float]]:
+    side_sign = _side_sign_for_desired(anchor.sample, anchor.position_enu_m)
+    target_length_m = _background_pedestrian_target_length_m(mode, index)
     return _long_sidewalk_ground_flow_route(
         list(anchor.position_enu_m),
         anchor.sample,
@@ -2325,6 +2346,7 @@ def _add_contract_pedestrian(
     origin = _contract_center(scenes, events)
     mode = _pedestrian_mode_from_role(contract.pedestrian_role)
     entity_id = f"bg_ped_{safe_id(scenario_id)}_{index + 1:02d}"
+    target_length_m = _background_pedestrian_target_length_m(mode, index)
     anchor = None
     route: list[list[float]] = []
     checked = 0
@@ -2334,6 +2356,7 @@ def _add_contract_pedestrian(
         semantic="semantic_event_background_pedestrian",
         allow_green=True,
         offset_priority_m=BACKGROUND_PEDESTRIAN_OFFSET_PRIORITY_M,
+        min_route_length_m=target_length_m,
     ):
         checked += 1
         candidate_route = _semantic_ped_route(candidate, mode, index)
@@ -3150,8 +3173,48 @@ def ensure_contract_background_roles(
             for scene in candidates
             if str(scene.get("entity_id") or "") not in event_target_ids
         ]
-        selected = sorted(non_event_candidates or candidates, key=lambda item: str(item.get("entity_id") or ""))[0]
         payload = role_payload[kind]
+        candidate_pool = sorted(non_event_candidates or candidates, key=lambda item: str(item.get("entity_id") or ""))
+        selected = candidate_pool[0]
+        selected_route: list[list[float]] = []
+        selected_anchor: PlannedSidewalkAnchor | None = None
+        if kind == "pedestrian":
+            mode = str(payload["state_sequence"][0])
+            for candidate in candidate_pool:
+                candidate_index = scenes.index(candidate)
+                route = _background_pedestrian_route_for_scene(
+                    candidate,
+                    candidate_index,
+                    mode=mode,
+                    scenario_id=scenario_id,
+                    scenes=scenes,
+                    events=events,
+                )
+                if route:
+                    selected = candidate
+                    selected_route = route
+                    break
+            if not selected_route:
+                for candidate in candidate_pool:
+                    candidate_index = scenes.index(candidate)
+                    anchor, route = _relocate_background_pedestrian_route(
+                        candidate,
+                        candidate_index,
+                        mode=mode,
+                        scenario_id=scenario_id,
+                        scenes=scenes,
+                        events=events,
+                    )
+                    if anchor is not None and route:
+                        selected = candidate
+                        selected_anchor = anchor
+                        selected_route = route
+                        break
+            if not selected_route:
+                raise RuntimeError(
+                    f"{scenario_id}: contract requires background pedestrian, but no candidate can host "
+                    f"a continuous sidewalk flow route"
+                )
         state = dict(selected.get("initial_state") or {})
         state.update(
             {
@@ -3169,6 +3232,19 @@ def ensure_contract_background_roles(
             "contract_scenario_id": scenario_id,
         }
         spec = spec_by_id.get(str(selected.get("entity_id") or ""))
+        if kind == "pedestrian":
+            if selected_anchor is not None:
+                _apply_background_pedestrian_anchor(
+                    selected,
+                    spec,
+                    selected_anchor,
+                    selected_route,
+                    scenario_id=scenario_id,
+                )
+            else:
+                selected["route_waypoints_enu_m"] = selected_route
+                if spec is not None:
+                    spec["movement_waypoints"] = selected_route
         if spec is not None:
             spec["visual_state"] = {**(spec.get("visual_state") or {}), **state}
 
@@ -3180,6 +3256,7 @@ def _pedestrian_flow_seed_route(
     scenario_id: str = "",
     scenes: list[dict[str, Any]] | None = None,
     events: list[dict[str, Any]] | None = None,
+    mode_override: str | None = None,
 ) -> list[list[float]]:
     start = scene_pos(scene)
     if not start:
@@ -3194,7 +3271,8 @@ def _pedestrian_flow_seed_route(
     lateral = float(placement.get("resolved_lateral_from_center_m") or 0.0)
     side_sign = 1.0 if lateral >= 0.0 else -1.0
     offset_from_curb = max(float(placement.get("offset_from_curb_m") or SIDEWALK_MIN_OFFSET_FROM_CURB_M), SIDEWALK_MIN_OFFSET_FROM_CURB_M)
-    target_length_m = BACKGROUND_PEDESTRIAN_TARGET_ROUTE_LENGTH_M + float(index) * 3.0
+    mode = str(mode_override or (scene.get("initial_state") or {}).get("mode") or "walking")
+    target_length_m = _background_pedestrian_target_length_m(mode, index)
     route = _long_sidewalk_ground_flow_route(
         start,
         sample,
@@ -3213,6 +3291,147 @@ def _pedestrian_flow_seed_route(
     ):
         return []
     return route
+
+
+def _background_pedestrian_route_meets_contract(
+    start: list[float],
+    route: list[list[float]],
+    *,
+    mode: str,
+    index: int,
+    scenario_id: str,
+    scenes: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> bool:
+    if not route or _route_xy_span(start, route) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
+        return False
+    full_route = [start, *route]
+    target_length_m = _background_pedestrian_target_length_m(mode, index)
+    if path_length_m(full_route) + 0.25 < target_length_m:
+        return False
+    return _pedestrian_vehicle_dynamic_clearance_ok(scenario_id, scenes, events, full_route)
+
+
+def _background_pedestrian_route_for_scene(
+    scene: dict[str, Any],
+    index: int,
+    *,
+    mode: str,
+    scenario_id: str,
+    scenes: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> list[list[float]]:
+    start = scene_pos(scene)
+    if not start:
+        return []
+    current_route = _scene_route_points(scene)[1:]
+    if _background_pedestrian_route_meets_contract(
+        start,
+        current_route,
+        mode=mode,
+        index=index,
+        scenario_id=scenario_id,
+        scenes=scenes,
+        events=events,
+    ):
+        return current_route
+    seeded_route = _pedestrian_flow_seed_route(
+        scene,
+        index,
+        scenario_id=scenario_id,
+        scenes=scenes,
+        events=events,
+        mode_override=mode,
+    )
+    if _background_pedestrian_route_meets_contract(
+        start,
+        seeded_route,
+        mode=mode,
+        index=index,
+        scenario_id=scenario_id,
+        scenes=scenes,
+        events=events,
+    ):
+        return seeded_route
+    return []
+
+
+def _apply_background_pedestrian_anchor(
+    scene: dict[str, Any],
+    spec: dict[str, Any] | None,
+    anchor: PlannedSidewalkAnchor,
+    route: list[list[float]],
+    *,
+    scenario_id: str,
+) -> None:
+    old_placement = dict(scene.get("placement") or {})
+    placement = {
+        "lane_edge_id": anchor.sample.edge_id,
+        "longitudinal_s": round(anchor.sample.s_m, 3),
+        "offset_from_curb_m": round(anchor.offset_from_curb_m, 3),
+        "lane_half_width_m": LANE_HALF_WIDTH_M,
+        "resolved_lateral_from_center_m": round(anchor.resolved_lateral_from_center_m, 3),
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "allow_green": True,
+        "resolved_position_enu_m": anchor.position_enu_m,
+        "rotation_deg": rot(anchor.sample.yaw_deg),
+        "contract_scenario_id": scenario_id,
+    }
+    if "cohort_id" in old_placement:
+        placement["cohort_id"] = old_placement["cohort_id"]
+    scene["placement_mode"] = "sidewalk_anchor"
+    scene["placement"] = placement
+    scene["route_waypoints_enu_m"] = route
+    if spec is not None:
+        spec["initial_pos_enu"] = anchor.position_enu_m
+        spec["initial_rotation_deg"] = [0.0, 0.0, anchor.sample.yaw_deg]
+        spec["movement_waypoints"] = route
+
+
+def _relocate_background_pedestrian_route(
+    scene: dict[str, Any],
+    index: int,
+    *,
+    mode: str,
+    scenario_id: str,
+    scenes: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> tuple[PlannedSidewalkAnchor | None, list[list[float]]]:
+    origin = scene_pos(scene)
+    if not origin:
+        return None, []
+    target_length_m = _background_pedestrian_target_length_m(mode, index)
+    occupied = [
+        point
+        for other in scenes
+        if other is not scene
+        for point in [scene_pos(other)]
+        if point
+    ]
+    checked = 0
+    for anchor in _iter_free_sidewalk_anchors(
+        origin,
+        occupied,
+        semantic="semantic_event_background_pedestrian",
+        allow_green=True,
+        offset_priority_m=BACKGROUND_PEDESTRIAN_OFFSET_PRIORITY_M,
+        min_route_length_m=target_length_m,
+    ):
+        checked += 1
+        route = _semantic_ped_route(anchor, mode, index)
+        if _background_pedestrian_route_meets_contract(
+            list(anchor.position_enu_m),
+            route,
+            mode=mode,
+            index=index,
+            scenario_id=scenario_id,
+            scenes=scenes,
+            events=events,
+        ):
+            return anchor, route
+        if checked >= 512:
+            break
+    return None, []
 
 
 def ensure_background_ground_flow_routes(
@@ -3266,10 +3485,26 @@ def ensure_background_ground_flow_routes(
             )
         else:
             mode = "walking"
-            if not current_route or _route_xy_span(start, current_route) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
-                current_route = _pedestrian_flow_seed_route(scene, index, scenario_id=scenario_id, scenes=scenes, events=events)
+            target_length_m = _background_pedestrian_target_length_m(mode, index)
+            if (
+                not current_route
+                or _route_xy_span(start, current_route) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M
+                or path_length_m([start, *current_route]) + 0.25 < target_length_m
+            ):
+                current_route = _pedestrian_flow_seed_route(
+                    scene,
+                    index,
+                    scenario_id=scenario_id,
+                    scenes=scenes,
+                    events=events,
+                    mode_override=mode,
+                )
             route = current_route
-            if not route or _route_xy_span(start, route) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M:
+            if (
+                not route
+                or _route_xy_span(start, route) < BACKGROUND_PEDESTRIAN_MIN_ROUTE_SPAN_M
+                or path_length_m([start, *route]) + 0.25 < target_length_m
+            ):
                 raise RuntimeError(f"{scenario_id}: background pedestrian {entity_id} lacks continuous sidewalk flow route")
             state.update({"mode": mode, "activity_type": mode, "state_sequence": [mode, mode]})
             scene["ground_flow_contract"] = _ground_flow_contract(
