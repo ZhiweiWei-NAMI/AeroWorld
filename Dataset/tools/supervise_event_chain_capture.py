@@ -415,6 +415,11 @@ def run_attempt(args: argparse.Namespace, command: list[str], *, force_recover: 
     return int(completed.returncode)
 
 
+def ue_memory_over_contract() -> bool:
+    memory = runner.unreal_memory_gb()
+    return memory.get("working_set_gb", 0.0) > 18.0 or memory.get("private_memory_gb", 0.0) > 18.0
+
+
 def validate_supervisor_args(args: argparse.Namespace) -> None:
     for path, label in (
         (RUNNER, "formal runner"),
@@ -557,6 +562,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     high_ok = True
                     break
                 print(f"[supervisor] e{episode_index:02d} high incomplete rc={rc}", flush=True)
+                if ue_memory_over_contract():
+                    print("[supervisor] UE memory exceeded contract; stop supervisor for external recovery.", flush=True)
+                    return 2
             if not high_ok:
                 failure = {"episode": path.name, "stage": "high_overview_rgb", "return_code": "incomplete"}
                 failures.append(failure)
@@ -601,6 +609,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     entity_ok = True
                     break
                 print(f"[supervisor] e{episode_index:02d} entity incomplete rc={rc}: {entity_id}", flush=True)
+                if ue_memory_over_contract():
+                    print("[supervisor] UE memory exceeded contract; stop supervisor for external recovery.", flush=True)
+                    return 2
             if not entity_ok:
                 failure = {"episode": path.name, "stage": "uav_event_chain", "entity_id": entity_id, "return_code": "incomplete"}
                 failures.append(failure)

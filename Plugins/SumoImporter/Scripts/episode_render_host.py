@@ -2230,8 +2230,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         if self._airsim_capture_enabled():
             return self.airsim_capture_vehicle
         if self.uav_capture_backend == "editor_hook":
-            view_id = self.active_capture_view_id or self.requested_capture_view_id or "capture"
-            return safe_name(f"fixed_world_camera.uav.{view_id}")
+            return safe_name("fixed_world_camera.uav.shared_capture")
         return ""
 
     def _airsim_capture_pose_tolerance_m(self) -> float:
