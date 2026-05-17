@@ -1,71 +1,53 @@
 # Low-Altitude Semantic Event-Chain Dataset
 
-This dataset is the canonical low-altitude AeroWorld program for 70 deterministic episode definitions and 210 formal capture units across `seed00..seed02`. Read `../HANDOFF_LOW_ALTITUDE_SEMANTIC_EVENT_CHAIN.md` before running generation or capture.
+Canonical dataset root for the AeroWorld low-altitude semantic event-chain capture set. Read `../HANDOFF_LOW_ALTITUDE_SEMANTIC_EVENT_CHAIN.md` before generation, validation, or capture.
 
-## Canonical Source
+## Scope
 
-- Contract source of truth: `Dataset/tools/semantic_event_contract.py`
-- Contract schema: `low_altitude_event_chain_contract_v1`
-- Scenario generation contract: `semantic_event_contract_v1`
-- Episodes: 70 total
-- Base scenarios: 64
-- Cross-layer chains: 6
+- Formal set: 70 scenarios x 3 seeds = 210 episodes.
+- Formal ticks: `0..900`, sampled every `5` ticks.
+- Formal capture input: `Dataset/render_ready_episodes_capture_filtered`.
+- Formal capture output: `F:\aw_cap`.
+- Formal summary: `F:\aw_cap_summary.csv`.
+- Python: `E:\conda\envs\aeroagentsim\python.exe`.
 
-## Layer Counts
-
-| Layer | Count |
-|-------|-------|
-| L1 Airspace | 7 |
-| L2 Infrastructure | 9 |
-| L3 Dynamic Constraints | 5 |
-| L4 Agents | 24 |
-| L5 Environment | 9 |
-| L6 Digital Layer | 10 |
-| X Cross-Layer | 6 |
-
-## Contract Rules
-
-- Every episode has one key semantic event chain and continuous interaction.
-- Background vehicles and pedestrians are semantic actors, not decoration.
-- Background V/P semantics are contract-driven and exact per episode.
-- `U_inspect` is long-lived: full episode presence, 80 m minimum path, orbit/racetrack motion, no static hover.
-- L1 inspect altitude code is `I28`.
-- L2 inspect altitude code is `I18`.
-- No fallback, guessing, or compatibility paths are allowed.
-- Static infrastructure and logical anchors are intentionally grounded and semantically meaningful; they are not filler.
-
-## Canonical Pipeline
+## Main Pipeline
 
 `spec_compiler.py -> regenerate_boundary_scenarios.py -> batch_generate.py -> convert_to_render_ready.py -> run_semantic_event_chain_every10.py -> episode_render_host.py -> validators`
 
-`convert_to_render_ready.py` always writes the formal filtered capture root, `Dataset/render_ready_episodes_capture_filtered`, in the same run as full render-ready conversion.
+`convert_to_render_ready.py` writes both `Dataset/render_ready_episodes` and the formal filtered root `Dataset/render_ready_episodes_capture_filtered`. UE capture must consume the filtered root.
 
 ## Runtime Rules
 
-- Reuse the existing UE PIE session and AirSim RPC `127.0.0.1:41451`.
-- Do not close UE/PIE unless C++ rebuild is required or the user explicitly requests it.
-- Capture scripts keep UE open by default.
+- Reuse existing UE PIE and AirSim RPC `127.0.0.1:41451`.
+- Do not close UE/PIE for normal episode, chunk, view, modality, or memory-guard failures.
+- Start UE/PIE only when no PIE session exists, using `Dataset/tools/start_formal_capture.ps1`.
 - Formal image capture uses the UE editor-hook fixed-world camera, not AirSim native camera capture.
-- Formal episode span is tick `0..900`, captured every `5` ticks.
-- Memory guard is 18GB; clear world state, temporary capture actors, and PIE garbage after each episode or host chunk.
-- Deterministic output roots only. No timestamp or version directories.
-- Failed runs keep UE open for inspection and resume.
-- AirSim settings live under Huawei Share.
+- Formal capture is one UAV view and one modality per host run; each episode is complete only after high overview plus every active ROI UAV view has all required modalities.
+- High overview covers only the theoretical intersection capture boundary, computed from boundary bbox and FoV. It must not use global trajectory extents.
 
-## Main Output Roots
+## Debug Priorities
 
-- Source scenarios: `Dataset/scenarios/...`
-- Deterministic episode roots: `Dataset/episodes/<scenario>__seedNN`
-- Render-ready episode roots: `Dataset/render_ready_episodes/<scenario>__seedNN`
-- Formal filtered capture input roots: `Dataset/render_ready_episodes_capture_filtered/<scenario>__seedNN`
-- Formal UE capture root: `F:/aw_cap`
-- Formal UE capture summary: `F:/aw_cap_summary.csv`
+- Coordinate conversion must use shared map/coordinate services and truth-frame contracts.
+- SUMO vehicles should come from SUMO truth and lane metadata; formal render config must not rely on overlay, projection, or lane-offset filters to repair truth.
+- Pedestrians and vehicles must be continuous in time and yaw-aligned to rendered movement direction.
+- Required ground-flow pedestrians stay visible for their declared `ground_flow_contract.route_duration_ticks`.
+- UAV pads drive order and route generation; pad changes require regenerated UAV truth.
+- Event semantics must preserve intent order, causal predecessors, target roles, facilities, corridors, pads, and logical regions.
+
+## Start Script
+
+```powershell
+cd E:\DynamicCityCreatorSamples
+.\Dataset\tools\start_formal_capture.ps1
+```
+
+The script reuses ready PIE/RPC, refuses duplicate formal capture, starts UE only if UnrealEditor is absent, enters PIE only if UE is open but not in PIE, and leaves UE/PIE open on failures.
 
 ## Canonical Artifacts
 
 - `scene_setup.json`
 - `event_script.json`
-- `spec.py`
 - `episode_manifest.json`
 - `scenario_plan.json`
 - `global_entity_roster.json`
@@ -74,5 +56,3 @@ This dataset is the canonical low-altitude AeroWorld program for 70 deterministi
 - `dynamic_labels.jsonl`
 - `trajectories.jsonl`
 - `weather_meta.jsonl`
-
-Formal UE capture input is `Dataset/render_ready_episodes_capture_filtered/<episode>/render_host_config.json`, not the unfiltered render-ready root.

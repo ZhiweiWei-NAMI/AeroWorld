@@ -3626,6 +3626,37 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
                     pass
             points.append(point)
 
+        event_script = dict(getattr(self.event_interpreter, "script", {}) or {})
+        parameters = dict(event_script.get("parameters") or {})
+        boundary_candidates = [
+            dict(dict(parameters.get("semantic_event_contract") or {}).get("capture_boundary") or {}),
+            dict(parameters.get("capture_boundary") or {}),
+        ]
+        for boundary in boundary_candidates:
+            boundary_points: list[list[float]] = []
+            for vertex in boundary.get("polygon_enu_m") or []:
+                point = self._maybe_vector3(vertex)
+                if point is not None:
+                    boundary_points.append(point)
+            center = self._maybe_vector3(boundary.get("center_enu_m"))
+            if center is not None:
+                boundary_points.append(center)
+            if boundary_points:
+                min_x = min(float(point[0]) for point in boundary_points)
+                min_y = min(float(point[1]) for point in boundary_points)
+                max_x = max(float(point[0]) for point in boundary_points)
+                max_y = max(float(point[1]) for point in boundary_points)
+                max_z = max(float(point[2] if len(point) > 2 else 0.0) for point in boundary_points)
+                margin_m = 8.0
+                self.event_capture_bbox_enu_m = [
+                    min_x - margin_m,
+                    min_y - margin_m,
+                    max_x + margin_m,
+                    max_y + margin_m,
+                    max_z,
+                ]
+                return list(self.event_capture_bbox_enu_m)
+
         summary = dict(self.scenario_plan.get("compiled_plan_summary") or {})
         roi_windows = dict(summary.get("roi_windows") or {})
         for value in roi_windows.values():
@@ -3650,7 +3681,6 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
             for vertex in placement.get("polygon_enu_m") or []:
                 add_point(vertex)
 
-        event_script = dict(getattr(self.event_interpreter, "script", {}) or {})
         for event in event_script.get("events") or []:
             if not isinstance(event, dict):
                 continue
@@ -3701,15 +3731,15 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
 
         width = max(1, int(preset.get("width") or 1280))
         height = max(1, int(preset.get("height") or 720))
-        fov_degrees = max(float(preset.get("fov_degrees") or 70.0), 105.0)
+        fov_degrees = float(preset.get("fov_degrees") or 70.0)
         hfov_rad = math.radians(fov_degrees)
         vfov_rad = 2.0 * math.atan(math.tan(hfov_rad * 0.5) / (float(width) / float(height)))
-        required_dz_m = max(
+        required_agl_m = max(
             span_x_m / max(0.1, 2.0 * math.tan(hfov_rad * 0.5)),
             span_y_m / max(0.1, 2.0 * math.tan(vfov_rad * 0.5)),
         )
-        altitude_m = max(max_z + required_dz_m * 1.2, max_z + 25.0, 45.0)
-        altitude_m = min(altitude_m, 160.0)
+        altitude_m = max(required_agl_m * 1.15, max_z + 8.0, 32.0)
+        altitude_m = min(altitude_m, 90.0)
 
         aligned = dict(preset)
         aligned["position_enu_m"] = [round(center_x, 3), round(center_y, 3), round(altitude_m, 3)]
@@ -3719,6 +3749,7 @@ print("EVENT_SEMANTIC_PROXY_SANITIZE_MISSING_COUNT",len(missing))
         aligned["scene_aligned"] = True
         aligned["scene_bbox_enu_m"] = [round(min_x, 3), round(min_y, 3), round(max_x, 3), round(max_y, 3)]
         aligned["scene_bbox_source"] = "scenario_plan_scene_setup_event_script"
+        aligned["scene_aligned_altitude_policy"] = "capture_boundary_bbox_hfov_limited_v1"
         return aligned
 
     def _camera_position_from_preset(self, preset: dict[str, Any]) -> list[float]:

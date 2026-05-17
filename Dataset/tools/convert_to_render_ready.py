@@ -732,7 +732,21 @@ def is_background_ground_flow_actor(entry: dict[str, Any]) -> bool:
     )
 
 
-def visible_until_tick_for_ground_flow(entity_rows: Sequence[dict[str, Any]], tick_hz: int) -> int:
+def visible_until_tick_for_ground_flow(
+    entity_rows: Sequence[dict[str, Any]],
+    tick_hz: int,
+    source_entry: dict[str, Any] | None = None,
+) -> int:
+    max_tick = max((int(row.get("tick", 0)) for row in entity_rows), default=-1)
+    contract = dict((source_entry or {}).get("ground_flow_contract") or {})
+    if bool(contract.get("required")):
+        try:
+            contract_end_tick = int(contract.get("route_duration_ticks") or max_tick)
+        except (TypeError, ValueError):
+            contract_end_tick = max_tick
+        if contract_end_tick >= 0:
+            return min(max_tick, contract_end_tick)
+
     last_moving_tick = -1
     previous_position: list[float] | None = None
     for row in entity_rows:
@@ -749,7 +763,7 @@ def visible_until_tick_for_ground_flow(entity_rows: Sequence[dict[str, Any]], ti
         previous_position = position
     if last_moving_tick < 0:
         return -1
-    return last_moving_tick + max(1, int(tick_hz))
+    return min(max_tick, last_moving_tick + max(1, int(tick_hz)))
 
 
 def first_moving_tick(entity_rows: Sequence[dict[str, Any]], *, min_displacement_m: float = 0.5) -> int:
@@ -2196,7 +2210,7 @@ def convert_episode(
 
     truth_frames: list[dict[str, Any]] = []
     visible_until_tick_by_background_ground_flow = {
-        str(entry["entity_id"]): visible_until_tick_for_ground_flow(grouped[str(entry["entity_id"])], tick_hz)
+        str(entry["entity_id"]): visible_until_tick_for_ground_flow(grouped[str(entry["entity_id"])], tick_hz, entry)
         for entry in roster_entities
         if is_background_ground_flow_actor(entry)
     }
