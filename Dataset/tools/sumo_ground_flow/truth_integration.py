@@ -15,8 +15,6 @@ ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_SUMO_OUTPUT_DIR = ROOT / "Dataset" / "sumo_outputs" / "donghu_traffic_270s"
 SEGMENT_DURATION_S = 90.0
 SEGMENT_COUNT = 3
-DEFAULT_MIN_VISIBLE_VEHICLES = 8
-DEFAULT_MAX_VISIBLE_VEHICLES = 36
 DEFAULT_MIN_BACKGROUND_SELECTION_XY_SPAN_M = 2.0
 DEFAULT_MIN_BACKGROUND_SELECTION_SPEED_MPS = 0.5
 
@@ -413,23 +411,13 @@ class SumoTrafficDataset:
                     return dict(vehicle)
         return None
 
-    def select_visible_vehicles(
-        self,
-        *,
-        segment: SumoSegment,
-        visibility: VisibilityGeometry,
-        scenario_id: str,
-        min_visible: int = DEFAULT_MIN_VISIBLE_VEHICLES,
-        max_visible: int = DEFAULT_MAX_VISIBLE_VEHICLES,
-    ) -> VehicleSelection:
+    def select_segment_vehicles(self, *, segment: SumoSegment, scenario_id: str) -> VehicleSelection:
         min_distance_by_id: dict[str, float] = {}
         frames_seen_by_id: dict[str, int] = {}
         bounds_by_id: dict[str, list[float]] = {}
         max_speed_by_id: dict[str, float] = {}
-        observable_ids: set[str] = set()
-        scenario_ids: set[str] = set()
         scenario_incidents = self.scenario_incidents(scenario_id)
-        affected_ids = {
+        scenario_ids = {
             str(vehicle_id)
             for incident in scenario_incidents
             for vehicle_id in (incident.get("affected_vehicle_ids") or [])
@@ -443,13 +431,10 @@ class SumoTrafficDataset:
                 vehicle_id = str(vehicle.get("vehicle_id") or "")
                 if not vehicle_id:
                     continue
-                if str(vehicle.get("control_role") or "") == "incident_controlled" and vehicle_id not in affected_ids:
-                    continue
                 point = _position2(vehicle.get("truth_position_enu_m"))
                 if point is None:
                     continue
-                distance_m = visibility.observation_distance_m(point)
-                min_distance_by_id[vehicle_id] = min(distance_m, min_distance_by_id.get(vehicle_id, float("inf")))
+                min_distance_by_id[vehicle_id] = 0.0
                 frames_seen_by_id[vehicle_id] = frames_seen_by_id.get(vehicle_id, 0) + 1
                 if vehicle_id not in bounds_by_id:
                     bounds_by_id[vehicle_id] = [point[0], point[0], point[1], point[1]]
@@ -463,11 +448,6 @@ class SumoTrafficDataset:
                     max_speed_by_id.get(vehicle_id, 0.0),
                     float(vehicle.get("speed_mps") or 0.0),
                 )
-                if distance_m <= visibility.padding_m:
-                    observable_ids.add(vehicle_id)
-                if vehicle_id in affected_ids:
-                    scenario_ids.add(vehicle_id)
-
         motion_span_by_id = {
             vehicle_id: math.hypot(bounds[1] - bounds[0], bounds[3] - bounds[2])
             for vehicle_id, bounds in bounds_by_id.items()
@@ -478,59 +458,21 @@ class SumoTrafficDataset:
             if motion_span_by_id.get(vehicle_id, 0.0) >= DEFAULT_MIN_BACKGROUND_SELECTION_XY_SPAN_M
             or max_speed_by_id.get(vehicle_id, 0.0) >= DEFAULT_MIN_BACKGROUND_SELECTION_SPEED_MPS
         }
-
-        selected: list[str] = []
-        selected_set: set[str] = set()
-        for vehicle_id in sorted(scenario_ids, key=lambda item: (min_distance_by_id.get(item, float("inf")), item)):
-            selected.append(vehicle_id)
-            selected_set.add(vehicle_id)
-
-        primary = sorted(
-            (observable_ids & moving_ids) - selected_set,
-            key=lambda item: (
-                min_distance_by_id.get(item, float("inf")),
-                -frames_seen_by_id.get(item, 0),
-                item,
-            ),
-        )
-        for vehicle_id in primary:
-            if len(selected) >= max_visible:
-                break
-            selected.append(vehicle_id)
-            selected_set.add(vehicle_id)
-
-        expanded = False
-        if len(selected) < min_visible:
-            expanded = True
-            nearest = sorted(
-                (set(min_distance_by_id) & moving_ids) - selected_set,
-                key=lambda item: (
-                    min_distance_by_id.get(item, float("inf")),
-                    -frames_seen_by_id.get(item, 0),
-                    item,
-                ),
-            )
-            for vehicle_id in nearest:
-                if len(selected) >= min_visible:
-                    break
-                selected.append(vehicle_id)
-                selected_set.add(vehicle_id)
-
-        entity_ids = {vehicle_id: sumo_truth_entity_id(vehicle_id) for vehicle_id in selected}
+        selected = tuple(sorted(min_distance_by_id))
         return VehicleSelection(
-            vehicle_ids=tuple(selected),
-            entity_ids=entity_ids,
-            min_distance_m_by_vehicle_id={vehicle_id: min_distance_by_id.get(vehicle_id, float("inf")) for vehicle_id in selected},
+            vehicle_ids=selected,
+            entity_ids={vehicle_id: sumo_truth_entity_id(vehicle_id) for vehicle_id in selected},
+            min_distance_m_by_vehicle_id={vehicle_id: min_distance_by_id.get(vehicle_id, 0.0) for vehicle_id in selected},
             frames_seen_by_vehicle_id={vehicle_id: frames_seen_by_id.get(vehicle_id, 0) for vehicle_id in selected},
             motion_span_m_by_vehicle_id={vehicle_id: motion_span_by_id.get(vehicle_id, 0.0) for vehicle_id in selected},
             max_speed_mps_by_vehicle_id={vehicle_id: max_speed_by_id.get(vehicle_id, 0.0) for vehicle_id in selected},
-            scenario_vehicle_ids=tuple(sorted(scenario_ids & selected_set)),
+            scenario_vehicle_ids=tuple(sorted(scenario_ids & set(selected))),
             candidate_count=len(min_distance_by_id),
             moving_candidate_count=len(moving_ids),
             selected_count=len(selected),
-            min_visible_vehicle_target=int(min_visible),
-            max_visible_vehicle_target=int(max_visible),
-            expanded_to_nearest=expanded,
+            min_visible_vehicle_target=0,
+            max_visible_vehicle_target=0,
+            expanded_to_nearest=False,
         )
 
     def source_summary(self) -> dict[str, Any]:

@@ -33,7 +33,7 @@ Authoritative runtime note for the AeroWorld low-altitude semantic capture set. 
 - UAVs: pad selection drives task/order routing; pad changes require UAV truth regeneration.
 - Motion: dynamic pedestrian/vehicle/UAV records must be continuous in time, with yaw aligned to final rendered movement direction.
 - Semantics: event intent order, causal predecessors, target roles, facilities, corridors, pads, and logical regions must match the scenario contract.
-- Visibility: capture-filtered truth keeps dynamic P/V/U that appear in the episode visibility geometry, with necessary semantic facility/context.
+- Visibility: `Dataset/render_ready_episodes_capture_filtered` is the formal capture root only; it must pass full render-ready truth through without deleting dynamic P/V/U. Visibility mistakes must fail validators and be fixed in generation/conversion.
 - If an actor vanishes in capture, compare the capture sidecar with render-ready truth. If they match, fix generation/conversion truth, not UE.
 - High overview should cover only the theoretical intersection capture boundary, using bbox + FOV geometry. It must not use global trajectory extents that reveal unrendered outside areas.
 

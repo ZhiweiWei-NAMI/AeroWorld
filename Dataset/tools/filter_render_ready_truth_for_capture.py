@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Create capture-visible render-ready truth packages from full truth frames.
+"""Materialize formal UE replay truth packages without corrective filtering.
 
-The full render-ready truth is the authoritative semantic record.  This tool
-builds a smaller UE replay view by filtering only dynamic P/V/U entities to the
-capture-visible area while preserving semantic infrastructure such as capture
-boundaries, UAV corridors, landing pads, chargers, and trigger/facility context.
-Coordinates are copied unchanged; UE still receives map ENU meters.
+The full render-ready truth is the authoritative semantic record.  Formal UE
+capture still consumes ``Dataset/render_ready_episodes_capture_filtered`` for
+historical path compatibility, but this tool now copies the full truth through
+unchanged and only rewrites package paths / render-host config for that formal
+root.  Dynamic P/V/U visibility mistakes must be exposed by validators and fixed
+in generators, not hidden by deleting frame records after conversion.
 """
 
 from __future__ import annotations
@@ -33,6 +34,8 @@ DEFAULT_INPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes"
 DEFAULT_OUTPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes_capture_filtered"
 PVU_CATEGORIES = {"pedestrian", "vehicle", "uav"}
 CAPTURE_VISIBILITY_PADDING_M = 60.0
+CAPTURE_SYNC_ROI_MARGIN_M = 25.0
+CAPTURE_SYNC_POLICY = "full_truth_passthrough_generator_authoritative_v1"
 REGENERATED_FILES = {
     "truth_frames.jsonl",
     "trajectories.jsonl",
@@ -198,242 +201,6 @@ def entity_category(entity: dict[str, Any]) -> str:
     return str(entity.get("entity_category") or entity.get("category") or entity.get("label_class") or "").strip().lower()
 
 
-def is_forced_keep_pvu(entity: dict[str, Any]) -> bool:
-    if dict(entity.get("contract_inspect_uav") or {}):
-        return True
-    role_values = {
-        str(entity.get("role") or "").strip().lower(),
-        str(entity.get("semantic_role") or "").strip().lower(),
-        str(entity.get("uav_corridor_role") or "").strip().lower(),
-    }
-    return "u_inspect" in role_values or "inspect_observer" in role_values
-
-
-def is_filterable_global_infrastructure(entity: dict[str, Any]) -> bool:
-    if entity_category(entity) != "facility":
-        return False
-    if str(entity.get("source") or "").strip().lower() == "uav_global_flow":
-        return True
-    if str(entity.get("background_role") or "").strip().lower() == "global_uav_pad":
-        return True
-    if isinstance(entity.get("uav_global_pad"), dict):
-        return True
-    tags = {str(value).strip().lower() for value in (entity.get("tags") or [])}
-    return "uav_global_flow" in tags and "landing_pad" in tags
-
-
-def entity_initial_or_truth_position(entity: dict[str, Any]) -> list[float] | None:
-    position = position_enu_from_entity(entity)
-    if position is not None:
-        return position
-    initial = entity.get("initial_position_enu_m")
-    if not isinstance(initial, Sequence) or isinstance(initial, (str, bytes)) or len(initial) < 2:
-        return None
-    try:
-        return [
-            float(initial[0]),
-            float(initial[1]),
-            float(initial[2] if len(initial) > 2 else 0.0),
-        ]
-    except (TypeError, ValueError):
-        return None
-
-
-def _orientation_xy(a: Sequence[float], b: Sequence[float], c: Sequence[float]) -> float:
-    return (float(b[0]) - float(a[0])) * (float(c[1]) - float(a[1])) - (
-        float(b[1]) - float(a[1])
-    ) * (float(c[0]) - float(a[0]))
-
-
-def _on_segment_xy(a: Sequence[float], b: Sequence[float], c: Sequence[float]) -> bool:
-    return (
-        min(float(a[0]), float(c[0])) - 1e-9 <= float(b[0]) <= max(float(a[0]), float(c[0])) + 1e-9
-        and min(float(a[1]), float(c[1])) - 1e-9 <= float(b[1]) <= max(float(a[1]), float(c[1])) + 1e-9
-    )
-
-
-def segments_intersect_xy(
-    a: Sequence[float],
-    b: Sequence[float],
-    c: Sequence[float],
-    d: Sequence[float],
-) -> bool:
-    o1 = _orientation_xy(a, b, c)
-    o2 = _orientation_xy(a, b, d)
-    o3 = _orientation_xy(c, d, a)
-    o4 = _orientation_xy(c, d, b)
-    if (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0):
-        return True
-    return (
-        abs(o1) <= 1e-9
-        and _on_segment_xy(a, c, b)
-        or abs(o2) <= 1e-9
-        and _on_segment_xy(a, d, b)
-        or abs(o3) <= 1e-9
-        and _on_segment_xy(c, a, d)
-        or abs(o4) <= 1e-9
-        and _on_segment_xy(c, b, d)
-    )
-
-
-def distance_point_to_segment_xy(point: Sequence[float], a: Sequence[float], b: Sequence[float]) -> float:
-    px, py = float(point[0]), float(point[1])
-    ax, ay = float(a[0]), float(a[1])
-    bx, by = float(b[0]), float(b[1])
-    dx = bx - ax
-    dy = by - ay
-    denom = dx * dx + dy * dy
-    if denom <= 1e-12:
-        return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
-    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / denom))
-    closest_x = ax + t * dx
-    closest_y = ay + t * dy
-    return ((px - closest_x) ** 2 + (py - closest_y) ** 2) ** 0.5
-
-
-def distance_segment_to_segment_xy(
-    a: Sequence[float],
-    b: Sequence[float],
-    c: Sequence[float],
-    d: Sequence[float],
-) -> float:
-    if segments_intersect_xy(a, b, c, d):
-        return 0.0
-    return min(
-        distance_point_to_segment_xy(a, c, d),
-        distance_point_to_segment_xy(b, c, d),
-        distance_point_to_segment_xy(c, a, b),
-        distance_point_to_segment_xy(d, a, b),
-    )
-
-
-def distance_segment_to_polygon_xy(
-    a: Sequence[float],
-    b: Sequence[float],
-    polygon: Sequence[Sequence[float]],
-) -> float:
-    if not polygon:
-        return float("inf")
-    if len(polygon) == 1:
-        return min(distance_point_to_segment_xy(polygon[0], a, b), distance_point_to_segment_xy(a, polygon[0], polygon[0]))
-    return min(
-        distance_segment_to_segment_xy(a, b, polygon[index], polygon[(index + 1) % len(polygon)])
-        for index in range(len(polygon))
-    )
-
-
-def distance_segment_to_polyline_xy(
-    a: Sequence[float],
-    b: Sequence[float],
-    polyline: Sequence[Sequence[float]],
-) -> float:
-    if len(polyline) < 2:
-        return float("inf")
-    return min(distance_segment_to_segment_xy(a, b, c, d) for c, d in zip(polyline, polyline[1:]))
-
-
-def oriented_box_polygon_xy(
-    a: Sequence[float],
-    b: Sequence[float],
-    half_width_m: float,
-    half_height_m: float,
-) -> list[list[float]]:
-    ax, ay = float(a[0]), float(a[1])
-    bx, by = float(b[0]), float(b[1])
-    dx = bx - ax
-    dy = by - ay
-    length = (dx * dx + dy * dy) ** 0.5
-    if length <= 1e-6:
-        return [
-            [ax - half_width_m, ay - half_height_m],
-            [ax + half_width_m, ay - half_height_m],
-            [ax + half_width_m, ay + half_height_m],
-            [ax - half_width_m, ay + half_height_m],
-        ]
-    ux = dx / length
-    uy = dy / length
-    nx = -uy
-    ny = ux
-    start_x = ax - ux * half_height_m
-    start_y = ay - uy * half_height_m
-    end_x = bx + ux * half_height_m
-    end_y = by + uy * half_height_m
-    return [
-        [start_x + nx * half_width_m, start_y + ny * half_width_m],
-        [end_x + nx * half_width_m, end_y + ny * half_width_m],
-        [end_x - nx * half_width_m, end_y - ny * half_width_m],
-        [start_x - nx * half_width_m, start_y - ny * half_width_m],
-    ]
-
-
-def visibility_segment_distance_m(
-    start: Sequence[float],
-    end: Sequence[float],
-    visibility: VisibilityGeometry,
-) -> float:
-    if visibility.is_observable(start) or visibility.is_observable(end):
-        return 0.0
-    half_width = visibility.footprint_half_width_m
-    half_height = visibility.footprint_half_height_m
-    for a, b in zip(visibility.inspect_route_enu_m, visibility.inspect_route_enu_m[1:]):
-        box = oriented_box_polygon_xy(a, b, half_width, half_height)
-        if distance_segment_to_polygon_xy(start, end, box) <= 1e-9:
-            return 0.0
-    return min(
-        distance_segment_to_polygon_xy(start, end, visibility.capture_polygon_enu_m),
-        distance_segment_to_polyline_xy(start, end, visibility.inspect_route_enu_m),
-    )
-
-
-def visibility_segment_is_observable(
-    start: Sequence[float],
-    end: Sequence[float],
-    visibility: VisibilityGeometry,
-) -> bool:
-    return visibility_segment_distance_m(start, end, visibility) <= visibility.padding_m
-
-
-def keep_entity_for_capture(entity: dict[str, Any], visibility: VisibilityGeometry) -> bool:
-    category = entity_category(entity)
-    if is_filterable_global_infrastructure(entity):
-        position = entity_initial_or_truth_position(entity)
-        return bool(position is not None and visibility.is_observable(position))
-    if category not in PVU_CATEGORIES:
-        return True
-    if is_forced_keep_pvu(entity):
-        return True
-    position = position_enu_from_entity(entity)
-    if position is None:
-        return False
-    return bool(visibility.is_observable(position))
-
-
-def dynamic_keep_sets_for_frames(
-    frames: Sequence[dict[str, Any]],
-    visibility: VisibilityGeometry,
-) -> list[set[str]]:
-    keep_by_frame: list[set[str]] = [set() for _ in frames]
-    previous: dict[str, tuple[int, list[float]]] = {}
-    for frame_index, frame in enumerate(frames):
-        for entity in frame.get("entities") or []:
-            if not isinstance(entity, dict) or entity_category(entity) not in PVU_CATEGORIES:
-                continue
-            entity_id = str(entity.get("entity_id") or "")
-            position = position_enu_from_entity(entity)
-            if not entity_id or position is None:
-                continue
-            if is_forced_keep_pvu(entity) or visibility.is_observable(position):
-                keep_by_frame[frame_index].add(entity_id)
-            prior = previous.get(entity_id)
-            if prior is not None:
-                prior_index, prior_position = prior
-                if visibility_segment_is_observable(prior_position, position, visibility):
-                    keep_by_frame[prior_index].add(entity_id)
-                    keep_by_frame[frame_index].add(entity_id)
-            previous[entity_id] = (frame_index, position)
-    return keep_by_frame
-
-
 def trajectory_row_from_entity(frame: dict[str, Any], entity: dict[str, Any]) -> dict[str, Any]:
     position = position_enu_from_entity(entity) or [0.0, 0.0, 0.0]
     row: dict[str, Any] = {
@@ -496,6 +263,34 @@ def update_frame_summaries(frame: dict[str, Any], kept_entities: Sequence[dict[s
         )
 
 
+def capture_visibility_bbox_enu_m(visibility: VisibilityGeometry) -> list[float]:
+    xs: list[float] = []
+    ys: list[float] = []
+    zs: list[float] = [0.0, float(visibility.altitude_m)]
+    for point in visibility.capture_polygon_enu_m:
+        xs.append(float(point[0]))
+        ys.append(float(point[1]))
+    for point in visibility.inspect_route_enu_m:
+        xs.append(float(point[0]))
+        ys.append(float(point[1]))
+        zs.append(float(point[2] if len(point) > 2 else visibility.altitude_m))
+    if not xs or not ys:
+        return []
+    margin_m = max(
+        CAPTURE_SYNC_ROI_MARGIN_M,
+        float(visibility.padding_m),
+        float(visibility.footprint_half_width_m),
+        float(visibility.footprint_half_height_m),
+    )
+    return [
+        round(min(xs) - margin_m, 3),
+        round(min(ys) - margin_m, 3),
+        round(max(xs) + margin_m, 3),
+        round(max(ys) + margin_m, 3),
+        round(max(zs) if zs else 0.0, 3),
+    ]
+
+
 def copy_static_episode_files(source_episode_dir: Path, output_episode_dir: Path) -> None:
     output_episode_dir.mkdir(parents=True, exist_ok=True)
     for item in source_episode_dir.iterdir():
@@ -508,28 +303,6 @@ def copy_static_episode_files(source_episode_dir: Path, output_episode_dir: Path
             shutil.copytree(item, target)
         elif item.is_file():
             shutil.copy2(item, target)
-
-
-def filter_roster(
-    roster_entities: Sequence[dict[str, Any]],
-    truth_entity_ids: set[str],
-    visibility: VisibilityGeometry,
-) -> list[dict[str, Any]]:
-    filtered: list[dict[str, Any]] = []
-    for entity in roster_entities:
-        entity_id = str(entity.get("entity_id") or "")
-        if entity_category(entity) in PVU_CATEGORIES:
-            if entity_id in truth_entity_ids:
-                filtered.append(entity)
-            continue
-        if is_filterable_global_infrastructure(entity):
-            position = entity_initial_or_truth_position(entity)
-            if position is not None and visibility.is_observable(position):
-                filtered.append(entity)
-            continue
-        else:
-            filtered.append(entity)
-    return filtered
 
 
 def update_artifact_paths(payload: dict[str, Any], output_episode_dir: Path) -> None:
@@ -620,19 +393,25 @@ def update_manifest(
     }
     generation = dict(updated.get("generation") or {})
     generation["truth_filter_source_root"] = repo_relative(source_episode_dir)
-    generation["truth_filter_contract"] = "capture_visible_pvu_filter_v1"
-    generation["trajectory_source"] = "filtered_truth_frames.jsonl"
-    generation["trajectory_contract"] = "capture_visible_pvu_truth_frame_derived_v1"
+    generation["truth_filter_contract"] = CAPTURE_SYNC_POLICY
+    generation["capture_truth_sync_policy"] = CAPTURE_SYNC_POLICY
+    generation["trajectory_source"] = "source_trajectories_passthrough"
+    generation["trajectory_contract"] = "full_truth_trajectory_passthrough_v1"
     updated["generation"] = generation
-    updated["capture_visible_truth_filter"] = {
-        "policy": "preserve_non_pvu_semantics_filter_pvu_by_capture_visibility_v1",
+    capture_sync_payload = {
+        "policy": CAPTURE_SYNC_POLICY,
+        "filtering_enabled": False,
+        "dynamic_pvu_filtering_enabled": False,
         "coordinate_policy": "copy_truth_pose_map_enu_without_transform",
+        "visibility_policy": "metadata_only_generator_must_produce_visible_truth",
         "visibility_padding_policy": "expanded_for_editor_hook_uav_rgb_capture_margin_v1",
         "visibility_padding_m": CAPTURE_VISIBILITY_PADDING_M,
         "visibility_geometry": visibility.as_dict(),
-        "filtered_roi_bbox_enu_m": roi_bbox_enu_m,
+        "formal_roi_bbox_enu_m": roi_bbox_enu_m,
         "stats": filter_stats,
     }
+    updated["capture_visible_truth_filter"] = copy.deepcopy(capture_sync_payload)
+    updated["capture_truth_sync"] = copy.deepcopy(capture_sync_payload)
     update_artifact_paths(updated, output_episode_dir)
     return updated
 
@@ -656,18 +435,24 @@ def update_scenario_plan(
     for window in (summary.get("roi_windows") or {}).values():
         if isinstance(window, dict):
             window["bbox_enu_m"] = list(roi_bbox_enu_m)
-            window["bbox_source"] = "capture_visible_filtered_truth"
-    summary["capture_visible_truth_filter"] = {
-        "policy": "preserve_non_pvu_semantics_filter_pvu_by_capture_visibility_v1",
+            window["bbox_source"] = "capture_visibility_geometry_passthrough"
+    capture_sync_payload = {
+        "policy": CAPTURE_SYNC_POLICY,
+        "filtering_enabled": False,
+        "dynamic_pvu_filtering_enabled": False,
         "coordinate_policy": "copy_truth_pose_map_enu_without_transform",
+        "visibility_policy": "metadata_only_generator_must_produce_visible_truth",
         "visibility_padding_policy": "expanded_for_editor_hook_uav_rgb_capture_margin_v1",
         "visibility_padding_m": CAPTURE_VISIBILITY_PADDING_M,
         "visibility_geometry": visibility.as_dict(),
-        "filtered_roi_bbox_enu_m": roi_bbox_enu_m,
+        "formal_roi_bbox_enu_m": roi_bbox_enu_m,
         "stats": filter_stats,
     }
+    summary["capture_visible_truth_filter"] = copy.deepcopy(capture_sync_payload)
+    summary["capture_truth_sync"] = copy.deepcopy(capture_sync_payload)
     updated["compiled_plan_summary"] = summary
     updated["capture_visible_truth_filter"] = copy.deepcopy(summary["capture_visible_truth_filter"])
+    updated["capture_truth_sync"] = copy.deepcopy(summary["capture_truth_sync"])
     nested_plan = updated.get("scenario_plan")
     if isinstance(nested_plan, dict):
         nested_plan["summary"] = copy.deepcopy(summary)
@@ -689,18 +474,36 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
     visibility = visibility_from_episode(source_episode_dir, manifest, roster_entities)
 
     input_truth_path = source_episode_dir / "truth_frames.jsonl"
+    input_trajectory_path = source_episode_dir / "trajectories.jsonl"
     output_truth_path = output_episode_dir / "truth_frames.jsonl"
     output_trajectory_path = output_episode_dir / "trajectories.jsonl"
     frame_count = 0
-    input_entity_count = 0
-    output_entity_count = 0
+    truth_entity_count = 0
     trajectory_count = 0
+    dynamic_pvu_records = 0
     truth_entity_ids: set[str] = set()
-    xs: list[float] = []
-    ys: list[float] = []
-    zs: list[float] = []
 
-    frames: list[dict[str, Any]] = []
+    shutil.copy2(input_truth_path, output_truth_path)
+    if input_trajectory_path.exists():
+        shutil.copy2(input_trajectory_path, output_trajectory_path)
+        with output_trajectory_path.open("rb") as handle:
+            trajectory_count = sum(1 for line in handle if line.strip())
+    else:
+        with output_trajectory_path.open("wb") as traj_out, input_truth_path.open("rb") as source:
+            for line_number, line in enumerate(source, start=1):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    frame = loads_jsonl_bytes(stripped)
+                except (json.JSONDecodeError, ValueError) as exc:
+                    raise ValueError(f"{input_truth_path}:{line_number}: invalid JSONL row: {exc}") from exc
+                for entity in frame.get("entities") or []:
+                    if not isinstance(entity, dict) or entity_category(entity) not in PVU_CATEGORIES:
+                        continue
+                    traj_out.write(dumps_jsonl_bytes(trajectory_row_from_entity(frame, entity)))
+                    trajectory_count += 1
+
     with input_truth_path.open("rb") as source:
         for line_number, line in enumerate(source, start=1):
             stripped = line.strip()
@@ -710,71 +513,36 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
                 frame = loads_jsonl_bytes(stripped)
             except (json.JSONDecodeError, ValueError) as exc:
                 raise ValueError(f"{input_truth_path}:{line_number}: invalid JSONL row: {exc}") from exc
-            frames.append(frame)
-
-    dynamic_keep_by_frame = dynamic_keep_sets_for_frames(frames, visibility)
-    with output_truth_path.open("wb") as truth_out, output_trajectory_path.open("wb") as traj_out:
-        for frame_index, frame in enumerate(frames):
             entities = list(frame.get("entities") or [])
-            input_entity_count += len(entities)
-            dynamic_ids_for_frame = dynamic_keep_by_frame[frame_index]
-            kept_entities: list[dict[str, Any]] = []
+            truth_entity_count += len(entities)
             for entity in entities:
                 if not isinstance(entity, dict):
                     continue
                 category = entity_category(entity)
-                if category in PVU_CATEGORIES:
-                    entity_id = str(entity.get("entity_id") or "")
-                    if entity_id and entity_id in dynamic_ids_for_frame:
-                        kept_entities.append(entity)
-                    elif not entity_id and keep_entity_for_capture(entity, visibility):
-                        kept_entities.append(entity)
-                    continue
-                if keep_entity_for_capture(entity, visibility):
-                    kept_entities.append(entity)
-            for entity in kept_entities:
                 entity_id = str(entity.get("entity_id") or "")
                 if entity_id:
                     truth_entity_ids.add(entity_id)
-                position = position_enu_from_entity(entity)
-                if position is not None:
-                    xs.append(float(position[0]))
-                    ys.append(float(position[1]))
-                    zs.append(float(position[2] if len(position) > 2 else 0.0))
-                if entity_category(entity) in PVU_CATEGORIES:
-                    traj_out.write(dumps_jsonl_bytes(trajectory_row_from_entity(frame, entity)))
-                    trajectory_count += 1
-            frame = dict(frame)
-            frame["entities"] = kept_entities
-            update_frame_summaries(frame, kept_entities)
-            truth_out.write(dumps_jsonl_bytes(frame))
+                if category in PVU_CATEGORIES:
+                    dynamic_pvu_records += 1
             frame_count += 1
-            output_entity_count += len(kept_entities)
 
-    filtered_roster = filter_roster(roster_entities, truth_entity_ids, visibility)
+    synced_roster = roster_entities
+    synced_roster_root = copy.deepcopy(roster_root)
+    synced_roster_root["entities"] = synced_roster
     filter_stats = {
-        "input_truth_entities": input_entity_count,
-        "output_truth_entities": output_entity_count,
-        "removed_truth_entities": input_entity_count - output_entity_count,
+        "input_truth_entities": truth_entity_count,
+        "output_truth_entities": truth_entity_count,
+        "removed_truth_entities": 0,
+        "dynamic_pvu_records": dynamic_pvu_records,
         "trajectory_rows": trajectory_count,
         "truth_entity_id_count": len(truth_entity_ids),
-        "roster_entities": len(filtered_roster),
-        "dynamic_filter_rule": "keep_pvu_records_when_point_or_adjacent_motion_segment_is_observable",
-        "semantic_context_rule": "preserve_non_pvu_context_filter_global_uav_infrastructure_by_visibility",
+        "roster_entities": len(synced_roster),
+        "dynamic_filter_rule": "none_full_truth_records_preserved",
+        "semantic_context_rule": "preserve_full_roster_without_visibility_filter",
+        "generator_authority_rule": "validators_must_fail_generation_errors_instead_of_deleting_truth",
     }
-    roi_margin_m = 25.0
-    roi_bbox_enu_m = (
-        [
-            round(min(xs) - roi_margin_m, 3),
-            round(min(ys) - roi_margin_m, 3),
-            round(max(xs) + roi_margin_m, 3),
-            round(max(ys) + roi_margin_m, 3),
-            round(max(zs) if zs else 0.0, 3),
-        ]
-        if xs and ys
-        else []
-    )
-    write_json(output_episode_dir / "global_entity_roster.json", {"entities": filtered_roster})
+    roi_bbox_enu_m = capture_visibility_bbox_enu_m(visibility)
+    write_json(output_episode_dir / "global_entity_roster.json", synced_roster_root)
     write_json(
         output_episode_dir / "episode_manifest.json",
         update_manifest(
@@ -783,7 +551,7 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
             source_episode_dir=source_episode_dir,
             frame_count=frame_count,
             trajectory_count=trajectory_count,
-            roster_entities=filtered_roster,
+            roster_entities=synced_roster,
             visibility=visibility,
             filter_stats=filter_stats,
             roi_bbox_enu_m=roi_bbox_enu_m,
@@ -794,7 +562,7 @@ def filter_episode(source_episode_dir: Path, output_root: Path, *, overwrite: bo
         output_episode_dir / "scenario_plan.json",
         update_scenario_plan(
             scenario_plan,
-            roster_entities=filtered_roster,
+            roster_entities=synced_roster,
             visibility=visibility,
             filter_stats=filter_stats,
             roi_bbox_enu_m=roi_bbox_enu_m,
@@ -835,7 +603,7 @@ def select_episode_dirs(input_root: Path, names: list[str]) -> list[Path]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Filter full render-ready truth into a capture-visible UE replay view.")
+    parser = argparse.ArgumentParser(description="Sync full render-ready truth into the formal UE replay root without filtering.")
     parser.add_argument("--input-root", type=Path, default=DEFAULT_INPUT_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--episode", action="append", default=[])

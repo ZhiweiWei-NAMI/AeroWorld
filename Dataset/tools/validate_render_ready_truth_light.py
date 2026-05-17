@@ -27,6 +27,10 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT_ROOT = ROOT / "Dataset" / "render_ready_episodes"
 DEFAULT_UAV_VALIDATION = ROOT / "Dataset" / "uav_outputs" / "donghu_uav_flow_270s" / "uav_flow_validation.json"
 DEFAULT_SUMO_MANIFEST = ROOT / "Dataset" / "sumo_outputs" / "donghu_traffic_270s" / "sumo_traffic_manifest.json"
+GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO = 0.85
+GROUND_FLOW_SPEED_EPS_MPS = 0.05
+BACKGROUND_PEDESTRIAN_MAX_SPEED_MPS = 6.0
+BACKGROUND_PEDESTRIAN_SEMANTIC_IDLE = {"phone_call", "chatting"}
 _SPATIAL_INDEX_CACHE: MapSpatialIndex | None = None
 
 
@@ -78,6 +82,132 @@ def position_from_entity(entity: dict[str, Any]) -> tuple[float, float, float] |
         return float(position[0]), float(position[1]), z
     except (TypeError, ValueError):
         return None
+
+
+def velocity_xy_speed_from_entity(entity: dict[str, Any]) -> float:
+    pose = entity.get("truth_pose") or {}
+    velocity = pose.get("velocity_enu_mps") or entity.get("vel_mps") or [0.0, 0.0, 0.0]
+    if not isinstance(velocity, list) or len(velocity) < 2:
+        return 0.0
+    try:
+        return math.hypot(float(velocity[0]), float(velocity[1]))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def activity_type_from_entity(entity: dict[str, Any]) -> str:
+    annotations = dict(entity.get("annotations") or {})
+    facets = dict(annotations.get("state_facets") or {})
+    activity = dict(facets.get("activity") or {})
+    return str(
+        annotations.get("activity_type")
+        or activity.get("activity_type")
+        or entity.get("activity_type")
+        or entity.get("state")
+        or ""
+    ).strip().lower()
+
+
+def is_visible_background_pedestrian(entity: dict[str, Any]) -> bool:
+    if category_from_entity(entity) != "pedestrian":
+        return False
+    if str(entity.get("role") or "") != "semantic_background_pedestrian":
+        return False
+    presence = dict(entity.get("render_presence") or {})
+    return presence.get("visibility_state") == "visible" and presence.get("offstage") is not True
+
+
+def validate_background_pedestrian_motion(episode_dir: Path, episode_id: str) -> tuple[list[str], dict[str, Any]]:
+    truth_path = episode_dir / "truth_frames.jsonl"
+    errors: list[str] = []
+    stats: dict[str, dict[str, Any]] = {}
+    previous: dict[str, tuple[int, tuple[float, float, float]]] = {}
+    for _, frame in iter_jsonl(truth_path):
+        tick = int(frame.get("tick") if frame.get("tick") is not None else frame.get("frame_seq") or 0)
+        for entity in frame.get("entities") or []:
+            if not isinstance(entity, dict) or not is_visible_background_pedestrian(entity):
+                continue
+            entity_id = str(entity.get("entity_id") or "")
+            if not entity_id:
+                continue
+            contract = dict(entity.get("ground_flow_contract") or {})
+            row = stats.setdefault(
+                entity_id,
+                {
+                    "visible": 0,
+                    "moving": 0,
+                    "min_motion_ratio": max(
+                        GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO,
+                        float(contract.get("min_visible_motion_ratio") or GROUND_FLOW_MIN_VISIBLE_MOTION_RATIO),
+                    ),
+                    "first_nonsemantic_stop": None,
+                    "first_speed_error": None,
+                },
+            )
+            row["visible"] = int(row["visible"]) + 1
+            speed = velocity_xy_speed_from_entity(entity)
+            if speed > GROUND_FLOW_SPEED_EPS_MPS:
+                row["moving"] = int(row["moving"]) + 1
+            else:
+                activity = activity_type_from_entity(entity)
+                if activity not in BACKGROUND_PEDESTRIAN_SEMANTIC_IDLE and row["first_nonsemantic_stop"] is None:
+                    row["first_nonsemantic_stop"] = {
+                        "tick": tick,
+                        "activity_type": activity,
+                        "speed_mps": round(speed, 4),
+                    }
+            position = position_from_entity(entity)
+            if position is None:
+                errors.append(f"{episode_id}: background pedestrian {entity_id} missing position at tick {tick}")
+                continue
+            prior = previous.get(entity_id)
+            if prior is not None:
+                prior_tick, prior_position = prior
+                dt_s = max(1e-6, float(tick - prior_tick) / 10.0)
+                implied_speed = math.dist(position[:2], prior_position[:2]) / dt_s
+                if implied_speed > BACKGROUND_PEDESTRIAN_MAX_SPEED_MPS and row["first_speed_error"] is None:
+                    row["first_speed_error"] = {
+                        "from_tick": prior_tick,
+                        "to_tick": tick,
+                        "speed_mps": round(implied_speed, 3),
+                    }
+            previous[entity_id] = (tick, position)
+
+    for entity_id, row in sorted(stats.items()):
+        visible = int(row["visible"])
+        if visible <= 0:
+            errors.append(f"{episode_id}: background pedestrian {entity_id} is never visible")
+            continue
+        moving_ratio = float(row["moving"]) / float(visible)
+        min_motion_ratio = float(row["min_motion_ratio"])
+        if moving_ratio + 1e-6 < min_motion_ratio:
+            errors.append(
+                f"{episode_id}: background pedestrian {entity_id} moving ratio too small: "
+                f"{moving_ratio:.3f} < {min_motion_ratio:.3f}"
+            )
+        if row["first_nonsemantic_stop"] is not None:
+            stop = dict(row["first_nonsemantic_stop"] or {})
+            errors.append(
+                f"{episode_id}: background pedestrian {entity_id} stopped without semantic idle at tick "
+                f"{stop.get('tick')}: activity_type={stop.get('activity_type')!r}"
+            )
+        if row["first_speed_error"] is not None:
+            speed_error = dict(row["first_speed_error"] or {})
+            errors.append(
+                f"{episode_id}: background pedestrian {entity_id} implied speed too high between "
+                f"tick {speed_error.get('from_tick')} and {speed_error.get('to_tick')}: "
+                f"{float(speed_error.get('speed_mps') or 0.0):.3f}m/s > {BACKGROUND_PEDESTRIAN_MAX_SPEED_MPS:.3f}m/s"
+            )
+    return errors, {
+        "checked": True,
+        "background_pedestrian_count": len(stats),
+        "visible_records": sum(int(row["visible"]) for row in stats.values()),
+        "moving_records": sum(int(row["moving"]) for row in stats.values()),
+        "min_moving_ratio": min(
+            (float(row["moving"]) / float(row["visible"]) for row in stats.values() if int(row["visible"]) > 0),
+            default=None,
+        ),
+    }
 
 
 def is_global_uav(entity: dict[str, Any]) -> bool:
@@ -164,6 +294,10 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
         errors.append("manifest inspect_observes_boundary is not true")
     expected_global_uav_roster_count = expected_selected_uav_count(plan_uav)
     expected_global_pad_count = expected_visible_global_pad_count(plan_uav)
+    pedestrian_motion_errors, pedestrian_motion_summary = validate_background_pedestrian_motion(episode_dir, episode_id)
+    errors.extend(pedestrian_motion_errors[:40])
+    if len(pedestrian_motion_errors) > 40:
+        errors.append(f"{len(pedestrian_motion_errors) - 40} additional background pedestrian motion errors omitted")
 
     roster_entities = roster.get("entities") if isinstance(roster, dict) else roster
     roster_categories: set[str] = set()
@@ -231,6 +365,7 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
                 if math.isfinite(global_pad_road_clearance_min_m)
                 else None,
                 truth_check_mode=truth_check_mode,
+                background_pedestrian_motion=pedestrian_motion_summary,
             )
 
         frame_categories: set[str] = set()
@@ -318,6 +453,7 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
             truth_check_mode=truth_check_mode,
             global_uav_track_count=global_uav_roster_count,
             static_global_uav_track_count=0,
+            background_pedestrian_motion=pedestrian_motion_summary,
         )
 
     frame_count = 0
@@ -493,6 +629,7 @@ def validate_episode(args: tuple[str, int, float, float, int, str]) -> dict[str,
         entity_sample_step_ticks=entity_sample_step_ticks,
         global_uav_track_count=len(global_uav_tracks),
         static_global_uav_track_count=len(static_tracks),
+        background_pedestrian_motion=pedestrian_motion_summary,
     )
 
 
@@ -643,6 +780,17 @@ def main() -> int:
             "max_frame_sumo_vehicles": max((int(item.get("max_frame_sumo_vehicles") or 0) for item in episode_results), default=0),
             "total_active_incident_frames": sum(int(item.get("active_incident_frames") or 0) for item in episode_results),
             "total_static_global_uav_tracks": sum(int(item.get("static_global_uav_track_count") or 0) for item in episode_results),
+            "total_background_pedestrian_visible_records": sum(
+                int(dict(item.get("background_pedestrian_motion") or {}).get("visible_records") or 0) for item in episode_results
+            ),
+            "min_background_pedestrian_moving_ratio": min(
+                (
+                    float(dict(item.get("background_pedestrian_motion") or {}).get("min_moving_ratio"))
+                    for item in episode_results
+                    if dict(item.get("background_pedestrian_motion") or {}).get("min_moving_ratio") is not None
+                ),
+                default=None,
+            ),
         },
         "failed_episodes": failed[:40],
         "episodes": episode_results,

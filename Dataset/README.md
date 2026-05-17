@@ -15,7 +15,7 @@ Canonical dataset root for the AeroWorld low-altitude semantic event-chain captu
 
 `spec_compiler.py -> regenerate_boundary_scenarios.py -> batch_generate.py -> convert_to_render_ready.py -> run_semantic_event_chain_every10.py -> episode_render_host.py -> validators`
 
-`convert_to_render_ready.py` writes both `Dataset/render_ready_episodes` and the formal filtered root `Dataset/render_ready_episodes_capture_filtered`. UE capture must consume the filtered root.
+`convert_to_render_ready.py` writes both `Dataset/render_ready_episodes` and the formal capture root `Dataset/render_ready_episodes_capture_filtered`. The formal root is a path-compatible sync package, not a corrective dynamic-entity filter; UE capture must consume it and validators must expose upstream truth errors.
 
 ## Runtime Rules
 

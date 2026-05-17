@@ -9,7 +9,6 @@ import hashlib
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter, defaultdict
-from dataclasses import replace
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -49,8 +48,6 @@ except ModuleNotFoundError:  # pragma: no cover - supports package imports from 
 
 try:
     from sumo_ground_flow.truth_integration import (
-        DEFAULT_MAX_VISIBLE_VEHICLES,
-        DEFAULT_MIN_VISIBLE_VEHICLES,
         DEFAULT_SUMO_OUTPUT_DIR,
         SumoTrafficDataset,
         VehicleSelection,
@@ -60,8 +57,6 @@ try:
     )
 except ModuleNotFoundError:  # pragma: no cover - supports package imports from repo root.
     from Dataset.tools.sumo_ground_flow.truth_integration import (
-        DEFAULT_MAX_VISIBLE_VEHICLES,
-        DEFAULT_MIN_VISIBLE_VEHICLES,
         DEFAULT_SUMO_OUTPUT_DIR,
         SumoTrafficDataset,
         VehicleSelection,
@@ -77,7 +72,7 @@ DEFAULT_ROI_ID = "roi.intersection_a.v1"
 DEFAULT_TICK_HZ = 10
 DEFAULT_CAPTURE_FILTER_OUTPUT_ROOT = Path("Dataset/render_ready_episodes_capture_filtered")
 UAV_GLOBAL_FLOW_SOURCE = "uav_global_flow"
-INTEREST_FILTER_CATEGORIES = {"pedestrian", "vehicle", "uav"}
+DYNAMIC_ENTITY_CATEGORIES = {"pedestrian", "vehicle", "uav"}
 PEDESTRIAN_VEHICLE_DYNAMIC_CLEARANCE_MIN_M = 4.0
 
 try:
@@ -1384,7 +1379,6 @@ def build_uav_pad_roster_entries(
     uav_dataset: UavGlobalFlowDataset,
     site_id: str,
     roi_id: str,
-    visibility: VisibilityGeometry | None = None,
 ) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for pad in uav_dataset.pads:
@@ -1392,8 +1386,6 @@ def build_uav_pad_roster_entries(
         if not pad_id:
             continue
         position = normalize_vector3(pad.get("position_enu_m"))
-        if visibility is not None and not visibility.is_observable(position):
-            continue
         entries.append(
             {
                 "entity_id": uav_pad_truth_entity_id(pad_id),
@@ -1630,156 +1622,6 @@ def projected_sumo_vehicle_position(vehicle: dict[str, Any], vehicle_lane_projec
 def source_vehicle_truth_position(position: Sequence[float]) -> list[float]:
     # Dataset source vehicles are authored with physical lane offsets already applied.
     return normalize_vector3(position)
-
-
-def filter_sumo_selection_for_pedestrian_clearance(
-    *,
-    sumo_dataset: SumoTrafficDataset,
-    sumo_segment: Any,
-    sumo_selection: VehicleSelection,
-    scenario_id: str,
-    ticks: Sequence[int],
-    tick_hz: int,
-    semantic_pedestrians_by_tick: dict[int, list[tuple[str, list[float]]]],
-    visibility: VisibilityGeometry,
-    vehicle_lane_projector: VehicleLaneProjector,
-) -> tuple[VehicleSelection, dict[str, Any]]:
-    if not semantic_pedestrians_by_tick or not sumo_selection.vehicle_ids:
-        return sumo_selection, {"enabled": True, "excluded_vehicle_count": 0, "excluded_vehicles": []}
-
-    excluded: dict[str, dict[str, Any]] = {}
-    for tick in ticks:
-        pedestrians = semantic_pedestrians_by_tick.get(int(tick))
-        if not pedestrians:
-            continue
-        sumo_sample = sumo_dataset.sample(
-            segment=sumo_segment,
-            episode_sim_time_s=int(tick) / float(tick_hz),
-            selected_vehicle_ids=sumo_selection.vehicle_ids,
-            scenario_id=scenario_id,
-        )
-        for vehicle in sumo_sample.get("vehicles") or []:
-            vehicle_id = str(vehicle.get("vehicle_id") or "")
-            if not vehicle_id or vehicle_id in excluded:
-                continue
-            control_role = str(vehicle.get("control_role") or "")
-            speed_mps = float(vehicle.get("speed_mps") or 0.0)
-            if control_role != "incident_controlled" and speed_mps < 0.5:
-                continue
-            position = projected_sumo_vehicle_position(vehicle, vehicle_lane_projector)
-            if float(visibility.observation_distance_m(position)) > float(visibility.padding_m):
-                continue
-            for pedestrian_id, pedestrian_position in pedestrians:
-                clearance_m = dist_xy(position, pedestrian_position)
-                if clearance_m < PEDESTRIAN_VEHICLE_DYNAMIC_CLEARANCE_MIN_M:
-                    excluded[vehicle_id] = {
-                        "vehicle_id": vehicle_id,
-                        "entity_id": sumo_selection.entity_ids.get(vehicle_id, sumo_truth_entity_id(vehicle_id)),
-                        "pedestrian_id": pedestrian_id,
-                        "tick": int(tick),
-                        "clearance_m": round(clearance_m, 6),
-                    }
-                    break
-
-    if not excluded:
-        return sumo_selection, {"enabled": True, "excluded_vehicle_count": 0, "excluded_vehicles": []}
-
-    kept_vehicle_ids = tuple(vehicle_id for vehicle_id in sumo_selection.vehicle_ids if vehicle_id not in excluded)
-    kept_set = set(kept_vehicle_ids)
-    filtered_selection = replace(
-        sumo_selection,
-        vehicle_ids=kept_vehicle_ids,
-        entity_ids={vehicle_id: sumo_selection.entity_ids[vehicle_id] for vehicle_id in kept_vehicle_ids},
-        min_distance_m_by_vehicle_id={
-            vehicle_id: sumo_selection.min_distance_m_by_vehicle_id.get(vehicle_id, float("inf"))
-            for vehicle_id in kept_vehicle_ids
-        },
-        frames_seen_by_vehicle_id={
-            vehicle_id: sumo_selection.frames_seen_by_vehicle_id.get(vehicle_id, 0)
-            for vehicle_id in kept_vehicle_ids
-        },
-        motion_span_m_by_vehicle_id={
-            vehicle_id: sumo_selection.motion_span_m_by_vehicle_id.get(vehicle_id, 0.0)
-            for vehicle_id in kept_vehicle_ids
-        },
-        max_speed_mps_by_vehicle_id={
-            vehicle_id: sumo_selection.max_speed_mps_by_vehicle_id.get(vehicle_id, 0.0)
-            for vehicle_id in kept_vehicle_ids
-        },
-        scenario_vehicle_ids=tuple(vehicle_id for vehicle_id in sumo_selection.scenario_vehicle_ids if vehicle_id in kept_set),
-        selected_count=len(kept_vehicle_ids),
-    )
-    return filtered_selection, {
-        "enabled": True,
-        "policy": "exclude_sumo_background_vehicle_if_projected_truth_conflicts_with_semantic_pedestrian_v1",
-        "clearance_min_m": PEDESTRIAN_VEHICLE_DYNAMIC_CLEARANCE_MIN_M,
-        "excluded_vehicle_count": len(excluded),
-        "excluded_vehicles": [excluded[key] for key in sorted(excluded)],
-    }
-
-
-def is_source_semantic_background_vehicle(source_entry: dict[str, Any], first_row: dict[str, Any]) -> bool:
-    profile = profile_for_entity(source_entry, first_row)
-    role = str(source_entry.get("role") or first_row.get("role") or "")
-    background_role = str(source_entry.get("background_role") or first_row.get("background_role") or "")
-    return (
-        str(profile.get("entity_category") or "") == "vehicle"
-        and (
-            role == "semantic_background_vehicle"
-            or (background_role == "semantic_context" and bool(source_entry.get("ground_flow_contract") or first_row.get("ground_flow_contract")))
-        )
-    )
-
-
-def filter_source_background_vehicles_for_pedestrian_clearance(
-    *,
-    grouped_rows: dict[str, list[dict[str, Any]]],
-    source_roster: dict[str, dict[str, Any]],
-    ticks: Sequence[int],
-    tick_hz: int,
-    semantic_pedestrians_by_tick: dict[int, list[tuple[str, list[float]]]],
-    visibility: VisibilityGeometry,
-    vehicle_lane_projector: VehicleLaneProjector,
-) -> tuple[set[str], dict[str, Any]]:
-    if not semantic_pedestrians_by_tick:
-        return set(), {"enabled": True, "excluded_vehicle_count": 0, "excluded_vehicles": []}
-
-    excluded: dict[str, dict[str, Any]] = {}
-    for entity_id, entity_rows in grouped_rows.items():
-        if not entity_rows:
-            continue
-        source_entry = dict(source_roster.get(entity_id) or {})
-        if not is_source_semantic_background_vehicle(source_entry, entity_rows[0]):
-            continue
-        for tick in ticks:
-            pedestrians = semantic_pedestrians_by_tick.get(int(tick))
-            if not pedestrians:
-                continue
-            row = sample_row_at_tick(entity_rows, int(tick), tick_hz)
-            position = normalized_position_for_render(row)
-            position = source_vehicle_truth_position(position)
-            if not point_in_interest_xy(position, visibility):
-                continue
-            for pedestrian_id, pedestrian_position in pedestrians:
-                clearance_m = dist_xy(position, pedestrian_position)
-                if clearance_m < PEDESTRIAN_VEHICLE_DYNAMIC_CLEARANCE_MIN_M:
-                    excluded[str(entity_id)] = {
-                        "entity_id": str(entity_id),
-                        "pedestrian_id": pedestrian_id,
-                        "tick": int(tick),
-                        "clearance_m": round(clearance_m, 6),
-                    }
-                    break
-            if str(entity_id) in excluded:
-                break
-
-    return set(excluded), {
-        "enabled": True,
-        "policy": "exclude_semantic_background_vehicle_if_projected_truth_conflicts_with_semantic_pedestrian_v1",
-        "clearance_min_m": PEDESTRIAN_VEHICLE_DYNAMIC_CLEARANCE_MIN_M,
-        "excluded_vehicle_count": len(excluded),
-        "excluded_vehicles": [excluded[key] for key in sorted(excluded)],
-    }
 
 
 def logical_asset_for_sumo_vehicle(vehicle: dict[str, Any]) -> str:
@@ -2043,17 +1885,11 @@ def convert_episode(
         tick_hz=tick_hz,
         visibility=interest_visibility,
     )
-    source_background_vehicle_excluded_ids, source_background_vehicle_clearance_filter = (
-        filter_source_background_vehicles_for_pedestrian_clearance(
-            grouped_rows=grouped,
-            source_roster=source_roster,
-            ticks=ticks,
-            tick_hz=tick_hz,
-            semantic_pedestrians_by_tick=semantic_pedestrians_by_tick,
-            visibility=interest_visibility,
-            vehicle_lane_projector=vehicle_lane_projector,
-        )
-    )
+    source_background_vehicle_clearance_filter = {
+        "enabled": False,
+        "policy": "validator_reports_pedestrian_vehicle_clearance_no_converter_deletion_v1",
+        "reason": "generation_truth_must_be_fixed_upstream_instead_of_filtering_source_background_vehicles",
+    }
 
     sumo_dataset: SumoTrafficDataset | None = None
     sumo_segment: Any | None = None
@@ -2073,24 +1909,15 @@ def convert_episode(
                 f"to bind seed segments; found {duration_ticks / float(tick_hz):.3f}s"
             )
         sumo_visibility = interest_visibility
-        sumo_selection = sumo_dataset.select_visible_vehicles(
+        sumo_selection = sumo_dataset.select_segment_vehicles(
             segment=sumo_segment,
-            visibility=sumo_visibility,
             scenario_id=scenario_id,
-            min_visible=DEFAULT_MIN_VISIBLE_VEHICLES,
-            max_visible=DEFAULT_MAX_VISIBLE_VEHICLES,
         )
-        sumo_selection, sumo_pedestrian_clearance_filter = filter_sumo_selection_for_pedestrian_clearance(
-            sumo_dataset=sumo_dataset,
-            sumo_segment=sumo_segment,
-            sumo_selection=sumo_selection,
-            scenario_id=scenario_id,
-            ticks=ticks,
-            tick_hz=tick_hz,
-            semantic_pedestrians_by_tick=semantic_pedestrians_by_tick,
-            visibility=sumo_visibility,
-            vehicle_lane_projector=vehicle_lane_projector,
-        )
+        sumo_pedestrian_clearance_filter = {
+            "enabled": False,
+            "policy": "validator_reports_pedestrian_vehicle_clearance_no_sumo_selection_deletion_v1",
+            "reason": "SUMO segment selection preserves all vehicles; generator/validator owns conflict fixes",
+        }
         sumo_roster_entities = build_sumo_vehicle_roster_entries(
             sumo_dataset=sumo_dataset,
             sumo_segment=sumo_segment,
@@ -2125,7 +1952,7 @@ def convert_episode(
                 f"{source_episode_dir.name}: episode duration must be {uav_segment.duration_s:.1f}s "
                 f"to bind UAV seed segments; found {duration_ticks / float(tick_hz):.3f}s"
             )
-        uav_selection = uav_dataset.select_visible_uavs(segment=uav_segment, visibility=interest_visibility)
+        uav_selection = uav_dataset.select_segment_uavs(segment=uav_segment)
         uav_roster_entities = build_uav_roster_entries(
             uav_dataset=uav_dataset,
             uav_segment=uav_segment,
@@ -2141,7 +1968,6 @@ def convert_episode(
             uav_dataset=uav_dataset,
             site_id=site_id,
             roi_id=roi_id,
-            visibility=interest_visibility,
         )
         if len(uav_roster_entities) != uav_selection.selected_count:
             raise RuntimeError(
@@ -2155,8 +1981,6 @@ def convert_episode(
     last_yaw_by_entity: dict[str, float] = {}
 
     for entity_id in sorted(grouped):
-        if entity_id in source_background_vehicle_excluded_ids:
-            continue
         source_entry = dict(source_roster[entity_id])
         label_class = str(source_entry.get("label_class") or grouped[entity_id][0].get("label_class") or "")
         first_row = sample_row_at_tick(grouped[entity_id], ticks[0], tick_hz)
@@ -2241,8 +2065,6 @@ def convert_episode(
             yaw = heading_deg_from_velocity(velocity, fallback_deg=last_yaw_by_entity.get(entity_id, 0.0))
             if category == "vehicle":
                 position = source_vehicle_truth_position(position)
-            if category in INTEREST_FILTER_CATEGORIES and not point_in_interest_xy(position, interest_visibility):
-                continue
             if math.hypot(velocity[0], velocity[1]) > 1e-4:
                 last_yaw_by_entity[entity_id] = yaw
             activity_type = activity_for_sample(
@@ -2296,14 +2118,8 @@ def convert_episode(
                 roster_entry = sumo_roster_by_vehicle_id.get(vehicle_id)
                 if not roster_entry:
                     continue
-                control_role = str(vehicle.get("control_role") or "")
-                speed_mps = float(vehicle.get("speed_mps") or 0.0)
-                if control_role != "incident_controlled" and speed_mps < 0.5:
-                    continue
                 position = projected_sumo_vehicle_position(vehicle, vehicle_lane_projector)
                 observation_distance_m = sumo_visibility.observation_distance_m(position)
-                if observation_distance_m > sumo_visibility.padding_m:
-                    continue
                 visible_sumo_vehicle_count += 1
                 entities.append(
                     sumo_vehicle_truth_entity(
@@ -2355,8 +2171,6 @@ def convert_episode(
                     continue
                 position = normalize_vector3(uav.get("position_enu_m"))
                 observation_distance_m = interest_visibility.observation_distance_m(position)
-                if observation_distance_m > interest_visibility.padding_m:
-                    continue
                 active_uav_count += 1
                 entity = uav_global_truth_entity(
                     uav=uav,
@@ -2428,19 +2242,8 @@ def convert_episode(
         if source_path.exists():
             shutil.copy2(source_path, output_episode_dir / name)
 
-    truth_entity_ids = {
-        str(entity.get("entity_id") or "")
-        for frame in truth_frames
-        for entity in frame.get("entities") or []
-        if str(entity.get("entity_id") or "")
-    }
     all_candidate_roster_entities = [*roster_entities, *sumo_roster_entities, *uav_pad_roster_entities, *uav_roster_entities]
-    all_roster_entities = [
-        entity
-        for entity in all_candidate_roster_entities
-        if str(entity.get("entity_category") or entity.get("label_class") or "").lower() not in INTEREST_FILTER_CATEGORIES
-        or str(entity.get("entity_id") or "") in truth_entity_ids
-    ]
+    all_roster_entities = list(all_candidate_roster_entities)
     weather_rows = expand_weather_rows(source_weather_rows, ticks)
     dynamic_labels = build_dynamic_labels(event_rows, episode_id)
     entity_counts = Counter(str(entity.get("entity_category") or "") for entity in all_roster_entities)
@@ -2602,13 +2405,13 @@ def convert_episode(
                     1
                     for entity in all_roster_entities
                     if str(entity.get("entity_category") or entity.get("label_class") or "").lower()
-                    in INTEREST_FILTER_CATEGORIES
+                    in DYNAMIC_ENTITY_CATEGORIES
                 ),
                 "static_nodes": sum(
                     1
                     for entity in all_roster_entities
                     if str(entity.get("entity_category") or entity.get("label_class") or "").lower()
-                    not in INTEREST_FILTER_CATEGORIES
+                    not in DYNAMIC_ENTITY_CATEGORIES
                 ),
             },
             "artifacts": artifacts,
@@ -2687,7 +2490,7 @@ def parse_args() -> argparse.Namespace:
         "--capture-filter-output-root",
         type=Path,
         default=DEFAULT_CAPTURE_FILTER_OUTPUT_ROOT,
-        help="Capture-visible filtered output root. This is mandatory for formal capture and is written on every conversion.",
+        help="Formal capture sync output root. This is mandatory for formal capture and is written on every conversion without corrective filtering.",
     )
     parser.add_argument("--map-id", default=DEFAULT_MAP_ID)
     parser.add_argument("--site-id", default=DEFAULT_SITE_ID)

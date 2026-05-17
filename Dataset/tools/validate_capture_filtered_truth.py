@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Validate capture-filtered truth before UE replay.
+"""Validate the formal UE replay truth synchronization package.
 
-The full render-ready truth remains the semantic source of truth.  This
-validator checks the smaller UE replay view: every dynamic pedestrian,
-vehicle, and UAV record that remains in the filtered truth must be observable
-in that episode's capture visibility geometry.
+``Dataset/render_ready_episodes_capture_filtered`` is kept as the formal capture
+input path, but it must not delete or visibility-filter dynamic P/V/U truth.
+This validator compares each formal package against the source render-ready
+episode and fails if truth frames, trajectories, or roster entities were removed.
+Generator-side mistakes should surface here and be fixed upstream.
 """
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -30,17 +31,7 @@ DISABLED_RENDER_FLAGS = (
 if str(ROOT / "Dataset" / "tools") not in sys.path:
     sys.path.insert(0, str(ROOT / "Dataset" / "tools"))
 
-from filter_render_ready_truth_for_capture import (  # noqa: E402
-    entity_category,
-    entity_initial_or_truth_position,
-    is_filterable_global_infrastructure,
-    loads_jsonl_bytes,
-    position_enu_from_entity,
-    read_json,
-    visibility_segment_distance_m,
-    visibility_segment_is_observable,
-    visibility_from_episode,
-)
+from filter_render_ready_truth_for_capture import entity_category, loads_jsonl_bytes, read_json  # noqa: E402
 
 
 def parse_episode_names(values: list[str] | None) -> list[str]:
@@ -60,14 +51,14 @@ def selected_episode_dirs(input_root: Path, names: list[str], limit: int) -> lis
         by_name = {path.name: path for path in all_dirs}
         missing = sorted(name for name in wanted if name not in by_name)
         if missing:
-            raise SystemExit(f"Missing capture-filtered episodes: {missing}")
+            raise SystemExit(f"Missing formal capture episodes: {missing}")
         all_dirs = [by_name[name] for name in names]
     if limit > 0:
         all_dirs = all_dirs[:limit]
     return all_dirs
 
 
-def source_episode_dir(filtered_dir: Path, source_root: Path, manifest: dict[str, Any]) -> Path:
+def source_episode_dir(formal_dir: Path, source_root: Path, manifest: dict[str, Any]) -> Path:
     generation = dict(manifest.get("generation") or {})
     raw = str(generation.get("truth_filter_source_root") or "").strip()
     if raw:
@@ -76,223 +67,197 @@ def source_episode_dir(filtered_dir: Path, source_root: Path, manifest: dict[str
             candidate = ROOT / candidate
         if candidate.exists():
             return candidate.resolve()
-    return (source_root / filtered_dir.name).resolve()
+    return (source_root / formal_dir.name).resolve()
 
 
-def check_render_config(filtered_dir: Path, errors: list[str]) -> None:
-    config_path = filtered_dir / "render_host_config.json"
+def check_render_config(formal_dir: Path, errors: list[str]) -> None:
+    config_path = formal_dir / "render_host_config.json"
     if not config_path.exists():
-        errors.append(f"{filtered_dir.name}: missing render_host_config.json")
+        errors.append(f"{formal_dir.name}: missing render_host_config.json")
         return
     config = read_json(config_path)
     for section, key in DISABLED_RENDER_FLAGS:
         payload = dict(config.get(section) or {})
         if payload.get(key) is not False:
-            errors.append(f"{filtered_dir.name}: render_host_config must set {section}.{key}=false")
+            errors.append(f"{formal_dir.name}: render_host_config must set {section}.{key}=false")
     road_topology = dict(config.get("road_topology_snap") or {})
     if road_topology.get("enabled") is True and road_topology.get("preserve_truth_xy") is not True:
-        errors.append(f"{filtered_dir.name}: road_topology_snap must preserve truth XY when enabled")
+        errors.append(f"{formal_dir.name}: road_topology_snap must preserve truth XY when enabled")
 
 
-def dynamic_segment_ok(
-    position_by_frame: dict[int, dict[str, list[float]]],
-    frame_indexes: list[int],
-    current_offset: int,
-    entity_id: str,
-    visibility: Any,
-) -> bool:
-    current_index = frame_indexes[current_offset]
-    current = position_by_frame[current_index].get(entity_id)
-    if current is None:
-        return False
-    if visibility.is_observable(current):
-        return True
-    for neighbor_offset in (current_offset - 1, current_offset + 1):
-        if neighbor_offset < 0 or neighbor_offset >= len(frame_indexes):
-            continue
-        neighbor = position_by_frame[frame_indexes[neighbor_offset]].get(entity_id)
-        if neighbor is not None and visibility_segment_is_observable(current, neighbor, visibility):
-            return True
-    return False
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
-def dynamic_segment_distance(
-    position_by_frame: dict[int, dict[str, list[float]]],
-    frame_indexes: list[int],
-    current_offset: int,
-    entity_id: str,
-    visibility: Any,
-) -> float:
-    current_index = frame_indexes[current_offset]
-    current = position_by_frame[current_index].get(entity_id)
-    if current is None:
-        return float("inf")
-    distances = [visibility.observation_distance_m(current)]
-    for neighbor_offset in (current_offset - 1, current_offset + 1):
-        if neighbor_offset < 0 or neighbor_offset >= len(frame_indexes):
-            continue
-        neighbor = position_by_frame[frame_indexes[neighbor_offset]].get(entity_id)
-        if neighbor is not None:
-            distances.append(visibility_segment_distance_m(current, neighbor, visibility))
-    return min(distances)
-
-
-def validate_episode(filtered_dir: Path, source_root: Path, max_errors: int) -> dict[str, Any]:
-    errors: list[str] = []
-    warnings: list[str] = []
-    manifest_path = filtered_dir / "episode_manifest.json"
-    roster_path = filtered_dir / "global_entity_roster.json"
-    truth_path = filtered_dir / "truth_frames.jsonl"
-    if not manifest_path.exists():
-        errors.append(f"{filtered_dir.name}: missing episode_manifest.json")
-        return {"episode": filtered_dir.name, "ok": False, "errors": errors, "warnings": warnings}
-    if not roster_path.exists():
-        errors.append(f"{filtered_dir.name}: missing global_entity_roster.json")
-        return {"episode": filtered_dir.name, "ok": False, "errors": errors, "warnings": warnings}
-
-    manifest = read_json(manifest_path)
-    source_dir = source_episode_dir(filtered_dir, source_root, manifest)
-    if not source_dir.exists():
-        errors.append(f"{filtered_dir.name}: source render-ready episode not found: {source_dir}")
-        return {"episode": filtered_dir.name, "ok": False, "errors": errors, "warnings": warnings}
-    source_manifest = read_json(source_dir / "episode_manifest.json")
-    source_roster_root = read_json(source_dir / "global_entity_roster.json")
-    source_roster_entities = list(source_roster_root.get("entities") or [])
-    visibility = visibility_from_episode(source_dir, source_manifest, source_roster_entities)
-
-    filter_payload = dict(manifest.get("capture_visible_truth_filter") or {})
-    if not filter_payload:
-        errors.append(f"{filtered_dir.name}: missing episode_manifest.capture_visible_truth_filter")
-    else:
-        visibility_payload = dict(filter_payload.get("visibility_geometry") or {})
-        padding_m = visibility_payload.get("padding_m", filter_payload.get("visibility_padding_m"))
-        if padding_m is not None:
-            try:
-                visibility = replace(visibility, padding_m=max(float(visibility.padding_m), float(padding_m)))
-            except (TypeError, ValueError):
-                errors.append(f"{filtered_dir.name}: invalid capture visibility padding_m={padding_m!r}")
-
-    check_render_config(filtered_dir, errors)
-
-    roster = read_json(roster_path)
-    roster_entities = list(roster.get("entities") or [])
-    roster_dynamic_ids = {
-        str(entity.get("entity_id") or "")
-        for entity in roster_entities
-        if entity_category(entity) in PVU_CATEGORIES and str(entity.get("entity_id") or "")
-    }
-    roster_global_infra = [
-        entity for entity in roster_entities if isinstance(entity, dict) and is_filterable_global_infrastructure(entity)
-    ]
-    for entity in roster_global_infra:
-        position = entity_initial_or_truth_position(entity)
-        if position is None:
-            errors.append(f"{filtered_dir.name}: global infrastructure {entity.get('entity_id')} missing position")
-            continue
-        if not visibility.is_observable(position):
-            distance = visibility.observation_distance_m(position)
-            errors.append(
-                f"{filtered_dir.name}: global infrastructure {entity.get('entity_id')} is outside capture visibility "
-                f"distance={distance:.3f}m padding={visibility.padding_m:.3f}m"
-            )
-
-    frames: list[dict[str, Any]] = []
-    with truth_path.open("rb") as handle:
-        for line in handle:
+def truth_stats(path: Path) -> dict[str, Any]:
+    frame_count = 0
+    entity_records = 0
+    dynamic_pvu_records = 0
+    dynamic_pvu_ids: set[str] = set()
+    dynamic_id_sets: list[set[str]] = []
+    with path.open("rb") as handle:
+        for line_number, line in enumerate(handle, start=1):
             stripped = line.strip()
             if not stripped:
                 continue
-            frames.append(loads_jsonl_bytes(stripped))
-    frame_indexes = list(range(len(frames)))
-    position_by_frame: dict[int, dict[str, list[float]]] = {}
-    for frame_index, frame in enumerate(frames):
-        positions: dict[str, list[float]] = {}
-        for entity in frame.get("entities") or []:
-            if not isinstance(entity, dict) or entity_category(entity) not in PVU_CATEGORIES:
-                continue
-            entity_id = str(entity.get("entity_id") or "")
-            position = position_enu_from_entity(entity)
-            if entity_id and position is not None:
-                positions[entity_id] = position
-        position_by_frame[frame_index] = positions
+            try:
+                frame = loads_jsonl_bytes(stripped)
+            except (json.JSONDecodeError, ValueError) as exc:
+                raise ValueError(f"{path}:{line_number}: invalid JSONL row: {exc}") from exc
+            frame_count += 1
+            current_dynamic_ids: set[str] = set()
+            entities = frame.get("entities") or []
+            entity_records += len(entities) if isinstance(entities, list) else 0
+            for entity in entities if isinstance(entities, list) else []:
+                if not isinstance(entity, dict):
+                    continue
+                if entity_category(entity) not in PVU_CATEGORIES:
+                    continue
+                entity_id = str(entity.get("entity_id") or "")
+                dynamic_pvu_records += 1
+                if entity_id:
+                    dynamic_pvu_ids.add(entity_id)
+                    current_dynamic_ids.add(entity_id)
+            dynamic_id_sets.append(current_dynamic_ids)
+    return {
+        "frame_count": frame_count,
+        "entity_records": entity_records,
+        "dynamic_pvu_records": dynamic_pvu_records,
+        "dynamic_pvu_ids": dynamic_pvu_ids,
+        "dynamic_id_sets": dynamic_id_sets,
+    }
 
-    frame_count = 0
-    pvu_records = 0
-    pvu_ids: set[str] = set()
-    global_infra_records = 0
-    for frame_offset, frame in enumerate(frames):
-        frame_count += 1
-        tick = int(frame.get("tick") or 0)
-        for entity in frame.get("entities") or []:
-            if not isinstance(entity, dict):
-                continue
-            category = entity_category(entity)
-            entity_id = str(entity.get("entity_id") or "")
-            if category in PVU_CATEGORIES:
-                position = position_enu_from_entity(entity)
-                if position is None:
-                    errors.append(f"{filtered_dir.name}: tick {tick} dynamic entity {entity_id} missing position")
-                elif entity_id and not dynamic_segment_ok(
-                    position_by_frame,
-                    frame_indexes,
-                    frame_offset,
-                    entity_id,
-                    visibility,
-                ):
-                    distance = dynamic_segment_distance(
-                        position_by_frame,
-                        frame_indexes,
-                        frame_offset,
-                        entity_id,
-                        visibility,
-                    )
-                    errors.append(
-                        f"{filtered_dir.name}: tick {tick} dynamic {category} {entity_id} has no point/adjacent segment in capture visibility "
-                        f"distance={distance:.3f}m padding={visibility.padding_m:.3f}m"
-                    )
-                else:
-                    pvu_records += 1
-                    if entity_id:
-                        pvu_ids.add(entity_id)
-            elif is_filterable_global_infrastructure(entity):
-                global_infra_records += 1
-                position = entity_initial_or_truth_position(entity)
-                if position is None or not visibility.is_observable(position):
-                    distance = visibility.observation_distance_m(position) if position is not None else float("inf")
-                    errors.append(
-                        f"{filtered_dir.name}: tick {tick} global infrastructure {entity_id} outside capture visibility "
-                        f"distance={distance:.3f}m padding={visibility.padding_m:.3f}m"
-                    )
-            if len(errors) >= max_errors:
-                break
-        if len(errors) >= max_errors:
-            break
 
-    missing_from_truth = sorted(roster_dynamic_ids - pvu_ids)
-    if missing_from_truth:
+def count_jsonl_rows(path: Path) -> int:
+    if not path.exists():
+        return 0
+    with path.open("rb") as handle:
+        return sum(1 for line in handle if line.strip())
+
+
+def check_no_filter_policy(formal_dir: Path, manifest: dict[str, Any], errors: list[str]) -> None:
+    payload = dict(manifest.get("capture_truth_sync") or manifest.get("capture_visible_truth_filter") or {})
+    if not payload:
+        errors.append(f"{formal_dir.name}: missing capture_truth_sync/capture_visible_truth_filter metadata")
+        return
+    if payload.get("filtering_enabled") is not False:
+        errors.append(f"{formal_dir.name}: formal capture sync must set filtering_enabled=false")
+    if payload.get("dynamic_pvu_filtering_enabled") is not False:
+        errors.append(f"{formal_dir.name}: formal capture sync must set dynamic_pvu_filtering_enabled=false")
+    stats = dict(payload.get("stats") or {})
+    if int(stats.get("removed_truth_entities") or 0) != 0:
+        errors.append(f"{formal_dir.name}: formal capture sync removed_truth_entities={stats.get('removed_truth_entities')}")
+
+
+def validate_episode(formal_dir: Path, source_root: Path, max_errors: int) -> dict[str, Any]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    required = (
+        "episode_manifest.json",
+        "global_entity_roster.json",
+        "truth_frames.jsonl",
+        "trajectories.jsonl",
+        "scenario_plan.json",
+    )
+    for name in required:
+        if not (formal_dir / name).exists():
+            errors.append(f"{formal_dir.name}: missing {name}")
+    if errors:
+        return {"episode": formal_dir.name, "ok": False, "errors": errors, "warnings": warnings}
+
+    manifest = read_json(formal_dir / "episode_manifest.json")
+    source_dir = source_episode_dir(formal_dir, source_root, manifest)
+    if not source_dir.exists():
+        errors.append(f"{formal_dir.name}: source render-ready episode not found: {source_dir}")
+        return {"episode": formal_dir.name, "ok": False, "errors": errors, "warnings": warnings}
+    for name in required:
+        if not (source_dir / name).exists():
+            errors.append(f"{formal_dir.name}: source missing {name}: {source_dir}")
+    if errors:
+        return {"episode": formal_dir.name, "ok": False, "errors": errors[:max_errors], "warnings": warnings}
+
+    check_no_filter_policy(formal_dir, manifest, errors)
+    check_render_config(formal_dir, errors)
+
+    source_roster = read_json(source_dir / "global_entity_roster.json")
+    formal_roster = read_json(formal_dir / "global_entity_roster.json")
+    source_entities = list(source_roster.get("entities") or [])
+    formal_entities = list(formal_roster.get("entities") or [])
+    if formal_entities != source_entities:
+        source_ids = [str(entity.get("entity_id") or "") for entity in source_entities if isinstance(entity, dict)]
+        formal_ids = [str(entity.get("entity_id") or "") for entity in formal_entities if isinstance(entity, dict)]
+        missing = sorted(set(source_ids) - set(formal_ids))
+        extra = sorted(set(formal_ids) - set(source_ids))
         errors.append(
-            f"{filtered_dir.name}: dynamic roster ids missing from filtered truth records: {missing_from_truth[:10]}"
+            f"{formal_dir.name}: global_entity_roster entities differ from source "
+            f"source={len(source_entities)} formal={len(formal_entities)} missing={missing[:10]} extra={extra[:10]}"
         )
-    if frame_count <= 0:
-        errors.append(f"{filtered_dir.name}: empty truth_frames.jsonl")
-    if pvu_records <= 0:
-        warnings.append(f"{filtered_dir.name}: no dynamic P/V/U records remain after filtering")
+
+    source_truth_path = source_dir / "truth_frames.jsonl"
+    formal_truth_path = formal_dir / "truth_frames.jsonl"
+    source_traj_path = source_dir / "trajectories.jsonl"
+    formal_traj_path = formal_dir / "trajectories.jsonl"
+    source_truth_sha = sha256_file(source_truth_path)
+    formal_truth_sha = sha256_file(formal_truth_path)
+    source_traj_sha = sha256_file(source_traj_path)
+    formal_traj_sha = sha256_file(formal_traj_path)
+
+    source_stats = truth_stats(source_truth_path)
+    formal_stats = truth_stats(formal_truth_path)
+    if source_truth_sha != formal_truth_sha:
+        errors.append(f"{formal_dir.name}: truth_frames.jsonl differs from source; formal sync must not delete/rewrite truth frames")
+        if source_stats["frame_count"] != formal_stats["frame_count"]:
+            errors.append(
+                f"{formal_dir.name}: frame count changed source={source_stats['frame_count']} formal={formal_stats['frame_count']}"
+            )
+        if source_stats["entity_records"] != formal_stats["entity_records"]:
+            errors.append(
+                f"{formal_dir.name}: entity records changed source={source_stats['entity_records']} formal={formal_stats['entity_records']}"
+            )
+        if source_stats["dynamic_pvu_records"] != formal_stats["dynamic_pvu_records"]:
+            errors.append(
+                f"{formal_dir.name}: dynamic P/V/U records changed source={source_stats['dynamic_pvu_records']} "
+                f"formal={formal_stats['dynamic_pvu_records']}"
+            )
+        max_frames = min(len(source_stats["dynamic_id_sets"]), len(formal_stats["dynamic_id_sets"]))
+        for frame_index in range(max_frames):
+            missing = sorted(source_stats["dynamic_id_sets"][frame_index] - formal_stats["dynamic_id_sets"][frame_index])
+            if missing:
+                errors.append(f"{formal_dir.name}: frame {frame_index} missing dynamic ids after sync: {missing[:10]}")
+                break
+    if source_traj_sha != formal_traj_sha:
+        errors.append(
+            f"{formal_dir.name}: trajectories.jsonl differs from source "
+            f"source_rows={count_jsonl_rows(source_traj_path)} formal_rows={count_jsonl_rows(formal_traj_path)}"
+        )
+
+    pvu_missing = sorted(source_stats["dynamic_pvu_ids"] - formal_stats["dynamic_pvu_ids"])
+    if pvu_missing:
+        errors.append(f"{formal_dir.name}: dynamic P/V/U ids missing after formal sync: {pvu_missing[:20]}")
+    if int(formal_stats["dynamic_pvu_records"]) <= 0:
+        warnings.append(f"{formal_dir.name}: no dynamic P/V/U records in formal truth")
 
     return {
-        "episode": filtered_dir.name,
+        "episode": formal_dir.name,
         "ok": not errors,
         "errors": errors[:max_errors],
         "warnings": warnings,
-        "frame_count": frame_count,
-        "dynamic_pvu_records": pvu_records,
-        "dynamic_pvu_ids": len(pvu_ids),
-        "global_infrastructure_records": global_infra_records,
+        "frame_count": int(formal_stats["frame_count"]),
+        "entity_records": int(formal_stats["entity_records"]),
+        "dynamic_pvu_records": int(formal_stats["dynamic_pvu_records"]),
+        "dynamic_pvu_ids": len(formal_stats["dynamic_pvu_ids"]),
         "source_episode_dir": str(source_dir),
+        "truth_sha256": formal_truth_sha,
+        "trajectories_sha256": formal_traj_sha,
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate capture-filtered UE replay truth.")
+    parser = argparse.ArgumentParser(description="Validate formal capture truth sync packages.")
     parser.add_argument("--input-root", type=Path, default=DEFAULT_INPUT_ROOT)
     parser.add_argument("--source-root", type=Path, default=DEFAULT_SOURCE_ROOT)
     parser.add_argument("--episode", action="append", default=[])
@@ -304,7 +269,7 @@ def main() -> int:
     source_root = args.source_root.resolve()
     episodes = selected_episode_dirs(input_root, parse_episode_names(args.episode), int(args.limit or 0))
     if not episodes:
-        raise SystemExit("No capture-filtered episodes selected")
+        raise SystemExit("No formal capture episodes selected")
 
     results = [validate_episode(path, source_root, max(1, int(args.max_errors or 50))) for path in episodes]
     failed = [result for result in results if not result["ok"]]
@@ -316,7 +281,7 @@ def main() -> int:
         "failed_episode_count": len(failed),
         "dynamic_pvu_records": sum(int(result.get("dynamic_pvu_records") or 0) for result in results),
         "dynamic_pvu_ids": sum(int(result.get("dynamic_pvu_ids") or 0) for result in results),
-        "global_infrastructure_records": sum(int(result.get("global_infrastructure_records") or 0) for result in results),
+        "entity_records": sum(int(result.get("entity_records") or 0) for result in results),
         "failed_episodes": failed[:20],
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
