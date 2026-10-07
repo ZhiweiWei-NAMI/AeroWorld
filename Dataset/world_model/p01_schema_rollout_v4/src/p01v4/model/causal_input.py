@@ -93,15 +93,36 @@ def load_index(canonical: Path, communication: Path, episode: str, cutoff: int, 
     baseline = json.loads(graph_base.read_text())
     if baseline["episode_id"] != episode or baseline["tick"] != 0:
         raise ValueError("graph initial source does not match the episode/tick0")
+    # Native graph base is the model's initial-state channel. Canonical base
+    # edges are the importer projection of this same authority, not extra facts.
+    # Bind that projection once while building the fixed index, never per query.
+    initial_records = [record for record in sample.input_records
+                       if record.get("source_family") == "world_truth_graph_base"]
+    if any(record["tick"] != baseline["tick"] for record in initial_records):
+        raise ValueError("canonical initial assertion is bound to a different native initial tick")
+    for family, native_path in (("world_truth_graph_base", graph_base),
+                                ("world_truth_graph_deltas", graph_base.with_name("world_truth_graph_deltas.jsonl"))):
+        paths = {record["source"]["path"] for record in sample.input_records
+                 if record.get("source_family") == family}
+        expected = native_path.resolve()
+        if any(Path(path).resolve() != expected for path in paths):
+            raise ValueError(f"canonical {family} is bound to a different native graph source")
     # This is an independent worldtruth channel, not observer visibility.
     # Initial tick0 values and cutoff-legal deltas do not expand query actors.
     graph_nodes = {}
     def node_roles(assertion, source):
         for role, identity in assertion["bindings"].items():
             ontology = assertion["binding_ontology_classes"][role]
-            if identity in graph_nodes and graph_nodes[identity]["ontology_class"] != ontology:
-                raise ValueError(f"causal graph identity changes ontology class: {identity}")
-            graph_nodes[identity] = {"identity": identity, "ontology_class": ontology, "role": role, "source": source}
+            if identity not in graph_nodes:
+                graph_nodes[identity] = {"identity": identity, "ontology_classes": [], "role_bindings": []}
+            node = graph_nodes[identity]
+            if ontology not in node["ontology_classes"]:
+                node["ontology_classes"].append(ontology)
+                node["ontology_classes"].sort()
+            binding = {"role": role, "ontology_class": ontology,
+                       "predicate_id": assertion["predicate_id"], "tuple_id": assertion["tuple_id"], "source": dict(source)}
+            if binding not in node["role_bindings"]:
+                node["role_bindings"].append(binding)
     for assertion in baseline["initial_assertions"]:
         if assertion["truth_state_update_tick"] != 0 or assertion["evidence_update_tick"] != 0:
             raise ValueError("initial assertion contains later evidence")
@@ -135,6 +156,8 @@ def load_index(canonical: Path, communication: Path, episode: str, cutoff: int, 
                     if graph_state[key]["value"] != body["value"]: raise ValueError("graph evidence value diverges")
                 else: raise ValueError(f"unsupported current graph operation {action}")
     for r in sample.input_records:
+        if r.get("source_family") == "world_truth_graph_base":
+            continue  # Already consumed above through its verified native channel.
         kind = r["record_kind"]
         if kind == "entity" and r["fields"]["roster.entity_id"] not in prefix_actors:
             continue  # Full-episode capture-filter roster is hindsight-selected.

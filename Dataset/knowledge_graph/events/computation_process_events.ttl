@@ -1,0 +1,184 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/computation_process#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/computation_process#> .
+
+<https://w3id.org/aeroworld/ontology/events/computation_process>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/computation_process/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/computation_process> ;
+    dct:title "AeroWorld Computation Process Event Ontology"@en ,
+        "AeroWorld 计算过程事件本体"@zh ;
+    dct:description "Stable objective computation event types for task execution, resource allocation, offloading, migration, saturation, queueing, and failure; executable rules are deferred until authoritative compute logs exist."@en ,
+        "面向任务执行、资源分配、卸载、迁移、饱和、排队和失败的稳定客观计算事件类型；可执行规则等待权威计算日志后再定义。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/computation_process#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:ComputeTaskOffloadEventRole_offload
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "offload" ;
+    world:participantClass dom:TaskOffload ;
+    rdfs:label "offload"@en .
+
+evt:ComputeTaskOffloadEventRole_task
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "task" ;
+    world:participantClass dom:ComputeTask ;
+    rdfs:label "task"@en .
+
+evt:ComputeTaskOffloadEventRole_source_node
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "source_node" ;
+    world:participantClass dom:ComputeNode ;
+    rdfs:label "source node"@en .
+
+evt:ComputeTaskOffloadEventRole_target_node
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "target_node" ;
+    world:participantClass dom:ComputeNode ;
+    rdfs:label "target node"@en .
+
+evt:ComputeTaskOffloadEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "compute.compute_task_offload_event" ;
+    aw:declaresParticipantRole evt:ComputeTaskOffloadEventRole_offload ,
+        evt:ComputeTaskOffloadEventRole_task ,
+        evt:ComputeTaskOffloadEventRole_source_node ,
+        evt:ComputeTaskOffloadEventRole_target_node ;
+    rdfs:label "compute task offload"@en ,
+        "计算任务卸载事件"@zh ;
+    skos:definition "Objective computation event in which a task is offloaded from one compute node to another."@en ,
+        "计算任务从一个计算节点卸载到另一个计算节点的客观计算事件"@zh .
+
+evt:ComputeTaskMigrationEventRole_migration
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "migration" ;
+    world:participantClass dom:TaskMigration ;
+    rdfs:label "migration"@en .
+
+evt:ComputeTaskMigrationEventRole_task
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "task" ;
+    world:participantClass dom:ComputeTask ;
+    rdfs:label "task"@en .
+
+evt:ComputeTaskMigrationEventRole_source_node
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "source_node" ;
+    world:participantClass dom:ComputeNode ;
+    rdfs:label "source node"@en .
+
+evt:ComputeTaskMigrationEventRole_target_node
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "target_node" ;
+    world:participantClass dom:ComputeNode ;
+    rdfs:label "target node"@en .
+
+evt:ComputeTaskMigrationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "compute.compute_task_migration_event" ;
+    aw:declaresParticipantRole evt:ComputeTaskMigrationEventRole_migration ,
+        evt:ComputeTaskMigrationEventRole_task ,
+        evt:ComputeTaskMigrationEventRole_source_node ,
+        evt:ComputeTaskMigrationEventRole_target_node ;
+    rdfs:label "compute task migration"@en ,
+        "计算任务迁移事件"@zh ;
+    skos:definition "Objective computation event in which an executing task migrates between compute nodes."@en ,
+        "正在执行的任务在计算节点之间迁移的客观计算事件"@zh .
+
+evt:ComputeTaskExecutionFailureEventRole_execution
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "execution" ;
+    world:participantClass dom:TaskExecution ;
+    rdfs:label "execution"@en .
+
+evt:ComputeTaskExecutionFailureEventRole_task
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "task" ;
+    world:participantClass dom:ComputeTask ;
+    rdfs:label "task"@en .
+
+evt:ComputeTaskExecutionFailureEventRole_node
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "node" ;
+    world:participantClass dom:ComputeNode ;
+    rdfs:label "node"@en .
+
+evt:ComputeTaskExecutionFailureEventRole_failure_state
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "failure_state" ;
+    world:participantClass dom:ExecutionFailure ;
+    rdfs:label "failure state"@en .
+
+evt:ComputeTaskExecutionFailureEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "compute.compute_task_execution_failure_event" ;
+    aw:declaresParticipantRole evt:ComputeTaskExecutionFailureEventRole_execution ,
+        evt:ComputeTaskExecutionFailureEventRole_task ,
+        evt:ComputeTaskExecutionFailureEventRole_node ,
+        evt:ComputeTaskExecutionFailureEventRole_failure_state ;
+    rdfs:label "compute task execution failure"@en ,
+        "计算任务执行失败事件"@zh ;
+    skos:definition "Objective computation event in which a compute task enters an execution-failure state."@en ,
+        "计算任务进入执行失败状态的客观计算事件"@zh .
+
+evt:ComputeResourceSaturationEventRole_node
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "node" ;
+    world:participantClass dom:ComputeNode ;
+    rdfs:label "node"@en .
+
+evt:ComputeResourceSaturationEventRole_resource
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "resource" ;
+    world:participantClass dom:ComputeResource ;
+    rdfs:label "resource"@en .
+
+evt:ComputeResourceSaturationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "compute.compute_resource_saturation_event" ;
+    aw:declaresParticipantRole evt:ComputeResourceSaturationEventRole_node ,
+        evt:ComputeResourceSaturationEventRole_resource ;
+    rdfs:label "compute resource saturation"@en ,
+        "计算资源饱和事件"@zh ;
+    skos:definition "Objective computation event in which requested CPU, GPU, or memory exceeds available capacity."@en ,
+        "请求的 CPU、GPU 或内存超过可用容量的客观计算事件"@zh .
+
+evt:ComputeQueueOverloadEventRole_queue
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "queue" ;
+    world:participantClass dom:ComputeQueue ;
+    rdfs:label "queue"@en .
+
+evt:ComputeQueueOverloadEventRole_node
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "node" ;
+    world:participantClass dom:ComputeNode ;
+    rdfs:label "node"@en .
+
+evt:ComputeQueueOverloadEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "compute.compute_queue_overload_event" ;
+    aw:declaresParticipantRole evt:ComputeQueueOverloadEventRole_queue ,
+        evt:ComputeQueueOverloadEventRole_node ;
+    rdfs:label "compute queue overload"@en ,
+        "计算队列过载事件"@zh ;
+    skos:definition "Objective computation event in which queued tasks exceed a declared queue threshold."@en ,
+        "排队任务超过声明队列阈值的客观计算事件"@zh .

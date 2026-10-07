@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w3id.org/aeroworld/schema/simulation_log.schema.json",
+  "title": "AeroWorld deterministic simulation log record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "log_id",
+    "episode_id",
+    "log_kind",
+    "tick",
+    "scope_type",
+    "scope_entity_id",
+    "source_record_kind",
+    "source_class",
+    "parameter_source_class",
+    "model_id",
+    "model_version",
+    "state",
+    "source_refs"
+  ],
+  "properties": {
+    "schema_name": {
+      "const": "aeroworld_simulation_log"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "log_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "episode_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "log_kind": {
+      "enum": [
+        "compute",
+        "communication",
+        "charging",
+        "battery",
+        "utm",
+        "gnss",
+        "weather",
+        "facility"
+      ]
+    },
+    "tick": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 900,
+      "multipleOf": 5
+    },
+    "scope_type": {
+      "enum": [
+        "uav",
+        "vehicle",
+        "pedestrian",
+        "facility",
+        "compute_node",
+        "scene"
+      ]
+    },
+    "scope_entity_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_record_kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_class": {
+      "enum": [
+        "standard_referenced_parameter",
+        "deterministic_simulation",
+        "simulated_derived",
+        "measured_source",
+        "source_declared",
+        "derived_from_observed"
+      ]
+    },
+    "parameter_source_class": {
+      "enum": [
+        "standard_referenced_parameter",
+        "deterministic_simulation"
+      ]
+    },
+    "model_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "type": "object"
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^simulation_logs/.+\\.jsonl#line=[1-9][0-9]*$"
+      }
+    }
+  }
+}

@@ -1,0 +1,374 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/airspace_operations#> .
+
+<https://w3id.org/aeroworld/ontology/domain/airspace_operations>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/airspace_operations/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Airspace Operations Ontology"@en ,
+        "AeroWorld 空域运行本体"@zh ;
+    dct:description "Airspace regions, corridors, altitude bands, no-fly or protected regions, aircraft occupancy, and airspace operating states."@en ,
+        "刻画空域区域、航路、指定高度带、禁飞或保护区域、航空器占用关系和空域运行状态。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/airspace_operations#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:MissionAirspace
+    a owl:Class ;
+    rdfs:subClassOf world:AirspaceRegion ;
+    rdfs:label "Mission airspace"@en ,
+        "任务空域"@zh ;
+    skos:definition "Airspace allocated for a UAV mission or inspection operation."@en ,
+        "分配给无人机任务或巡检运行的空域。"@zh .
+
+dom:AirspaceConstraintRegion
+    a owl:Class ;
+    rdfs:subClassOf world:AirspaceRegion ;
+    rdfs:label "airspace constraint region"@en ,
+        "空域约束区域"@zh ;
+    skos:definition "A spatial or vertical region that constrains airspace use."@en ,
+        "对空域使用形成限制的空间或高度区域。"@zh .
+
+dom:CorridorOccupancyState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "corridor occupancy state"@en ,
+        "航路占用状态"@zh ;
+    skos:definition "Tick-indexed state describing aircraft occupancy of an airspace corridor."@en ,
+        "描述某一时刻航空器占用空中航路情况的状态。"@zh .
+
+dom:AssignedAltitudeState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "assigned altitude state"@en ,
+        "指定高度状态"@zh ;
+    skos:definition "Tick-indexed state comparing aircraft altitude against its assigned altitude band."@en ,
+        "比较航空器当前高度与指定高度带的时刻状态。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:aircraftAssignedToAirspace
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range dom:MissionAirspace ;
+    rdfs:label "aircraft assigned to airspace"@en ,
+        "航空器分配至空域"@zh ;
+    skos:definition "Relates a UAV to the mission airspace it is expected to use."@en ,
+        "表示无人机与其预期使用任务空域之间的关系。"@zh .
+
+dom:aircraftOccupiesCorridor
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:AirspaceCorridor ;
+    rdfs:label "aircraft occupies corridor"@en ,
+        "航空器占用航路"@zh ;
+    skos:definition "Relates a UAV to the corridor it occupies at a tick."@en ,
+        "表示某一时刻无人机占用的空中航路。"@zh .
+
+dom:airspaceConstrainedByRegion
+    a owl:ObjectProperty ;
+    rdfs:domain dom:MissionAirspace ;
+    rdfs:range dom:AirspaceConstraintRegion ;
+    rdfs:label "airspace constrained by region"@en ,
+        "空域受区域约束"@zh ;
+    skos:definition "Relates mission airspace to a spatial or vertical constraint region."@en ,
+        "表示任务空域受到某个空间或高度约束区域限制。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:assignedAltitudeMinM
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:AssignedAltitudeState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "assigned altitude minimum meters"@en ,
+        "指定最低高度米"@zh ;
+    skos:definition "Lower bound of the assigned altitude band in meters."@en ,
+        "指定高度带的最低边界，单位为米。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "altitude_assignment" .
+
+dom:assignedAltitudeMaxM
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:AssignedAltitudeState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "assigned altitude maximum meters"@en ,
+        "指定最高高度米"@zh ;
+    skos:definition "Upper bound of the assigned altitude band in meters."@en ,
+        "指定高度带的最高边界，单位为米。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "altitude_assignment" .
+
+dom:corridorOccupancyCount
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:CorridorOccupancyState ;
+    rdfs:range xsd:integer ;
+    rdfs:label "corridor occupancy count"@en ,
+        "航路占用数量"@zh ;
+    skos:definition "Number of aircraft occupying a corridor at a tick."@en ,
+        "某一时刻占用航路的航空器数量。"@zh ;
+    world:unitSymbol "aircraft" ;
+    world:stateFieldCategory "corridor_occupancy" .
+
+dom:corridorCapacityCount
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:CorridorOccupancyState ;
+    rdfs:range xsd:integer ;
+    rdfs:label "corridor capacity count"@en ,
+        "航路容量数量"@zh ;
+    skos:definition "Declared maximum number of aircraft accepted by a corridor."@en ,
+        "航路声明允许的最大航空器数量。"@zh ;
+    world:unitSymbol "aircraft" ;
+    world:stateFieldCategory "corridor_capacity" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:AircraftInsideRestrictedAirspaceArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:AircraftInsideRestrictedAirspaceArgument_restricted_region
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "restricted_region" ;
+    world:argumentClass world:RestrictedAirspaceRegion ;
+    rdfs:label "restricted region"@en .
+
+dom:AircraftInsideRestrictedAirspace
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_inside_restricted_airspace" ;
+    aw:declaresArgumentRole dom:AircraftInsideRestrictedAirspaceArgument_actor ,
+        dom:AircraftInsideRestrictedAirspaceArgument_restricted_region ;
+    rdfs:label "aircraft inside restricted airspace"@en ,
+        "航空器位于限制空域内"@zh ;
+    skos:definition "Holds when a UAV is within the effective range of an active restricted airspace region, including its governed boundary margin."@en ,
+        "当无人机处于有效限制空域的影响范围内（含受治理的边界余量）时成立。"@zh .
+
+dom:AircraftInsideProtectedAirspaceArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftInsideProtectedAirspaceArgument_protected_region
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "protected_region" ;
+    world:argumentClass world:ProtectedAirspace ;
+    rdfs:label "protected region"@en .
+
+dom:AircraftInsideProtectedAirspace
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_inside_protected_airspace" ;
+    aw:declaresArgumentRole dom:AircraftInsideProtectedAirspaceArgument_aircraft ,
+        dom:AircraftInsideProtectedAirspaceArgument_protected_region ;
+    rdfs:label "aircraft inside protected airspace"@en ,
+        "航空器位于保护空域内"@zh ;
+    skos:definition "Holds when a UAV is spatially inside protected airspace."@en ,
+        "当无人机在空间上位于保护空域内时成立"@zh .
+
+dom:AircraftIsNonCooperativeArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftIsNonCooperative
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_is_non_cooperative" ;
+    aw:declaresArgumentRole dom:AircraftIsNonCooperativeArgument_aircraft ;
+    rdfs:label "aircraft is non-cooperative"@en ,
+        "航空器处于非合作状态"@zh ;
+    skos:definition "Holds when a UAV is observed in a non-cooperative operating state."@en ,
+        "当无人机被观测为非合作运行状态时成立"@zh .
+
+dom:AircraftOutsideAssignedAltitudeBandArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:AircraftOutsideAssignedAltitudeBand
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_outside_assigned_altitude_band" ;
+    aw:declaresArgumentRole dom:AircraftOutsideAssignedAltitudeBandArgument_actor ;
+    rdfs:label "aircraft outside assigned altitude band"@en ,
+        "航空器超出指定高度带"@zh ;
+    skos:definition "Holds when a UAV altitude lies outside its assigned altitude band."@en ,
+        "当无人机高度位于指定高度带之外时成立"@zh .
+
+dom:AircraftOccupiesAirspaceCorridorArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:AircraftOccupiesAirspaceCorridorArgument_corridor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "corridor" ;
+    world:argumentClass world:AirspaceCorridor ;
+    rdfs:label "corridor"@en .
+
+dom:AircraftOccupiesAirspaceCorridor
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_occupies_airspace_corridor" ;
+    aw:declaresArgumentRole dom:AircraftOccupiesAirspaceCorridorArgument_actor ,
+        dom:AircraftOccupiesAirspaceCorridorArgument_corridor ;
+    rdfs:label "aircraft occupies airspace corridor"@en ,
+        "航空器占用空中航路"@zh ;
+    skos:definition "Holds when a UAV occupies a declared airspace corridor."@en ,
+        "当无人机占用已声明空中航路时成立"@zh .
+
+dom:AircraftMovingInCorridorArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:AircraftMovingInCorridorArgument_corridor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "corridor" ;
+    world:argumentClass world:AirspaceCorridor ;
+    rdfs:label "corridor"@en .
+
+dom:AircraftMovingInCorridor
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_moving_in_corridor" ;
+    aw:declaresArgumentRole dom:AircraftMovingInCorridorArgument_actor ,
+        dom:AircraftMovingInCorridorArgument_corridor ;
+    rdfs:label "aircraft moving in corridor"@en ,
+        "航空器在航路中移动"@zh ;
+    skos:definition "Holds when a UAV occupies a declared airspace corridor and its measured speed exceeds the configured stationary threshold."@en ,
+        "当无人机占用已声明空中航路且测得速度超过配置的静止阈值时成立"@zh .
+
+dom:AircraftStationaryInCorridorArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:AircraftStationaryInCorridorArgument_corridor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "corridor" ;
+    world:argumentClass world:AirspaceCorridor ;
+    rdfs:label "corridor"@en .
+
+dom:AircraftStationaryInCorridor
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_stationary_in_corridor" ;
+    aw:declaresArgumentRole dom:AircraftStationaryInCorridorArgument_actor ,
+        dom:AircraftStationaryInCorridorArgument_corridor ;
+    rdfs:label "aircraft stationary in corridor"@en ,
+        "航空器在航路中静止"@zh ;
+    skos:definition "Holds when a UAV occupies a declared airspace corridor and its measured speed does not exceed the configured stationary threshold."@en ,
+        "当无人机占用已声明空中航路且测得速度不超过配置的静止阈值时成立"@zh .
+
+dom:AirspaceCorridorOverCapacityArgument_corridor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "corridor" ;
+    world:argumentClass world:AirspaceCorridor ;
+    rdfs:label "corridor"@en .
+
+dom:AirspaceCorridorOverCapacity
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.airspace_corridor_over_capacity" ;
+    aw:declaresArgumentRole dom:AirspaceCorridorOverCapacityArgument_corridor ;
+    rdfs:label "airspace corridor over capacity"@en ,
+        "空中航路超容量"@zh ;
+    skos:definition "Holds when corridor occupancy exceeds the declared capacity."@en ,
+        "当航路占用数量超过声明容量时成立"@zh .
+
+dom:AircraftAirborneArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftAirborne
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_airborne" ;
+    aw:declaresArgumentRole dom:AircraftAirborneArgument_aircraft ;
+    rdfs:label "aircraft airborne"@en ,
+        "航空器处于空中"@zh ;
+    skos:definition "Holds when an unmanned aircraft is above its governed clearance threshold relative to the currently assigned local ground or landing surface."@en ,
+        "当无人机相对当前指派的本地地面或降落表面高于受控净空阈值时成立。"@zh .
+
+dom:AircraftAtHomePadArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftAtHomePadArgument_home_pad
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "home_pad" ;
+    world:argumentClass world:LandingPad ;
+    rdfs:label "home pad"@en .
+
+dom:AircraftAtHomePad
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_at_home_pad" ;
+    aw:declaresArgumentRole dom:AircraftAtHomePadArgument_aircraft ,
+        dom:AircraftAtHomePadArgument_home_pad ;
+    rdfs:label "aircraft at home pad"@en ,
+        "航空器位于归属起降坪"@zh ;
+    skos:definition "Holds when an unmanned aircraft is horizontally within the governed radius of its assigned home pad."@en ,
+        "当无人机在水平方向位于其指派归属起降坪受控半径内时成立。"@zh .
+
+dom:AircraftTouchdownArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftTouchdown
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_touchdown" ;
+    aw:declaresArgumentRole dom:AircraftTouchdownArgument_aircraft ;
+    rdfs:label "aircraft touchdown"@en ,
+        "航空器接地"@zh ;
+    skos:definition "Holds when an unmanned aircraft is at or below its governed touchdown clearance above the currently assigned local landing surface."@en ,
+        "当无人机相对当前指派的本地降落表面净空不高于受控接地阈值时成立。"@zh .
+
+dom:AircraftInLandingZoneArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftInLandingZoneArgument_landing_zone
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "landing_zone" ;
+    world:argumentClass world:LandingArea ;
+    rdfs:label "landing zone"@en .
+
+dom:AircraftInLandingZone
+    a aw:PredicateType ;
+    aw:predicateIdentifier "airspace.aircraft_in_landing_zone" ;
+    aw:declaresArgumentRole dom:AircraftInLandingZoneArgument_aircraft ,
+        dom:AircraftInLandingZoneArgument_landing_zone ;
+    rdfs:label "aircraft in landing zone"@en ,
+        "航空器位于降落区"@zh ;
+    skos:definition "Holds when an unmanned aircraft is horizontally within the governed radius of its assigned landing zone."@en ,
+        "当无人机在水平方向位于其指派降落区受控半径内时成立。"@zh .

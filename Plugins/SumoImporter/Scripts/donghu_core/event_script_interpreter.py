@@ -110,6 +110,7 @@ class EventScriptInterpreter:
         if parameters:
             self.parameters.update(parameters)
         self._resolve_all_param_refs()
+        self.event_tick_step = self._resolve_event_tick_step()
 
         # Per-tick mutable state
         self.trigger_states: dict[str, TriggerState] = {}
@@ -258,6 +259,25 @@ class EventScriptInterpreter:
 
         self.script["triggers"] = _walk(self.script.get("triggers") or [])
         self.script["events"] = _walk(self.script.get("events") or [])
+
+    def _resolve_event_tick_step(self) -> int:
+        contract = dict(self.parameters.get("semantic_event_contract") or {})
+        raw = (
+            self.parameters.get("event_capture_tick_step")
+            or self.parameters.get("semantic_event_tick_step")
+            or contract.get("event_capture_tick_step")
+            or contract.get("semantic_event_tick_step")
+            or contract.get("capture_tick_step")
+        )
+        if raw in (None, "", []) and contract.get("schema") == "low_altitude_event_chain_contract_v1":
+            raw = 5
+        try:
+            return max(1, int(raw or 1))
+        except (TypeError, ValueError):
+            return 1
+
+    def _event_tick_allowed(self, tick: int) -> bool:
+        return self.event_tick_step <= 1 or tick % self.event_tick_step == 0
         if "action_sequences" in self.script:
             self.script["action_sequences"] = _walk(self.script["action_sequences"])
 
@@ -405,6 +425,8 @@ class EventScriptInterpreter:
             ts = self.trigger_states.get(cond_ref)
             if ts is None or not ts.is_active:
                 return False
+        if not self._event_tick_allowed(tick):
+            return False
 
         # Execute actions
         for action_def in event_def.get("actions") or []:
@@ -472,8 +494,64 @@ class EventScriptInterpreter:
         topic = str(log_cfg.get("topic", event_def["event_id"]))
         chain_id = str(log_cfg.get("chain_id", event_def.get("chain_id", event_def["event_id"])))
         target_ids = list(log_cfg.get("target_ids") or [])
+        semantic_fields: dict[str, Any] = {}
+        for field_name in (
+            "intent",
+            "intent_stage",
+            "causal_chain_id",
+            "causal_predecessor_intent",
+            "target_roles",
+        ):
+            value = log_cfg.get(field_name)
+            if value in (None, "", []):
+                value = event_def.get(field_name)
+            if value not in (None, "", []):
+                semantic_fields[field_name] = copy.deepcopy(value)
+        contract = dict(self.parameters.get("semantic_event_contract") or {})
+        capture_boundary = dict(self.parameters.get("capture_boundary") or contract.get("capture_boundary") or {})
+        pad_boundary_policy = self.parameters.get("pad_boundary_policy")
+        if pad_boundary_policy in (None, "", []):
+            pad_boundary_policy = contract.get("pad_boundary_policy")
+        capture_fields = {
+            "capture_boundary_id": capture_boundary.get("boundary_id") or capture_boundary.get("capture_boundary_id"),
+            "uav_boundary_crossing_required": contract.get("uav_boundary_crossing_required"),
+            "inspect_fov_coverage_required": contract.get("inspect_fov_coverage_required"),
+            "pad_boundary_policy": pad_boundary_policy,
+        }
+        capture_fields = {
+            key: copy.deepcopy(value)
+            for key, value in capture_fields.items()
+            if value not in (None, "", [])
+        }
+        metadata = dict(log_cfg.get("metadata") or {})
+        metadata.update({key: copy.deepcopy(value) for key, value in semantic_fields.items() if key not in metadata})
+        metadata.update({key: copy.deepcopy(value) for key, value in capture_fields.items() if key not in metadata})
+        if self.event_tick_step > 1:
+            metadata.setdefault("event_tick_step", self.event_tick_step)
+            metadata.setdefault("event_tick_alignment_policy", "fire_only_on_event_tick_step_grid")
+        payload = {
+            "activated_tick": tick,
+            "category": log_cfg.get("category", ""),
+            "causal_delay_ticks": 0,
+            "duration_ticks": 0,
+            "end_tick": tick,
+            "event_id": topic,
+            "phase": log_cfg.get("phase", ""),
+            "roi_id": log_cfg.get("roi_id", ""),
+            "sequence_no": len(self.event_log) + 1,
+            "source_kind": "scheduled",
+            "source_tick": tick,
+            "source_topic": topic,
+            "start_tick": tick,
+            "title": log_cfg.get("title", topic),
+        }
+        payload.update(copy.deepcopy(semantic_fields))
+        payload.update(copy.deepcopy(capture_fields))
+        if self.event_tick_step > 1:
+            payload["event_tick_step"] = self.event_tick_step
+            payload["event_tick_alignment_policy"] = "fire_only_on_event_tick_step_grid"
 
-        return {
+        row = {
             "activated_frame_id": frame_id,
             "activated_tick": tick,
             "agent_id": "",
@@ -484,24 +562,9 @@ class EventScriptInterpreter:
             "episode_id": self.episode_id,
             "frame_id": frame_id,
             "instance_id": f"evt_{topic}",
-            "metadata": log_cfg.get("metadata", {}),
+            "metadata": metadata,
             "parent_event_id": "",
-            "payload": {
-                "activated_tick": tick,
-                "category": log_cfg.get("category", ""),
-                "causal_delay_ticks": 0,
-                "duration_ticks": 0,
-                "end_tick": tick,
-                "event_id": topic,
-                "phase": log_cfg.get("phase", ""),
-                "roi_id": log_cfg.get("roi_id", ""),
-                "sequence_no": len(self.event_log) + 1,
-                "source_kind": "scheduled",
-                "source_tick": tick,
-                "source_topic": topic,
-                "start_tick": tick,
-                "title": log_cfg.get("title", topic),
-            },
+            "payload": payload,
             "published_event_refs": [],
             "recovered_frame_id": "",
             "recovered_tick": None,
@@ -536,3 +599,6 @@ class EventScriptInterpreter:
             "tick": tick,
             "topic": topic,
         }
+        row.update(copy.deepcopy(semantic_fields))
+        row.update(copy.deepcopy(capture_fields))
+        return row

@@ -8,6 +8,7 @@ versioned derivative under the results root.
 Imported streams (episode L4-1_v1__seed00 engineering pilot):
   truth_frames.jsonl              -> frame records (pose/motion/annotations)
   global_entity_roster.json       -> entity records (roster)
+  world_truth_graph_base.json     -> edge records (native initial assertions)
   world_truth_graph_deltas.jsonl  -> edge records (relation; per-operation)
   event_occurrences.jsonl         -> event records (event)
   rgb/lidar capture json/npz      -> observation records (observation)
@@ -372,6 +373,48 @@ def import_roster(episode: CanonicalEpisode, path: Path,
     report.canonical_records["entity"] = sum(1 for _ in episode.by_kind("entity"))
 
 
+def import_truth_base(episode: CanonicalEpisode, path: Path,
+                      report: ImportReport) -> None:
+    """Import native initial assertions as state edges from their actual source."""
+    base = json.loads(path.read_text(encoding="utf-8"))
+    if base["episode_id"] != episode.episode_id:
+        raise SchemaError(f"{path}: base episode binding differs from imported episode")
+    tick = base["tick"]
+    if not isinstance(tick, int) or isinstance(tick, bool):
+        raise SchemaError(f"{path}: base tick must be an explicit integer")
+    assertions = base["initial_assertions"]
+    report.source_records["world_truth_graph_base.json"] = len(assertions)
+    report.stream_inventory("world_truth_graph_base.json")["source_keys"].update(base.keys())
+    report.note_mapped("world_truth_graph_base.json", ("tick", "episode_id", "initial_assertions"))
+    for index, body in enumerate(assertions):
+        evidence = {key: body[key] for key in
+                    ("observations", "source_refs", "binding_provenance", "candidate_authority")
+                    if key in body}
+        # Existing JSON evidence preserves the complete native assertion, including
+        # units and unknown-source requirements, without presenting it as a delta.
+        evidence["initial_assertion"] = body
+        episode.add({
+            "record_kind": "edge",
+            "id": f"{body['assertion_id']}|initial",
+            "tick": tick,
+            "source": {"path": str(path), "pointer": f"/initial_assertions/{index}",
+                       "assertion_id": body["assertion_id"]},
+            "source_family": "world_truth_graph_base",
+            "fields": {"relation.predicate_id": body["predicate_id"],
+                       "relation.tuple_id": body["tuple_id"],
+                       "relation.bindings": dict(body["bindings"]),
+                       "relation.asserted": True,
+                       "relation.value": body["value"],
+                       "relation.evidence": evidence},
+        })
+        report.note_archive("world_truth_graph_base.json", records=1,
+                            bytes_=len(json.dumps(body, ensure_ascii=False).encode("utf-8")),
+                            archived_keys=body.keys())
+    report.note_residual("world_truth_graph_base.json",
+                         [key for key in base if key not in ("episode_id", "tick", "initial_assertions")])
+    report.canonical_records["edge"] += len(assertions)
+
+
 def import_truth_deltas(episode: CanonicalEpisode, path: Path,
                         report: ImportReport) -> None:
     lines, n = _open_lines(path)
@@ -446,7 +489,7 @@ def import_truth_deltas(episode: CanonicalEpisode, path: Path,
                 "fields": fields,
             })
             count += 1
-    report.canonical_records["edge"] = count
+    report.canonical_records["edge"] += count
     report.event_traceability["delta_op_kinds"] = dict(op_kind_counts)
 
 
@@ -600,20 +643,47 @@ def import_episode(render_ready_root: Path, semantic_truth_root: Path,
                    view_dir_name: str | None, observer_entity_id: str | None) -> tuple[
         CanonicalEpisode, ImportReport]:
     """Import one complete episode from read-only sources."""
-    ep_dir = render_ready_root / episode_id
+    index_path = render_ready_root.parent / "domain_state_supplement/source_index.json"
+    source_index = json.loads(index_path.read_text())
+    entries = [entry for entry in source_index["episodes"] if entry["episode_id"] == episode_id]
+    if len(entries) != 1:
+        raise ValueError(f"Current source index must uniquely bind episode: {episode_id}")
+    ep_dir = Path(entries[0]["render_ready_input"])
+    if not ep_dir.is_absolute():
+        raise ValueError(f"Current render input must be an absolute source path: {ep_dir}")
+    ep_dir = ep_dir.resolve()
+    objective = entries[0]["objective_semantic_truth"]
+    if "matches_current_execution" not in objective:
+        raise ValueError(f"Current objective binding flag is missing: {episode_id}")
+    matches_current = objective["matches_current_execution"]
+    if matches_current is False:
+        raise ValueError(
+            f"Full objective has not been generated for the current execution: {episode_id}; "
+            f"full-semantic import is refused. Actual native execution remains independently readable at "
+            f"{entries[0]['actual_execution_source']}")
+    if matches_current is not True:
+        raise ValueError(f"Current objective binding flag must be an explicit boolean for {episode_id}: {matches_current!r}")
     sem_dir = semantic_truth_root / episode_id
     report = ImportReport(episode_id=episode_id)
     report.event_traceability["_observer_entity_id"] = observer_entity_id
     report.sources = {
         "truth_frames": str(ep_dir / "truth_frames.jsonl"),
         "roster": str(ep_dir / "global_entity_roster.json"),
+        "world_truth_base": str(sem_dir / "world_truth_graph_base.json"),
         "world_truth_deltas": str(sem_dir / "world_truth_graph_deltas.jsonl"),
         "events": str(sem_dir / "event_occurrences.jsonl"),
         "capture": str(capture_root) if capture_root else None,
+        "episode_source_index": str(index_path),
     }
     episode = CanonicalEpisode(episode_id)
     import_roster(episode, ep_dir / "global_entity_roster.json", report)
     import_truth_frames(episode, ep_dir / "truth_frames.jsonl", report)
+    declared = Path(objective["path"])
+    if not declared.is_absolute():
+        declared = render_ready_root.parent.parent / declared
+    if declared.resolve() != sem_dir.resolve():
+        raise ValueError(f"Current objective source binding differs: {declared} != {sem_dir}")
+    import_truth_base(episode, sem_dir / "world_truth_graph_base.json", report)
     import_truth_deltas(episode, sem_dir / "world_truth_graph_deltas.jsonl", report)
     import_events(episode, sem_dir / "event_occurrences.jsonl", report)
     if capture_root is not None and view_dir_name:
@@ -641,7 +711,7 @@ def _cli(argv: list[str] | None = None) -> int:
     ap.add_argument("--episode", required=True)
     ap.add_argument("--view", required=True, help="capture view directory name")
     ap.add_argument("--observer", required=True, help="observer entity id")
-    ap.add_argument("--render-ready-root", default=str(REPO / "aw_data/render_ready_episodes"))
+    ap.add_argument("--render-ready-root", default=str(REPO / "aw_data/render_ready_episodes_capture_filtered"))
     ap.add_argument("--semantic-truth-root", default=str(REPO / "aw_data/objective_semantic_truth"))
     ap.add_argument("--capture-root", required=True)
     ap.add_argument("--out-derived", required=True, help="output canonical records jsonl")

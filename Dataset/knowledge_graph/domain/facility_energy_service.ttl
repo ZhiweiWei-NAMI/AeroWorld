@@ -1,0 +1,251 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/facility_energy_service#> .
+
+<https://w3id.org/aeroworld/ontology/domain/facility_energy_service>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/facility_energy_service/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Facility and Energy Service Ontology"@en ,
+        "AeroWorld 设施与能源服务本体"@zh ;
+    dct:description "Charging stations, landing pads, base stations as facilities, service availability, battery state, allocations, queues, and pad occupancy."@en ,
+        "刻画充电站、起降坪、基站等设施，以及服务可用性、电池状态、资源分配、排队和坪位占用。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/facility_energy_service#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:BatteryState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "battery state"@en ,
+        "电池状态"@zh ;
+    skos:definition "Tick-indexed state describing remaining energy or low-battery condition."@en ,
+        "描述剩余能量或低电量条件的时刻状态。"@zh .
+
+dom:ChargingSession
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "charging session"@en ,
+        "充电会话"@zh ;
+    skos:definition "Time-bounded service process between an actor and a charging station."@en ,
+        "主体与充电站之间有时间边界的服务过程。"@zh .
+
+dom:ChargingQueue
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "charging queue"@en ,
+        "充电排队"@zh ;
+    skos:definition "Queue state for actors waiting to use a charging service."@en ,
+        "等待使用充电服务的主体排队状态。"@zh .
+
+dom:PadOccupancyState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "pad occupancy state"@en ,
+        "坪位占用状态"@zh ;
+    skos:definition "State describing occupancy of a landing pad."@en ,
+        "描述起降坪占用情况的状态。"@zh .
+
+dom:FacilityAvailabilityState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "facility availability state"@en ,
+        "设施可用性状态"@zh ;
+    skos:definition "State describing whether a facility can provide its declared service."@en ,
+        "描述设施是否能够提供声明服务的状态。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:aircraftAllocatedToPad
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:LandingPad ;
+    rdfs:label "aircraft allocated to pad"@en ,
+        "航空器分配至起降坪"@zh ;
+    skos:definition "Relates an aircraft to an assigned landing pad."@en ,
+        "表示航空器与分配起降坪之间的关系。"@zh .
+
+dom:aircraftUsesChargingStation
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:ChargingStation ;
+    rdfs:label "aircraft uses charging station"@en ,
+        "航空器使用充电站"@zh ;
+    skos:definition "Relates an aircraft to a charging station used for energy service."@en ,
+        "表示航空器使用的充电服务设施。"@zh .
+
+dom:chargingSessionServesActor
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ChargingSession ;
+    rdfs:range world:UnmannedAircraft ;
+    rdfs:label "charging session serves actor"@en ,
+        "充电会话服务主体"@zh ;
+    skos:definition "Relates a charging-session process to the aircraft receiving service."@en ,
+        "表示充电会话过程服务的航空器。"@zh .
+
+dom:chargingSessionUsesStation
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ChargingSession ;
+    rdfs:range world:ChargingStation ;
+    rdfs:label "charging session uses station"@en ,
+        "充电会话使用充电站"@zh ;
+    skos:definition "Relates a charging-session process to the charging station providing service."@en ,
+        "表示充电会话过程使用的充电站。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:batteryStateOfChargeRatio
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:BatteryState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "battery state of charge ratio"@en ,
+        "电池荷电比例"@zh ;
+    skos:definition "Remaining battery state of charge represented as a ratio."@en ,
+        "以比例表示的剩余电池荷电状态。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "battery_state" .
+
+dom:facilityAvailable
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:FacilityAvailabilityState ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "facility available"@en ,
+        "设施可用"@zh ;
+    skos:definition "Whether a facility can provide its declared service."@en ,
+        "设施是否能够提供其声明服务。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "facility_availability" .
+
+dom:chargingQueueLength
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:ChargingQueue ;
+    rdfs:range xsd:integer ;
+    rdfs:label "charging queue length"@en ,
+        "充电队列长度"@zh ;
+    skos:definition "Number of aircraft waiting for charging service."@en ,
+        "等待充电服务的航空器数量。"@zh ;
+    world:unitSymbol "aircraft" ;
+    world:stateFieldCategory "charging_queue" .
+
+dom:padOccupancyCount
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:PadOccupancyState ;
+    rdfs:range xsd:integer ;
+    rdfs:label "pad occupancy count"@en ,
+        "坪位占用数量"@zh ;
+    skos:definition "Number of aircraft or blockers occupying a landing pad."@en ,
+        "占用起降坪的航空器或阻塞物数量。"@zh ;
+    world:unitSymbol "aircraft" ;
+    world:stateFieldCategory "pad_occupancy" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:AircraftBatteryLowArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftBatteryLow
+    a aw:PredicateType ;
+    aw:predicateIdentifier "facility.aircraft_battery_low" ;
+    aw:declaresArgumentRole dom:AircraftBatteryLowArgument_aircraft ;
+    rdfs:label "aircraft battery low"@en ,
+        "航空器低电量"@zh ;
+    skos:definition "Holds when an aircraft battery state is below the low-energy threshold."@en ,
+        "当航空器电池状态低于低电量阈值时成立"@zh .
+
+dom:ChargingStationUnavailableArgument_station
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "station" ;
+    world:argumentClass world:ChargingStation ;
+    rdfs:label "station"@en .
+
+dom:ChargingStationUnavailable
+    a aw:PredicateType ;
+    aw:predicateIdentifier "facility.charging_station_unavailable" ;
+    aw:declaresArgumentRole dom:ChargingStationUnavailableArgument_station ;
+    rdfs:label "charging station unavailable"@en ,
+        "充电站不可用"@zh ;
+    skos:definition "Holds when a charging station cannot accept a charging session."@en ,
+        "当充电站不能接受充电会话时成立"@zh .
+
+dom:ChargingQueueOverCapacityArgument_station
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "station" ;
+    world:argumentClass world:ChargingStation ;
+    rdfs:label "station"@en .
+
+dom:ChargingQueueOverCapacity
+    a aw:PredicateType ;
+    aw:predicateIdentifier "facility.charging_queue_over_capacity" ;
+    aw:declaresArgumentRole dom:ChargingQueueOverCapacityArgument_station ;
+    rdfs:label "charging queue over capacity"@en ,
+        "充电队列超容量"@zh ;
+    skos:definition "Holds when the charging queue exceeds the accepted capacity."@en ,
+        "当充电队列超过可接受容量时成立"@zh .
+
+dom:LandingPadOccupiedArgument_pad
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "pad" ;
+    world:argumentClass world:LandingPad ;
+    rdfs:label "pad"@en .
+
+dom:LandingPadOccupied
+    a aw:PredicateType ;
+    aw:predicateIdentifier "facility.landing_pad_occupied" ;
+    aw:declaresArgumentRole dom:LandingPadOccupiedArgument_pad ;
+    rdfs:label "landing pad occupied"@en ,
+        "起降坪被占用"@zh ;
+    skos:definition "Holds when a landing pad is occupied by an aircraft or obstacle."@en ,
+        "当起降坪被航空器或障碍物占用时成立"@zh .
+
+dom:LandingPadContentionArgument_pad
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "pad" ;
+    world:argumentClass world:LandingPad ;
+    rdfs:label "pad"@en .
+
+dom:LandingPadContentionArgument_first_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "first_aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "first aircraft"@en .
+
+dom:LandingPadContentionArgument_second_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "second_aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "second aircraft"@en .
+
+dom:LandingPadContention
+    a aw:PredicateType ;
+    aw:predicateIdentifier "facility.landing_pad_contention" ;
+    aw:declaresArgumentRole dom:LandingPadContentionArgument_pad ,
+        dom:LandingPadContentionArgument_first_aircraft ,
+        dom:LandingPadContentionArgument_second_aircraft ;
+    rdfs:label "landing pad contention"@en ,
+        "起降坪争用"@zh ;
+    skos:definition "Holds when multiple aircraft are allocated to or attempting to use the same landing pad."@en ,
+        "当多架航空器被分配至或尝试使用同一起降坪时成立"@zh .

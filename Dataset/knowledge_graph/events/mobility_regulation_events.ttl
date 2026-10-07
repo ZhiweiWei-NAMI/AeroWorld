@@ -1,0 +1,214 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/mobility_regulation#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/mobility_regulation#> .
+
+<https://w3id.org/aeroworld/ontology/events/mobility_regulation>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/mobility_regulation/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/mobility_regulation> ;
+    dct:title "AeroWorld Mobility Regulation Event Ontology"@en ,
+        "AeroWorld 交通法规事件本体"@zh ;
+    dct:description "Stable normative events whose interpretation depends on an applicable rule, prohibition, obligation, permission, right-of-way, or violation condition."@en ,
+        "解释依赖适用规则、禁止、义务、许可、路权或违规条件的稳定规范事件。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/mobility_regulation#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:EmergencyVehiclePriorityPassageEventRole_emergency_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "emergency_vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "emergency vehicle"@en .
+
+evt:EmergencyVehiclePriorityPassageEventRole_right_of_way
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "right_of_way" ;
+    world:participantClass dom:RightOfWay ;
+    rdfs:label "right of way"@en .
+
+evt:EmergencyVehiclePriorityPassageEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "regulation.emergency_vehicle_priority_passage_event" ;
+    aw:declaresParticipantRole evt:EmergencyVehiclePriorityPassageEventRole_emergency_vehicle ,
+        evt:EmergencyVehiclePriorityPassageEventRole_right_of_way ;
+    rdfs:label "emergency vehicle priority passage"@en ,
+        "应急车辆优先通行事件"@zh ;
+    skos:definition "Objective event in which emergency vehicle priority changes normal traffic obligations."@en ,
+        "应急车辆优先权改变常规交通义务的客观事件"@zh .
+
+evt:RedSignalViolationEventRole_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+evt:RedSignalViolationEventRole_signal
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "signal" ;
+    world:participantClass world:TrafficSignal ;
+    rdfs:label "signal"@en .
+
+evt:RedSignalViolationEventRole_regulation
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "regulation" ;
+    world:participantClass dom:Prohibition ;
+    rdfs:label "regulation"@en .
+
+evt:RedSignalViolationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "regulation.red_signal_violation_event" ;
+    aw:declaresParticipantRole evt:RedSignalViolationEventRole_vehicle ,
+        evt:RedSignalViolationEventRole_signal ,
+        evt:RedSignalViolationEventRole_regulation ;
+    rdfs:label "red signal violation"@en ,
+        "红灯违规事件"@zh ;
+    skos:definition "Objective regulation event in which an actor movement violates an applicable red-signal prohibition."@en ,
+        "主体运动违反适用红灯禁止规范的客观法规事件"@zh .
+
+evt:SpeedLimitViolationEventRole_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+evt:SpeedLimitViolationEventRole_regulation
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "regulation" ;
+    world:participantClass dom:SpeedLimitRegulation ;
+    rdfs:label "regulation"@en .
+
+evt:SpeedLimitViolationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "regulation.speed_limit_violation_event" ;
+    aw:declaresParticipantRole evt:SpeedLimitViolationEventRole_vehicle ,
+        evt:SpeedLimitViolationEventRole_regulation ;
+    rdfs:label "speed limit violation"@en ,
+        "超速违规事件"@zh ;
+    skos:definition "Objective regulation event in which an actor exceeds an applicable speed-limit regulation."@en ,
+        "主体超过适用限速法规的客观法规事件"@zh .
+
+evt:RightOfWayViolationEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:MobileAgent ;
+    rdfs:label "actor"@en .
+
+evt:RightOfWayViolationEventRole_right_of_way
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "right_of_way" ;
+    world:participantClass dom:RightOfWay ;
+    rdfs:label "right of way"@en .
+
+evt:RightOfWayViolationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "regulation.right_of_way_violation_event" ;
+    aw:declaresParticipantRole evt:RightOfWayViolationEventRole_actor ,
+        evt:RightOfWayViolationEventRole_right_of_way ;
+    rdfs:label "right-of-way violation"@en ,
+        "路权违规事件"@zh ;
+    skos:definition "Objective regulation event in which an actor movement violates an applicable right-of-way rule."@en ,
+        "主体运动违反适用路权规则的客观法规事件"@zh .
+
+evt:FollowingDistanceViolationEventRole_following_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "following_vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "following vehicle"@en .
+
+evt:FollowingDistanceViolationEventRole_leading_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "leading_vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "leading vehicle"@en .
+
+evt:FollowingDistanceViolationEventRole_rule
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "rule" ;
+    world:participantClass dom:FollowingDistanceRule ;
+    rdfs:label "rule"@en .
+
+evt:FollowingDistanceViolationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "regulation.following_distance_violation_event" ;
+    aw:declaresParticipantRole evt:FollowingDistanceViolationEventRole_following_vehicle ,
+        evt:FollowingDistanceViolationEventRole_leading_vehicle ,
+        evt:FollowingDistanceViolationEventRole_rule ;
+    rdfs:label "following distance violation"@en ,
+        "跟车距离违规事件"@zh ;
+    skos:definition "Objective regulation event in which a vehicle violates an applicable minimum following-distance rule."@en ,
+        "车辆违反适用最小跟车距离规则的客观法规事件"@zh .
+
+evt:LaneUseViolationEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:MobileAgent ;
+    rdfs:label "actor"@en .
+
+evt:LaneUseViolationEventRole_lane
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "lane" ;
+    world:participantClass world:RoadLane ;
+    rdfs:label "lane"@en .
+
+evt:LaneUseViolationEventRole_restriction
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "restriction" ;
+    world:participantClass dom:LaneUseRestriction ;
+    rdfs:label "restriction"@en .
+
+evt:LaneUseViolationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "regulation.lane_use_violation_event" ;
+    aw:declaresParticipantRole evt:LaneUseViolationEventRole_actor ,
+        evt:LaneUseViolationEventRole_lane ,
+        evt:LaneUseViolationEventRole_restriction ;
+    rdfs:label "lane-use violation"@en ,
+        "车道使用违规事件"@zh ;
+    skos:definition "Objective regulation event in which an actor uses a lane contrary to an applicable lane-use restriction."@en ,
+        "主体违反适用车道使用限制的客观法规事件"@zh .
+
+evt:CrosswalkYieldViolationEventRole_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+evt:CrosswalkYieldViolationEventRole_pedestrian
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "pedestrian" ;
+    world:participantClass world:Pedestrian ;
+    rdfs:label "pedestrian"@en .
+
+evt:CrosswalkYieldViolationEventRole_obligation
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "obligation" ;
+    world:participantClass dom:Obligation ;
+    rdfs:label "obligation"@en .
+
+evt:CrosswalkYieldViolationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "regulation.crosswalk_yield_violation_event" ;
+    aw:declaresParticipantRole evt:CrosswalkYieldViolationEventRole_vehicle ,
+        evt:CrosswalkYieldViolationEventRole_pedestrian ,
+        evt:CrosswalkYieldViolationEventRole_obligation ;
+    rdfs:label "crosswalk yield violation"@en ,
+        "人行横道让行违规事件"@zh ;
+    skos:definition "Objective regulation event in which a vehicle violates an applicable obligation to yield to a pedestrian at a crosswalk."@en ,
+        "车辆违反在人行横道对行人让行义务的客观法规事件"@zh .

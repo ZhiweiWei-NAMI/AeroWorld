@@ -1,0 +1,269 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/utm#> .
+
+<https://w3id.org/aeroworld/ontology/domain/utm>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/utm/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld UTM Ontology"@en ,
+        "AeroWorld 无人机交通管理本体"@zh ;
+    dct:description "UTM systems, operational intents, flight plans, airspace authorizations, intent conflicts, and deconfliction state."@en ,
+        "刻画无人机交通管理系统、运行意图、飞行计划、空域授权、意图冲突和冲突消解状态。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/utm#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:UTMSystem
+    a owl:Class ;
+    rdfs:subClassOf world:InfrastructureAsset ;
+    rdfs:label "UTM system"@en ,
+        "无人机交通管理系统"@zh ;
+    skos:definition "Infrastructure service that coordinates low-altitude operational intents and airspace authorization."@en ,
+        "协调低空运行意图和空域授权的基础设施服务。"@zh .
+
+dom:OperationalIntent
+    a owl:Class ;
+    rdfs:subClassOf world:InformationEntity ;
+    rdfs:label "operational intent"@en ,
+        "运行意图"@zh ;
+    skos:definition "Time-bounded declaration of an aircraft's intended operational volume or corridor."@en ,
+        "航空器预期运行体积或航路的有时间边界声明。"@zh .
+
+dom:FlightPlan
+    a owl:Class ;
+    rdfs:subClassOf world:InformationEntity ;
+    rdfs:label "flight plan"@en ,
+        "飞行计划"@zh ;
+    skos:definition "Submitted route and schedule plan for an unmanned aircraft operation."@en ,
+        "无人机运行提交的航线和时间计划。"@zh .
+
+dom:AirspaceAuthorization
+    a owl:Class ;
+    rdfs:subClassOf world:NormativeEntity ;
+    rdfs:label "airspace authorization"@en ,
+        "空域授权"@zh ;
+    skos:definition "Normative authorization that permits an aircraft to use a declared airspace region during a validity window."@en ,
+        "允许航空器在有效时间窗内使用指定空域区域的规范授权。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:hasOperationalIntent
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range dom:OperationalIntent ;
+    rdfs:label "has operational intent"@en ,
+        "具有运行意图"@zh ;
+    skos:definition "Relates an unmanned aircraft to its declared operational intent."@en ,
+        "表示无人机及其声明的运行意图。"@zh .
+
+dom:operatesUnder
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range dom:UTMSystem ;
+    rdfs:label "operates under"@en ,
+        "在管理下运行"@zh ;
+    skos:definition "Relates an unmanned aircraft to the UTM system governing its operation."@en ,
+        "表示无人机及管理其运行的无人机交通管理系统。"@zh .
+
+dom:authorizesAirspace
+    a owl:ObjectProperty ;
+    rdfs:domain dom:AirspaceAuthorization ;
+    rdfs:range world:OperationalRegion ;
+    rdfs:label "authorizes airspace"@en ,
+        "授权空域"@zh ;
+    skos:definition "Relates an authorization to the operational region it permits."@en ,
+        "表示授权及其许可使用的运行区域。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:authorizationStatus
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:AirspaceAuthorization ;
+    rdfs:range xsd:string ;
+    rdfs:label "authorization status"@en ,
+        "授权状态"@zh ;
+    skos:definition "Current validity or revocation status of an airspace authorization."@en ,
+        "空域授权当前的有效或撤销状态。"@zh ;
+    world:unitSymbol "state-code" ;
+    world:stateFieldCategory "utm_authorization" .
+
+dom:intentConflictActive
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:OperationalIntent ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "intent conflict active"@en ,
+        "意图冲突激活"@zh ;
+    skos:definition "Whether an operational intent currently conflicts with another declared intent."@en ,
+        "运行意图当前是否与另一声明意图冲突。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "utm_intent_conflict" .
+
+dom:flightPlanApprovalStatus
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:FlightPlan ;
+    rdfs:range xsd:string ;
+    rdfs:label "flight plan approval status"@en ,
+        "飞行计划批准状态"@zh ;
+    skos:definition "Current approval status of a submitted flight plan."@en ,
+        "已提交飞行计划的当前批准状态。"@zh ;
+    world:unitSymbol "state-code" ;
+    world:stateFieldCategory "utm_flight_plan" .
+
+dom:deconflictionStatus
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:UTMSystem ;
+    rdfs:range xsd:string ;
+    rdfs:label "deconfliction status"@en ,
+        "冲突消解状态"@zh ;
+    skos:definition "Current state of UTM deconfliction processing."@en ,
+        "无人机交通管理冲突消解处理的当前状态。"@zh ;
+    world:unitSymbol "state-code" ;
+    world:stateFieldCategory "utm_deconfliction" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:AirspaceAuthorizationActiveArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AirspaceAuthorizationActiveArgument_authorization
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "authorization" ;
+    world:argumentClass dom:AirspaceAuthorization ;
+    rdfs:label "authorization"@en .
+
+dom:AirspaceAuthorizationActiveArgument_airspace
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "airspace" ;
+    world:argumentClass world:OperationalRegion ;
+    rdfs:label "airspace"@en .
+
+dom:AirspaceAuthorizationActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "utm.airspace_authorization_active" ;
+    aw:declaresArgumentRole dom:AirspaceAuthorizationActiveArgument_aircraft ,
+        dom:AirspaceAuthorizationActiveArgument_authorization ,
+        dom:AirspaceAuthorizationActiveArgument_airspace ;
+    rdfs:label "airspace authorization active"@en ,
+        "空域授权有效"@zh ;
+    skos:definition "Holds when an aircraft airspace authorization is valid at the current tick."@en ,
+        "当航空器空域授权在当前时刻有效时成立。"@zh .
+
+dom:AirspaceAuthorizationRevokedArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AirspaceAuthorizationRevokedArgument_authorization
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "authorization" ;
+    world:argumentClass dom:AirspaceAuthorization ;
+    rdfs:label "authorization"@en .
+
+dom:AirspaceAuthorizationRevokedArgument_airspace
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "airspace" ;
+    world:argumentClass world:OperationalRegion ;
+    rdfs:label "airspace"@en .
+
+dom:AirspaceAuthorizationRevoked
+    a aw:PredicateType ;
+    aw:predicateIdentifier "utm.airspace_authorization_revoked" ;
+    aw:declaresArgumentRole dom:AirspaceAuthorizationRevokedArgument_aircraft ,
+        dom:AirspaceAuthorizationRevokedArgument_authorization ,
+        dom:AirspaceAuthorizationRevokedArgument_airspace ;
+    rdfs:label "airspace authorization revoked"@en ,
+        "空域授权已撤销"@zh ;
+    skos:definition "Holds when a declared airspace authorization has been revoked."@en ,
+        "当声明的空域授权已被撤销时成立。"@zh .
+
+dom:FlightPlanApprovedArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:FlightPlanApprovedArgument_flight_plan
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "flight_plan" ;
+    world:argumentClass dom:FlightPlan ;
+    rdfs:label "flight plan"@en .
+
+dom:FlightPlanApproved
+    a aw:PredicateType ;
+    aw:predicateIdentifier "utm.flight_plan_approved" ;
+    aw:declaresArgumentRole dom:FlightPlanApprovedArgument_aircraft ,
+        dom:FlightPlanApprovedArgument_flight_plan ;
+    rdfs:label "flight plan approved"@en ,
+        "飞行计划已批准"@zh ;
+    skos:definition "Holds when an aircraft flight plan has approval for execution."@en ,
+        "当航空器飞行计划已获执行批准时成立。"@zh .
+
+dom:OperationalIntentConflictArgument_first_intent
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "first_intent" ;
+    world:argumentClass dom:OperationalIntent ;
+    rdfs:label "first intent"@en .
+
+dom:OperationalIntentConflictArgument_second_intent
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "second_intent" ;
+    world:argumentClass dom:OperationalIntent ;
+    rdfs:label "second intent"@en .
+
+dom:OperationalIntentConflict
+    a aw:PredicateType ;
+    aw:predicateIdentifier "utm.operational_intent_conflict" ;
+    aw:declaresArgumentRole dom:OperationalIntentConflictArgument_first_intent ,
+        dom:OperationalIntentConflictArgument_second_intent ;
+    rdfs:label "operational intent conflict"@en ,
+        "运行意图冲突"@zh ;
+    skos:definition "Holds when two operational intents overlap in space and time beyond the declared separation policy."@en ,
+        "当两个运行意图在时空上重叠并超过声明的间隔策略时成立。"@zh .
+
+dom:DeconflictionActiveArgument_system
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "system" ;
+    world:argumentClass dom:UTMSystem ;
+    rdfs:label "system"@en .
+
+dom:DeconflictionActiveArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:DeconflictionActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "utm.deconfliction_active" ;
+    aw:declaresArgumentRole dom:DeconflictionActiveArgument_system ,
+        dom:DeconflictionActiveArgument_aircraft ;
+    rdfs:label "deconfliction active"@en ,
+        "冲突消解激活"@zh ;
+    skos:definition "Holds when the UTM system is actively resolving an operational-intent conflict."@en ,
+        "当无人机交通管理系统正在主动消解运行意图冲突时成立。"@zh .

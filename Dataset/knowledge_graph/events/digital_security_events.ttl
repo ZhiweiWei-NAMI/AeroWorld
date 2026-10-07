@@ -1,0 +1,121 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/digital_security#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/digital_security#> .
+
+<https://w3id.org/aeroworld/ontology/events/digital_security>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/digital_security/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/digital_security> ;
+    dct:title "AeroWorld Digital Security Event Ontology"@en ,
+        "AeroWorld 数字安全事件本体"@zh ;
+    dct:description "Objective ground-control compromise event family."@en ,
+        "既有地面控制站受损事件族。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/digital_security#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:GroundControlStationCompromiseEventRole_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "station" ;
+    world:participantClass world:GroundControlStation ;
+    rdfs:label "station"@en .
+
+evt:GroundControlStationCompromiseEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "security.ground_control_station_compromise_event" ;
+    aw:declaresParticipantRole evt:GroundControlStationCompromiseEventRole_station ;
+    rdfs:label "ground control station compromise"@en ,
+        "地面控制站受损事件"@zh ;
+    skos:definition "Objective event in which a ground control station or control session is compromised."@en ,
+        "地面控制站或控制会话受损的客观事件"@zh .
+
+evt:UnauthorizedCommandEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+evt:UnauthorizedCommandEventRole_command
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "command" ;
+    world:participantClass dom:UnauthorizedCommand ;
+    rdfs:label "command"@en .
+
+evt:UnauthorizedCommandEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "security.unauthorized_command_event" ;
+    aw:declaresParticipantRole evt:UnauthorizedCommandEventRole_actor ,
+        evt:UnauthorizedCommandEventRole_command ;
+    rdfs:label "unauthorized command"@en ,
+        "未授权指令事件"@zh ;
+    skos:definition "Objective digital-security event in which an unauthorized command is issued or received."@en ,
+        "未授权指令被发出或接收的客观数字安全事件"@zh .
+
+evt:CommunicationJammingImpactEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+evt:CommunicationJammingImpactEventRole_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "station" ;
+    world:participantClass world:CommunicationStation ;
+    rdfs:label "station"@en .
+
+evt:CommunicationJammingImpactEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "security.communication_jamming_impact_event" ;
+    aw:declaresParticipantRole evt:CommunicationJammingImpactEventRole_actor ,
+        evt:CommunicationJammingImpactEventRole_station ;
+    rdfs:label "communication jamming impact"@en ,
+        "通信干扰影响事件"@zh ;
+    skos:definition "Objective event in which active jamming disrupts an unmanned aircraft's communication service through its serving station."@en ,
+        "活跃干扰通过服务通信站破坏无人机通信服务的客观事件。"@zh .
+
+evt:ControlCommandIntegrityViolationEventRole_stream
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "stream" ;
+    world:participantClass dom:CommandStream ;
+    rdfs:label "stream"@en .
+
+evt:ControlCommandIntegrityViolationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "security.control_command_integrity_violation_event" ;
+    aw:declaresParticipantRole evt:ControlCommandIntegrityViolationEventRole_stream ;
+    rdfs:label "control command integrity violation"@en ,
+        "控制指令完整性违规事件"@zh ;
+    skos:definition "Objective digital-security event in which a command stream fails integrity validation."@en ,
+        "指令流未通过完整性验证的客观数字安全事件"@zh .
+
+evt:SecurityControlUnavailabilityEventRole_control
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "control" ;
+    world:participantClass dom:CyberSecurityControl ;
+    rdfs:label "control"@en .
+
+evt:SecurityControlUnavailabilityEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "security.security_control_unavailability_event" ;
+    aw:declaresParticipantRole evt:SecurityControlUnavailabilityEventRole_control ;
+    rdfs:label "security control unavailability"@en ,
+        "安全控制不可用事件"@zh ;
+    skos:definition "Objective digital-security event in which a declared security control becomes unavailable."@en ,
+        "声明的安全控制变为不可用的客观数字安全事件"@zh .

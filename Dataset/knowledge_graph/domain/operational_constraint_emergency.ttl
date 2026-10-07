@@ -1,0 +1,317 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/operational_constraint_emergency#> .
+
+<https://w3id.org/aeroworld/ontology/domain/operational_constraint_emergency>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/operational_constraint_emergency/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Operational Constraint and Emergency Ontology"@en ,
+        "AeroWorld 运行约束与应急本体"@zh ;
+    dct:description "Temporary restrictions, isolation zones, evacuation, emergency response, priority passage, mission abort, return-to-home, safe hold, and emergency procedures."@en ,
+        "刻画临时限制、隔离区、疏散、应急响应、优先通行、任务中止、返航、安全等待和应急程序。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/operational_constraint_emergency#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:OperationalConstraint
+    a owl:Class ;
+    rdfs:subClassOf world:NormativeEntity ;
+    rdfs:label "operational constraint"@en ,
+        "运行约束"@zh ;
+    skos:definition "Time-bounded operational limitation imposed on actors or regions."@en ,
+        "对主体或区域施加的有时间边界的运行限制。"@zh .
+
+dom:TemporaryRestriction
+    a owl:Class ;
+    rdfs:subClassOf dom:OperationalConstraint ;
+    rdfs:label "temporary restriction"@en ,
+        "临时限制"@zh ;
+    skos:definition "Operational constraint activated for a limited period."@en ,
+        "在有限时间内激活的运行约束。"@zh .
+
+dom:EmergencyIsolationZone
+    a owl:Class ;
+    rdfs:subClassOf world:OperationalRegion ;
+    rdfs:label "emergency isolation zone"@en ,
+        "应急隔离区"@zh ;
+    skos:definition "Region isolated due to emergency response or hazard control."@en ,
+        "因应急响应或风险控制而隔离的区域。"@zh .
+
+dom:EvacuationRoute
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialRegion ;
+    rdfs:label "evacuation route"@en ,
+        "疏散路线"@zh ;
+    skos:definition "Route used by pedestrians, crowds, or responders during evacuation."@en ,
+        "行人、人群或应急人员在疏散期间使用的路线。"@zh .
+
+dom:EmergencyResponse
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "emergency response"@en ,
+        "应急响应"@zh ;
+    skos:definition "Response process involving emergency actors, procedures, or access control."@en ,
+        "涉及应急主体、程序或通行控制的响应过程。"@zh .
+
+dom:AmbulancePriorityPassage
+    a owl:Class ;
+    rdfs:subClassOf dom:EmergencyResponse ;
+    rdfs:label "ambulance priority passage"@en ,
+        "救护车优先通行"@zh ;
+    skos:definition "Response state granting priority passage to an ambulance or emergency vehicle."@en ,
+        "向救护车或应急车辆授予优先通行的响应状态。"@zh .
+
+dom:MissionAbort
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "mission abort"@en ,
+        "任务中止"@zh ;
+    skos:definition "Process in which an actor terminates its active mission before normal completion."@en ,
+        "主体在正常完成前终止活动任务的过程。"@zh .
+
+dom:ReturnToHomeProcedure
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "return-to-home procedure"@en ,
+        "返航程序"@zh ;
+    skos:definition "Procedure process in which a UAV returns to a designated home or recovery site."@en ,
+        "无人机返回指定起点或回收点的程序过程。"@zh .
+
+dom:SafeHoldProcedure
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "safe hold procedure"@en ,
+        "安全等待程序"@zh ;
+    skos:definition "Procedure process in which an actor holds position to reduce risk."@en ,
+        "主体保持位置以降低风险的程序过程。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:constraintAppliesToRegion
+    a owl:ObjectProperty ;
+    rdfs:domain dom:OperationalConstraint ;
+    rdfs:range world:OperationalRegion ;
+    rdfs:label "constraint applies to region"@en ,
+        "约束适用于区域"@zh ;
+    skos:definition "Relates an operational constraint to the region it governs."@en ,
+        "表示运行约束治理的区域。"@zh .
+
+dom:emergencyResponseUsesRoute
+    a owl:ObjectProperty ;
+    rdfs:domain dom:EmergencyResponse ;
+    rdfs:range dom:EvacuationRoute ;
+    rdfs:label "emergency response uses route"@en ,
+        "应急响应使用路线"@zh ;
+    skos:definition "Relates an emergency response to an evacuation or priority route."@en ,
+        "表示应急响应使用的疏散或优先路线。"@zh .
+
+dom:emergencyResponseInvolvesResponder
+    a owl:ObjectProperty ;
+    rdfs:domain dom:EmergencyResponse ;
+    rdfs:range world:EmergencyResponder ;
+    rdfs:label "emergency response involves responder"@en ,
+        "应急响应涉及响应者"@zh ;
+    skos:definition "Relates an emergency-response process to an emergency responder."@en ,
+        "表示应急响应过程涉及的应急响应者。"@zh .
+
+dom:missionAbortAffectsActor
+    a owl:ObjectProperty ;
+    rdfs:domain dom:MissionAbort ;
+    rdfs:range world:MobileAgent ;
+    rdfs:label "mission abort affects actor"@en ,
+        "任务中止影响主体"@zh ;
+    skos:definition "Relates a mission-abort process to the affected actor."@en ,
+        "表示任务中止过程影响的主体。"@zh .
+
+dom:returnToHomeAffectsAircraft
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ReturnToHomeProcedure ;
+    rdfs:range world:UnmannedAircraft ;
+    rdfs:label "return to home affects aircraft"@en ,
+        "返航影响航空器"@zh ;
+    skos:definition "Relates a return-to-home procedure to the UAV executing it."@en ,
+        "表示执行返航程序的无人机。"@zh .
+
+dom:safeHoldAffectsAircraft
+    a owl:ObjectProperty ;
+    rdfs:domain dom:SafeHoldProcedure ;
+    rdfs:range world:UnmannedAircraft ;
+    rdfs:label "safe hold affects aircraft"@en ,
+        "安全等待影响航空器"@zh ;
+    skos:definition "Relates a safe-hold procedure to the UAV executing it."@en ,
+        "表示执行安全等待程序的无人机。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:constraintActive
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:OperationalConstraint ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "constraint active"@en ,
+        "约束激活"@zh ;
+    skos:definition "Whether an operational constraint is active at a tick."@en ,
+        "某一时刻运行约束是否激活。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "operational_constraint" .
+
+dom:evacuationProgressRatio
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:EmergencyResponse ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "evacuation progress ratio"@en ,
+        "疏散进度比例"@zh ;
+    skos:definition "Progress of evacuation represented as a ratio."@en ,
+        "以比例表示的疏散进度。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "evacuation_progress" .
+
+dom:emergencyPriorityActive
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:AmbulancePriorityPassage ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "emergency priority active"@en ,
+        "应急优先激活"@zh ;
+    skos:definition "Whether emergency priority passage is active."@en ,
+        "应急优先通行是否激活。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "emergency_priority" .
+
+dom:missionProcedureState
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:MissionAbort ;
+    rdfs:range xsd:string ;
+    rdfs:label "mission procedure state"@en ,
+        "任务程序状态"@zh ;
+    skos:definition "Discrete procedure state such as abort, return-to-home, or safe hold."@en ,
+        "中止、返航或安全等待等离散任务程序状态。"@zh ;
+    world:unitSymbol "state-code" ;
+    world:stateFieldCategory "mission_state" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:TemporaryNoFlyZoneActiveArgument_region
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "region" ;
+    world:argumentClass world:NoFlyZone ;
+    rdfs:label "region"@en .
+
+dom:TemporaryNoFlyZoneActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "emergency.temporary_no_fly_zone_active" ;
+    aw:declaresArgumentRole dom:TemporaryNoFlyZoneActiveArgument_region ;
+    rdfs:label "temporary no-fly zone active"@en ,
+        "临时禁飞区激活"@zh ;
+    skos:definition "Holds when a temporary no-fly restriction is active in an operational region."@en ,
+        "当运行区域内临时禁飞限制激活时成立"@zh .
+
+dom:EmergencyIsolationActiveArgument_zone
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "zone" ;
+    world:argumentClass dom:EmergencyIsolationZone ;
+    rdfs:label "zone"@en .
+
+dom:EmergencyIsolationActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "emergency.emergency_isolation_active" ;
+    aw:declaresArgumentRole dom:EmergencyIsolationActiveArgument_zone ;
+    rdfs:label "emergency isolation active"@en ,
+        "应急隔离激活"@zh ;
+    skos:definition "Holds when an emergency isolation zone is active."@en ,
+        "当应急隔离区处于激活状态时成立"@zh .
+
+dom:EvacuationInProgressArgument_route
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "route" ;
+    world:argumentClass dom:EvacuationRoute ;
+    rdfs:label "route"@en .
+
+dom:EvacuationInProgress
+    a aw:PredicateType ;
+    aw:predicateIdentifier "emergency.evacuation_in_progress" ;
+    aw:declaresArgumentRole dom:EvacuationInProgressArgument_route ;
+    rdfs:label "evacuation in progress"@en ,
+        "疏散进行中"@zh ;
+    skos:definition "Holds when evacuation movement is active along an evacuation route."@en ,
+        "当疏散路线上的疏散移动处于活动状态时成立"@zh .
+
+dom:EmergencyVehiclePriorityActiveArgument_response
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "response" ;
+    world:argumentClass dom:AmbulancePriorityPassage ;
+    rdfs:label "response"@en .
+
+dom:EmergencyVehiclePriorityActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "emergency.emergency_vehicle_priority_active" ;
+    aw:declaresArgumentRole dom:EmergencyVehiclePriorityActiveArgument_response ;
+    rdfs:label "emergency vehicle priority active"@en ,
+        "应急车辆优先通行激活"@zh ;
+    skos:definition "Holds when priority passage for an emergency vehicle is active."@en ,
+        "当应急车辆优先通行处于激活状态时成立"@zh .
+
+dom:AircraftInReturnToHomeArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:AircraftInReturnToHome
+    a aw:PredicateType ;
+    aw:predicateIdentifier "emergency.aircraft_in_return_to_home" ;
+    aw:declaresArgumentRole dom:AircraftInReturnToHomeArgument_actor ;
+    rdfs:label "aircraft in return to home"@en ,
+        "航空器处于返航"@zh ;
+    skos:definition "Holds when a UAV is executing a return-to-home procedure."@en ,
+        "当无人机正在执行返航程序时成立"@zh .
+
+dom:MissionAbortedArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:MobileAgent ;
+    rdfs:label "actor"@en .
+
+dom:MissionAborted
+    a aw:PredicateType ;
+    aw:predicateIdentifier "emergency.mission_aborted" ;
+    aw:declaresArgumentRole dom:MissionAbortedArgument_actor ;
+    rdfs:label "mission aborted"@en ,
+        "任务已中止"@zh ;
+    skos:definition "Holds when an active mission has been aborted before nominal completion."@en ,
+        "当活动任务在正常完成前已中止时成立"@zh .
+
+dom:AircraftInSafeHoldArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:AircraftInSafeHold
+    a aw:PredicateType ;
+    aw:predicateIdentifier "emergency.aircraft_in_safe_hold" ;
+    aw:declaresArgumentRole dom:AircraftInSafeHoldArgument_actor ;
+    rdfs:label "aircraft in safe hold"@en ,
+        "航空器处于安全等待"@zh ;
+    skos:definition "Holds when a UAV is executing a safe-hold procedure."@en ,
+        "当无人机正在执行安全等待程序时成立"@zh .

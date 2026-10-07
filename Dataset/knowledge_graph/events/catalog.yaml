@@ -1,0 +1,865 @@
+schema: aeroworld.event-catalog.v1
+version: 0.3.0
+event_policy: stable_objective_domain_event_types
+execution_rule_status: deferred_except_airspace_pilot
+modules:
+  airspace_operations:
+    domain_slug: airspace_operations
+    title_en: AeroWorld Airspace Operations Event Ontology
+    title_zh: AeroWorld 空域运行事件本体
+    scope_en: Objective airspace occupancy, altitude, intrusion, and corridor-capacity
+      event families.
+    scope_zh: 既有空域占用、高度偏离、侵入和航路容量事件族。
+    events:
+    - id: RestrictedAirspaceEntryEvent
+      identifier: airspace.restricted_airspace_entry_event
+      label_en: restricted airspace entry
+      label_zh: 进入限制空域事件
+      definition_en: Objective event in which a UAV enters a restricted
+        or no-fly airspace region.
+      definition_zh: 无人机进入限制或禁飞空域区域的客观事件
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: restricted_region
+        class: RestrictedAirspaceRegion
+    - id: AssignedAltitudeBandExcursionEvent
+      identifier: airspace.assigned_altitude_band_excursion_event
+      label_en: assigned altitude band excursion
+      label_zh: 指定高度带偏离事件
+      definition_en: Objective event in which a UAV altitude deviates
+        from the assigned altitude band.
+      definition_zh: 无人机高度偏离指定高度带的客观事件
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+    - id: NonCooperativeProtectedAirspaceIntrusionEvent
+      identifier: airspace.non_cooperative_protected_airspace_intrusion_event
+      label_en: non-cooperative protected airspace intrusion
+      label_zh: 非合作航空器保护空域侵入事件
+      definition_en: Objective event in which a non-cooperative UAV
+        intrudes into protected airspace.
+      definition_zh: 非合作无人机侵入保护空域的客观事件
+      roles:
+      - key: intruder
+        class: UnmannedAircraft
+      - key: protected_region
+        class: ProtectedAirspace
+    - id: AirspaceCorridorCapacityExceedanceEvent
+      identifier: airspace.airspace_corridor_capacity_exceedance_event
+      label_en: airspace corridor capacity exceedance
+      label_zh: 空中航路容量超限事件
+      definition_en: Objective event in which aircraft occupancy exceeds
+        corridor capacity.
+      definition_zh: 航空器占用超过航路容量的客观事件
+      roles:
+      - key: corridor
+        class: AirspaceCorridor
+    - id: AircraftTakeoffEvent
+      identifier: airspace.aircraft_takeoff_event
+      label_en: aircraft takeoff
+      label_zh: 航空器起飞事件
+      definition_en: Objective event in which an unmanned aircraft transitions from its home pad to airborne flight.
+      definition_zh: 无人机从归属起降坪转换为空中飞行的客观事件。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: home_pad
+        class: LandingPad
+    - id: AircraftLandingEvent
+      identifier: airspace.aircraft_landing_event
+      label_en: aircraft landing
+      label_zh: 航空器降落事件
+      definition_en: Objective event in which an unmanned aircraft transitions from airborne flight to touchdown in its landing zone.
+      definition_zh: 无人机从空中飞行转换为在降落区接地的客观事件。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: landing_zone
+        class: LandingArea
+  ground_mobility:
+    domain_slug: ground_mobility
+    title_en: AeroWorld Ground Mobility Event Ontology
+    title_zh: AeroWorld 地面交通运行事件本体
+    scope_en: Objective road closure, road detour, vehicle collision, and vehicle
+      breakdown event families.
+    scope_zh: 既有道路关闭、道路绕行、地面车辆碰撞和车辆故障阻塞事件族。
+    events:
+    - id: RoadConstructionDetourEvent
+      identifier: ground.road_construction_detour_event
+      label_en: road construction detour
+      label_zh: 道路施工绕行事件
+      definition_en: Objective event in which road construction or
+        barriers cause detour routing.
+      definition_zh: 道路施工或障碍物导致绕行的客观事件
+      roles:
+      - key: road_segment
+        class: RoadSegment
+      - key: barrier
+        class: Barrier
+    - id: RoadSegmentClosureEvent
+      identifier: ground.road_segment_closure_event
+      label_en: road segment closure
+      label_zh: 道路路段关闭事件
+      definition_en: Objective event in which a road segment becomes closed to traffic.
+      definition_zh: 道路路段变为禁止交通通行的客观事件。
+      roles:
+      - key: road_segment
+        class: RoadSegment
+    - id: TrafficSignalMalfunctionEvent
+      identifier: ground.traffic_signal_malfunction_event
+      label_en: traffic signal malfunction
+      label_zh: 交通信号故障事件
+      definition_en: Objective event in which a traffic signal cannot
+        provide valid control service.
+      definition_zh: 交通信号无法提供有效控制服务的客观事件
+      roles:
+      - key: signal
+        class: TrafficSignal
+    - id: GroundVehicleCollisionEvent
+      identifier: ground.ground_vehicle_collision_event
+      label_en: ground vehicle collision
+      label_zh: 地面车辆碰撞事件
+      definition_en: Objective event in which two ground vehicles collide
+        or conflict physically.
+      definition_zh: 两辆地面车辆发生碰撞或物理冲突的客观事件
+      roles:
+      - key: first_vehicle
+        class: GroundVehicle
+      - key: second_vehicle
+        class: GroundVehicle
+    - id: VehicleBreakdownRoadBlockEvent
+      identifier: ground.vehicle_breakdown_road_block_event
+      label_en: vehicle breakdown road block
+      label_zh: 车辆故障阻塞道路事件
+      definition_en: Objective event in which a disabled vehicle blocks
+        a lane or road segment.
+      definition_zh: 故障车辆阻塞车道或道路段的客观事件
+      roles:
+      - key: disabled_vehicle
+        class: GroundVehicle
+      - key: road_element
+        class: RoadElement
+  mobility_regulation:
+    domain_slug: mobility_regulation
+    title_en: AeroWorld Mobility Regulation Event Ontology
+    title_zh: AeroWorld 交通法规事件本体
+    scope_en: Stable normative events whose interpretation depends on an applicable
+      rule, prohibition, obligation, permission, right-of-way, or violation condition.
+    scope_zh: 解释依赖适用规则、禁止、义务、许可、路权或违规条件的稳定规范事件。
+    events:
+    - id: EmergencyVehiclePriorityPassageEvent
+      identifier: regulation.emergency_vehicle_priority_passage_event
+      label_en: emergency vehicle priority passage
+      label_zh: 应急车辆优先通行事件
+      definition_en: Objective event in which emergency vehicle priority
+        changes normal traffic obligations.
+      definition_zh: 应急车辆优先权改变常规交通义务的客观事件
+      roles:
+      - key: emergency_vehicle
+        class: GroundVehicle
+      - key: right_of_way
+        class: RightOfWay
+    - id: RedSignalViolationEvent
+      identifier: regulation.red_signal_violation_event
+      label_en: red signal violation
+      label_zh: 红灯违规事件
+      definition_en: Objective regulation event in which an actor movement violates
+        an applicable red-signal prohibition.
+      definition_zh: 主体运动违反适用红灯禁止规范的客观法规事件
+      roles:
+      - key: vehicle
+        class: GroundVehicle
+      - key: signal
+        class: TrafficSignal
+      - key: regulation
+        class: Prohibition
+    - id: SpeedLimitViolationEvent
+      identifier: regulation.speed_limit_violation_event
+      label_en: speed limit violation
+      label_zh: 超速违规事件
+      definition_en: Objective regulation event in which an actor exceeds an applicable
+        speed-limit regulation.
+      definition_zh: 主体超过适用限速法规的客观法规事件
+      roles:
+      - key: vehicle
+        class: GroundVehicle
+      - key: regulation
+        class: SpeedLimitRegulation
+    - id: RightOfWayViolationEvent
+      identifier: regulation.right_of_way_violation_event
+      label_en: right-of-way violation
+      label_zh: 路权违规事件
+      definition_en: Objective regulation event in which an actor movement violates
+        an applicable right-of-way rule.
+      definition_zh: 主体运动违反适用路权规则的客观法规事件
+      roles:
+      - key: actor
+        class: MobileAgent
+      - key: right_of_way
+        class: RightOfWay
+    - id: FollowingDistanceViolationEvent
+      identifier: regulation.following_distance_violation_event
+      label_en: following distance violation
+      label_zh: 跟车距离违规事件
+      definition_en: Objective regulation event in which a vehicle violates an applicable
+        minimum following-distance rule.
+      definition_zh: 车辆违反适用最小跟车距离规则的客观法规事件
+      roles:
+      - key: following_vehicle
+        class: GroundVehicle
+      - key: leading_vehicle
+        class: GroundVehicle
+      - key: rule
+        class: FollowingDistanceRule
+    - id: LaneUseViolationEvent
+      identifier: regulation.lane_use_violation_event
+      label_en: lane-use violation
+      label_zh: 车道使用违规事件
+      definition_en: Objective regulation event in which an actor uses a lane contrary
+        to an applicable lane-use restriction.
+      definition_zh: 主体违反适用车道使用限制的客观法规事件
+      roles:
+      - key: actor
+        class: MobileAgent
+      - key: lane
+        class: RoadLane
+      - key: restriction
+        class: LaneUseRestriction
+    - id: CrosswalkYieldViolationEvent
+      identifier: regulation.crosswalk_yield_violation_event
+      label_en: crosswalk yield violation
+      label_zh: 人行横道让行违规事件
+      definition_en: Objective regulation event in which a vehicle violates an applicable
+        obligation to yield to a pedestrian at a crosswalk.
+      definition_zh: 车辆违反在人行横道对行人让行义务的客观法规事件
+      roles:
+      - key: vehicle
+        class: GroundVehicle
+      - key: pedestrian
+        class: Pedestrian
+      - key: obligation
+        class: Obligation
+  agent_interaction_safety:
+    domain_slug: agent_interaction_safety
+    title_en: AeroWorld Agent Interaction Safety Event Ontology
+    title_zh: AeroWorld 主体交互安全事件本体
+    scope_en: Objective UAV, vehicle, pedestrian, building, populated-area, collision,
+      near-miss, and forced-landing safety event families.
+    scope_zh: 既有无人机、车辆、行人、建筑、人群区域、碰撞、近失和迫降安全事件族。
+    events:
+    - id: AircraftPairConflictEvent
+      identifier: safety.aircraft_pair_conflict_event
+      label_en: aircraft pair conflict
+      label_zh: 航空器间冲突事件
+      definition_en: Objective event in which two UAVs violate or approach
+        separation limits.
+      definition_zh: 两架无人机违反或接近间隔限制的客观事件
+      roles:
+      - key: first_aircraft
+        class: UnmannedAircraft
+      - key: second_aircraft
+        class: UnmannedAircraft
+    - id: AircraftStructureStrikeEvent
+      identifier: safety.aircraft_structure_strike_event
+      label_en: aircraft structure strike
+      label_zh: 航空器撞击结构物事件
+      definition_en: Objective event in which a UAV physically strikes a building
+        or facade structure.
+      definition_zh: 无人机与建筑或立面结构发生物理撞击的客观事件
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: structure
+        class: BuildingStructure
+    - id: AircraftStructureNearMissEvent
+      identifier: safety.aircraft_structure_near_miss_event
+      label_en: aircraft structure near miss
+      label_zh: 航空器结构物近失事件
+      definition_en: Objective event in which an airborne UAV enters a governed
+        proximity envelope around a building or facade without contact.
+      definition_zh: 飞行中的无人机进入建筑或立面结构的受控邻近包络但未发生接触的客观事件
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: structure
+        class: BuildingStructure
+    - id: AircraftForcedLandingPopulatedAreaEvent
+      identifier: safety.aircraft_forced_landing_populated_area_event
+      label_en: aircraft forced landing in populated area
+      label_zh: 航空器在人群区域迫降事件
+      definition_en: Objective event in which a UAV forced-landing
+        state intersects a populated area or pedestrians.
+      definition_zh: 无人机迫降状态与人群区域或行人相交的客观事件
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: populated_area
+        class: PopulatedArea
+    - id: AircraftGroundVehicleCollisionEvent
+      identifier: safety.aircraft_ground_vehicle_collision_event
+      label_en: aircraft ground vehicle collision
+      label_zh: 航空器地面车辆碰撞事件
+      definition_en: Objective event in which a UAV and ground vehicle make physical
+        contact.
+      definition_zh: 无人机与地面车辆发生物理接触的客观事件
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: vehicle
+        class: GroundVehicle
+    - id: AircraftGroundVehicleConflictEvent
+      identifier: safety.aircraft_ground_vehicle_conflict_event
+      label_en: aircraft ground vehicle conflict
+      label_zh: 航空器地面车辆冲突事件
+      definition_en: Objective event in which an airborne UAV enters a governed
+        proximity envelope around a ground vehicle without contact.
+      definition_zh: 飞行中的无人机进入地面车辆的受控邻近包络但未发生接触的客观事件
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: vehicle
+        class: GroundVehicle
+    - id: AircraftPedestrianNearMissEvent
+      identifier: safety.aircraft_pedestrian_near_miss_event
+      label_en: aircraft pedestrian near miss
+      label_zh: 航空器行人近失事件
+      definition_en: Objective event involving UAV and pedestrian near-miss
+        or interaction risk.
+      definition_zh: 涉及无人机与行人近失或交互风险的客观事件
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: pedestrian
+        class: Pedestrian
+    - id: PedestrianVehicleConflictEvent
+      identifier: safety.pedestrian_vehicle_conflict_event
+      label_en: pedestrian vehicle conflict
+      label_zh: 行人车辆冲突事件
+      definition_en: Objective event involving conflict between a pedestrian
+        and a ground vehicle.
+      definition_zh: 涉及行人与地面车辆冲突的客观事件
+      roles:
+      - key: pedestrian
+        class: Pedestrian
+      - key: vehicle
+        class: GroundVehicle
+    - id: CrowdEvacuationEvent
+      identifier: emergency.crowd_evacuation_event
+      label_en: crowd evacuation
+      label_zh: 人群疏散事件
+      definition_en: Objective event in which a real crowd begins evacuating from
+        a hazard or restricted area.
+      definition_zh: 真实人群开始从风险或限制区域疏散的客观事件。
+      roles:
+      - key: crowd
+        class: Crowd
+  facility_energy_service:
+    domain_slug: facility_energy_service
+    title_en: AeroWorld Facility and Energy Service Event Ontology
+    title_zh: AeroWorld 设施与能源服务事件本体
+    scope_en: Objective charging-station availability and landing-pad contention event
+      families.
+    scope_zh: 既有充电站可用性和起降坪争用事件族。
+    events:
+    - id: ChargingStationUnavailabilityEvent
+      identifier: facility.charging_station_unavailability_event
+      label_en: charging station unavailability
+      label_zh: 充电站不可用事件
+      definition_en: Objective event in which a charging station cannot
+        accept charging service.
+      definition_zh: 充电站无法接受充电服务的客观事件
+      roles:
+      - key: station
+        class: ChargingStation
+    - id: ChargingQueueOverloadEvent
+      identifier: facility.charging_queue_overload_event
+      label_en: charging queue overload
+      label_zh: 充电队列超容事件
+      definition_en: Objective event in which the charging station requester
+        queue exceeds its service capacity.
+      definition_zh: 充电站请求队列超过其服务容量的客观事件
+      roles:
+      - key: station
+        class: ChargingStation
+    - id: LandingPadContentionEvent
+      identifier: facility.landing_pad_contention_event
+      label_en: landing pad contention
+      label_zh: 起降坪争用事件
+      definition_en: Objective event in which multiple UAVs contend
+        for the same landing pad.
+      definition_zh: 多架无人机争用同一起降坪的客观事件
+      roles:
+      - key: pad
+        class: LandingPad
+      - key: first_aircraft
+        class: UnmannedAircraft
+      - key: second_aircraft
+        class: UnmannedAircraft
+  communication_process:
+    domain_slug: communication_process
+    title_en: AeroWorld Communication Process Event Ontology
+    title_zh: AeroWorld 通信过程事件本体
+    scope_en: Objective communication-station, C2-link, degradation, loss, and jamming
+      event families.
+    scope_zh: 既有通信站、C2 链路、退化、丢失和干扰事件族。
+    events:
+    - id: CommunicationStationFailureEvent
+      identifier: communication.communication_station_failure_event
+      label_en: communication station failure
+      label_zh: 通信站故障事件
+      definition_en: Objective event in which a communication station
+        cannot provide service.
+      definition_zh: 通信站无法提供服务的客观事件
+      roles:
+      - key: station
+        class: CommunicationStation
+    - id: MessageTransmissionEvent
+      identifier: communication.message_transmission_event
+      label_en: message transmission
+      label_zh: 消息传输事件
+      definition_en: Objective communication process event in which a message transmission
+        attempt occurs.
+      definition_zh: 消息传输尝试发生的客观通信过程事件
+      roles:
+      - key: attempt
+        class: TransmissionAttempt
+      - key: message
+        class: Message
+      - key: allocation
+        class: ChannelAllocation
+    - id: MessageRetransmissionEvent
+      identifier: communication.message_retransmission_event
+      label_en: message retransmission
+      label_zh: 消息重传事件
+      definition_en: Objective communication process event in which a message or packet
+        is retransmitted.
+      definition_zh: 消息或分组被重传的客观通信过程事件
+      roles:
+      - key: retransmission
+        class: Retransmission
+      - key: original_attempt
+        class: TransmissionAttempt
+      - key: message
+        class: Message
+    - id: CommunicationSessionStartEvent
+      identifier: communication.communication_session_start_event
+      label_en: communication session start
+      label_zh: 通信会话开始事件
+      definition_en: Objective communication process event in which a communication
+        session becomes active.
+      definition_zh: 通信会话变为活动状态的客观通信过程事件
+      roles:
+      - key: session
+        class: CommunicationSession
+      - key: station
+        class: CommunicationStation
+      - key: data_flow
+        class: DataFlow
+    - id: CommunicationSessionInterruptionEvent
+      identifier: communication.communication_session_interruption_event
+      label_en: communication session interruption
+      label_zh: 通信会话中断事件
+      definition_en: Objective communication process event in which an active communication
+        session loses continuity.
+      definition_zh: 活动通信会话失去连续性的客观通信过程事件
+      roles:
+      - key: session
+        class: CommunicationSession
+      - key: station
+        class: CommunicationStation
+      - key: data_flow
+        class: DataFlow
+    - id: CommunicationHandoverEvent
+      identifier: communication.communication_handover_event
+      label_en: communication handover
+      label_zh: 通信切换事件
+      definition_en: Objective communication process event in which a session or route
+        is handed over to another station or channel.
+      definition_zh: 会话或路由切换到另一个站点或信道的客观通信过程事件
+      roles:
+      - key: handover
+        class: Handover
+      - key: session
+        class: CommunicationSession
+      - key: source_station
+        class: CommunicationStation
+      - key: target_station
+        class: CommunicationStation
+    - id: ChannelAllocationChangeEvent
+      identifier: communication.channel_allocation_change_event
+      label_en: channel allocation change
+      label_zh: 信道分配变化事件
+      definition_en: Objective communication process event in which channel allocation
+        changes for a session or flow.
+      definition_zh: 会话或数据流的信道分配发生变化的客观通信过程事件
+      roles:
+      - key: allocation
+        class: ChannelAllocation
+      - key: data_flow
+        class: DataFlow
+    - id: BandwidthAllocationChangeEvent
+      identifier: communication.bandwidth_allocation_change_event
+      label_en: bandwidth allocation change
+      label_zh: 带宽分配变化事件
+      definition_en: Objective communication process event in which reserved or assigned
+        bandwidth changes.
+      definition_zh: 预留或分配带宽发生变化的客观通信过程事件
+      roles:
+      - key: reservation
+        class: BandwidthReservation
+      - key: data_flow
+        class: DataFlow
+    - id: C2LinkLossEvent
+      identifier: communication.c2_link_loss_event
+      label_en: C2 link loss
+      label_zh: C2 链路丢失事件
+      definition_en: Objective event in which a command-and-control
+        link becomes unavailable.
+      definition_zh: 指挥控制链路不可用的客观事件
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: station
+        class: CommunicationStation
+    - id: C2LinkDegradationEvent
+      identifier: communication.c2_link_degradation_event
+      label_en: C2 link degradation
+      label_zh: C2 链路退化事件
+      definition_en: Objective event in which a command-and-control
+        link degrades without complete loss.
+      definition_zh: 指挥控制链路退化但未完全丢失的客观事件
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: station
+        class: CommunicationStation
+  computation_process:
+    domain_slug: computation_process
+    title_en: AeroWorld Computation Process Event Ontology
+    title_zh: AeroWorld 计算过程事件本体
+    scope_en: Stable objective computation event types for task execution, resource
+      allocation, offloading, migration, saturation, queueing, and failure; executable
+      rules are deferred until authoritative compute logs exist.
+    scope_zh: 面向任务执行、资源分配、卸载、迁移、饱和、排队和失败的稳定客观计算事件类型；可执行规则等待权威计算日志后再定义。
+    events:
+    - id: ComputeTaskOffloadEvent
+      identifier: compute.compute_task_offload_event
+      label_en: compute task offload
+      label_zh: 计算任务卸载事件
+      definition_en: Objective computation event in which a task is offloaded from
+        one compute node to another.
+      definition_zh: 计算任务从一个计算节点卸载到另一个计算节点的客观计算事件
+      roles:
+      - key: offload
+        class: TaskOffload
+      - key: task
+        class: ComputeTask
+      - key: source_node
+        class: ComputeNode
+      - key: target_node
+        class: ComputeNode
+    - id: ComputeTaskMigrationEvent
+      identifier: compute.compute_task_migration_event
+      label_en: compute task migration
+      label_zh: 计算任务迁移事件
+      definition_en: Objective computation event in which an executing task migrates
+        between compute nodes.
+      definition_zh: 正在执行的任务在计算节点之间迁移的客观计算事件
+      roles:
+      - key: migration
+        class: TaskMigration
+      - key: task
+        class: ComputeTask
+      - key: source_node
+        class: ComputeNode
+      - key: target_node
+        class: ComputeNode
+    - id: ComputeTaskExecutionFailureEvent
+      identifier: compute.compute_task_execution_failure_event
+      label_en: compute task execution failure
+      label_zh: 计算任务执行失败事件
+      definition_en: Objective computation event in which a compute task enters an
+        execution-failure state.
+      definition_zh: 计算任务进入执行失败状态的客观计算事件
+      roles:
+      - key: execution
+        class: TaskExecution
+      - key: task
+        class: ComputeTask
+      - key: node
+        class: ComputeNode
+      - key: failure_state
+        class: ExecutionFailure
+    - id: ComputeResourceSaturationEvent
+      identifier: compute.compute_resource_saturation_event
+      label_en: compute resource saturation
+      label_zh: 计算资源饱和事件
+      definition_en: Objective computation event in which requested CPU, GPU, or memory
+        exceeds available capacity.
+      definition_zh: 请求的 CPU、GPU 或内存超过可用容量的客观计算事件
+      roles:
+      - key: node
+        class: ComputeNode
+      - key: resource
+        class: ComputeResource
+    - id: ComputeQueueOverloadEvent
+      identifier: compute.compute_queue_overload_event
+      label_en: compute queue overload
+      label_zh: 计算队列过载事件
+      definition_en: Objective computation event in which queued tasks exceed a declared
+        queue threshold.
+      definition_zh: 排队任务超过声明队列阈值的客观计算事件
+      roles:
+      - key: queue
+        class: ComputeQueue
+      - key: node
+        class: ComputeNode
+  positioning_navigation:
+    domain_slug: positioning_navigation
+    title_en: AeroWorld Positioning and Navigation Event Ontology
+    title_zh: AeroWorld 定位与导航事件本体
+    scope_en: Objective GNSS degradation and GNSS spoofing event families.
+    scope_zh: 既有 GNSS 退化和 GNSS 欺骗事件族。
+    events:
+    - id: GnssSignalDegradationEvent
+      identifier: positioning.gnss_signal_degradation_event
+      label_en: GNSS signal degradation
+      label_zh: GNSS 信号退化事件
+      definition_en: Objective event in which GNSS service quality
+        degrades.
+      definition_zh: GNSS 服务质量退化的客观事件
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: service
+        class: GnssService
+    - id: GnssSpoofingNavigationEffectEvent
+      identifier: positioning.gnss_spoofing_navigation_effect_event
+      label_en: GNSS spoofing navigation effect
+      label_zh: GNSS 欺骗导航影响事件
+      definition_en: Objective positioning event in which spoofed positioning input
+        affects a navigation estimate; the adversarial attack action itself belongs
+        to digital security.
+      definition_zh: 欺骗定位输入影响导航估计的客观定位事件；攻击行为本身归入数字安全
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: signal
+        class: SpoofingSignal
+  environment_hazard:
+    domain_slug: environment_hazard
+    title_en: AeroWorld Environment Hazard Event Ontology
+    title_zh: AeroWorld 环境风险事件本体
+    scope_en: Objective rain, fog, wind, lighting, and temperature event families.
+    scope_zh: 既有降雨、雾、风、光照和温度事件族。
+    events:
+    - id: RainTransitionEvent
+      identifier: environment.rain_transition_event
+      label_en: rain transition
+      label_zh: 降雨变化事件
+      definition_en: Objective event in which rain begins, intensifies,
+        or changes gradually or suddenly.
+      definition_zh: 降雨开始、增强或发生渐变/突变的客观事件
+      roles:
+      - key: region
+        class: OperationalRegion
+    - id: FogOnsetEvent
+      identifier: environment.fog_onset_event
+      label_en: fog onset
+      label_zh: 雾出现事件
+      definition_en: Objective event in which fog or low visibility
+        begins.
+      definition_zh: 雾或低能见度出现的客观事件
+      roles:
+      - key: region
+        class: OperationalRegion
+    - id: HighWindGustEvent
+      identifier: environment.high_wind_gust_event
+      label_en: high wind gust
+      label_zh: 强风阵风事件
+      definition_en: Objective event in which wind or gust exceeds
+        operational thresholds.
+      definition_zh: 风或阵风超过运行阈值的客观事件
+      roles:
+      - key: region
+        class: OperationalRegion
+    - id: LightingConditionChangeEvent
+      identifier: environment.lighting_condition_change_event
+      label_en: lighting condition change
+      label_zh: 光照条件变化事件
+      definition_en: Objective event in which lighting changes enough
+        to affect operation or perception.
+      definition_zh: 光照变化足以影响运行或感知的客观事件
+      roles:
+      - key: region
+        class: OperationalRegion
+    - id: ExtremeTemperatureEvent
+      identifier: environment.extreme_temperature_event
+      label_en: extreme temperature
+      label_zh: 极端温度事件
+      definition_en: Objective event in which temperature leaves the
+        operational range.
+      definition_zh: 温度离开运行范围的客观事件
+      roles:
+      - key: region
+        class: OperationalRegion
+  digital_security:
+    domain_slug: digital_security
+    title_en: AeroWorld Digital Security Event Ontology
+    title_zh: AeroWorld 数字安全事件本体
+    scope_en: Objective ground-control compromise event family.
+    scope_zh: 既有地面控制站受损事件族。
+    events:
+    - id: GroundControlStationCompromiseEvent
+      identifier: security.ground_control_station_compromise_event
+      label_en: ground control station compromise
+      label_zh: 地面控制站受损事件
+      definition_en: Objective event in which a ground control station
+        or control session is compromised.
+      definition_zh: 地面控制站或控制会话受损的客观事件
+      roles:
+      - key: station
+        class: GroundControlStation
+    - id: UnauthorizedCommandEvent
+      identifier: security.unauthorized_command_event
+      label_en: unauthorized command
+      label_zh: 未授权指令事件
+      definition_en: Objective digital-security event in which an unauthorized command
+        is issued or received.
+      definition_zh: 未授权指令被发出或接收的客观数字安全事件
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: command
+        class: UnauthorizedCommand
+    - id: CommunicationJammingImpactEvent
+      identifier: security.communication_jamming_impact_event
+      label_en: communication jamming impact
+      label_zh: 通信干扰影响事件
+      definition_en: Objective event in which active jamming disrupts an unmanned
+        aircraft's communication service through its serving station.
+      definition_zh: 活跃干扰通过服务通信站破坏无人机通信服务的客观事件。
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: station
+        class: CommunicationStation
+    - id: ControlCommandIntegrityViolationEvent
+      identifier: security.control_command_integrity_violation_event
+      label_en: control command integrity violation
+      label_zh: 控制指令完整性违规事件
+      definition_en: Objective digital-security event in which a command stream fails
+        integrity validation.
+      definition_zh: 指令流未通过完整性验证的客观数字安全事件
+      roles:
+      - key: stream
+        class: CommandStream
+    - id: SecurityControlUnavailabilityEvent
+      identifier: security.security_control_unavailability_event
+      label_en: security control unavailability
+      label_zh: 安全控制不可用事件
+      definition_en: Objective digital-security event in which a declared security
+        control becomes unavailable.
+      definition_zh: 声明的安全控制变为不可用的客观数字安全事件
+      roles:
+      - key: control
+        class: CyberSecurityControl
+  operational_constraint_emergency:
+    domain_slug: operational_constraint_emergency
+    title_en: AeroWorld Operational Constraint and Emergency Event Ontology
+    title_zh: AeroWorld 运行约束与应急事件本体
+    scope_en: Objective temporary restriction, emergency isolation, and medical
+      emergency event families.
+    scope_zh: 既有临时限制、应急隔离和医疗应急事件族。
+    events:
+    - id: TemporaryNoFlyZoneActivationEvent
+      identifier: emergency.temporary_no_fly_zone_activation_event
+      label_en: temporary no-fly zone activation
+      label_zh: 临时禁飞区激活事件
+      definition_en: Objective event in which a temporary no-fly zone
+        becomes active.
+      definition_zh: 临时禁飞区激活的客观事件
+      roles:
+      - key: constraint
+        class: TemporaryRestriction
+      - key: region
+        class: NoFlyZone
+    - id: EmergencyIsolationZoneEvent
+      identifier: emergency.emergency_isolation_zone_event
+      label_en: emergency isolation zone
+      label_zh: 应急隔离区事件
+      definition_en: Objective event in which an emergency isolation
+        zone is active.
+      definition_zh: 应急隔离区激活的客观事件
+      roles:
+      - key: zone
+        class: EmergencyIsolationZone
+      - key: response
+        class: EmergencyResponse
+    - id: HazmatEmergencyResponseEvent
+      identifier: emergency.hazmat_response_event
+      label_en: hazmat emergency response
+      label_zh: 危化品应急响应事件
+      definition_en: Objective event in which a hazardous material release
+        triggers isolation, responder handoff, and resolution.
+      definition_zh: 危化品释放触发隔离、应急交接和处置完成的客观事件
+      roles:
+      - key: hazard
+        class: HazardSource
+      - key: response
+        class: EmergencyResponse
+    - id: PedestrianMedicalEmergencyEvent
+      identifier: emergency.pedestrian_medical_emergency_event
+      label_en: pedestrian medical emergency
+      label_zh: 行人医疗应急事件
+      definition_en: Objective event in which a pedestrian fall or
+        medical emergency triggers response.
+      definition_zh: 行人跌倒或医疗应急触发响应的客观事件
+      roles:
+      - key: pedestrian
+        class: Pedestrian
+      - key: response
+        class: EmergencyResponse
+  utm:
+    domain_slug: utm
+    title_en: AeroWorld UTM Event Ontology
+    title_zh: AeroWorld 无人机交通管理事件本体
+    scope_en: Objective authorization revocation, operational-intent conflict, and deconfliction resolution event families.
+    scope_zh: 客观空域授权撤销、运行意图冲突和冲突消解完成事件族。
+    events:
+    - id: AirspaceAuthorizationRevocationEvent
+      identifier: utm.airspace_authorization_revocation_event
+      label_en: airspace authorization revocation
+      label_zh: 空域授权撤销事件
+      definition_en: Objective event in which an aircraft airspace authorization becomes revoked.
+      definition_zh: 航空器空域授权变为撤销状态的客观事件。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: authorization
+        class: AirspaceAuthorization
+      - key: airspace
+        class: OperationalRegion
+    - id: OperationalIntentConflictEvent
+      identifier: utm.operational_intent_conflict_event
+      label_en: operational intent conflict
+      label_zh: 运行意图冲突事件
+      definition_en: Objective event in which two declared operational intents enter conflict.
+      definition_zh: 两个声明运行意图进入冲突状态的客观事件。
+      roles:
+      - key: first_intent
+        class: OperationalIntent
+      - key: second_intent
+        class: OperationalIntent
+    - id: DeconflictionResolutionEvent
+      identifier: utm.deconfliction_resolution_event
+      label_en: deconfliction resolution
+      label_zh: 冲突消解完成事件
+      definition_en: Objective event in which an active UTM deconfliction process resolves its intent conflict.
+      definition_zh: 激活的无人机交通管理冲突消解过程解决意图冲突的客观事件。
+      roles:
+      - key: system
+        class: UTMSystem
+      - key: aircraft
+        class: UnmannedAircraft

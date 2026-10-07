@@ -1,0 +1,226 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/positioning_navigation#> .
+
+<https://w3id.org/aeroworld/ontology/domain/positioning_navigation>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/positioning_navigation/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Positioning and Navigation Ontology"@en ,
+        "AeroWorld 定位与导航本体"@zh ;
+    dct:description "GNSS service, navigation estimates, route adherence, positioning quality, drift, spoofing, and navigation error."@en ,
+        "刻画 GNSS 服务、导航估计、航线遵循、定位质量、漂移、欺骗和导航误差。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/positioning_navigation#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:GnssService
+    a owl:Class ;
+    rdfs:subClassOf world:InfrastructureAsset ;
+    rdfs:label "GNSS service"@en ,
+        "GNSS 服务"@zh ;
+    skos:definition "Positioning service used by an actor for navigation."@en ,
+        "主体用于导航的定位服务。"@zh .
+
+dom:NavigationEstimate
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "navigation estimate"@en ,
+        "导航估计"@zh ;
+    skos:definition "Estimated position, velocity, or route state produced by navigation systems."@en ,
+        "导航系统产生的位置、速度或航线状态估计。"@zh .
+
+dom:PositioningErrorState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "positioning error state"@en ,
+        "定位误差状态"@zh ;
+    skos:definition "State describing difference between estimated and truth-frame position."@en ,
+        "描述估计位置与真值帧位置差异的状态。"@zh .
+
+dom:NavigationDrift
+    a owl:Class ;
+    rdfs:subClassOf dom:PositioningErrorState ;
+    rdfs:label "navigation drift"@en ,
+        "导航漂移"@zh ;
+    skos:definition "Positioning error that accumulates or persists over time."@en ,
+        "随时间累积或持续存在的定位误差。"@zh .
+
+dom:SpoofingSignal
+    a owl:Class ;
+    rdfs:subClassOf world:InformationEntity ;
+    rdfs:label "spoofing signal"@en ,
+        "欺骗信号"@zh ;
+    skos:definition "Signal information that intentionally misleads positioning or navigation estimates."@en ,
+        "有意误导定位或导航估计的信号信息。"@zh .
+
+dom:LocalizationQualityState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "localization quality state"@en ,
+        "定位质量状态"@zh ;
+    skos:definition "State describing GNSS or localization accuracy, integrity, and availability."@en ,
+        "描述 GNSS 或定位准确性、完好性和可用性的状态。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:actorUsesGnssService
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range dom:GnssService ;
+    rdfs:label "actor uses GNSS service"@en ,
+        "主体使用 GNSS 服务"@zh ;
+    skos:definition "Relates a UAV to the GNSS service supporting its navigation."@en ,
+        "表示无人机使用的 GNSS 导航服务。"@zh .
+
+dom:estimateAffectedBySignal
+    a owl:ObjectProperty ;
+    rdfs:domain dom:NavigationEstimate ;
+    rdfs:range dom:SpoofingSignal ;
+    rdfs:label "estimate affected by signal"@en ,
+        "估计受信号影响"@zh ;
+    skos:definition "Relates a navigation estimate to a spoofing or interference signal that affects it."@en ,
+        "表示导航估计受欺骗或干扰信号影响。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:gnssErrorM
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:PositioningErrorState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "GNSS error meters"@en ,
+        "GNSS 误差米"@zh ;
+    skos:definition "Positioning error magnitude in meters."@en ,
+        "以米表示的定位误差大小。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "gnss_error" .
+
+dom:localizationQualityRatio
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:LocalizationQualityState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "localization quality ratio"@en ,
+        "定位质量比例"@zh ;
+    skos:definition "Localization quality score represented as a ratio."@en ,
+        "以比例表示的定位质量分数。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "localization_quality" .
+
+dom:navigationDriftM
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:NavigationDrift ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "navigation drift meters"@en ,
+        "导航漂移米"@zh ;
+    skos:definition "Accumulated or persistent navigation drift in meters."@en ,
+        "以米表示的累积或持续导航漂移。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "navigation_drift" .
+
+dom:routeDeviationM
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:NavigationEstimate ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "route deviation meters"@en ,
+        "航线偏离米"@zh ;
+    skos:definition "Distance between the observed actor path and the planned route."@en ,
+        "观测主体路径与计划航线之间的距离。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "route_deviation" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:GnssQualityDegradedArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:GnssQualityDegradedArgument_service
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "service" ;
+    world:argumentClass dom:GnssService ;
+    rdfs:label "service"@en .
+
+dom:GnssQualityDegraded
+    a aw:PredicateType ;
+    aw:predicateIdentifier "positioning.gnss_quality_degraded" ;
+    aw:declaresArgumentRole dom:GnssQualityDegradedArgument_actor ,
+        dom:GnssQualityDegradedArgument_service ;
+    rdfs:label "GNSS quality degraded"@en ,
+        "GNSS 质量退化"@zh ;
+    skos:definition "Holds when GNSS localization quality is below the required threshold."@en ,
+        "当 GNSS 定位质量低于要求阈值时成立"@zh .
+
+dom:GnssSpoofingActiveArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:GnssSpoofingActiveArgument_signal
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "signal" ;
+    world:argumentClass dom:SpoofingSignal ;
+    rdfs:label "signal"@en .
+
+dom:GnssSpoofingActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "positioning.gnss_spoofing_active" ;
+    aw:declaresArgumentRole dom:GnssSpoofingActiveArgument_actor ,
+        dom:GnssSpoofingActiveArgument_signal ;
+    rdfs:label "GNSS spoofing active"@en ,
+        "GNSS 欺骗激活"@zh ;
+    skos:definition "Holds when a spoofing signal affects the actor's positioning service."@en ,
+        "当欺骗信号影响主体定位服务时成立"@zh .
+
+dom:NavigationErrorExceedsToleranceArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:NavigationErrorExceedsTolerance
+    a aw:PredicateType ;
+    aw:predicateIdentifier "positioning.navigation_error_exceeds_tolerance" ;
+    aw:declaresArgumentRole dom:NavigationErrorExceedsToleranceArgument_actor ;
+    rdfs:label "navigation error exceeds tolerance"@en ,
+        "导航误差超容限"@zh ;
+    skos:definition "Holds when navigation error exceeds a declared tolerance."@en ,
+        "当导航误差超过声明容限时成立"@zh .
+
+dom:AircraftDeviatesFromPlannedRouteArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:AircraftDeviatesFromPlannedRoute
+    a aw:PredicateType ;
+    aw:predicateIdentifier "positioning.aircraft_deviates_from_planned_route" ;
+    aw:declaresArgumentRole dom:AircraftDeviatesFromPlannedRouteArgument_actor ;
+    rdfs:label "aircraft deviates from planned route"@en ,
+        "航空器偏离计划航线"@zh ;
+    skos:definition "Holds when a UAV route state deviates from the declared mission path."@en ,
+        "当无人机航线状态偏离声明任务路径时成立"@zh .

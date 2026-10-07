@@ -1,0 +1,128 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/ground_mobility#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/ground_mobility#> .
+
+<https://w3id.org/aeroworld/ontology/events/ground_mobility>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/ground_mobility/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/ground_mobility> ;
+    dct:title "AeroWorld Ground Mobility Event Ontology"@en ,
+        "AeroWorld 地面交通运行事件本体"@zh ;
+    dct:description "Objective road closure, road detour, vehicle collision, and vehicle breakdown event families."@en ,
+        "既有道路关闭、道路绕行、地面车辆碰撞和车辆故障阻塞事件族。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/ground_mobility#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:RoadConstructionDetourEventRole_road_segment
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "road_segment" ;
+    world:participantClass world:RoadSegment ;
+    rdfs:label "road segment"@en .
+
+evt:RoadConstructionDetourEventRole_barrier
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "barrier" ;
+    world:participantClass world:Barrier ;
+    rdfs:label "barrier"@en .
+
+evt:RoadConstructionDetourEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "ground.road_construction_detour_event" ;
+    aw:declaresParticipantRole evt:RoadConstructionDetourEventRole_road_segment ,
+        evt:RoadConstructionDetourEventRole_barrier ;
+    rdfs:label "road construction detour"@en ,
+        "道路施工绕行事件"@zh ;
+    skos:definition "Objective event in which road construction or barriers cause detour routing."@en ,
+        "道路施工或障碍物导致绕行的客观事件"@zh .
+
+evt:RoadSegmentClosureEventRole_road_segment
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "road_segment" ;
+    world:participantClass world:RoadSegment ;
+    rdfs:label "road segment"@en .
+
+evt:RoadSegmentClosureEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "ground.road_segment_closure_event" ;
+    aw:declaresParticipantRole evt:RoadSegmentClosureEventRole_road_segment ;
+    rdfs:label "road segment closure"@en ,
+        "道路路段关闭事件"@zh ;
+    skos:definition "Objective event in which a road segment becomes closed to traffic."@en ,
+        "道路路段变为禁止交通通行的客观事件。"@zh .
+
+evt:TrafficSignalMalfunctionEventRole_signal
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "signal" ;
+    world:participantClass world:TrafficSignal ;
+    rdfs:label "signal"@en .
+
+evt:TrafficSignalMalfunctionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "ground.traffic_signal_malfunction_event" ;
+    aw:declaresParticipantRole evt:TrafficSignalMalfunctionEventRole_signal ;
+    rdfs:label "traffic signal malfunction"@en ,
+        "交通信号故障事件"@zh ;
+    skos:definition "Objective event in which a traffic signal cannot provide valid control service."@en ,
+        "交通信号无法提供有效控制服务的客观事件"@zh .
+
+evt:GroundVehicleCollisionEventRole_first_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "first_vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "first vehicle"@en .
+
+evt:GroundVehicleCollisionEventRole_second_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "second_vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "second vehicle"@en .
+
+evt:GroundVehicleCollisionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "ground.ground_vehicle_collision_event" ;
+    aw:declaresParticipantRole evt:GroundVehicleCollisionEventRole_first_vehicle ,
+        evt:GroundVehicleCollisionEventRole_second_vehicle ;
+    rdfs:label "ground vehicle collision"@en ,
+        "地面车辆碰撞事件"@zh ;
+    skos:definition "Objective event in which two ground vehicles collide or conflict physically."@en ,
+        "两辆地面车辆发生碰撞或物理冲突的客观事件"@zh .
+
+evt:VehicleBreakdownRoadBlockEventRole_disabled_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "disabled_vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "disabled vehicle"@en .
+
+evt:VehicleBreakdownRoadBlockEventRole_road_element
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "road_element" ;
+    world:participantClass world:RoadElement ;
+    rdfs:label "road element"@en .
+
+evt:VehicleBreakdownRoadBlockEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "ground.vehicle_breakdown_road_block_event" ;
+    aw:declaresParticipantRole evt:VehicleBreakdownRoadBlockEventRole_disabled_vehicle ,
+        evt:VehicleBreakdownRoadBlockEventRole_road_element ;
+    rdfs:label "vehicle breakdown road block"@en ,
+        "车辆故障阻塞道路事件"@zh ;
+    skos:definition "Objective event in which a disabled vehicle blocks a lane or road segment."@en ,
+        "故障车辆阻塞车道或道路段的客观事件"@zh .

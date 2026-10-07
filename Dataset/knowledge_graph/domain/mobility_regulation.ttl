@@ -1,0 +1,383 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/mobility_regulation#> .
+
+<https://w3id.org/aeroworld/ontology/domain/mobility_regulation>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/mobility_regulation/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Mobility Regulation Ontology"@en ,
+        "AeroWorld 交通法规本体"@zh ;
+    dct:description "Normative mobility rules, permissions, prohibitions, obligations, right-of-way, applicability conditions, and violations."@en ,
+        "刻画交通运行中的规范规则、许可、禁止、义务、路权、适用条件和违规。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/mobility_regulation#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:Regulation
+    a owl:Class ;
+    rdfs:subClassOf world:NormativeEntity ;
+    rdfs:label "regulation"@en ,
+        "法规"@zh ;
+    skos:definition "A normative rule governing mobility behavior in a spatial or operational context."@en ,
+        "约束空间或运行场景中移动行为的规范规则。"@zh .
+
+dom:Permission
+    a owl:Class ;
+    rdfs:subClassOf dom:Regulation ;
+    rdfs:label "permission"@en ,
+        "许可"@zh ;
+    skos:definition "A regulation that permits an action under declared conditions."@en ,
+        "在声明条件下允许某项行为的规范。"@zh .
+
+dom:Prohibition
+    a owl:Class ;
+    rdfs:subClassOf dom:Regulation ;
+    rdfs:label "prohibition"@en ,
+        "禁止"@zh ;
+    skos:definition "A regulation that forbids an action under declared conditions."@en ,
+        "在声明条件下禁止某项行为的规范。"@zh .
+
+dom:Obligation
+    a owl:Class ;
+    rdfs:subClassOf dom:Regulation ;
+    rdfs:label "obligation"@en ,
+        "义务"@zh ;
+    skos:definition "A regulation that requires an actor to perform or avoid an action."@en ,
+        "要求主体执行或避免某项行为的规范。"@zh .
+
+dom:RightOfWay
+    a owl:Class ;
+    rdfs:subClassOf dom:Regulation ;
+    rdfs:label "right of way"@en ,
+        "通行优先权"@zh ;
+    skos:definition "A normative priority relation among traffic participants."@en ,
+        "交通参与者之间的规范性优先通行关系。"@zh .
+
+dom:ApplicabilityCondition
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "applicability condition"@en ,
+        "适用条件"@zh ;
+    skos:definition "A state condition under which a regulation applies."@en ,
+        "法规发生适用效力的状态条件。"@zh .
+
+dom:Violation
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "violation"@en ,
+        "违规"@zh ;
+    skos:definition "A state in which an actor behavior contradicts an applicable regulation."@en ,
+        "主体行为违反已适用规范的状态。"@zh .
+
+dom:StopLine
+    a owl:Class ;
+    rdfs:subClassOf world:RoadElement ;
+    rdfs:label "stop line"@en ,
+        "停止线"@zh ;
+    skos:definition "A road marking that bounds where vehicles must stop under signal or rule control."@en ,
+        "在信号或规则控制下车辆必须停止的位置标线。"@zh .
+
+dom:SpeedLimitRegulation
+    a owl:Class ;
+    rdfs:subClassOf dom:Regulation ;
+    rdfs:label "speed limit regulation"@en ,
+        "限速法规"@zh ;
+    skos:definition "A regulation that defines a maximum permitted speed."@en ,
+        "定义最高允许速度的法规。"@zh .
+
+dom:LaneUseRestriction
+    a owl:Class ;
+    rdfs:subClassOf dom:Regulation ;
+    rdfs:label "lane use restriction"@en ,
+        "车道使用限制"@zh ;
+    skos:definition "A regulation constraining which actors may use a lane."@en ,
+        "约束哪些主体可使用某条车道的法规。"@zh .
+
+dom:FollowingDistanceRule
+    a owl:Class ;
+    rdfs:subClassOf dom:Regulation ;
+    rdfs:label "following distance rule"@en ,
+        "跟车距离规则"@zh ;
+    skos:definition "A regulation defining minimum safe following distance."@en ,
+        "定义最小安全跟车距离的规则。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:regulationAppliesToActor
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Regulation ;
+    rdfs:range world:MobileAgent ;
+    rdfs:label "regulation applies to actor"@en ,
+        "法规适用于主体"@zh ;
+    skos:definition "Relates a regulation to an actor category or actor instance under its scope."@en ,
+        "表示法规适用的主体类别或主体实例。"@zh .
+
+dom:regulationAppliesAtRoadElement
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Regulation ;
+    rdfs:range world:RoadElement ;
+    rdfs:label "regulation applies at road element"@en ,
+        "法规适用于道路元素"@zh ;
+    skos:definition "Relates a regulation to its spatial road element context."@en ,
+        "表示法规适用的道路空间元素。"@zh .
+
+dom:violationOfRegulation
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Violation ;
+    rdfs:range dom:Regulation ;
+    rdfs:label "violation of regulation"@en ,
+        "违反法规"@zh ;
+    skos:definition "Relates a violation state to the regulation being violated."@en ,
+        "表示违规状态所违反的法规。"@zh .
+
+dom:regulationConstrainsProcess
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Regulation ;
+    rdfs:range world:Process ;
+    rdfs:label "regulation constrains process"@en ,
+        "法规约束过程"@zh ;
+    skos:definition "Relates a regulation to the mobility or operational process it constrains."@en ,
+        "表示法规约束的移动或运行过程。"@zh .
+
+dom:permissionPermitsProcess
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Permission ;
+    rdfs:range world:Process ;
+    rdfs:label "permission permits process"@en ,
+        "许可允许过程"@zh ;
+    skos:definition "Relates a permission to the process it permits under applicable conditions."@en ,
+        "表示许可在适用条件下允许的过程。"@zh .
+
+dom:prohibitionForbidsProcess
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Prohibition ;
+    rdfs:range world:Process ;
+    rdfs:label "prohibition forbids process"@en ,
+        "禁止约束过程"@zh ;
+    skos:definition "Relates a prohibition to the process it forbids under applicable conditions."@en ,
+        "表示禁止在适用条件下禁止的过程。"@zh .
+
+dom:obligationRequiresProcess
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Obligation ;
+    rdfs:range world:Process ;
+    rdfs:label "obligation requires process"@en ,
+        "义务要求过程"@zh ;
+    skos:definition "Relates an obligation to the process it requires or constrains."@en ,
+        "表示义务要求或约束的过程。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:regulationIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:Regulation ;
+    rdfs:range xsd:string ;
+    rdfs:label "regulation identifier"@en ,
+        "法规标识"@zh ;
+    skos:definition "Stable identifier of a mobility regulation."@en ,
+        "交通法规的稳定标识。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "regulation_catalog" .
+
+dom:allowedSpeedMps
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:SpeedLimitRegulation ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "allowed speed meters per second"@en ,
+        "允许速度米每秒"@zh ;
+    skos:definition "Maximum permitted speed under the regulation."@en ,
+        "法规允许的最高速度。"@zh ;
+    world:unitSymbol "m/s" ;
+    world:stateFieldCategory "speed_limit" .
+
+dom:redSignalActive
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:ApplicabilityCondition ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "red signal active"@en ,
+        "红灯激活"@zh ;
+    skos:definition "Whether an applicable red-signal prohibition is active."@en ,
+        "适用红灯禁止条件是否激活。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "traffic_signal_state" .
+
+dom:minimumFollowingDistanceM
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:FollowingDistanceRule ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "minimum following distance meters"@en ,
+        "最小跟车距离米"@zh ;
+    skos:definition "Minimum permitted following distance required by the rule."@en ,
+        "规则要求的最小允许跟车距离。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "following_distance_rule" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:TrafficSignalAppliesToVehicleArgument_signal
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "signal" ;
+    world:argumentClass world:TrafficSignal ;
+    rdfs:label "signal"@en .
+
+dom:TrafficSignalAppliesToVehicleArgument_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+dom:TrafficSignalAppliesToVehicle
+    a aw:PredicateType ;
+    aw:predicateIdentifier "regulation.traffic_signal_applies_to_vehicle" ;
+    aw:declaresArgumentRole dom:TrafficSignalAppliesToVehicleArgument_signal ,
+        dom:TrafficSignalAppliesToVehicleArgument_vehicle ;
+    rdfs:label "traffic signal applies to vehicle"@en ,
+        "交通信号适用于车辆"@zh ;
+    skos:definition "Holds when a traffic signal controls a vehicle movement at a road element."@en ,
+        "当交通信号控制某车辆在道路元素上的运动时成立"@zh .
+
+dom:VehicleCrossesStopLineOnRedArgument_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+dom:VehicleCrossesStopLineOnRedArgument_stop_line
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "stop_line" ;
+    world:argumentClass dom:StopLine ;
+    rdfs:label "stop line"@en .
+
+dom:VehicleCrossesStopLineOnRedArgument_signal
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "signal" ;
+    world:argumentClass world:TrafficSignal ;
+    rdfs:label "signal"@en .
+
+dom:VehicleCrossesStopLineOnRed
+    a aw:PredicateType ;
+    aw:predicateIdentifier "regulation.vehicle_crosses_stop_line_on_red" ;
+    aw:declaresArgumentRole dom:VehicleCrossesStopLineOnRedArgument_vehicle ,
+        dom:VehicleCrossesStopLineOnRedArgument_stop_line ,
+        dom:VehicleCrossesStopLineOnRedArgument_signal ;
+    rdfs:label "vehicle crosses stop line on red"@en ,
+        "车辆红灯越过停止线"@zh ;
+    skos:definition "Holds when a vehicle crosses a stop line while an applicable red signal prohibits the movement."@en ,
+        "当适用红灯禁止通行时车辆越过停止线成立"@zh .
+
+dom:VehicleExceedsPostedSpeedArgument_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+dom:VehicleExceedsPostedSpeedArgument_regulation
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "regulation" ;
+    world:argumentClass dom:SpeedLimitRegulation ;
+    rdfs:label "regulation"@en .
+
+dom:VehicleExceedsPostedSpeed
+    a aw:PredicateType ;
+    aw:predicateIdentifier "regulation.vehicle_exceeds_posted_speed" ;
+    aw:declaresArgumentRole dom:VehicleExceedsPostedSpeedArgument_vehicle ,
+        dom:VehicleExceedsPostedSpeedArgument_regulation ;
+    rdfs:label "vehicle exceeds posted speed"@en ,
+        "车辆超过限速"@zh ;
+    skos:definition "Holds when a vehicle speed exceeds the applicable speed-limit regulation."@en ,
+        "当车辆速度超过适用限速法规时成立"@zh .
+
+dom:VehicleViolatesRightOfWayArgument_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+dom:VehicleViolatesRightOfWayArgument_right_of_way
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "right_of_way" ;
+    world:argumentClass dom:RightOfWay ;
+    rdfs:label "right of way"@en .
+
+dom:VehicleViolatesRightOfWay
+    a aw:PredicateType ;
+    aw:predicateIdentifier "regulation.vehicle_violates_right_of_way" ;
+    aw:declaresArgumentRole dom:VehicleViolatesRightOfWayArgument_vehicle ,
+        dom:VehicleViolatesRightOfWayArgument_right_of_way ;
+    rdfs:label "vehicle violates right of way"@en ,
+        "车辆违反通行优先权"@zh ;
+    skos:definition "Holds when a vehicle movement contradicts an applicable right-of-way rule."@en ,
+        "当车辆运动违反适用通行优先权规则时成立"@zh .
+
+dom:VehicleViolatesFollowingDistanceArgument_following_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "following_vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "following vehicle"@en .
+
+dom:VehicleViolatesFollowingDistanceArgument_leading_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "leading_vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "leading vehicle"@en .
+
+dom:VehicleViolatesFollowingDistanceArgument_rule
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "rule" ;
+    world:argumentClass dom:FollowingDistanceRule ;
+    rdfs:label "rule"@en .
+
+dom:VehicleViolatesFollowingDistance
+    a aw:PredicateType ;
+    aw:predicateIdentifier "regulation.vehicle_violates_following_distance" ;
+    aw:declaresArgumentRole dom:VehicleViolatesFollowingDistanceArgument_following_vehicle ,
+        dom:VehicleViolatesFollowingDistanceArgument_leading_vehicle ,
+        dom:VehicleViolatesFollowingDistanceArgument_rule ;
+    rdfs:label "vehicle violates following distance"@en ,
+        "车辆违反跟车距离"@zh ;
+    skos:definition "Holds when a vehicle follows another vehicle closer than the applicable minimum distance."@en ,
+        "当车辆与前车距离小于适用最小距离时成立"@zh .
+
+dom:PedestrianHasCrosswalkPriorityArgument_pedestrian
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "pedestrian" ;
+    world:argumentClass world:Pedestrian ;
+    rdfs:label "pedestrian"@en .
+
+dom:PedestrianHasCrosswalkPriorityArgument_crosswalk
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "crosswalk" ;
+    world:argumentClass world:Crosswalk ;
+    rdfs:label "crosswalk"@en .
+
+dom:PedestrianHasCrosswalkPriority
+    a aw:PredicateType ;
+    aw:predicateIdentifier "regulation.pedestrian_has_crosswalk_priority" ;
+    aw:declaresArgumentRole dom:PedestrianHasCrosswalkPriorityArgument_pedestrian ,
+        dom:PedestrianHasCrosswalkPriorityArgument_crosswalk ;
+    rdfs:label "pedestrian has crosswalk priority"@en ,
+        "行人具有人行横道优先权"@zh ;
+    skos:definition "Holds when an applicable regulation gives a pedestrian priority at a crosswalk."@en ,
+        "当适用法规赋予行人在人行横道上的优先权时成立"@zh .

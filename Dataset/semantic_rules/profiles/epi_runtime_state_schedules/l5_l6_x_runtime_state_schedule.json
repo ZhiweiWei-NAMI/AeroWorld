@@ -1,0 +1,1948 @@
+{
+  "schema_name": "epi_runtime_state_schedule",
+  "schema_version": "1.0.0",
+  "profile_id": "l5_l6_x_runtime_state_schedule",
+  "scenarios": [
+    {
+      "scenario_id": "L5-1_v1",
+      "initial_entity_states": {
+        "uav_weather_l5_1_v1": {
+          "mission_state": {
+            "unsafe": false
+          },
+          "navigation_state": {
+            "route_degraded": false
+          },
+          "control_state": {
+            "slowdown_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "rain_speed_reduction": [
+          {
+            "entity_id": "uav_weather_l5_1_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "slowdown_active": true
+              }
+            }
+          }
+        ],
+        "rain_intensifies": [
+          {
+            "entity_id": "uav_weather_l5_1_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "route_degraded": true
+              },
+              "mission_state": {
+                "unsafe": true
+              }
+            }
+          }
+        ],
+        "rain_recovery": [
+          {
+            "entity_id": "uav_weather_l5_1_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "control_state": {
+                "slowdown_active": false
+              },
+              "navigation_state": {
+                "route_degraded": false
+              },
+              "mission_state": {
+                "unsafe": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L5-1_v2",
+      "initial_entity_states": {
+        "uav_weather_l5_1_v2": {
+          "mission_state": {
+            "unsafe": false
+          },
+          "navigation_state": {
+            "route_degraded": false
+          },
+          "control_state": {
+            "slowdown_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "rain_speed_reduction": [
+          {
+            "entity_id": "uav_weather_l5_1_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "slowdown_active": true
+              }
+            }
+          }
+        ],
+        "rain_low_visibility_reroute": [
+          {
+            "entity_id": "uav_weather_l5_1_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "route_degraded": true
+              },
+              "mission_state": {
+                "unsafe": true
+              }
+            }
+          }
+        ],
+        "rain_partial_recovery": [
+          {
+            "entity_id": "uav_weather_l5_1_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "control_state": {
+                "slowdown_active": false
+              },
+              "navigation_state": {
+                "route_degraded": false
+              },
+              "mission_state": {
+                "unsafe": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L5-1_v3",
+      "initial_entity_states": {
+        "uav_weather_l5_1_v3": {
+          "mission_state": {
+            "unsafe": false
+          },
+          "control_state": {
+            "rth_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "heavy_rain_termination": [
+          {
+            "entity_id": "uav_weather_l5_1_v3",
+            "delay_ticks": 1,
+            "state_patch": {
+              "mission_state": {
+                "unsafe": true
+              }
+            }
+          }
+        ],
+        "rain_landing_confirmed": [
+          {
+            "entity_id": "uav_weather_l5_1_v3",
+            "delay_ticks": 1,
+            "state_patch": {
+              "mission_state": {
+                "unsafe": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L5-2_v1",
+      "initial_entity_states": {
+        "uav_weather_l5_2_v1": {
+          "mission_state": {
+            "unsafe": false,
+            "mission_abort_active": false
+          },
+          "navigation_state": {
+            "visual_navigation_degraded": false,
+            "visual_navigation_failed": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "visual_navigation_failure": [
+          {
+            "entity_id": "uav_weather_l5_2_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "visual_navigation_degraded": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_weather_l5_2_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "navigation_state": {
+                "visual_navigation_failed": true
+              },
+              "mission_state": {
+                "unsafe": true
+              }
+            }
+          }
+        ],
+        "fog_mission_abort": [
+          {
+            "entity_id": "uav_weather_l5_2_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "mission_state": {
+                "mission_abort_active": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L5-2_v2",
+      "initial_entity_states": {
+        "uav_weather_l5_2_v2": {
+          "mission_state": {
+            "unsafe": false,
+            "mission_abort_active": false
+          },
+          "navigation_state": {
+            "visual_navigation_degraded": false,
+            "visual_navigation_failed": false,
+            "visual_navigation_recovered": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "visual_navigation_failure": [
+          {
+            "entity_id": "uav_weather_l5_2_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "visual_navigation_degraded": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_weather_l5_2_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "navigation_state": {
+                "visual_navigation_failed": true
+              },
+              "mission_state": {
+                "unsafe": true
+              }
+            }
+          }
+        ],
+        "fog_mission_abort": [
+          {
+            "entity_id": "uav_weather_l5_2_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "mission_state": {
+                "mission_abort_active": true
+              }
+            }
+          }
+        ],
+        "fog_landing_confirmed": [
+          {
+            "entity_id": "uav_weather_l5_2_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "mission_state": {
+                "unsafe": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L5-3_v1",
+      "initial_entity_states": {},
+      "event_state_transitions": {}
+    },
+    {
+      "scenario_id": "L5-3_v2",
+      "initial_entity_states": {
+        "uav_weather_l5_3_v2": {
+          "mission_state": {
+            "termination_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "wind_gust_intensifies": [
+          {
+            "entity_id": "uav_weather_l5_3_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "mission_state": {
+                "termination_active": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L5-4_v1",
+      "initial_entity_states": {
+        "uav_weather_l5_4_v1": {
+          "sensor_state": {
+            "image_underexposed": false,
+            "infrared_mode_active": false,
+            "exposure_recovered": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "dusk_light_shift": [
+          {
+            "entity_id": "uav_weather_l5_4_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "sensor_state": {
+                "image_underexposed": true
+              }
+            }
+          }
+        ],
+        "infrared_switch": [
+          {
+            "entity_id": "uav_weather_l5_4_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "sensor_state": {
+                "infrared_mode_active": true
+              }
+            }
+          }
+        ],
+        "low_light_termination": [
+          {
+            "entity_id": "uav_weather_l5_4_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "sensor_state": {
+                "image_underexposed": false,
+                "infrared_mode_active": false,
+                "exposure_recovered": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L5-5_v1",
+      "initial_entity_states": {
+        "uav_weather_l5_5_v1": {
+          "mission_state": {
+            "mission_abort_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "thermal_abort": [
+          {
+            "entity_id": "uav_weather_l5_5_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "mission_state": {
+                "mission_abort_active": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-1_v1",
+      "initial_entity_states": {
+        "uav_digital_l6_1_v1": {
+          "communication_state": {
+            "communication_unavailable": false
+          },
+          "control_state": {
+            "rth_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "c2_loss": [
+          {
+            "entity_id": "uav_digital_l6_1_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "communication_unavailable": true
+              }
+            }
+          }
+        ],
+        "rth_engaged": [
+          {
+            "entity_id": "uav_digital_l6_1_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "rth_active": true
+              }
+            }
+          }
+        ],
+        "c2_recovered": [
+          {
+            "entity_id": "uav_digital_l6_1_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "communication_unavailable": false
+              },
+              "control_state": {
+                "rth_active": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-1_v2",
+      "initial_entity_states": {
+        "uav_digital_l6_1_v2": {
+          "communication_state": {
+            "communication_unavailable": false
+          },
+          "control_state": {
+            "rth_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "c2_loss": [
+          {
+            "entity_id": "uav_digital_l6_1_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "communication_unavailable": true
+              }
+            }
+          }
+        ],
+        "rth_engaged": [
+          {
+            "entity_id": "uav_digital_l6_1_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "rth_active": true
+              }
+            }
+          }
+        ],
+        "c2_recovered": [
+          {
+            "entity_id": "uav_digital_l6_1_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "communication_unavailable": false
+              },
+              "control_state": {
+                "rth_active": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-2_v1",
+      "initial_entity_states": {
+        "tower_l6_2_v1": {
+          "communication_state": {
+            "mode": "online"
+          }
+        },
+        "uav_digital_l6_2_v1": {
+          "communication_state": {
+            "handover_active": false,
+            "backup_link_active": false
+          },
+          "control_state": {
+            "slowdown_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "c2_degradation": [
+          {
+            "entity_id": "tower_l6_2_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "mode": "degraded"
+              }
+            }
+          }
+        ],
+        "uav_delayed_response": [
+          {
+            "entity_id": "uav_digital_l6_2_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "slowdown_active": true
+              }
+            }
+          }
+        ],
+        "backup_link_lock": [
+          {
+            "entity_id": "tower_l6_2_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "mode": "backup_link"
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_2_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "handover_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_2_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "backup_link_active": true
+              }
+            }
+          }
+        ],
+        "nominal_c2_restore": [
+          {
+            "entity_id": "tower_l6_2_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "mode": "online"
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_2_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "handover_active": false,
+                "backup_link_active": false
+              },
+              "control_state": {
+                "slowdown_active": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-2_v2",
+      "initial_entity_states": {
+        "tower_l6_2_v2": {
+          "communication_state": {
+            "mode": "online"
+          }
+        },
+        "uav_digital_l6_2_v2": {
+          "communication_state": {
+            "handover_active": false,
+            "backup_link_active": false
+          },
+          "control_state": {
+            "slowdown_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "c2_degradation": [
+          {
+            "entity_id": "tower_l6_2_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "mode": "degraded"
+              }
+            }
+          }
+        ],
+        "uav_delayed_response": [
+          {
+            "entity_id": "uav_digital_l6_2_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "slowdown_active": true
+              }
+            }
+          }
+        ],
+        "backup_link_lock": [
+          {
+            "entity_id": "tower_l6_2_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "mode": "backup_link"
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_2_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "backup_link_active": true
+              }
+            }
+          }
+        ],
+        "nominal_c2_restore": [
+          {
+            "entity_id": "tower_l6_2_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "mode": "online"
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_2_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "backup_link_active": false
+              },
+              "control_state": {
+                "slowdown_active": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-3_v1",
+      "initial_entity_states": {
+        "uav_digital_l6_3_v1": {
+          "navigation_state": {
+            "gnss_spoofed": false,
+            "visual_relocalization": false,
+            "mission_recovered": false,
+            "route_uncertain": false,
+            "route_recovered": false,
+            "operational_state": "nominal"
+          },
+          "security_state": {
+            "lockout_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "spoofing_start": [
+          {
+            "entity_id": "uav_digital_l6_3_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "gnss_spoofed": true,
+                "operational_state": "spoofed"
+              }
+            }
+          }
+        ],
+        "spoofed_route_offset": [
+          {
+            "entity_id": "uav_digital_l6_3_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "route_uncertain": true
+              }
+            }
+          }
+        ],
+        "safety_route_lock": [
+          {
+            "entity_id": "uav_digital_l6_3_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "lockout_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_3_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "navigation_state": {
+                "gnss_spoofed": false,
+                "visual_relocalization": true,
+                "operational_state": "relocalizing"
+              }
+            }
+          }
+        ],
+        "spoof_recovery": [
+          {
+            "entity_id": "uav_digital_l6_3_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "navigation_state": {
+                "visual_relocalization": false,
+                "mission_recovered": true,
+                "route_uncertain": false,
+                "route_recovered": true,
+                "operational_state": "recovered"
+              },
+              "security_state": {
+                "lockout_active": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-3_v2",
+      "initial_entity_states": {
+        "uav_digital_l6_3_v2": {
+          "navigation_state": {
+            "gnss_spoofed": false,
+            "visual_relocalization": false,
+            "mission_recovered": false,
+            "route_uncertain": false,
+            "route_recovered": false,
+            "operational_state": "nominal"
+          }
+        }
+      },
+      "event_state_transitions": {
+        "spoofing_start": [
+          {
+            "entity_id": "uav_digital_l6_3_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "gnss_spoofed": true,
+                "operational_state": "spoofed"
+              }
+            }
+          }
+        ],
+        "spoofed_route_offset": [
+          {
+            "entity_id": "uav_digital_l6_3_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "route_uncertain": true
+              }
+            }
+          }
+        ],
+        "safety_route_lock": [
+          {
+            "entity_id": "uav_digital_l6_3_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "navigation_state": {
+                "gnss_spoofed": false,
+                "visual_relocalization": true,
+                "operational_state": "relocalizing"
+              }
+            }
+          }
+        ],
+        "spoof_recovery": [
+          {
+            "entity_id": "uav_digital_l6_3_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "navigation_state": {
+                "visual_relocalization": false,
+                "mission_recovered": true,
+                "route_uncertain": false,
+                "route_recovered": true,
+                "operational_state": "recovered"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-4_v1",
+      "initial_entity_states": {
+        "uav_digital_l6_4_v1": {
+          "security_state": {
+            "jamming_active": false,
+            "alternate_channel_active": false
+          },
+          "control_state": {
+            "safe_hold_active": false
+          }
+        },
+        "uav_digital_l6_4_v1_secondary": {
+          "security_state": {
+            "jamming_active": false,
+            "alternate_channel_active": false
+          },
+          "control_state": {
+            "safe_hold_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "wideband_jamming": [
+          {
+            "entity_id": "uav_digital_l6_4_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "jamming_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_4_v1_secondary",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "jamming_active": true
+              }
+            }
+          }
+        ],
+        "multi_uav_safe_hold": [
+          {
+            "entity_id": "uav_digital_l6_4_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "safe_hold_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_4_v1_secondary",
+            "delay_ticks": 5,
+            "state_patch": {
+              "control_state": {
+                "safe_hold_active": true
+              }
+            }
+          }
+        ],
+        "alternate_channel": [
+          {
+            "entity_id": "uav_digital_l6_4_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "jamming_active": false,
+                "alternate_channel_active": true
+              },
+              "control_state": {
+                "safe_hold_active": false
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_4_v1_secondary",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "jamming_active": false,
+                "alternate_channel_active": true
+              },
+              "control_state": {
+                "safe_hold_active": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-4_v2",
+      "initial_entity_states": {
+        "uav_digital_l6_4_v2": {
+          "security_state": {
+            "jamming_active": false,
+            "alternate_channel_active": false
+          },
+          "control_state": {
+            "safe_hold_active": false
+          }
+        },
+        "uav_digital_l6_4_v2_secondary": {
+          "security_state": {
+            "jamming_active": false,
+            "alternate_channel_active": false
+          },
+          "control_state": {
+            "safe_hold_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "wideband_jamming": [
+          {
+            "entity_id": "uav_digital_l6_4_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "jamming_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_4_v2_secondary",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "jamming_active": true
+              }
+            }
+          }
+        ],
+        "multi_uav_safe_hold": [
+          {
+            "entity_id": "uav_digital_l6_4_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "safe_hold_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_4_v2_secondary",
+            "delay_ticks": 5,
+            "state_patch": {
+              "control_state": {
+                "safe_hold_active": true
+              }
+            }
+          }
+        ],
+        "alternate_channel": [
+          {
+            "entity_id": "uav_digital_l6_4_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "jamming_active": false,
+                "alternate_channel_active": true
+              },
+              "control_state": {
+                "safe_hold_active": false
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_4_v2_secondary",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "jamming_active": false,
+                "alternate_channel_active": true
+              },
+              "control_state": {
+                "safe_hold_active": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-5_v1",
+      "initial_entity_states": {
+        "gcs_anchor_l6_5_v1": {
+          "security_state": {
+            "gcs_compromised": false,
+            "command_integrity_violation": false,
+            "command_lockout": false
+          }
+        },
+        "uav_digital_l6_5_v1": {
+          "security_state": {
+            "unauthorized_command": false,
+            "command_integrity_violation": false,
+            "command_lockout": false
+          },
+          "navigation_state": {
+            "route_recovered": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "gcs_intrusion": [
+          {
+            "entity_id": "gcs_anchor_l6_5_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "gcs_compromised": true,
+                "command_integrity_violation": true
+              }
+            }
+          }
+        ],
+        "abnormal_uav_behavior": [
+          {
+            "entity_id": "uav_digital_l6_5_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "unauthorized_command": true,
+                "command_integrity_violation": true
+              }
+            }
+          }
+        ],
+        "command_lockout": [
+          {
+            "entity_id": "gcs_anchor_l6_5_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "command_lockout": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_5_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "security_state": {
+                "command_lockout": true,
+                "unauthorized_command": false
+              }
+            }
+          }
+        ],
+        "secure_recovery": [
+          {
+            "entity_id": "gcs_anchor_l6_5_v1",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "gcs_compromised": false,
+                "command_integrity_violation": false,
+                "command_lockout": false
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_5_v1",
+            "delay_ticks": 5,
+            "state_patch": {
+              "security_state": {
+                "command_integrity_violation": false,
+                "command_lockout": false
+              },
+              "navigation_state": {
+                "route_recovered": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "L6-5_v2",
+      "initial_entity_states": {
+        "gcs_anchor_l6_5_v2": {
+          "security_state": {
+            "gcs_compromised": false,
+            "command_integrity_violation": false,
+            "command_lockout": false
+          }
+        },
+        "uav_digital_l6_5_v2": {
+          "security_state": {
+            "unauthorized_command": false,
+            "command_integrity_violation": false,
+            "command_lockout": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "gcs_intrusion": [
+          {
+            "entity_id": "gcs_anchor_l6_5_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "gcs_compromised": true,
+                "command_integrity_violation": true
+              }
+            }
+          }
+        ],
+        "abnormal_uav_behavior": [
+          {
+            "entity_id": "uav_digital_l6_5_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "unauthorized_command": true,
+                "command_integrity_violation": true
+              }
+            }
+          }
+        ],
+        "command_lockout": [
+          {
+            "entity_id": "gcs_anchor_l6_5_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "command_lockout": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_5_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "security_state": {
+                "command_lockout": true,
+                "unauthorized_command": false
+              }
+            }
+          }
+        ],
+        "secure_recovery": [
+          {
+            "entity_id": "gcs_anchor_l6_5_v2",
+            "delay_ticks": 1,
+            "state_patch": {
+              "security_state": {
+                "gcs_compromised": false,
+                "command_integrity_violation": false,
+                "command_lockout": false
+              }
+            }
+          },
+          {
+            "entity_id": "uav_digital_l6_5_v2",
+            "delay_ticks": 5,
+            "state_patch": {
+              "security_state": {
+                "command_integrity_violation": false,
+                "command_lockout": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "X1_rain_to_c2loss_to_forced_landing",
+      "initial_entity_states": {
+        "uav_x1_forced_landing": {
+          "mission_state": {
+            "unsafe": false
+          },
+          "communication_state": {
+            "communication_unavailable": false
+          },
+          "control_state": {
+            "safe_hold_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "c2_loss_tick": [
+          {
+            "entity_id": "uav_x1_forced_landing",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "communication_unavailable": true
+              },
+              "mission_state": {
+                "unsafe": true
+              }
+            }
+          }
+        ],
+        "c2_safe_hold": [
+          {
+            "entity_id": "uav_x1_forced_landing",
+            "delay_ticks": 5,
+            "state_patch": {
+              "control_state": {
+                "safe_hold_active": true
+              }
+            }
+          }
+        ],
+        "forced_landing_descent": [
+          {
+            "entity_id": "uav_x1_forced_landing",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "safe_hold_active": false
+              }
+            }
+          }
+        ],
+        "x1_recovery": [
+          {
+            "entity_id": "uav_x1_forced_landing",
+            "delay_ticks": 5,
+            "state_patch": {
+              "communication_state": {
+                "communication_unavailable": false
+              },
+              "mission_state": {
+                "unsafe": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "X2_gnss_spoof_to_geofence_violation",
+      "initial_entity_states": {
+        "uav_x2_spoofed": {
+          "navigation_state": {
+            "gnss_spoofed": false,
+            "geofence_violation": false,
+            "visual_relocalization": false,
+            "mission_recovered": false,
+            "route_uncertain": false,
+            "route_recovered": false,
+            "operational_state": "nominal"
+          }
+        }
+      },
+      "event_state_transitions": {
+        "spoofing_start": [
+          {
+            "entity_id": "uav_x2_spoofed",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "gnss_spoofed": true,
+                "operational_state": "spoofed"
+              }
+            }
+          }
+        ],
+        "trajectory_offset": [
+          {
+            "entity_id": "uav_x2_spoofed",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "route_uncertain": true
+              }
+            }
+          }
+        ],
+        "geofence_violation": [
+          {
+            "entity_id": "uav_x2_spoofed",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "geofence_violation": true,
+                "operational_state": "geofence_alert"
+              }
+            }
+          }
+        ],
+        "safety_correction": [
+          {
+            "entity_id": "uav_x2_spoofed",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "gnss_spoofed": false,
+                "geofence_violation": false,
+                "visual_relocalization": true,
+                "operational_state": "relocalizing"
+              }
+            }
+          }
+        ],
+        "route_recovered": [
+          {
+            "entity_id": "uav_x2_spoofed",
+            "delay_ticks": 5,
+            "state_patch": {
+              "navigation_state": {
+                "visual_relocalization": false,
+                "mission_recovered": true,
+                "route_uncertain": false,
+                "route_recovered": true,
+                "operational_state": "recovered"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "X3_pedestrian_fall_to_emergency_response",
+      "initial_entity_states": {
+        "ped_x3_fall": {
+          "pedestrian_state": {
+            "posture": "standing",
+            "health": "nominal"
+          },
+          "incident_state": {
+            "dispatch_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "pedestrian_fall": [
+          {
+            "entity_id": "ped_x3_fall",
+            "delay_ticks": 1,
+            "state_patch": {
+              "pedestrian_state": {
+                "posture": "fallen",
+                "health": "injured"
+              }
+            }
+          }
+        ],
+        "ambulance_dispatch": [
+          {
+            "entity_id": "ped_x3_fall",
+            "delay_ticks": 1,
+            "state_patch": {
+              "incident_state": {
+                "dispatch_active": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "X4_fog_to_uav_conflict",
+      "initial_entity_states": {
+        "uav_x4_a": {
+          "mission_state": {
+            "unsafe": false
+          },
+          "navigation_state": {
+            "visual_navigation_degraded": false,
+            "visual_navigation_recovered": false,
+            "route_uncertain": false,
+            "route_recovered": false
+          },
+          "control_state": {
+            "evasion_active": false,
+            "deconfliction_active": false
+          }
+        },
+        "uav_x4_b": {
+          "mission_state": {
+            "unsafe": false
+          },
+          "navigation_state": {
+            "visual_navigation_degraded": false,
+            "visual_navigation_recovered": false,
+            "route_uncertain": false,
+            "route_recovered": false
+          },
+          "control_state": {
+            "evasion_active": false,
+            "deconfliction_active": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "visibility_drop": [
+          {
+            "entity_id": "uav_x4_a",
+            "delay_ticks": 1,
+            "state_patch": {
+              "navigation_state": {
+                "visual_navigation_degraded": true,
+                "route_uncertain": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_x4_b",
+            "delay_ticks": 5,
+            "state_patch": {
+              "navigation_state": {
+                "visual_navigation_degraded": true,
+                "route_uncertain": true
+              }
+            }
+          }
+        ],
+        "fog_converging_routes": [
+          {
+            "entity_id": "uav_x4_a",
+            "delay_ticks": 1,
+            "state_patch": {
+              "mission_state": {
+                "unsafe": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_x4_b",
+            "delay_ticks": 1,
+            "state_patch": {
+              "mission_state": {
+                "unsafe": true
+              }
+            }
+          }
+        ],
+        "fog_uav_conflict": [
+          {
+            "entity_id": "uav_x4_a",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "evasion_active": true,
+                "deconfliction_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_x4_b",
+            "delay_ticks": 5,
+            "state_patch": {
+              "control_state": {
+                "deconfliction_active": true
+              }
+            }
+          }
+        ],
+        "fog_conflict_recovered": [
+          {
+            "entity_id": "uav_x4_a",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "evasion_active": false,
+                "deconfliction_active": false
+              },
+              "navigation_state": {
+                "visual_navigation_degraded": false,
+                "visual_navigation_recovered": true,
+                "route_uncertain": false,
+                "route_recovered": true
+              },
+              "mission_state": {
+                "unsafe": false
+              }
+            }
+          },
+          {
+            "entity_id": "uav_x4_b",
+            "delay_ticks": 5,
+            "state_patch": {
+              "control_state": {
+                "deconfliction_active": false
+              },
+              "navigation_state": {
+                "visual_navigation_degraded": false,
+                "visual_navigation_recovered": true,
+                "route_uncertain": false,
+                "route_recovered": true
+              },
+              "mission_state": {
+                "unsafe": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "X5_comm_failure_to_pad_contention",
+      "initial_entity_states": {
+        "uav_x5_priority": {
+          "communication_state": {
+            "station_unavailable": false
+          }
+        },
+        "uav_x5_second": {
+          "communication_state": {
+            "station_unavailable": false
+          },
+          "control_state": {
+            "diversion_active": false
+          }
+        },
+        "pad_x5_primary": {
+          "facility_state": {
+            "capacity": 1,
+            "requester_ids": [],
+            "request_count": 0,
+            "allocation_failed": false,
+            "allocation_stale": false,
+            "arbitration_active": false,
+            "priority_granted": false,
+            "priority_granted_to": "none",
+            "arbitration_winner_id": "none"
+          }
+        },
+        "pad_x5_backup": {
+          "facility_state": {
+            "allocation_failed": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "station_failure": [
+          {
+            "entity_id": "uav_x5_priority",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "station_unavailable": true
+              }
+            }
+          },
+          {
+            "entity_id": "uav_x5_second",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "station_unavailable": true
+              }
+            }
+          }
+        ],
+        "backup_pad_unavailable": [
+          {
+            "entity_id": "pad_x5_backup",
+            "delay_ticks": 1,
+            "state_patch": {
+              "facility_state": {
+                "allocation_failed": true
+              }
+            }
+          },
+          {
+            "entity_id": "pad_x5_primary",
+            "delay_ticks": 5,
+            "state_patch": {
+              "facility_state": {
+                "allocation_stale": true
+              }
+            }
+          }
+        ],
+        "dual_uav_pad_contention": [
+          {
+            "entity_id": "pad_x5_primary",
+            "delay_ticks": 1,
+            "state_patch": {
+              "facility_state": {
+                "requester_ids": [
+                  "uav_x5_priority",
+                  "uav_x5_second"
+                ],
+                "request_count": 2
+              }
+            }
+          }
+        ],
+        "pad_priority_arbitration": [
+          {
+            "entity_id": "pad_x5_primary",
+            "delay_ticks": 1,
+            "state_patch": {
+              "facility_state": {
+                "arbitration_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "pad_x5_primary",
+            "delay_ticks": 5,
+            "state_patch": {
+              "facility_state": {
+                "priority_granted": true,
+                "priority_granted_to": "uav_x5_priority",
+                "arbitration_winner_id": "uav_x5_priority"
+              }
+            }
+          }
+        ],
+        "second_uav_reroute": [
+          {
+            "entity_id": "uav_x5_second",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "diversion_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "pad_x5_primary",
+            "delay_ticks": 5,
+            "state_patch": {
+              "facility_state": {
+                "requester_ids": [
+                  "uav_x5_priority"
+                ],
+                "request_count": 1
+              }
+            }
+          }
+        ],
+        "station_recovered": [
+          {
+            "entity_id": "uav_x5_priority",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "station_unavailable": false
+              }
+            }
+          },
+          {
+            "entity_id": "uav_x5_second",
+            "delay_ticks": 1,
+            "state_patch": {
+              "communication_state": {
+                "station_unavailable": false
+              },
+              "control_state": {
+                "diversion_active": false
+              }
+            }
+          },
+          {
+            "entity_id": "pad_x5_primary",
+            "delay_ticks": 5,
+            "state_patch": {
+              "facility_state": {
+                "requester_ids": [],
+                "request_count": 0,
+                "allocation_stale": false,
+                "arbitration_active": false,
+                "priority_granted": false,
+                "priority_granted_to": "none",
+                "arbitration_winner_id": "none"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "scenario_id": "X6_crowd_evacuation_to_airspace_lockdown",
+      "initial_entity_states": {
+        "uav_x6_monitor": {
+          "mission_state": {
+            "hazard_managed": false
+          },
+          "control_state": {
+            "reroute_active": false
+          },
+          "incident_state": {
+            "requires_reroute": false
+          }
+        },
+        "ped_x6_evac_x6_00": {
+          "pedestrian_state": {
+            "evacuation_active": false,
+            "safe_zone_reached": false
+          }
+        },
+        "ped_x6_evac_x6_01": {
+          "pedestrian_state": {
+            "evacuation_active": false,
+            "safe_zone_reached": false
+          }
+        },
+        "ped_x6_evac_x6_02": {
+          "pedestrian_state": {
+            "evacuation_active": false,
+            "safe_zone_reached": false
+          }
+        },
+        "ped_x6_evac_x6_03": {
+          "pedestrian_state": {
+            "evacuation_active": false,
+            "safe_zone_reached": false
+          }
+        },
+        "ped_x6_evac_x6_04": {
+          "pedestrian_state": {
+            "evacuation_active": false,
+            "safe_zone_reached": false
+          }
+        },
+        "ped_x6_evac_x6_05": {
+          "pedestrian_state": {
+            "evacuation_active": false,
+            "safe_zone_reached": false
+          }
+        },
+        "ped_x6_evac_x6_06": {
+          "pedestrian_state": {
+            "evacuation_active": false,
+            "safe_zone_reached": false
+          }
+        },
+        "ped_x6_evac_x6_07": {
+          "pedestrian_state": {
+            "evacuation_active": false,
+            "safe_zone_reached": false
+          }
+        }
+      },
+      "event_state_transitions": {
+        "airspace_lockdown": [
+          {
+            "entity_id": "uav_x6_monitor",
+            "delay_ticks": 5,
+            "state_patch": {
+              "incident_state": {
+                "requires_reroute": true
+              }
+            }
+          }
+        ],
+        "uav_reroute_lockdown": [
+          {
+            "entity_id": "uav_x6_monitor",
+            "delay_ticks": 1,
+            "state_patch": {
+              "control_state": {
+                "reroute_active": true
+              }
+            }
+          }
+        ],
+        "lockdown_cleared": [
+          {
+            "entity_id": "uav_x6_monitor",
+            "delay_ticks": 5,
+            "state_patch": {
+              "control_state": {
+                "reroute_active": false
+              },
+              "mission_state": {
+                "hazard_managed": true
+              },
+              "incident_state": {
+                "requires_reroute": false
+              }
+            }
+          }
+        ],
+        "crowd_evacuation": [
+          {
+            "entity_id": "ped_x6_evac_x6_00",
+            "delay_ticks": 5,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_01",
+            "delay_ticks": 5,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_02",
+            "delay_ticks": 5,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_03",
+            "delay_ticks": 5,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_04",
+            "delay_ticks": 5,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_05",
+            "delay_ticks": 5,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_06",
+            "delay_ticks": 5,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_07",
+            "delay_ticks": 5,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": true
+              }
+            }
+          }
+        ],
+        "crowd_safe_zone_move": [
+          {
+            "entity_id": "ped_x6_evac_x6_00",
+            "delay_ticks": 0,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": false,
+                "safe_zone_reached": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_01",
+            "delay_ticks": 0,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": false,
+                "safe_zone_reached": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_02",
+            "delay_ticks": 0,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": false,
+                "safe_zone_reached": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_03",
+            "delay_ticks": 0,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": false,
+                "safe_zone_reached": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_04",
+            "delay_ticks": 0,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": false,
+                "safe_zone_reached": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_05",
+            "delay_ticks": 0,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": false,
+                "safe_zone_reached": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_06",
+            "delay_ticks": 0,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": false,
+                "safe_zone_reached": true
+              }
+            }
+          },
+          {
+            "entity_id": "ped_x6_evac_x6_07",
+            "delay_ticks": 0,
+            "state_patch": {
+              "pedestrian_state": {
+                "evacuation_active": false,
+                "safe_zone_reached": true
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

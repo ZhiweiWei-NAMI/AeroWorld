@@ -1,0 +1,445 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/communication_process#> .
+
+<https://w3id.org/aeroworld/ontology/domain/communication_process>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/communication_process/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Communication Process Ontology"@en ,
+        "AeroWorld 通信过程本体"@zh ;
+    dct:description "Messages, sessions, data flows, channel allocation, bandwidth use, routes, handovers, retransmissions, latency, packet loss, and link quality."@en ,
+        "刻画消息、会话、数据流、信道分配、带宽占用、路由、切换、重传、时延、丢包和链路质量。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/communication_process#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:Message
+    a owl:Class ;
+    rdfs:subClassOf world:InformationEntity ;
+    rdfs:label "message"@en ,
+        "消息"@zh ;
+    skos:definition "A unit of information transmitted over a communication process."@en ,
+        "通过通信过程传输的信息单元。"@zh .
+
+dom:CommunicationSession
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "communication session"@en ,
+        "通信会话"@zh ;
+    skos:definition "Time-bounded communication process among actors and communication infrastructure."@en ,
+        "主体与通信基础设施之间有时间边界的通信过程。"@zh .
+
+dom:DataFlow
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "data flow"@en ,
+        "数据流"@zh ;
+    skos:definition "Flow process of task, control, telemetry, or service data between endpoints."@en ,
+        "端点之间的任务、控制、遥测或服务数据流过程。"@zh .
+
+dom:ChannelAllocation
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "channel allocation"@en ,
+        "信道分配"@zh ;
+    skos:definition "Allocation of a communication channel to a session or data flow."@en ,
+        "将通信信道分配给会话或数据流的状态。"@zh .
+
+dom:BandwidthReservation
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "bandwidth reservation"@en ,
+        "带宽预留"@zh ;
+    skos:definition "Reserved bandwidth for a session, route, or data flow."@en ,
+        "为会话、路由或数据流预留的带宽。"@zh .
+
+dom:CommunicationRoute
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "communication route"@en ,
+        "通信路由"@zh ;
+    skos:definition "Ordered communication process connecting sender, relay, and receiver nodes."@en ,
+        "连接发送、转发和接收节点的有序通信过程。"@zh .
+
+dom:TransmissionAttempt
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "transmission attempt"@en ,
+        "传输尝试"@zh ;
+    skos:definition "Attempt process to send a message or packet over a channel."@en ,
+        "通过信道发送消息或分组的尝试过程。"@zh .
+
+dom:Retransmission
+    a owl:Class ;
+    rdfs:subClassOf dom:TransmissionAttempt ;
+    rdfs:label "retransmission"@en ,
+        "重传"@zh ;
+    skos:definition "Transmission attempt repeated after loss, timeout, or failed acknowledgement."@en ,
+        "在丢失、超时或确认失败后重复的传输尝试。"@zh .
+
+dom:Handover
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "handover"@en ,
+        "通信切换"@zh ;
+    skos:definition "Transfer process of a session or route from one station or channel to another."@en ,
+        "会话或路由从一个站点或信道转移到另一个站点或信道的过程。"@zh .
+
+dom:LinkQualityState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "link quality state"@en ,
+        "链路质量状态"@zh ;
+    skos:definition "State covering latency, packet loss, signal quality, and throughput of a link."@en ,
+        "覆盖链路时延、丢包、信号质量和吞吐的状态。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:sessionUsesStation
+    a owl:ObjectProperty ;
+    rdfs:domain dom:CommunicationSession ;
+    rdfs:range world:CommunicationStation ;
+    rdfs:label "session uses station"@en ,
+        "会话使用通信站"@zh ;
+    skos:definition "Relates a communication session to the station serving it."@en ,
+        "表示通信会话使用的通信站。"@zh .
+
+dom:flowUsesRoute
+    a owl:ObjectProperty ;
+    rdfs:domain dom:DataFlow ;
+    rdfs:range dom:CommunicationRoute ;
+    rdfs:label "flow uses route"@en ,
+        "数据流使用路由"@zh ;
+    skos:definition "Relates a data flow to its communication route."@en ,
+        "表示数据流使用的通信路由。"@zh .
+
+dom:allocationServesFlow
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ChannelAllocation ;
+    rdfs:range dom:DataFlow ;
+    rdfs:label "allocation serves flow"@en ,
+        "分配服务数据流"@zh ;
+    skos:definition "Relates a channel allocation to the data flow it serves."@en ,
+        "表示信道分配服务的数据流。"@zh .
+
+dom:sessionCarriesFlow
+    a owl:ObjectProperty ;
+    rdfs:domain dom:CommunicationSession ;
+    rdfs:range dom:DataFlow ;
+    rdfs:label "session carries flow"@en ,
+        "会话承载数据流"@zh ;
+    skos:definition "Relates a communication session to a data flow carried by the session."@en ,
+        "表示通信会话承载的数据流。"@zh .
+
+dom:transmissionSendsMessage
+    a owl:ObjectProperty ;
+    rdfs:domain dom:TransmissionAttempt ;
+    rdfs:range dom:Message ;
+    rdfs:label "transmission sends message"@en ,
+        "传输发送消息"@zh ;
+    skos:definition "Relates a transmission attempt to the message being sent."@en ,
+        "表示传输尝试发送的消息。"@zh .
+
+dom:transmissionUsesAllocation
+    a owl:ObjectProperty ;
+    rdfs:domain dom:TransmissionAttempt ;
+    rdfs:range dom:ChannelAllocation ;
+    rdfs:label "transmission uses allocation"@en ,
+        "传输使用信道分配"@zh ;
+    skos:definition "Relates a transmission attempt to its channel allocation."@en ,
+        "表示传输尝试使用的信道分配。"@zh .
+
+dom:retransmissionRepeatsTransmission
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Retransmission ;
+    rdfs:range dom:TransmissionAttempt ;
+    rdfs:label "retransmission repeats transmission"@en ,
+        "重传重复传输"@zh ;
+    skos:definition "Relates a retransmission to the earlier transmission attempt it repeats."@en ,
+        "表示重传所重复的先前传输尝试。"@zh .
+
+dom:handoverTransfersSession
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Handover ;
+    rdfs:range dom:CommunicationSession ;
+    rdfs:label "handover transfers session"@en ,
+        "切换转移会话"@zh ;
+    skos:definition "Relates a handover process to the session it transfers."@en ,
+        "表示切换过程转移的会话。"@zh .
+
+dom:handoverSourceStation
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Handover ;
+    rdfs:range world:CommunicationStation ;
+    rdfs:label "handover source station"@en ,
+        "切换源通信站"@zh ;
+    skos:definition "Relates a handover process to the station serving the session before transfer."@en ,
+        "表示切换前为会话提供服务的通信站。"@zh .
+
+dom:handoverTargetStation
+    a owl:ObjectProperty ;
+    rdfs:domain dom:Handover ;
+    rdfs:range world:CommunicationStation ;
+    rdfs:label "handover target station"@en ,
+        "切换目标通信站"@zh ;
+    skos:definition "Relates a handover process to the station serving the session after transfer."@en ,
+        "表示切换后为会话提供服务的通信站。"@zh .
+
+dom:reservationServesFlow
+    a owl:ObjectProperty ;
+    rdfs:domain dom:BandwidthReservation ;
+    rdfs:range dom:DataFlow ;
+    rdfs:label "reservation serves flow"@en ,
+        "带宽预留服务数据流"@zh ;
+    skos:definition "Relates a bandwidth reservation to the data flow receiving the reserved capacity."@en ,
+        "表示带宽预留与获得该预留容量的数据流之间的关系。"@zh .
+
+dom:routeUsesStation
+    a owl:ObjectProperty ;
+    rdfs:domain dom:CommunicationRoute ;
+    rdfs:range world:CommunicationStation ;
+    rdfs:label "route uses station"@en ,
+        "路由使用通信站"@zh ;
+    skos:definition "Relates a communication route to a station on the route."@en ,
+        "表示通信路由使用的站点。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:latencyMs
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:LinkQualityState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "latency milliseconds"@en ,
+        "时延毫秒"@zh ;
+    skos:definition "Observed one-way or end-to-end communication latency in milliseconds."@en ,
+        "以毫秒表示的单向或端到端通信时延。"@zh ;
+    world:unitSymbol "ms" ;
+    world:stateFieldCategory "network_latency" .
+
+dom:packetLossRatio
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:LinkQualityState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "packet loss ratio"@en ,
+        "丢包率"@zh ;
+    skos:definition "Observed packet loss ratio for a link, session, or data flow."@en ,
+        "链路、会话或数据流的观测丢包比例。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "packet_loss" .
+
+dom:bandwidthMbps
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:BandwidthReservation ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "bandwidth megabits per second"@en ,
+        "带宽兆比特每秒"@zh ;
+    skos:definition "Reserved or observed bandwidth in megabits per second."@en ,
+        "以兆比特每秒表示的预留或观测带宽。"@zh ;
+    world:unitSymbol "Mbps" ;
+    world:stateFieldCategory "bandwidth" .
+
+dom:channelIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:ChannelAllocation ;
+    rdfs:range xsd:string ;
+    rdfs:label "channel identifier"@en ,
+        "信道标识"@zh ;
+    skos:definition "Identifier of the channel allocated to a session or data flow."@en ,
+        "分配给会话或数据流的信道标识。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "channel_assignment" .
+
+dom:retransmissionCount
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:Retransmission ;
+    rdfs:range xsd:integer ;
+    rdfs:label "retransmission count"@en ,
+        "重传次数"@zh ;
+    skos:definition "Number of repeated transmission attempts."@en ,
+        "重复传输尝试次数。"@zh ;
+    world:unitSymbol "attempt" ;
+    world:stateFieldCategory "retransmission" .
+
+dom:sessionActive
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:CommunicationSession ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "session active"@en ,
+        "会话激活"@zh ;
+    skos:definition "Whether a communication session is active at a tick."@en ,
+        "某一时刻通信会话是否处于活动状态。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "session_state" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:LinkUnavailableArgument_station
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "station" ;
+    world:argumentClass world:CommunicationStation ;
+    rdfs:label "station"@en .
+
+dom:LinkUnavailableArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:LinkUnavailable
+    a aw:PredicateType ;
+    aw:predicateIdentifier "communication.link_unavailable" ;
+    aw:declaresArgumentRole dom:LinkUnavailableArgument_station ,
+        dom:LinkUnavailableArgument_actor ;
+    rdfs:label "link unavailable"@en ,
+        "链路不可用"@zh ;
+    skos:definition "Holds when a communication link cannot support the required session or data flow."@en ,
+        "当通信链路不能支持所需会话或数据流时成立"@zh .
+
+dom:LinkDegradedArgument_station
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "station" ;
+    world:argumentClass world:CommunicationStation ;
+    rdfs:label "station"@en .
+
+dom:LinkDegradedArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:LinkDegraded
+    a aw:PredicateType ;
+    aw:predicateIdentifier "communication.link_degraded" ;
+    aw:declaresArgumentRole dom:LinkDegradedArgument_station ,
+        dom:LinkDegradedArgument_actor ;
+    rdfs:label "link degraded"@en ,
+        "链路退化"@zh ;
+    skos:definition "Holds when communication quality is below required thresholds while not fully unavailable."@en ,
+        "当通信质量低于要求阈值但未完全不可用时成立"@zh .
+
+dom:MessageTransmissionFailedArgument_attempt
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "attempt" ;
+    world:argumentClass dom:TransmissionAttempt ;
+    rdfs:label "attempt"@en .
+
+dom:MessageTransmissionFailed
+    a aw:PredicateType ;
+    aw:predicateIdentifier "communication.message_transmission_failed" ;
+    aw:declaresArgumentRole dom:MessageTransmissionFailedArgument_attempt ;
+    rdfs:label "message transmission failed"@en ,
+        "消息传输失败"@zh ;
+    skos:definition "Holds when a transmission attempt fails for a message or packet."@en ,
+        "当消息或分组传输尝试失败时成立"@zh .
+
+dom:ChannelBandwidthOverAllocatedArgument_allocation
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "allocation" ;
+    world:argumentClass dom:ChannelAllocation ;
+    rdfs:label "allocation"@en .
+
+dom:ChannelBandwidthOverAllocated
+    a aw:PredicateType ;
+    aw:predicateIdentifier "communication.channel_bandwidth_over_allocated" ;
+    aw:declaresArgumentRole dom:ChannelBandwidthOverAllocatedArgument_allocation ;
+    rdfs:label "channel bandwidth over allocated"@en ,
+        "信道带宽超分配"@zh ;
+    skos:definition "Holds when allocated or observed bandwidth demand exceeds channel capacity."@en ,
+        "当分配或观测带宽需求超过信道容量时成立"@zh .
+
+dom:CommunicationSessionInterruptedArgument_session
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "session" ;
+    world:argumentClass dom:CommunicationSession ;
+    rdfs:label "session"@en .
+
+dom:CommunicationSessionInterrupted
+    a aw:PredicateType ;
+    aw:predicateIdentifier "communication.communication_session_interrupted" ;
+    aw:declaresArgumentRole dom:CommunicationSessionInterruptedArgument_session ;
+    rdfs:label "communication session interrupted"@en ,
+        "通信会话中断"@zh ;
+    skos:definition "Holds when an active communication session loses continuity."@en ,
+        "当活动通信会话失去连续性时成立"@zh .
+
+dom:HandoverInProgressArgument_handover
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "handover" ;
+    world:argumentClass dom:Handover ;
+    rdfs:label "handover"@en .
+
+dom:HandoverInProgress
+    a aw:PredicateType ;
+    aw:predicateIdentifier "communication.handover_in_progress" ;
+    aw:declaresArgumentRole dom:HandoverInProgressArgument_handover ;
+    rdfs:label "handover in progress"@en ,
+        "通信切换进行中"@zh ;
+    skos:definition "Holds while a session or route is being handed over."@en ,
+        "当会话或路由处于切换过程中时成立"@zh .
+
+dom:DataFlowLatencyAboveThresholdArgument_flow
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "flow" ;
+    world:argumentClass dom:DataFlow ;
+    rdfs:label "flow"@en .
+
+dom:DataFlowLatencyAboveThreshold
+    a aw:PredicateType ;
+    aw:predicateIdentifier "communication.data_flow_latency_above_threshold" ;
+    aw:declaresArgumentRole dom:DataFlowLatencyAboveThresholdArgument_flow ;
+    rdfs:label "data flow latency above threshold"@en ,
+        "数据流时延超阈值"@zh ;
+    skos:definition "Holds when end-to-end latency of a data flow exceeds a declared threshold."@en ,
+        "当数据流端到端时延超过声明阈值时成立"@zh .
+
+dom:PacketLossAboveThresholdArgument_flow
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "flow" ;
+    world:argumentClass dom:DataFlow ;
+    rdfs:label "flow"@en .
+
+dom:PacketLossAboveThreshold
+    a aw:PredicateType ;
+    aw:predicateIdentifier "communication.packet_loss_above_threshold" ;
+    aw:declaresArgumentRole dom:PacketLossAboveThresholdArgument_flow ;
+    rdfs:label "packet loss above threshold"@en ,
+        "丢包率超阈值"@zh ;
+    skos:definition "Holds when observed packet loss exceeds a declared threshold."@en ,
+        "当观测丢包率超过声明阈值时成立"@zh .
+
+dom:RetransmissionInProgressArgument_retransmission
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "retransmission" ;
+    world:argumentClass dom:Retransmission ;
+    rdfs:label "retransmission"@en .
+
+dom:RetransmissionInProgress
+    a aw:PredicateType ;
+    aw:predicateIdentifier "communication.retransmission_in_progress" ;
+    aw:declaresArgumentRole dom:RetransmissionInProgressArgument_retransmission ;
+    rdfs:label "retransmission in progress"@en ,
+        "重传进行中"@zh ;
+    skos:definition "Holds when a message retransmission process has at least one repeated attempt."@en ,
+        "当消息重传过程至少包含一次重复传输尝试时成立"@zh .

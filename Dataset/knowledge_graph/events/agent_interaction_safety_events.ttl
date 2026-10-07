@@ -1,0 +1,223 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/agent_interaction_safety#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/agent_interaction_safety#> .
+
+<https://w3id.org/aeroworld/ontology/events/agent_interaction_safety>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/agent_interaction_safety/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/agent_interaction_safety> ;
+    dct:title "AeroWorld Agent Interaction Safety Event Ontology"@en ,
+        "AeroWorld 主体交互安全事件本体"@zh ;
+    dct:description "Objective UAV, vehicle, pedestrian, building, populated-area, collision, near-miss, and forced-landing safety event families."@en ,
+        "既有无人机、车辆、行人、建筑、人群区域、碰撞、近失和迫降安全事件族。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/agent_interaction_safety#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:AircraftPairConflictEventRole_first_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "first_aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "first aircraft"@en .
+
+evt:AircraftPairConflictEventRole_second_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "second_aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "second aircraft"@en .
+
+evt:AircraftPairConflictEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "safety.aircraft_pair_conflict_event" ;
+    aw:declaresParticipantRole evt:AircraftPairConflictEventRole_first_aircraft ,
+        evt:AircraftPairConflictEventRole_second_aircraft ;
+    rdfs:label "aircraft pair conflict"@en ,
+        "航空器间冲突事件"@zh ;
+    skos:definition "Objective event in which two UAVs violate or approach separation limits."@en ,
+        "两架无人机违反或接近间隔限制的客观事件"@zh .
+
+evt:AircraftStructureStrikeEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:AircraftStructureStrikeEventRole_structure
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "structure" ;
+    world:participantClass world:BuildingStructure ;
+    rdfs:label "structure"@en .
+
+evt:AircraftStructureStrikeEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "safety.aircraft_structure_strike_event" ;
+    aw:declaresParticipantRole evt:AircraftStructureStrikeEventRole_aircraft ,
+        evt:AircraftStructureStrikeEventRole_structure ;
+    rdfs:label "aircraft structure strike"@en ,
+        "航空器撞击结构物事件"@zh ;
+    skos:definition "Objective event in which a UAV physically strikes a building or facade structure."@en ,
+        "无人机与建筑或立面结构发生物理撞击的客观事件"@zh .
+
+evt:AircraftStructureNearMissEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:AircraftStructureNearMissEventRole_structure
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "structure" ;
+    world:participantClass world:BuildingStructure ;
+    rdfs:label "structure"@en .
+
+evt:AircraftStructureNearMissEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "safety.aircraft_structure_near_miss_event" ;
+    aw:declaresParticipantRole evt:AircraftStructureNearMissEventRole_aircraft ,
+        evt:AircraftStructureNearMissEventRole_structure ;
+    rdfs:label "aircraft structure near miss"@en ,
+        "航空器结构物近失事件"@zh ;
+    skos:definition "Objective event in which an airborne UAV enters a governed proximity envelope around a building or facade without contact."@en ,
+        "飞行中的无人机进入建筑或立面结构的受控邻近包络但未发生接触的客观事件"@zh .
+
+evt:AircraftForcedLandingPopulatedAreaEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:AircraftForcedLandingPopulatedAreaEventRole_populated_area
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "populated_area" ;
+    world:participantClass world:PopulatedArea ;
+    rdfs:label "populated area"@en .
+
+evt:AircraftForcedLandingPopulatedAreaEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "safety.aircraft_forced_landing_populated_area_event" ;
+    aw:declaresParticipantRole evt:AircraftForcedLandingPopulatedAreaEventRole_aircraft ,
+        evt:AircraftForcedLandingPopulatedAreaEventRole_populated_area ;
+    rdfs:label "aircraft forced landing in populated area"@en ,
+        "航空器在人群区域迫降事件"@zh ;
+    skos:definition "Objective event in which a UAV forced-landing state intersects a populated area or pedestrians."@en ,
+        "无人机迫降状态与人群区域或行人相交的客观事件"@zh .
+
+evt:AircraftGroundVehicleCollisionEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:AircraftGroundVehicleCollisionEventRole_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+evt:AircraftGroundVehicleCollisionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "safety.aircraft_ground_vehicle_collision_event" ;
+    aw:declaresParticipantRole evt:AircraftGroundVehicleCollisionEventRole_aircraft ,
+        evt:AircraftGroundVehicleCollisionEventRole_vehicle ;
+    rdfs:label "aircraft ground vehicle collision"@en ,
+        "航空器地面车辆碰撞事件"@zh ;
+    skos:definition "Objective event in which a UAV and ground vehicle make physical contact."@en ,
+        "无人机与地面车辆发生物理接触的客观事件"@zh .
+
+evt:AircraftGroundVehicleConflictEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:AircraftGroundVehicleConflictEventRole_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+evt:AircraftGroundVehicleConflictEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "safety.aircraft_ground_vehicle_conflict_event" ;
+    aw:declaresParticipantRole evt:AircraftGroundVehicleConflictEventRole_aircraft ,
+        evt:AircraftGroundVehicleConflictEventRole_vehicle ;
+    rdfs:label "aircraft ground vehicle conflict"@en ,
+        "航空器地面车辆冲突事件"@zh ;
+    skos:definition "Objective event in which an airborne UAV enters a governed proximity envelope around a ground vehicle without contact."@en ,
+        "飞行中的无人机进入地面车辆的受控邻近包络但未发生接触的客观事件"@zh .
+
+evt:AircraftPedestrianNearMissEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:AircraftPedestrianNearMissEventRole_pedestrian
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "pedestrian" ;
+    world:participantClass world:Pedestrian ;
+    rdfs:label "pedestrian"@en .
+
+evt:AircraftPedestrianNearMissEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "safety.aircraft_pedestrian_near_miss_event" ;
+    aw:declaresParticipantRole evt:AircraftPedestrianNearMissEventRole_aircraft ,
+        evt:AircraftPedestrianNearMissEventRole_pedestrian ;
+    rdfs:label "aircraft pedestrian near miss"@en ,
+        "航空器行人近失事件"@zh ;
+    skos:definition "Objective event involving UAV and pedestrian near-miss or interaction risk."@en ,
+        "涉及无人机与行人近失或交互风险的客观事件"@zh .
+
+evt:PedestrianVehicleConflictEventRole_pedestrian
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "pedestrian" ;
+    world:participantClass world:Pedestrian ;
+    rdfs:label "pedestrian"@en .
+
+evt:PedestrianVehicleConflictEventRole_vehicle
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "vehicle" ;
+    world:participantClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+evt:PedestrianVehicleConflictEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "safety.pedestrian_vehicle_conflict_event" ;
+    aw:declaresParticipantRole evt:PedestrianVehicleConflictEventRole_pedestrian ,
+        evt:PedestrianVehicleConflictEventRole_vehicle ;
+    rdfs:label "pedestrian vehicle conflict"@en ,
+        "行人车辆冲突事件"@zh ;
+    skos:definition "Objective event involving conflict between a pedestrian and a ground vehicle."@en ,
+        "涉及行人与地面车辆冲突的客观事件"@zh .
+
+evt:CrowdEvacuationEventRole_crowd
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "crowd" ;
+    world:participantClass dom:Crowd ;
+    rdfs:label "crowd"@en .
+
+evt:CrowdEvacuationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "emergency.crowd_evacuation_event" ;
+    aw:declaresParticipantRole evt:CrowdEvacuationEventRole_crowd ;
+    rdfs:label "crowd evacuation"@en ,
+        "人群疏散事件"@zh ;
+    skos:definition "Objective event in which a real crowd begins evacuating from a hazard or restricted area."@en ,
+        "真实人群开始从风险或限制区域疏散的客观事件。"@zh .

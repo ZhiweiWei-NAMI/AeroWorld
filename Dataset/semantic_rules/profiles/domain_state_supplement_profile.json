@@ -1,0 +1,362 @@
+{
+  "schema_name": "domain_state_supplement_profile",
+  "schema_version": "2.1.0",
+  "profile_id": "aeroworld_domain_state_supplement_v2",
+  "semantics_scope": "mechanism_based_state_observations_for_low_altitude_rules",
+  "decision_layer_included": false,
+  "event_occurrences_emitted": false,
+  "default_input_root": "aw_data/render_ready_episodes_capture_filtered",
+  "default_output_root": "aw_data/domain_state_supplement",
+  "model": {
+    "model_id": "aeroworld_domain_state_observation_sim",
+    "model_version": "2.2.0",
+    "seed_namespace": "domain_state_structured_input_digest_v2"
+  },
+  "inputs": {
+    "episode_manifest": "episode_manifest.json",
+    "entity_roster": "global_entity_roster.json",
+    "truth_frames": "truth_frames.jsonl",
+    "weather": "weather_meta.jsonl",
+    "scene_setup": "scene_setup.json",
+    "charging_service_plan": "aw_data/charging_supplement/{episode_id}/charging_service_plan.json"
+  },
+  "authoritative_tick_policy": {
+    "start": 0,
+    "end": 900,
+    "step": 5,
+    "adjacency": "exact_step"
+  },
+  "source_policy": {
+    "authoritative_inputs": [
+      "episode_manifest.json:episode_id_seed_map_id_and_declared_source_episode_path",
+      "global_entity_roster.json:entity_identity_category_home_pad_activation_and_visibility",
+      "truth_frames.jsonl:per_tick_physics_sumo_and_explicit_typed_runtime_state",
+      "Dataset/episodes/{episode_id}/episode_manifest.json:source_episode_identity_only",
+      "Dataset/episodes/{episode_id}/trajectories.jsonl:declared_previsible_home_pad_uav_pose_only",
+      "weather_meta.jsonl:per_tick_weather_state",
+      "scene_setup.json:optional_episode_local_barrier_placement_edge_anchors_only",
+      "charging_service_plan.json:deterministic_charger_arrival_service_and_availability_schedule"
+    ],
+    "derived_inputs": [
+      "communication_state:governed_weather_station_link_model_only"
+    ],
+    "allowed_manifest_fields": [
+      "episode_id",
+      "seed",
+      "map_id",
+      "generation.source_episode_dir"
+    ],
+    "forbidden_inputs": [
+      "event_trace.jsonl",
+      "event_realization.jsonl",
+      "dynamic_labels.jsonl",
+      "scenario_plan.json",
+      "expected_event",
+      "semantic_role",
+      "task_id",
+      "source_event_script_path",
+      "n_events"
+    ],
+    "model_input_fields": [
+      "episode_manifest.episode_id",
+      "episode_manifest.seed",
+      "episode_manifest.map_id",
+      "episode_manifest.generation.source_episode_dir",
+      "global_entity_roster.entities[].entity_id",
+      "global_entity_roster.entities[].entity_category",
+      "global_entity_roster.entities[].lifecycle.home_pad_entity_id",
+      "global_entity_roster.entities[].activation_tick",
+      "global_entity_roster.entities[].runtime_visibility.first_visible_tick",
+      "Dataset/episodes/{episode_id}/episode_manifest.episode_id",
+      "declared_source_trajectories[].tick",
+      "declared_source_trajectories[].entity_id",
+      "declared_source_trajectories[].pos_enu",
+      "declared_source_trajectories[].state",
+      "truth_frames.tick",
+      "truth_frames.sumo_traffic_light_states",
+      "truth_frames.sumo_active_incidents",
+      "truth_frames.sumo_active_incidents[].incident_id",
+      "truth_frames.sumo_active_incidents[].accident_class",
+      "truth_frames.sumo_active_incidents[].traffic_light_id",
+      "truth_frames.sumo_active_incidents[].affected_vehicle_ids",
+      "truth_frames.entities[].entity_id",
+      "truth_frames.entities[].entity_category",
+      "truth_frames.entities[].state",
+      "truth_frames.entities[].entity_kind",
+      "truth_frames.entities[].logical_asset_id",
+      "truth_frames.entities[].semantic_scope",
+      "truth_frames.entities[].truth_pose.position_enu_m",
+      "truth_frames.entities[].truth_pose.velocity_enu_mps",
+      "truth_frames.entities[].route_waypoints_enu_m",
+      "truth_frames.entities[].background_pedestrian",
+      "truth_frames.entities[].lifecycle.home_pad_entity_id",
+      "truth_frames.entities[].sumo_vehicle.sumo_edge_id",
+      "truth_frames.entities[].sumo_vehicle.sumo_lane_id",
+      "truth_frames.entities[].sumo_vehicle.vehicle_id",
+      "truth_frames.entities[].sumo_vehicle.vehicle_type",
+      "truth_frames.entities[].sumo_vehicle.canonical_logical_asset_id",
+      "truth_frames.entities[].sumo_vehicle.lane_position_m",
+      "truth_frames.entities[].sumo_vehicle.speed_mps",
+      "truth_frames.entities[].sumo_vehicle.accel_mps2",
+      "truth_frames.entities[].sumo_vehicle.signals",
+      "truth_frames.entities[].sumo_vehicle.right_of_way_id",
+      "truth_frames.entities[].sumo_vehicle.right_of_way_ontology_class_id",
+      "truth_frames.entities[].sumo_vehicle.following_distance_m",
+      "truth_frames.entities[].sumo_vehicle.semantic_metadata.route_deviation_active",
+      "truth_frames.entities[].uav_global_flow.mission_type",
+      "truth_frames.entities[].uav_global_flow.corridor_id",
+      "truth_frames.entities[].uav_global_flow.origin_pad_id",
+      "truth_frames.entities[].uav_global_flow.target_pad_id",
+      "truth_frames.entities[].uav_global_flow.target_cell_id",
+      "truth_frames.entities[].uav_global_flow.altitude_layer_m",
+      "truth_frames.entities[].constraint_state",
+      "truth_frames.entities[].control_state",
+      "truth_frames.entities[].mission_state",
+      "truth_frames.entities[].security_state",
+      "truth_frames.entities[].sensor_state",
+      "truth_frames.entities[].facility_state",
+      "truth_frames.entities[].communication_state",
+      "truth_frames.entities[].incident_state",
+      "truth_frames.entities[].vehicle_state",
+      "truth_frames.entities[].pedestrian_state",
+      "truth_frames.entities[].navigation_state",
+      "weather_meta.tick",
+      "weather_meta.condition",
+      "weather_meta.rain",
+      "weather_meta.wetness",
+      "weather_meta.fog_density",
+      "weather_meta.dust",
+      "weather_meta.wind_speed",
+      "weather_meta.visibility_m",
+      "weather_meta.temperature_c",
+      "scene_setup.entities[].entity_id",
+      "scene_setup.entities[].placement.edge_id",
+      "scene_setup.initial_entities[].entity_id",
+      "scene_setup.initial_entities[].placement.edge_id",
+      "charging_service_plan.schema_name",
+      "charging_service_plan.schema_version",
+      "charging_service_plan.model_id",
+      "charging_service_plan.model_version",
+      "charging_service_plan.facilities[].facility_id",
+      "charging_service_plan.facilities[].capacity",
+      "charging_service_plan.facilities[].availability_schedule",
+      "charging_service_plan.facilities[].requests",
+      "communication_state.entity_id",
+      "communication_state.station_id",
+      "communication_state.heartbeat_age_ms",
+      "communication_state.link_quality.availability",
+      "communication_state.link_quality.quality_level"
+    ],
+    "missing_parameter_policy": "emit_unknown_for_required_unavailable_inputs",
+    "authored_event_labels_are_fact_source": false
+  },
+  "parameter_governance": {
+    "review_status": "reviewed_for_controlled_simulation",
+    "measurement_provenance": {
+      "sensor_logs_present": false,
+      "security_logs_present": false,
+      "payload_logs_present": false,
+      "facility_logs_present": false
+    },
+    "source_class": "deterministic_simulation",
+    "permitted_uses": [
+      "controlled_simulation_sensitivity_analysis",
+      "source_separated_baseline_training",
+      "mechanism_state_input_for_predicate_rules"
+    ],
+    "forbidden_claims": [
+      "measured_real_world_gnss_performance",
+      "measured_security_incident_detection",
+      "measured_payload_dynamics",
+      "real_world_generalization"
+    ],
+    "parameter_groups": {
+      "uav_motion": {
+        "status": "deterministic_simulation",
+        "basis": "controlled thresholds convert simulator pose and velocity into rule-consumable state",
+        "sensitivity_required": true
+      },
+      "gnss": {
+        "status": "deterministic_simulation",
+        "basis": "deterministic error envelope driven by structured navigation state and simulator pose",
+        "sensitivity_required": true
+      },
+      "pad_facility": {
+        "status": "deterministic_simulation",
+        "basis": "asset-contract capacity, scenario charging service plans, and geometric landing-pad occupancy over simulator positions",
+        "sensitivity_required": true
+      },
+      "ground_traffic": {
+        "status": "simulated_derived",
+        "basis": "SUMO truth-frame vehicle speed, signal state, and active incident fields",
+        "sensitivity_required": true
+      },
+      "medical_response": {
+        "status": "simulated_derived",
+        "basis": "typed pedestrian_state posture/health plus uninterrupted low-speed fall evidence; nearest-UAV 3-D range uses a conservative simulated 35 m recognition radius with 15 tick dwell; dispatch, arrival, and handoff use typed incident_state, responder deployment, closing distance, arrival range, and dwell",
+        "sensitivity_required": true
+      },
+      "crowd": {
+        "status": "simulated_derived",
+        "basis": "pedestrian positions and speeds; a crowd requires at least two independently moving members, matching the two-member minimum and the two-target physical upper bound in the controlled hazmat configurations",
+        "sensitivity_required": true
+      },
+      "security": {
+        "status": "simulated_derived",
+        "basis": "explicit ground_station/GCS and UAV operational states; semantic role is forbidden",
+        "sensitivity_required": false
+      },
+      "payload_energy": {
+        "status": "deterministic_simulation",
+        "basis": "stateful SoC conservation with 10 Hz elapsed-time integration, speed and temperature-derating energy scaling, and charging-service recovery; at 8 m/s the 900-tick normal-temperature SoC floor is 0.27476 from an initial 0.62, above the governed 0.2 low-battery threshold; at 46 C from tick 240 the 2.44 temperature factor drives SoC below 0.2 by tick 645 before the tick-650 charging window; maximum charging 0.003/tick exceeds the worst governed consumption 0.001918/tick",
+        "sensitivity_required": true
+      },
+      "av_safe_stop": {
+        "status": "simulated_derived",
+        "basis": "SUMO incident plus affected vehicle speed and acceleration",
+        "sensitivity_required": true
+      },
+      "ambulance_priority": {
+        "status": "simulated_derived",
+        "basis": "SUMO emergency-priority incident or confirmed medical dispatch plus the unique vehicle typed by logical_asset_id=vehicle.emergency.ambulance.v1 or vehicle_type=aero_emergency, with vehicle kinematics",
+        "sensitivity_required": true
+      },
+      "forced_landing": {
+        "status": "simulated_derived",
+        "basis": "physical UAV kinematics, route endpoint geometry, ground occupancy, and governed communication availability",
+        "sensitivity_required": true
+      }
+    }
+  },
+  "domain_models": {
+    "uav_motion": {
+      "airborne_altitude_m": 2.0,
+      "pad_altitude_tolerance_m": 4.0,
+      "pad_radius_m": 4.0,
+      "tick_hz": 10.0
+    },
+    "gnss": {
+      "service_instance": {
+        "service_id": "gnss_service:aeroworld_global_navigation",
+        "ontology_class_id": "world:GnssService",
+        "authority": "domain_state_supplement_profile"
+      },
+      "base_error_m": 0.6,
+      "multipath_error_m": 4.5,
+      "spoofed_error_m": 18.0,
+      "geofence_alert_error_m": 12.0,
+      "visual_relocalization_error_m": 2.0,
+      "error_recovery_decay": 0.72,
+      "nominal_error_threshold_m": 2.0,
+      "degraded_error_threshold_m": 8.0,
+      "spoof_offset_direction_deg": 35.0,
+      "spoofing_signal_instance": {
+        "service_id": "spoofing_signal:aeroworld_global_navigation",
+        "ontology_class_id": "world:SpoofingSignal",
+        "authority": "domain_state_supplement_profile"
+      }
+    },
+    "pad_facility": {
+      "pad_occupancy_radius_m": 4.0,
+      "pad_occupancy_altitude_m": 3.0,
+      "charging_contact_radius_m": 3.0
+    },
+    "ground_traffic": {
+      "queue_speed_threshold_mps": 0.3,
+      "max_ids_per_observation": 32
+    },
+    "medical_response": {
+      "static_speed_threshold_mps": 0.2,
+      "fall_confirmation_ticks": 10,
+      "uav_detection_radius_m": 35.0,
+      "uav_detection_required_ticks": 15,
+      "responder_arrival_radius_m": 8.0,
+      "responder_approach_min_delta_m": 0.1,
+      "handoff_required_dwell_ticks": 15,
+      "responder_nominal_speed_mps": 8.0
+    },
+    "crowd": {
+      "crowd_hazard_radius_m": 18.0,
+      "safe_zone_distance_m": 28.0,
+      "continuous_movement_min_delta_m": 0.15,
+      "evacuation_speed_threshold_mps": 2.5,
+      "evacuation_min_continuous_movers": 2,
+      "evacuation_min_state_count": 2,
+      "safe_zone_reached_fraction": 1.0,
+      "safe_zone_required_dwell_ticks": 10
+    },
+    "payload_energy": {
+      "wind_to_swing_deg_per_mps": 0.8,
+      "speed_to_swing_deg_per_mps": 0.15,
+      "attitude_unstable_swing_bonus_deg": 9.0,
+      "max_payload_swing_deg": 35.0,
+      "swing_high_threshold_deg": 12.0,
+      "derating_start_temperature_c": 38.0,
+      "max_derating_temperature_rise_c": 22.0,
+      "derating_temperature_rise_c_per_tick": 0.03,
+      "temperature_to_derating_ratio": 0.02,
+      "max_power_derating_ratio": 0.45,
+      "initial_soc_ratio": 0.62,
+      "minimum_soc": 0.08,
+      "soc_consumption_per_tick": 0.00035,
+      "speed_energy_factor_per_mps": 0.012,
+      "maximum_speed_energy_factor": 0.25,
+      "derating_energy_factor_per_ratio": 9.0,
+      "maximum_derating_energy_factor": 4.0,
+      "soc_charge_per_tick": 0.003,
+      "nominal_range_m": 550.0,
+      "derating_to_range_loss_factor": 4.1,
+      "minimum_range_scale": 0.1,
+      "required_route_reserve_m": 20.0
+    },
+    "av_safe_stop": {
+      "stopped_speed_threshold_mps": 0.3,
+      "warning_effective_dwell_ticks": 15,
+      "max_ids_per_observation": 32
+    },
+    "ambulance_priority": {
+      "yield_speed_threshold_mps": 1.2,
+      "yield_deceleration_threshold_mps2": -1.0,
+      "yield_observation_radius_m": 35.0,
+      "response_priority_min_speed_mps": 0.5,
+      "clearance_travel_distance_m": 25.0,
+      "max_ids_per_observation": 32
+    },
+    "forced_landing": {
+      "tick_hz": 10.0,
+      "link_unavailable_max_availability": 0.0,
+      "failsafe_activation_hold_ticks": 5,
+      "forced_descent_threshold_mps": -0.3,
+      "landing_endpoint_max_altitude_m": 5.0,
+      "landing_endpoint_alignment_m": 2.0,
+      "landing_endpoint_min_descent_m": 2.0,
+      "landing_zone_radius_m": 8.0,
+      "landing_zone_altitude_tolerance_m": 2.5,
+      "ground_clearance_radius_m": 8.0,
+      "touchdown_speed_threshold_mps": 0.3,
+      "touchdown_vertical_speed_abs_mps": 0.5,
+      "touchdown_required_dwell_ticks": 10,
+      "max_ids_per_observation": 32
+    }
+  },
+  "observation_families": [
+    "uav_motion",
+    "gnss_navigation",
+    "pad_facility",
+    "signal_queue",
+    "road_closure",
+    "medical_response",
+    "crowd_evacuation",
+    "security_command",
+    "payload_energy",
+    "av_safe_stop",
+    "ambulance_priority",
+    "forced_landing_state"
+  ],
+  "validation": {
+    "require_every_authoritative_tick": true,
+    "require_all_observation_families": true,
+    "require_no_event_occurrence_output": true,
+    "unknown_value_policy": "allowed_with_missing_inputs_or_unobserved_domain_state"
+  }
+}

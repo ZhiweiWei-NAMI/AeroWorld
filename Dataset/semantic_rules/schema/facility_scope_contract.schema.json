@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w3id.org/aeroworld/schema/facility_scope_contract.schema.json",
+  "title": "AeroWorld facility scope contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "contract_id",
+    "scope_type",
+    "authority",
+    "subtypes"
+  ],
+  "properties": {
+    "schema_name": {"const": "facility_scope_contract"},
+    "schema_version": {"const": "1.0.0"},
+    "contract_id": {"const": "facility_scope_contract.v1"},
+    "scope_type": {"const": "facility"},
+    "authority": {"const": "explicit_generation_time_semantic_scope"},
+    "subtypes": {
+      "type": "object",
+      "minProperties": 7,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ontology_class_id",
+          "service_kind",
+          "source_asset_ids",
+          "source_entity_kinds"
+        ],
+        "properties": {
+          "ontology_class_id": {"type": "string", "pattern": "^world:[A-Za-z][A-Za-z0-9]*$"},
+          "service_kind": {"enum": ["none", "charging", "landing"]},
+          "service_capacity": {"type": "integer", "minimum": 1},
+          "requires_explicit_declaration": {"type": "boolean"},
+          "source_asset_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "source_entity_kinds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}

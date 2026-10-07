@@ -1,0 +1,424 @@
+{
+  "schema_name": "epi_runtime_state_schedule",
+  "schema_version": "1.0.0",
+  "profile_id": "l4_runtime_state_schedule",
+  "scenarios": [
+    {
+      "scenario_id": "L4-1_v1",
+      "initial_entity_states": {
+        "uav_conflict_l4_1_v1_a": {
+          "control_state": {"evasion_active": false}
+        },
+        "uav_conflict_l4_1_v1_b": {
+          "control_state": {"deconfliction_active": false}
+        }
+      },
+      "event_state_transitions": {
+        "uav_conflict_resolution": [
+          {"entity_id": "uav_conflict_l4_1_v1_a", "delay_ticks": 1, "state_patch": {"control_state": {"evasion_active": true}}},
+          {"entity_id": "uav_conflict_l4_1_v1_b", "delay_ticks": 5, "state_patch": {"control_state": {"deconfliction_active": true}}}
+        ],
+        "resume_patrols": [
+          {"entity_id": "uav_conflict_l4_1_v1_a", "delay_ticks": 1, "state_patch": {"control_state": {"evasion_active": false}}},
+          {"entity_id": "uav_conflict_l4_1_v1_b", "delay_ticks": 5, "state_patch": {"control_state": {"deconfliction_active": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-1_v2",
+      "initial_entity_states": {
+        "uav_conflict_l4_1_v2_a": {
+          "control_state": {"deconfliction_active": false}
+        },
+        "uav_conflict_l4_1_v2_b": {
+          "control_state": {"evasion_active": false}
+        }
+      },
+      "event_state_transitions": {
+        "uav_conflict_resolution": [
+          {"entity_id": "uav_conflict_l4_1_v2_a", "delay_ticks": 1, "state_patch": {"control_state": {"deconfliction_active": true}}},
+          {"entity_id": "uav_conflict_l4_1_v2_b", "delay_ticks": 5, "state_patch": {"control_state": {"evasion_active": true}}}
+        ],
+        "resume_patrols": [
+          {"entity_id": "uav_conflict_l4_1_v2_a", "delay_ticks": 1, "state_patch": {"control_state": {"deconfliction_active": false}}},
+          {"entity_id": "uav_conflict_l4_1_v2_b", "delay_ticks": 5, "state_patch": {"control_state": {"evasion_active": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-2_v1",
+      "initial_entity_states": {
+        "uav_facade_l4_2_v1": {
+          "control_state": {"structure_evasion": false}
+        }
+      },
+      "event_state_transitions": {
+        "facade_proximity": [
+          {"entity_id": "uav_facade_l4_2_v1", "delay_ticks": 1, "state_patch": {"control_state": {"structure_evasion": true}}}
+        ],
+        "facade_recovery": [
+          {"entity_id": "uav_facade_l4_2_v1", "delay_ticks": 5, "state_patch": {"control_state": {"structure_evasion": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-2_v2",
+      "initial_entity_states": {
+        "uav_facade_l4_2_v2": {
+          "control_state": {"structure_recovery": false}
+        }
+      },
+      "event_state_transitions": {
+        "facade_recovery": [
+          {"entity_id": "uav_facade_l4_2_v2", "delay_ticks": 5, "state_patch": {"control_state": {"structure_recovery": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-3_v1",
+      "initial_entity_states": {
+        "uav_forced_landing_l4_3_v1": {
+          "incident_state": {"physical_fault_active": false}
+        },
+        "ped_landing_l4_3_v1_a": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_landing_l4_3_v1_b": {"pedestrian_state": {"evacuation_active": false}}
+      },
+      "event_state_transitions": {
+        "forced_landing_fault": [
+          {"entity_id": "uav_forced_landing_l4_3_v1", "delay_ticks": 1, "state_patch": {"incident_state": {"physical_fault_active": true}}}
+        ],
+        "crowd_proximity_response": [
+          {"entity_id": "ped_landing_l4_3_v1_a", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_landing_l4_3_v1_b", "delay_ticks": 5, "state_patch": {"pedestrian_state": {"evacuation_active": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-3_v2",
+      "initial_entity_states": {
+        "uav_forced_landing_l4_3_v2": {
+          "incident_state": {"physical_fault_active": false}
+        }
+      },
+      "event_state_transitions": {
+        "forced_landing_fault": [
+          {"entity_id": "uav_forced_landing_l4_3_v2", "delay_ticks": 1, "state_patch": {"incident_state": {"physical_fault_active": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-3_v3",
+      "initial_entity_states": {
+        "uav_forced_landing_l4_3_v3": {
+          "incident_state": {"physical_fault_active": false}
+        }
+      },
+      "event_state_transitions": {
+        "forced_landing_fault": [
+          {"entity_id": "uav_forced_landing_l4_3_v3", "delay_ticks": 1, "state_patch": {"incident_state": {"physical_fault_active": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-4_v1",
+      "initial_entity_states": {
+        "car_under_uav_l4_4_v1": {"vehicle_state": {"braking": false, "emergency_stop": false, "stopped_safe": false}},
+        "uav_falls_vehicle_l4_4_v1": {"incident_state": {"physical_fault_active": false}, "mission_state": {"termination_active": false}}
+      },
+      "event_state_transitions": {
+        "vehicle_roof_contact": [
+          {"entity_id": "car_under_uav_l4_4_v1", "delay_ticks": 1, "state_patch": {"vehicle_state": {"braking": false}}},
+          {"entity_id": "car_under_uav_l4_4_v1", "delay_ticks": 67, "state_patch": {"vehicle_state": {"braking": false, "emergency_stop": true, "stopped_safe": true}}},
+          {"entity_id": "uav_falls_vehicle_l4_4_v1", "delay_ticks": 1, "state_patch": {"incident_state": {"physical_fault_active": true}, "mission_state": {"termination_active": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-4_v2",
+      "initial_entity_states": {
+        "car_under_uav_l4_4_v2": {"vehicle_state": {"braking": false, "emergency_stop": false, "stopped_safe": false}},
+        "uav_falls_vehicle_l4_4_v2": {"incident_state": {"physical_fault_active": false}, "mission_state": {"termination_active": false}}
+      },
+      "event_state_transitions": {
+        "vehicle_roof_contact": [
+          {"entity_id": "car_under_uav_l4_4_v2", "delay_ticks": 1, "state_patch": {"vehicle_state": {"braking": false}}},
+          {"entity_id": "car_under_uav_l4_4_v2", "delay_ticks": 68, "state_patch": {"vehicle_state": {"braking": false, "emergency_stop": true, "stopped_safe": true}}},
+          {"entity_id": "uav_falls_vehicle_l4_4_v2", "delay_ticks": 1, "state_patch": {"incident_state": {"physical_fault_active": true}, "mission_state": {"termination_active": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-5_v1",
+      "initial_entity_states": {
+        "uav_ped_nearmiss_l4_5_v1": {"control_state": {"hold_active": false}}
+      },
+      "event_state_transitions": {
+        "pedestrian_near_miss": [
+          {"entity_id": "uav_ped_nearmiss_l4_5_v1", "delay_ticks": 1, "state_patch": {"control_state": {"hold_active": true}}}
+        ],
+        "pedestrian_clears_area": [
+          {"entity_id": "uav_ped_nearmiss_l4_5_v1", "delay_ticks": 5, "state_patch": {"control_state": {"hold_active": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-5_v2",
+      "initial_entity_states": {
+        "uav_ped_nearmiss_l4_5_v2": {"control_state": {"hold_active": false}}
+      },
+      "event_state_transitions": {
+        "pedestrian_near_miss": [
+          {"entity_id": "uav_ped_nearmiss_l4_5_v2", "delay_ticks": 1, "state_patch": {"control_state": {"hold_active": true}}}
+        ],
+        "pedestrian_clears_area": [
+          {"entity_id": "uav_ped_nearmiss_l4_5_v2", "delay_ticks": 5, "state_patch": {"control_state": {"hold_active": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-5_v3",
+      "initial_entity_states": {
+        "uav_ped_nearmiss_l4_5_v3": {"control_state": {"hold_active": false}}
+      },
+      "event_state_transitions": {
+        "pedestrian_near_miss": [
+          {"entity_id": "uav_ped_nearmiss_l4_5_v3", "delay_ticks": 1, "state_patch": {"control_state": {"hold_active": true}}}
+        ],
+        "pedestrian_clears_area": [
+          {"entity_id": "uav_ped_nearmiss_l4_5_v3", "delay_ticks": 5, "state_patch": {"control_state": {"hold_active": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-6_v1",
+      "initial_entity_states": {
+        "ped_jaywalk_l4_6_v1": {"pedestrian_state": {"jaywalking": false, "retreating": false}},
+        "car_jaywalk_l4_6_v1": {"vehicle_state": {"braking": false}}
+      },
+      "event_state_transitions": {
+        "ped_enters_roadway": [
+          {"entity_id": "ped_jaywalk_l4_6_v1", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"jaywalking": true}}}
+        ],
+        "vehicle_ped_proximity": [
+          {"entity_id": "car_jaywalk_l4_6_v1", "delay_ticks": 1, "state_patch": {"vehicle_state": {"braking": false}}}
+        ],
+        "ped_retreats": [
+          {"entity_id": "ped_jaywalk_l4_6_v1", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"jaywalking": false, "retreating": true}}},
+          {"entity_id": "car_jaywalk_l4_6_v1", "delay_ticks": 5, "state_patch": {"vehicle_state": {"braking": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-6_v2",
+      "initial_entity_states": {
+        "ped_jaywalk_l4_6_v2": {"pedestrian_state": {"jaywalking": false, "retreating": false}},
+        "car_jaywalk_l4_6_v2": {"vehicle_state": {"braking": false}}
+      },
+      "event_state_transitions": {
+        "ped_enters_roadway": [
+          {"entity_id": "ped_jaywalk_l4_6_v2", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"jaywalking": true}}}
+        ],
+        "vehicle_ped_proximity": [
+          {"entity_id": "car_jaywalk_l4_6_v2", "delay_ticks": 1, "state_patch": {"vehicle_state": {"braking": false}}}
+        ],
+        "ped_retreats": [
+          {"entity_id": "ped_jaywalk_l4_6_v2", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"jaywalking": false, "retreating": true}}},
+          {"entity_id": "car_jaywalk_l4_6_v2", "delay_ticks": 5, "state_patch": {"vehicle_state": {"braking": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-7_v1",
+      "initial_entity_states": {
+        "ped_fall_l4_7_v1": {"pedestrian_state": {"fallen": false, "injured": false, "health": "nominal", "posture": "standing"}, "incident_state": {"dispatch_active": false}}
+      },
+      "event_state_transitions": {
+        "pedestrian_fall": [
+          {"entity_id": "ped_fall_l4_7_v1", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"fallen": true, "injured": true, "health": "injured", "posture": "fallen"}}}
+        ],
+        "ambulance_response": [
+          {"entity_id": "ped_fall_l4_7_v1", "delay_ticks": 1, "state_patch": {"incident_state": {"dispatch_active": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-7_v2",
+      "initial_entity_states": {
+        "ped_fall_l4_7_v2": {"pedestrian_state": {"fallen": false, "injured": false, "health": "nominal", "posture": "standing"}, "incident_state": {"dispatch_active": false}}
+      },
+      "event_state_transitions": {
+        "pedestrian_fall": [
+          {"entity_id": "ped_fall_l4_7_v2", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"fallen": true, "injured": true, "health": "injured", "posture": "fallen"}}}
+        ],
+        "ambulance_response": [
+          {"entity_id": "ped_fall_l4_7_v2", "delay_ticks": 1, "state_patch": {"incident_state": {"dispatch_active": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-8_v1",
+      "initial_entity_states": {
+        "uav_crowd_monitor_l4_8_v1": {"mission_state": {"hazard_managed": false}, "control_state": {"safe_hold_active": false}},
+        "ped_evac_l4_8_v1_00": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v1_01": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v1_02": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v1_03": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v1_04": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v1_05": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v1_06": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v1_07": {"pedestrian_state": {"evacuation_active": false}}
+      },
+      "event_state_transitions": {
+        "evacuation_triggered": [
+          {"entity_id": "ped_evac_l4_8_v1_00", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v1_01", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v1_02", "delay_ticks": 5, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v1_03", "delay_ticks": 5, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v1_04", "delay_ticks": 10, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v1_05", "delay_ticks": 10, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v1_06", "delay_ticks": 15, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v1_07", "delay_ticks": 15, "state_patch": {"pedestrian_state": {"evacuation_active": true}}}
+        ],
+        "crowd_safe_zone_reached": [
+          {"entity_id": "ped_evac_l4_8_v1_00", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v1_01", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v1_02", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v1_03", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v1_04", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v1_05", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v1_06", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v1_07", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}}
+        ],
+        "crowd_safe_hold": [
+          {"entity_id": "uav_crowd_monitor_l4_8_v1", "delay_ticks": 1, "state_patch": {"control_state": {"safe_hold_active": true}, "mission_state": {"hazard_managed": true}}}
+        ],
+        "lifecycle_landing_uav_crowd_monitor_l4_8_v1": [
+          {"entity_id": "uav_crowd_monitor_l4_8_v1", "delay_ticks": 0, "state_patch": {"control_state": {"safe_hold_active": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-8_v2",
+      "initial_entity_states": {
+        "ped_evac_l4_8_v2_00": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v2_01": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v2_02": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v2_03": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v2_04": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v2_05": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v2_06": {"pedestrian_state": {"evacuation_active": false}},
+        "ped_evac_l4_8_v2_07": {"pedestrian_state": {"evacuation_active": false}}
+      },
+      "event_state_transitions": {
+        "evacuation_triggered": [
+          {"entity_id": "ped_evac_l4_8_v2_00", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v2_01", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v2_02", "delay_ticks": 5, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v2_03", "delay_ticks": 5, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v2_04", "delay_ticks": 10, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v2_05", "delay_ticks": 10, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v2_06", "delay_ticks": 15, "state_patch": {"pedestrian_state": {"evacuation_active": true}}},
+          {"entity_id": "ped_evac_l4_8_v2_07", "delay_ticks": 15, "state_patch": {"pedestrian_state": {"evacuation_active": true}}}
+        ],
+        "crowd_safe_zone_reached": [
+          {"entity_id": "ped_evac_l4_8_v2_00", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v2_01", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v2_02", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v2_03", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v2_04", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v2_05", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v2_06", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}},
+          {"entity_id": "ped_evac_l4_8_v2_07", "delay_ticks": 1, "state_patch": {"pedestrian_state": {"evacuation_active": false}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-9_v1",
+      "initial_entity_states": {
+        "car_intersection_l4_9_v1_a": {"vehicle_state": {"braking": false, "yielding": false}},
+        "car_intersection_l4_9_v1_b": {"vehicle_state": {"braking": false, "yielding": false}}
+      },
+      "event_state_transitions": {
+        "vehicle_collision_warning": [
+          {"entity_id": "car_intersection_l4_9_v1_a", "delay_ticks": 1, "state_patch": {"vehicle_state": {"braking": true}}},
+          {"entity_id": "car_intersection_l4_9_v1_b", "delay_ticks": 5, "state_patch": {"vehicle_state": {"braking": true, "yielding": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-9_v2",
+      "initial_entity_states": {
+        "car_intersection_l4_9_v2_a": {"vehicle_state": {"braking": false, "yielding": false}},
+        "car_intersection_l4_9_v2_b": {"vehicle_state": {"braking": false, "yielding": false}}
+      },
+      "event_state_transitions": {
+        "vehicle_collision_warning": [
+          {"entity_id": "car_intersection_l4_9_v2_a", "delay_ticks": 1, "state_patch": {"vehicle_state": {"braking": true}}},
+          {"entity_id": "car_intersection_l4_9_v2_b", "delay_ticks": 5, "state_patch": {"vehicle_state": {"braking": true, "yielding": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-10_v1",
+      "initial_entity_states": {
+        "ambulance_priority_l4_10_v1": {"vehicle_state": {"priority_request_acknowledged": false}},
+        "civilian_yield_l4_10_v1": {"vehicle_state": {"yielding": false}}
+      },
+      "event_state_transitions": {
+        "civilian_vehicle_yields": [
+          {"entity_id": "civilian_yield_l4_10_v1", "delay_ticks": 1, "state_patch": {"vehicle_state": {"yielding": true}}},
+          {"entity_id": "ambulance_priority_l4_10_v1", "delay_ticks": 10, "state_patch": {"vehicle_state": {"priority_request_acknowledged": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-10_v2",
+      "initial_entity_states": {
+        "ambulance_priority_l4_10_v2": {"vehicle_state": {"priority_request_acknowledged": false}},
+        "civilian_yield_l4_10_v2": {"vehicle_state": {"yielding": false}}
+      },
+      "event_state_transitions": {
+        "civilian_vehicle_yields": [
+          {"entity_id": "civilian_yield_l4_10_v2", "delay_ticks": 1, "state_patch": {"vehicle_state": {"yielding": true}}},
+          {"entity_id": "ambulance_priority_l4_10_v2", "delay_ticks": 10, "state_patch": {"vehicle_state": {"priority_request_acknowledged": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-11_v1",
+      "initial_entity_states": {
+        "av_fault_l4_11_v1": {"vehicle_state": {"sensor_fault": false, "minimal_risk_maneuver_active": false, "stopped_safe": false, "warning_active": false, "safe_stop_failed": false}}
+      },
+      "event_state_transitions": {
+        "av_sensor_fault": [
+          {"entity_id": "av_fault_l4_11_v1", "delay_ticks": 1, "state_patch": {"vehicle_state": {"sensor_fault": true, "warning_active": true}}}
+        ],
+        "av_safe_stop": [
+          {"entity_id": "av_fault_l4_11_v1", "delay_ticks": 1, "state_patch": {"vehicle_state": {"minimal_risk_maneuver_active": true}}}
+        ],
+        "av_recovery_hold": [
+          {"entity_id": "av_fault_l4_11_v1", "delay_ticks": 1, "state_patch": {"vehicle_state": {"warning_active": true}}}
+        ]
+      }
+    },
+    {
+      "scenario_id": "L4-11_v2",
+      "initial_entity_states": {
+        "av_fault_l4_11_v2": {"vehicle_state": {"sensor_fault": false, "minimal_risk_maneuver_active": false, "stopped_safe": false, "warning_active": false, "safe_stop_failed": false}},
+        "uav_av_report_l4_11_v2": {"mission_state": {"hazard_managed": false}}
+      },
+      "event_state_transitions": {
+        "av_sensor_fault": [
+          {"entity_id": "av_fault_l4_11_v2", "delay_ticks": 1, "state_patch": {"vehicle_state": {"sensor_fault": true, "warning_active": true}}}
+        ],
+        "av_safe_stop": [
+          {"entity_id": "av_fault_l4_11_v2", "delay_ticks": 1, "state_patch": {"vehicle_state": {"minimal_risk_maneuver_active": true}}}
+        ],
+        "av_recovery_hold": [
+          {"entity_id": "av_fault_l4_11_v2", "delay_ticks": 1, "state_patch": {"vehicle_state": {"warning_active": true}}},
+          {"entity_id": "uav_av_report_l4_11_v2", "delay_ticks": 5, "state_patch": {"mission_state": {"hazard_managed": true}}}
+        ]
+      }
+    }
+  ]
+}

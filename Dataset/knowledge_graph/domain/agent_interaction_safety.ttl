@@ -1,0 +1,308 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/agent_interaction_safety#> .
+
+<https://w3id.org/aeroworld/ontology/domain/agent_interaction_safety>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/agent_interaction_safety/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Agent Interaction Safety Ontology"@en ,
+        "AeroWorld 主体交互安全本体"@zh ;
+    dct:description "Safety relations among UAVs, vehicles, pedestrians, crowds, structures, conflict points, near misses, collisions, and forced landing risk."@en ,
+        "刻画无人机、车辆、行人、人群和结构物之间的安全关系、冲突点、近失、碰撞和迫降风险。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/agent_interaction_safety#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:SafetySeparationVolume
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialRegion ;
+    rdfs:label "safety separation volume"@en ,
+        "安全间隔体"@zh ;
+    skos:definition "Spatial volume used to assess minimum separation between actors or objects."@en ,
+        "用于评估主体或物体之间最小安全间隔的空间体。"@zh .
+
+dom:ConflictPoint
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialRegion ;
+    rdfs:label "conflict point"@en ,
+        "冲突点"@zh ;
+    skos:definition "Spatial point or region where actor trajectories may conflict."@en ,
+        "主体轨迹可能发生冲突的空间点或区域。"@zh .
+
+dom:NearMissState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "near miss state"@en ,
+        "近失状态"@zh ;
+    skos:definition "Tick-indexed state in which separation is below a safety threshold without contact."@en ,
+        "间隔低于安全阈值但尚未接触的时刻状态。"@zh .
+
+dom:CollisionState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "collision state"@en ,
+        "碰撞状态"@zh ;
+    skos:definition "Tick-indexed state in which two physical entities contact or overlap beyond the collision criterion."@en ,
+        "两个物理实体满足接触或重叠碰撞判据的时刻状态。"@zh .
+
+dom:Crowd
+    a owl:Class ;
+    rdfs:subClassOf world:GroundAgent ;
+    rdfs:label "crowd"@en ,
+        "人群"@zh ;
+    skos:definition "A collective ground-agent entity represented by a crowd anchor or grouped pedestrians."@en ,
+        "由人群锚点或行人组表示的集合地面主体。"@zh .
+
+dom:PopulatedLandingRiskState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "populated landing risk state"@en ,
+        "人群区域迫降风险状态"@zh ;
+    skos:definition "State describing forced-landing risk near pedestrians or populated areas."@en ,
+        "描述靠近行人或人群区域迫降风险的状态。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:actorApproachesConflictPoint
+    a owl:ObjectProperty ;
+    rdfs:domain world:MobileAgent ;
+    rdfs:range dom:ConflictPoint ;
+    rdfs:label "actor approaches conflict point"@en ,
+        "主体接近冲突点"@zh ;
+    skos:definition "Relates a mobile actor to a conflict point on its path."@en ,
+        "表示移动主体接近其路径上的冲突点。"@zh .
+
+dom:actorHasSafetySeparationVolume
+    a owl:ObjectProperty ;
+    rdfs:domain world:MobileAgent ;
+    rdfs:range dom:SafetySeparationVolume ;
+    rdfs:label "actor has safety separation volume"@en ,
+        "主体具有安全间隔体"@zh ;
+    skos:definition "Relates a mobile actor to the spatial volume used to evaluate its required separation."@en ,
+        "表示移动主体与用于评估其所需安全间隔的空间体之间的关系。"@zh .
+
+dom:safetyStateInvolvesActor
+    a owl:ObjectProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range world:MobileAgent ;
+    rdfs:label "safety state involves actor"@en ,
+        "安全状态涉及主体"@zh ;
+    skos:definition "Relates a safety state to an involved mobile actor."@en ,
+        "表示安全状态涉及的移动主体。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:separationDistanceM
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:NearMissState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "separation distance meters"@en ,
+        "间隔距离米"@zh ;
+    skos:definition "Observed distance between actors used for near-miss evaluation."@en ,
+        "用于近失判定的主体间观测距离。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "actor_separation" .
+
+dom:collisionOverlapRatio
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:CollisionState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "collision overlap ratio"@en ,
+        "碰撞重叠比例"@zh ;
+    skos:definition "Numeric overlap or contact ratio used by collision evidence."@en ,
+        "碰撞证据使用的数值重叠或接触比例。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "collision_overlap" .
+
+dom:crowdSizeCount
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:Crowd ;
+    rdfs:range xsd:integer ;
+    rdfs:label "crowd size count"@en ,
+        "人群规模数量"@zh ;
+    skos:definition "Number of persons represented by a crowd entity or grouped pedestrian state."@en ,
+        "人群实体或行人组状态表示的人数。"@zh ;
+    world:unitSymbol "person" ;
+    world:stateFieldCategory "crowd_state" .
+
+dom:forcedLandingRiskScore
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:PopulatedLandingRiskState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "forced landing risk score"@en ,
+        "迫降风险分数"@zh ;
+    skos:definition "Numeric score representing forced-landing risk near populated areas."@en ,
+        "表示靠近人群区域迫降风险的数值分数。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "forced_landing_risk" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:AircraftPairBelowSeparationArgument_first_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "first_aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "first aircraft"@en .
+
+dom:AircraftPairBelowSeparationArgument_second_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "second_aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "second aircraft"@en .
+
+dom:AircraftPairBelowSeparation
+    a aw:PredicateType ;
+    aw:predicateIdentifier "safety.aircraft_pair_below_separation" ;
+    aw:declaresArgumentRole dom:AircraftPairBelowSeparationArgument_first_aircraft ,
+        dom:AircraftPairBelowSeparationArgument_second_aircraft ;
+    rdfs:label "aircraft pair below separation"@en ,
+        "两航空器间隔不足"@zh ;
+    skos:definition "Holds when two UAVs are closer than the required safety separation."@en ,
+        "当两架无人机间距小于要求安全间隔时成立"@zh .
+
+dom:AircraftNearBuildingStructureArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftNearBuildingStructureArgument_structure
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "structure" ;
+    world:argumentClass world:BuildingStructure ;
+    rdfs:label "structure"@en .
+
+dom:AircraftNearBuildingStructure
+    a aw:PredicateType ;
+    aw:predicateIdentifier "safety.aircraft_near_building_structure" ;
+    aw:declaresArgumentRole dom:AircraftNearBuildingStructureArgument_aircraft ,
+        dom:AircraftNearBuildingStructureArgument_structure ;
+    rdfs:label "aircraft near building structure"@en ,
+        "航空器接近建筑结构"@zh ;
+    skos:definition "Holds when a UAV is closer to a building or facade than the safety threshold."@en ,
+        "当无人机与建筑或立面距离小于安全阈值时成立"@zh .
+
+dom:AircraftNearGroundVehicleArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftNearGroundVehicleArgument_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+dom:AircraftNearGroundVehicle
+    a aw:PredicateType ;
+    aw:predicateIdentifier "safety.aircraft_near_ground_vehicle" ;
+    aw:declaresArgumentRole dom:AircraftNearGroundVehicleArgument_aircraft ,
+        dom:AircraftNearGroundVehicleArgument_vehicle ;
+    rdfs:label "aircraft near ground vehicle"@en ,
+        "航空器接近地面车辆"@zh ;
+    skos:definition "Holds when a UAV is closer to a ground vehicle than the safety threshold."@en ,
+        "当无人机与地面车辆距离小于安全阈值时成立"@zh .
+
+dom:AircraftNearPedestrianArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:AircraftNearPedestrianArgument_pedestrian
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "pedestrian" ;
+    world:argumentClass world:Pedestrian ;
+    rdfs:label "pedestrian"@en .
+
+dom:AircraftNearPedestrian
+    a aw:PredicateType ;
+    aw:predicateIdentifier "safety.aircraft_near_pedestrian" ;
+    aw:declaresArgumentRole dom:AircraftNearPedestrianArgument_aircraft ,
+        dom:AircraftNearPedestrianArgument_pedestrian ;
+    rdfs:label "aircraft near pedestrian"@en ,
+        "航空器接近行人"@zh ;
+    skos:definition "Holds when a UAV is closer to a pedestrian than the safety threshold."@en ,
+        "当无人机与行人距离小于安全阈值时成立"@zh .
+
+dom:VehiclePedestrianConflictArgument_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+dom:VehiclePedestrianConflictArgument_pedestrian
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "pedestrian" ;
+    world:argumentClass world:Pedestrian ;
+    rdfs:label "pedestrian"@en .
+
+dom:VehiclePedestrianConflict
+    a aw:PredicateType ;
+    aw:predicateIdentifier "safety.vehicle_pedestrian_conflict" ;
+    aw:declaresArgumentRole dom:VehiclePedestrianConflictArgument_vehicle ,
+        dom:VehiclePedestrianConflictArgument_pedestrian ;
+    rdfs:label "vehicle pedestrian conflict"@en ,
+        "车辆行人冲突"@zh ;
+    skos:definition "Holds when a vehicle and pedestrian have a spatial or temporal conflict."@en ,
+        "当车辆与行人存在空间或时间冲突时成立"@zh .
+
+dom:CrowdEvacuationActiveArgument_crowd
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "crowd" ;
+    world:argumentClass dom:Crowd ;
+    rdfs:label "crowd"@en .
+
+dom:CrowdEvacuationActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "safety.crowd_evacuation_active" ;
+    aw:declaresArgumentRole dom:CrowdEvacuationActiveArgument_crowd ;
+    rdfs:label "crowd evacuation active"@en ,
+        "人群疏散进行中"@zh ;
+    skos:definition "Holds when a crowd or grouped pedestrians are in an evacuation state."@en ,
+        "当人群或行人组处于疏散状态时成立"@zh .
+
+dom:ForcedLandingInPopulatedAreaArgument_aircraft
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "aircraft" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+dom:ForcedLandingInPopulatedAreaArgument_populated_area
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "populated_area" ;
+    world:argumentClass world:PopulatedArea ;
+    rdfs:label "populated area"@en .
+
+dom:ForcedLandingInPopulatedArea
+    a aw:PredicateType ;
+    aw:predicateIdentifier "safety.forced_landing_in_populated_area" ;
+    aw:declaresArgumentRole dom:ForcedLandingInPopulatedAreaArgument_aircraft ,
+        dom:ForcedLandingInPopulatedAreaArgument_populated_area ;
+    rdfs:label "forced landing in populated area"@en ,
+        "人群区域迫降"@zh ;
+    skos:definition "Holds when a UAV forced-landing trajectory or landing site intersects a populated area."@en ,
+        "当无人机迫降轨迹或落点与人群区域相交时成立"@zh .

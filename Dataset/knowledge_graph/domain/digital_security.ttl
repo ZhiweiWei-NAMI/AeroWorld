@@ -1,0 +1,222 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/digital_security#> .
+
+<https://w3id.org/aeroworld/ontology/domain/digital_security>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/digital_security/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Digital Security Ontology"@en ,
+        "AeroWorld 数字安全本体"@zh ;
+    dct:description "Ground-control security, command integrity, unauthorized command streams, compromise states, jamming impact, and security-control availability."@en ,
+        "刻画地面控制安全、指令完整性、未授权指令流、受控状态、干扰影响和安全控制可用性。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/digital_security#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:CyberSecurityControl
+    a owl:Class ;
+    rdfs:subClassOf world:InfrastructureAsset ;
+    rdfs:label "cyber security control"@en ,
+        "网络安全控制"@zh ;
+    skos:definition "Control mechanism intended to protect digital command, communication, or service processes."@en ,
+        "用于保护数字指令、通信或服务过程的控制机制。"@zh .
+
+dom:GroundControlSession
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "ground control session"@en ,
+        "地面控制会话"@zh ;
+    skos:definition "Control session between a ground control station and a UAV."@en ,
+        "地面控制站与无人机之间的控制会话。"@zh .
+
+dom:CommandStream
+    a owl:Class ;
+    rdfs:subClassOf world:InformationEntity ;
+    rdfs:label "command stream"@en ,
+        "指令流"@zh ;
+    skos:definition "Ordered stream of control commands sent to an actor."@en ,
+        "发送给主体的有序控制指令流。"@zh .
+
+dom:UnauthorizedCommand
+    a owl:Class ;
+    rdfs:subClassOf world:InformationEntity ;
+    rdfs:label "unauthorized command"@en ,
+        "未授权指令"@zh ;
+    skos:definition "Command not authorized by the expected control authority."@en ,
+        "未由预期控制授权方授权的指令。"@zh .
+
+dom:CompromisedControlState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "compromised control state"@en ,
+        "控制受损状态"@zh ;
+    skos:definition "State in which a control station, session, or command stream is compromised."@en ,
+        "控制站、会话或指令流受损的状态。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:commandStreamControlsActor
+    a owl:ObjectProperty ;
+    rdfs:domain dom:CommandStream ;
+    rdfs:range world:UnmannedAircraft ;
+    rdfs:label "command stream controls actor"@en ,
+        "指令流控制主体"@zh ;
+    skos:definition "Relates a command stream to the UAV it controls."@en ,
+        "表示指令流控制的无人机。"@zh .
+
+dom:securityControlProtectsSession
+    a owl:ObjectProperty ;
+    rdfs:domain dom:CyberSecurityControl ;
+    rdfs:range dom:GroundControlSession ;
+    rdfs:label "security control protects session"@en ,
+        "安全控制保护会话"@zh ;
+    skos:definition "Relates a security control to the ground-control session it protects."@en ,
+        "表示安全控制保护的地面控制会话。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:commandIntegrityValid
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:CommandStream ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "command integrity valid"@en ,
+        "指令完整性有效"@zh ;
+    skos:definition "Whether a command stream passes integrity validation."@en ,
+        "指令流是否通过完整性验证。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "command_integrity" .
+
+dom:unauthorizedCommandCount
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:CommandStream ;
+    rdfs:range xsd:integer ;
+    rdfs:label "unauthorized command count"@en ,
+        "未授权指令数量"@zh ;
+    skos:definition "Number of unauthorized commands observed in a command stream."@en ,
+        "指令流中观测到的未授权指令数量。"@zh ;
+    world:unitSymbol "command" ;
+    world:stateFieldCategory "unauthorized_command" .
+
+dom:securityControlAvailable
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:CyberSecurityControl ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "security control available"@en ,
+        "安全控制可用"@zh ;
+    skos:definition "Whether a security-control mechanism is available."@en ,
+        "安全控制机制是否可用。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "security_control_availability" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:GroundControlStationCompromisedArgument_station
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "station" ;
+    world:argumentClass world:GroundControlStation ;
+    rdfs:label "station"@en .
+
+dom:GroundControlStationCompromised
+    a aw:PredicateType ;
+    aw:predicateIdentifier "security.ground_control_station_compromised" ;
+    aw:declaresArgumentRole dom:GroundControlStationCompromisedArgument_station ;
+    rdfs:label "ground control station compromised"@en ,
+        "地面控制站受损"@zh ;
+    skos:definition "Holds when a ground control station is in a compromised control state."@en ,
+        "当地面控制站处于控制受损状态时成立"@zh .
+
+dom:UnauthorizedCommandReceivedArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:UnauthorizedCommandReceivedArgument_command
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "command" ;
+    world:argumentClass dom:UnauthorizedCommand ;
+    rdfs:label "command"@en .
+
+dom:UnauthorizedCommandReceived
+    a aw:PredicateType ;
+    aw:predicateIdentifier "security.unauthorized_command_received" ;
+    aw:declaresArgumentRole dom:UnauthorizedCommandReceivedArgument_actor ,
+        dom:UnauthorizedCommandReceivedArgument_command ;
+    rdfs:label "unauthorized command received"@en ,
+        "收到未授权指令"@zh ;
+    skos:definition "Holds when an actor receives an unauthorized command."@en ,
+        "当主体收到未授权指令时成立"@zh .
+
+dom:CommunicationJammingImpactActiveArgument_actor
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "actor" ;
+    world:argumentClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+dom:CommunicationJammingImpactActiveArgument_station
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "station" ;
+    world:argumentClass world:CommunicationStation ;
+    rdfs:label "station"@en .
+
+dom:CommunicationJammingImpactActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "security.communication_jamming_impact_active" ;
+    aw:declaresArgumentRole dom:CommunicationJammingImpactActiveArgument_actor ,
+        dom:CommunicationJammingImpactActiveArgument_station ;
+    rdfs:label "communication jamming impact active"@en ,
+        "通信干扰影响激活"@zh ;
+    skos:definition "Holds when an observed jamming state affects the communication link between an aircraft and its bound station."@en ,
+        "当观测到的干扰状态影响航空器与其绑定通信站之间的链路时成立"@zh .
+
+dom:SecurityControlUnavailableArgument_control
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "control" ;
+    world:argumentClass dom:CyberSecurityControl ;
+    rdfs:label "control"@en .
+
+dom:SecurityControlUnavailable
+    a aw:PredicateType ;
+    aw:predicateIdentifier "security.security_control_unavailable" ;
+    aw:declaresArgumentRole dom:SecurityControlUnavailableArgument_control ;
+    rdfs:label "security control unavailable"@en ,
+        "安全控制不可用"@zh ;
+    skos:definition "Holds when a security-control mechanism cannot provide its declared protection."@en ,
+        "当安全控制机制无法提供声明保护时成立"@zh .
+
+dom:ControlCommandIntegrityViolatedArgument_stream
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "stream" ;
+    world:argumentClass dom:CommandStream ;
+    rdfs:label "stream"@en .
+
+dom:ControlCommandIntegrityViolated
+    a aw:PredicateType ;
+    aw:predicateIdentifier "security.control_command_integrity_violated" ;
+    aw:declaresArgumentRole dom:ControlCommandIntegrityViolatedArgument_stream ;
+    rdfs:label "control command integrity violated"@en ,
+        "控制指令完整性受损"@zh ;
+    skos:definition "Holds when a command stream fails integrity checks."@en ,
+        "当指令流未通过完整性检查时成立"@zh .

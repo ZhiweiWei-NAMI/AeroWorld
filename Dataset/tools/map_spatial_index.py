@@ -1,8 +1,9 @@
 """Spatial policy helpers for Donghu pedestrian generation and validation.
 
 The traffic bundle is the authoritative ENU frame. Source GeoJSON layers are
-only used after their lon/lat coordinates are fitted to the traffic bundle via
-the CityGenerator road feature ids (``cg_edge_i``).
+only used after their lon/lat coordinates are transformed through the frozen
+road GeoJSON fit.  Road-derived bundles keep physical lane samples separate
+from road-center samples so GeoJSON fitting does not depend on lane edge ids.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from typing import Any, Iterable, Sequence
 
 from shapely.geometry import LineString, Point, Polygon, box, shape
 from shapely.ops import unary_union
+from shapely.prepared import prep
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -114,18 +116,124 @@ class LaneResolver:
         self.max_x = max(sample.x_m for sample in self.samples)
         self.min_y = min(sample.y_m for sample in self.samples)
         self.max_y = max(sample.y_m for sample in self.samples)
+        self._grid_cell_m = 25.0
+        self._grid: dict[tuple[int, int], list[LaneSample]] = {}
+        for sample in self.samples:
+            self._grid.setdefault(self._grid_key(sample.x_m, sample.y_m), []).append(sample)
+
+    def _grid_key(self, x_m: float, y_m: float) -> tuple[int, int]:
+        return (int(math.floor(float(x_m) / self._grid_cell_m)), int(math.floor(float(y_m) / self._grid_cell_m)))
 
     def nearest_to_xy(self, x_m: float, y_m: float) -> LaneSample:
+        cx, cy = self._grid_key(x_m, y_m)
+        candidates: list[LaneSample] = []
+        for radius in range(0, 9):
+            candidates.clear()
+            for gx in range(cx - radius, cx + radius + 1):
+                for gy in range(cy - radius, cy + radius + 1):
+                    candidates.extend(self._grid.get((gx, gy), ()))
+            if candidates:
+                return min(candidates, key=lambda item: (item.x_m - x_m) ** 2 + (item.y_m - y_m) ** 2)
         return min(self.samples, key=lambda item: (item.x_m - x_m) ** 2 + (item.y_m - y_m) ** 2)
 
     def nearest(self, pos_enu_m: Sequence[float]) -> LaneSample:
         return self.nearest_to_xy(float(pos_enu_m[0]), float(pos_enu_m[1]))
+
+    def nearby_diverse_samples(
+        self,
+        x_m: float,
+        y_m: float,
+        *,
+        max_radius_m: float,
+        longitudinal_bucket_m: float,
+        max_count: int,
+    ) -> list[LaneSample]:
+        """Return spatially near lane samples without dense same-edge domination."""
+
+        cell_radius = int(math.ceil(float(max_radius_m) / self._grid_cell_m)) + 1
+        cx, cy = self._grid_key(x_m, y_m)
+        candidates = [
+            sample
+            for gx in range(cx - cell_radius, cx + cell_radius + 1)
+            for gy in range(cy - cell_radius, cy + cell_radius + 1)
+            for sample in self._grid.get((gx, gy), ())
+            if math.hypot(sample.x_m - float(x_m), sample.y_m - float(y_m))
+            <= float(max_radius_m)
+        ]
+        candidates.sort(
+            key=lambda sample: (
+                (sample.x_m - float(x_m)) ** 2 + (sample.y_m - float(y_m)) ** 2,
+                sample.edge_id,
+                sample.s_m,
+            )
+        )
+        selected: list[LaneSample] = []
+        seen_buckets: set[tuple[str, int]] = set()
+        for sample in candidates:
+            key = (
+                sample.edge_id,
+                int(math.floor(float(sample.s_m) / float(longitudinal_bucket_m))),
+            )
+            if key in seen_buckets:
+                continue
+            seen_buckets.add(key)
+            selected.append(sample)
+            if len(selected) >= int(max_count):
+                break
+        return selected
 
     def resolve_edge_s(self, edge_id: str, s_m: float) -> LaneSample:
         samples = self.by_edge.get(edge_id)
         if not samples:
             raise SpatialValidationError(f"Unknown lane edge_id: {edge_id}")
         return min(samples, key=lambda item: abs(item.s_m - s_m))
+
+    def interpolate_edge_s(
+        self,
+        edge_id: str,
+        lane_id: str,
+        s_m: float,
+    ) -> LaneSample:
+        samples = [
+            sample
+            for sample in self.by_edge.get(edge_id, ())
+            if sample.lane_id == lane_id
+        ]
+        if not samples:
+            raise SpatialValidationError(f"Unknown lane_id: {lane_id}")
+        if s_m <= samples[0].s_m:
+            return samples[0]
+        if s_m >= samples[-1].s_m:
+            return samples[-1]
+        for left, right in zip(samples, samples[1:]):
+            if left.s_m <= s_m <= right.s_m:
+                span_m = right.s_m - left.s_m
+                if span_m <= 0.0:
+                    return left
+                ratio = (s_m - left.s_m) / span_m
+                left_yaw = math.radians(left.yaw_deg)
+                right_yaw = math.radians(right.yaw_deg)
+                yaw_deg = math.degrees(
+                    math.atan2(
+                        (1.0 - ratio) * math.sin(left_yaw)
+                        + ratio * math.sin(right_yaw),
+                        (1.0 - ratio) * math.cos(left_yaw)
+                        + ratio * math.cos(right_yaw),
+                    )
+                )
+                return LaneSample(
+                    edge_id=edge_id,
+                    lane_id=lane_id,
+                    lane_index=left.lane_index,
+                    s_m=float(s_m),
+                    x_m=left.x_m + ratio * (right.x_m - left.x_m),
+                    y_m=left.y_m + ratio * (right.y_m - left.y_m),
+                    z_m=left.z_m + ratio * (right.z_m - left.z_m),
+                    yaw_deg=yaw_deg,
+                )
+        raise SpatialValidationError(
+            f"Cannot interpolate lane {lane_id} at longitudinal position {s_m}"
+        )
 
     def edge_s_bounds(self, edge_id: str) -> tuple[float, float]:
         samples = self.by_edge.get(edge_id)
@@ -203,21 +311,59 @@ def _solve_affine(pairs: list[tuple[tuple[float, float], tuple[float, float]]]) 
     )
 
 
+def _load_geojson_bundle_fit(path: Path) -> GeoJsonBundleFit:
+    payload = _load_json(path)
+    matrix = payload.get("matrix")
+    if not isinstance(matrix, list) or len(matrix) != 3:
+        raise SpatialValidationError(f"Invalid road_geojson_transform matrix: {path}")
+    return GeoJsonBundleFit(
+        matrix=(
+            (float(matrix[0][0]), float(matrix[0][1])),
+            (float(matrix[1][0]), float(matrix[1][1])),
+            (float(matrix[2][0]), float(matrix[2][1])),
+        ),
+        mean_error_m=float(payload.get("mean_error_m") or 0.0),
+        max_error_m=float(payload.get("max_error_m") or 0.0),
+        pair_count=int(payload.get("pair_count") or 0),
+    )
+
+
+def _load_first_center_samples(samples_csv: Path) -> dict[str, tuple[float, float]]:
+    first_samples: dict[str, tuple[float, float]] = {}
+    with samples_csv.open(newline="", encoding="utf-8-sig") as handle:
+        for row in csv.DictReader(handle):
+            edge_id = str(row.get("edge_id") or "")
+            if not edge_id and row.get("road_id") not in (None, ""):
+                edge_id = f"cg_edge_{int(float(row['road_id']))}"
+            if edge_id and edge_id not in first_samples:
+                first_samples[edge_id] = (float(row["x_m"]), float(row["y_m"]))
+    return first_samples
+
+
 def fit_geojson_to_bundle(
     *,
     road_geojson_path: Path,
     bounds_geojson_path: Path,
-    lane_center_samples_csv: Path,
+    lane_center_samples_csv: Path | None = None,
+    road_center_samples_csv: Path | None = None,
+    transform_json_path: Path | None = None,
     max_fit_error_m: float = 0.05,
 ) -> GeoJsonBundleFit:
+    if transform_json_path is not None and transform_json_path.exists():
+        fit = _load_geojson_bundle_fit(transform_json_path)
+        if fit.max_error_m > max_fit_error_m:
+            raise SpatialValidationError(
+                f"Stored GeoJSON to traffic_bundle fit is not reliable: max_error={fit.max_error_m:.3f}m "
+                f"> {max_fit_error_m:.3f}m pairs={fit.pair_count}"
+            )
+        return fit
+
     road = _load_json(road_geojson_path)
     center_xy = _bounds_center_mercator(bounds_geojson_path)
-    first_samples: dict[str, tuple[float, float]] = {}
-    with lane_center_samples_csv.open(newline="", encoding="utf-8-sig") as handle:
-        for row in csv.DictReader(handle):
-            edge_id = str(row.get("edge_id") or "")
-            if edge_id and edge_id not in first_samples:
-                first_samples[edge_id] = (float(row["x_m"]), float(row["y_m"]))
+    samples_csv = road_center_samples_csv if road_center_samples_csv is not None and road_center_samples_csv.exists() else lane_center_samples_csv
+    if samples_csv is None:
+        raise SpatialValidationError("Either road_center_samples_csv or lane_center_samples_csv is required for GeoJSON fitting")
+    first_samples = _load_first_center_samples(samples_csv)
     pairs: list[tuple[tuple[float, float], tuple[float, float]]] = []
     for index, feature in enumerate(road.get("features") or []):
         edge_id = f"cg_edge_{index}"
@@ -349,6 +495,8 @@ class MapSpatialIndex:
 
         self.traffic_bundle_dir = _project_path(project_root, str(self.map_package["traffic_bundle_dir"]))
         self.lane_center_samples_path = self.traffic_bundle_dir / "lane_center_samples.csv"
+        self.road_center_samples_path = self.traffic_bundle_dir / "road_center_samples.csv"
+        self.road_geojson_transform_path = self.traffic_bundle_dir / "road_geojson_transform.json"
         self.lanes = LaneResolver(self.lane_center_samples_path)
         self.source_geojson_paths = {
             layer: _project_path(project_root, str(source_geojson[layer])) for layer in sorted(required_layers)
@@ -362,12 +510,18 @@ class MapSpatialIndex:
             road_geojson_path=self.source_geojson_paths["road"],
             bounds_geojson_path=self.source_geojson_paths["bounds"],
             lane_center_samples_csv=self.lane_center_samples_path,
+            road_center_samples_csv=self.road_center_samples_path,
+            transform_json_path=self.road_geojson_transform_path,
         )
         self.bounds_union = _load_geojson_union(self.source_geojson_paths["bounds"], self.geojson_center_xy_m, self.geojson_fit)
         self.water_union = _load_geojson_union(self.source_geojson_paths["water"], self.geojson_center_xy_m, self.geojson_fit)
         self.building_union = _load_geojson_union(self.source_geojson_paths["building"], self.geojson_center_xy_m, self.geojson_fit)
         self.green_union = _load_geojson_union(self.source_geojson_paths["green"], self.geojson_center_xy_m, self.geojson_fit)
         self.block_union = _load_geojson_union(self.source_geojson_paths["block"], self.geojson_center_xy_m, self.geojson_fit)
+        self.bounds_prepared = prep(self.bounds_union)
+        self.water_prepared = prep(self.water_union)
+        self.building_prepared = prep(self.building_union)
+        self.green_prepared = prep(self.green_union)
 
     @classmethod
     def default(cls, project_root: Path = ROOT) -> "MapSpatialIndex":
@@ -391,13 +545,13 @@ class MapSpatialIndex:
     ) -> list[str]:
         point = self._point_geometry(point_enu_m)
         errors: list[str] = []
-        if not self.bounds_union.covers(point):
+        if not self.bounds_prepared.covers(point):
             errors.append(f"{context} outside bounds.geojson: {list(point_enu_m)}")
-        if self.water_union.covers(point):
+        if self.water_prepared.covers(point):
             errors.append(f"{context} inside water.geojson: {list(point_enu_m)}")
-        if self.building_union.covers(point):
+        if self.building_prepared.covers(point):
             errors.append(f"{context} inside building.geojson: {list(point_enu_m)}")
-        if not allow_green and self.green_union.covers(point):
+        if not allow_green and self.green_prepared.covers(point):
             errors.append(f"{context} inside green.geojson without explicit green allowance: {list(point_enu_m)}")
         if not allow_road and self.nearest_lane_clearance(point_enu_m) < LANE_HALF_WIDTH_M + road_buffer_m:
             errors.append(f"{context} inside roadway clearance: {list(point_enu_m)}")
@@ -421,13 +575,13 @@ class MapSpatialIndex:
     ) -> list[str]:
         line = LineString([(float(a_enu_m[0]), float(a_enu_m[1])), (float(b_enu_m[0]), float(b_enu_m[1]))])
         errors: list[str] = []
-        if not self.bounds_union.covers(line):
+        if not self.bounds_prepared.covers(line):
             errors.append(f"{context} segment leaves bounds.geojson")
-        if line.intersects(self.water_union):
+        if self.water_prepared.intersects(line):
             errors.append(f"{context} segment intersects water.geojson")
-        if line.intersects(self.building_union):
+        if self.building_prepared.intersects(line):
             errors.append(f"{context} segment intersects building.geojson")
-        if not allow_green and line.intersects(self.green_union):
+        if not allow_green and self.green_prepared.intersects(line):
             errors.append(f"{context} segment intersects green.geojson without explicit green allowance")
         for point in _densify_segment(a_enu_m, b_enu_m, max(sample_step_m, 0.5)):
             for error in self.validation_errors_for_point(
@@ -463,13 +617,13 @@ class MapSpatialIndex:
     ) -> list[str]:
         envelope = self.spawn_envelope_polygon(origin_enu_m, extent_cm)
         errors: list[str] = []
-        if not self.bounds_union.covers(envelope):
+        if not self.bounds_prepared.covers(envelope):
             errors.append(f"{context} spawn envelope leaves bounds.geojson")
-        if envelope.intersects(self.water_union):
+        if self.water_prepared.intersects(envelope):
             errors.append(f"{context} spawn envelope intersects water.geojson")
-        if envelope.intersects(self.building_union):
+        if self.building_prepared.intersects(envelope):
             errors.append(f"{context} spawn envelope intersects building.geojson")
-        if not allow_green and envelope.intersects(self.green_union):
+        if not allow_green and self.green_prepared.intersects(envelope):
             errors.append(f"{context} spawn envelope intersects green.geojson without explicit green allowance")
         half_extent_m = max(float(extent_cm[0] if len(extent_cm) > 0 else 0.0), float(extent_cm[1] if len(extent_cm) > 1 else 0.0)) / 200.0
         required = LANE_HALF_WIDTH_M + half_extent_m + CROWD_ROAD_BUFFER_M
@@ -485,13 +639,37 @@ class MapSpatialIndex:
 
     def _candidate_samples(self, hint_pos_enu_m: Sequence[float], edge_id_hint: str | None, s_hint: float | None) -> list[LaneSample]:
         samples: list[LaneSample] = []
-        s_deltas = (0.0, -2.0, 2.0, -5.0, 5.0, -10.0, 10.0, -15.0, 15.0, -25.0, 25.0, -40.0, 40.0, -60.0, 60.0, -85.0, 85.0)
+        s_deltas = (0.0, -1.0, 1.0, -2.0, 2.0, -5.0, 5.0, -10.0, 10.0, -15.0, 15.0, -25.0, 25.0, -40.0, 40.0, -60.0, 60.0, -85.0, 85.0)
+        nearest = self.lanes.nearest(hint_pos_enu_m)
         if edge_id_hint:
             base_s = float(s_hint or 0.0)
             min_s, max_s = self.lanes.edge_s_bounds(edge_id_hint)
+            edge_nearest = (
+                nearest
+                if nearest.edge_id == edge_id_hint
+                else self.lanes.resolve_edge_s(edge_id_hint, base_s)
+            )
             for delta_s in s_deltas:
-                samples.append(self.lanes.resolve_edge_s(edge_id_hint, max(min_s, min(max_s, base_s + delta_s))))
-        nearest = self.lanes.nearest(hint_pos_enu_m)
+                samples.append(
+                    self.lanes.interpolate_edge_s(
+                        edge_id_hint,
+                        edge_nearest.lane_id,
+                        max(min_s, min(max_s, base_s + delta_s)),
+                    )
+                )
+        if edge_id_hint:
+            if nearest.edge_id != edge_id_hint:
+                min_s, max_s = self.lanes.edge_s_bounds(nearest.edge_id)
+                for delta_s in s_deltas[:9]:
+                    samples.append(self.lanes.resolve_edge_s(nearest.edge_id, max(min_s, min(max_s, nearest.s_m + delta_s))))
+            deduped: list[LaneSample] = []
+            seen: set[tuple[str, float]] = set()
+            for sample in samples:
+                key = (sample.edge_id, round(sample.s_m, 3))
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(sample)
+            return deduped
         nearby_base_samples: list[LaneSample] = [nearest]
         seen_edges = {nearest.edge_id}
         for sample in sorted(

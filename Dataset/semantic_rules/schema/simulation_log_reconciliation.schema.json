@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w3id.org/aeroworld/schema/simulation_log_reconciliation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "status",
+    "record_count",
+    "record_count_by_log",
+    "log_count"
+  ],
+  "properties": {
+    "schema_name": {
+      "const": "simulation_log_source_coverage_reconciliation"
+    },
+    "schema_version": {
+      "const": "2.0.0"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "record_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "record_count_by_log": {
+      "type": "object",
+      "minProperties": 8,
+      "maxProperties": 8,
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "log_count": {
+      "const": 8
+    }
+  }
+}

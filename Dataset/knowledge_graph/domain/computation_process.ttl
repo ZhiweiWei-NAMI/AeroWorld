@@ -1,0 +1,432 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/computation_process#> .
+
+<https://w3id.org/aeroworld/ontology/domain/computation_process>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/computation_process/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Computation Process Ontology"@en ,
+        "AeroWorld 计算过程本体"@zh ;
+    dct:description "Compute nodes, CPU/GPU/memory resources, queues, tasks, offloading, migration, execution state, deadlines, and execution failure."@en ,
+        "刻画计算节点、CPU/GPU/内存资源、队列、任务、卸载、迁移、执行状态、截止期和执行失败。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/computation_process#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:ComputeNode
+    a owl:Class ;
+    rdfs:subClassOf world:InfrastructureAsset ;
+    rdfs:label "compute node"@en ,
+        "计算节点"@zh ;
+    skos:definition "Infrastructure or onboard node capable of executing compute tasks."@en ,
+        "能够执行计算任务的基础设施或机载节点。"@zh .
+
+dom:ComputeTask
+    a owl:Class ;
+    rdfs:subClassOf world:InformationEntity ;
+    rdfs:label "compute task"@en ,
+        "计算任务"@zh ;
+    skos:definition "Unit of computation required by perception, communication, control, or service logic."@en ,
+        "感知、通信、控制或服务逻辑所需的计算单元。"@zh .
+
+dom:TaskExecution
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "task execution"@en ,
+        "任务执行"@zh ;
+    skos:definition "Execution process of a compute task on a compute node."@en ,
+        "计算任务在计算节点上的执行过程。"@zh .
+
+dom:ComputeResource
+    a owl:Class ;
+    rdfs:subClassOf world:Resource ;
+    rdfs:label "compute resource"@en ,
+        "计算资源"@zh ;
+    skos:definition "CPU, GPU, memory, or other bounded capacity consumed by compute task execution."@en ,
+        "计算任务执行所消耗的 CPU、GPU、内存或其他有限容量。"@zh .
+
+dom:ProcessorResource
+    a owl:Class ;
+    rdfs:subClassOf dom:ComputeResource ;
+    rdfs:label "processor resource"@en ,
+        "处理器资源"@zh ;
+    skos:definition "Processor capacity used by compute tasks."@en ,
+        "计算任务使用的处理器能力。"@zh .
+
+dom:CPUResource
+    a owl:Class ;
+    rdfs:subClassOf dom:ProcessorResource ;
+    rdfs:label "CPU resource"@en ,
+        "CPU 资源"@zh ;
+    skos:definition "Central processor resource available for task execution."@en ,
+        "可用于任务执行的中央处理器资源。"@zh .
+
+dom:GPUResource
+    a owl:Class ;
+    rdfs:subClassOf dom:ProcessorResource ;
+    rdfs:label "GPU resource"@en ,
+        "GPU 资源"@zh ;
+    skos:definition "Graphics or accelerator resource available for task execution."@en ,
+        "可用于任务执行的图形或加速器资源。"@zh .
+
+dom:MemoryResource
+    a owl:Class ;
+    rdfs:subClassOf dom:ComputeResource ;
+    rdfs:label "memory resource"@en ,
+        "内存资源"@zh ;
+    skos:definition "Memory capacity available to compute tasks."@en ,
+        "可供计算任务使用的内存容量。"@zh .
+
+dom:ComputeQueue
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "compute queue"@en ,
+        "计算队列"@zh ;
+    skos:definition "Queue state for tasks waiting to execute on a compute node."@en ,
+        "等待在计算节点上执行的任务队列状态。"@zh .
+
+dom:ResourceAllocation
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "resource allocation"@en ,
+        "资源分配"@zh ;
+    skos:definition "Allocation of CPU, GPU, memory, or node capacity to a task."@en ,
+        "将 CPU、GPU、内存或节点能力分配给任务的状态。"@zh .
+
+dom:TaskOffload
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "task offload"@en ,
+        "任务卸载"@zh ;
+    skos:definition "Movement process of a compute task from one execution node to another before or during execution."@en ,
+        "计算任务在执行前或执行中从一个节点转移到另一个节点的过程。"@zh .
+
+dom:TaskMigration
+    a owl:Class ;
+    rdfs:subClassOf dom:TaskOffload ;
+    rdfs:label "task migration"@en ,
+        "任务迁移"@zh ;
+    skos:definition "Runtime relocation of an executing task between compute nodes."@en ,
+        "正在执行的任务在计算节点之间的运行时迁移。"@zh .
+
+dom:ExecutionFailure
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "execution failure"@en ,
+        "执行失败"@zh ;
+    skos:definition "State in which a compute task cannot complete according to its contract."@en ,
+        "计算任务无法按其契约完成的状态。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:taskAssignedToNode
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ComputeTask ;
+    rdfs:range dom:ComputeNode ;
+    rdfs:label "task assigned to node"@en ,
+        "任务分配至节点"@zh ;
+    skos:definition "Relates a compute task to the node selected for execution."@en ,
+        "表示计算任务被分配到的执行节点。"@zh .
+
+dom:taskConsumesResource
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ComputeTask ;
+    rdfs:range dom:ProcessorResource ;
+    rdfs:label "task consumes resource"@en ,
+        "任务消耗资源"@zh ;
+    skos:definition "Relates a compute task to processor resources consumed by execution."@en ,
+        "表示计算任务执行所消耗的处理器资源。"@zh .
+
+dom:allocationUsesMemory
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ResourceAllocation ;
+    rdfs:range dom:MemoryResource ;
+    rdfs:label "allocation uses memory"@en ,
+        "分配使用内存"@zh ;
+    skos:definition "Relates a resource allocation to its memory resource."@en ,
+        "表示资源分配使用的内存资源。"@zh .
+
+dom:executionRunsTask
+    a owl:ObjectProperty ;
+    rdfs:domain dom:TaskExecution ;
+    rdfs:range dom:ComputeTask ;
+    rdfs:label "execution runs task"@en ,
+        "执行运行任务"@zh ;
+    skos:definition "Relates a task-execution process to the compute task being executed."@en ,
+        "表示任务执行过程运行的计算任务。"@zh .
+
+dom:executionRunsOnNode
+    a owl:ObjectProperty ;
+    rdfs:domain dom:TaskExecution ;
+    rdfs:range dom:ComputeNode ;
+    rdfs:label "execution runs on node"@en ,
+        "执行运行于节点"@zh ;
+    skos:definition "Relates a task-execution process to the compute node executing it."@en ,
+        "表示任务执行过程所在的计算节点。"@zh .
+
+dom:taskQueuedInQueue
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ComputeTask ;
+    rdfs:range dom:ComputeQueue ;
+    rdfs:label "task queued in queue"@en ,
+        "任务位于队列"@zh ;
+    skos:definition "Relates a compute task to the queue in which it waits."@en ,
+        "表示计算任务所在的等待队列。"@zh .
+
+dom:queueServedByNode
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ComputeQueue ;
+    rdfs:range dom:ComputeNode ;
+    rdfs:label "queue served by node"@en ,
+        "队列由节点服务"@zh ;
+    skos:definition "Relates a compute queue to the compute node serving it."@en ,
+        "表示计算队列由哪个计算节点服务。"@zh .
+
+dom:allocationAssignedToTask
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ResourceAllocation ;
+    rdfs:range dom:ComputeTask ;
+    rdfs:label "allocation assigned to task"@en ,
+        "分配指向任务"@zh ;
+    skos:definition "Relates a resource allocation to the task receiving resources."@en ,
+        "表示资源分配指向的计算任务。"@zh .
+
+dom:allocationAssignedToNode
+    a owl:ObjectProperty ;
+    rdfs:domain dom:ResourceAllocation ;
+    rdfs:range dom:ComputeNode ;
+    rdfs:label "allocation assigned to node"@en ,
+        "分配指向节点"@zh ;
+    skos:definition "Relates a resource allocation to the compute node providing resources."@en ,
+        "表示资源分配指向的计算节点。"@zh .
+
+dom:offloadMovesTask
+    a owl:ObjectProperty ;
+    rdfs:domain dom:TaskOffload ;
+    rdfs:range dom:ComputeTask ;
+    rdfs:label "offload moves task"@en ,
+        "卸载移动任务"@zh ;
+    skos:definition "Relates an offload process to the task being moved."@en ,
+        "表示卸载过程移动的任务。"@zh .
+
+dom:offloadSourceNode
+    a owl:ObjectProperty ;
+    rdfs:domain dom:TaskOffload ;
+    rdfs:range dom:ComputeNode ;
+    rdfs:label "offload source node"@en ,
+        "卸载源节点"@zh ;
+    skos:definition "Relates an offload process to its source compute node."@en ,
+        "表示卸载过程的源计算节点。"@zh .
+
+dom:offloadTargetNode
+    a owl:ObjectProperty ;
+    rdfs:domain dom:TaskOffload ;
+    rdfs:range dom:ComputeNode ;
+    rdfs:label "offload target node"@en ,
+        "卸载目标节点"@zh ;
+    skos:definition "Relates an offload process to its target compute node."@en ,
+        "表示卸载过程的目标计算节点。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:cpuUtilizationRatio
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:CPUResource ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "CPU utilization ratio"@en ,
+        "CPU 利用率"@zh ;
+    skos:definition "Observed CPU utilization represented as a ratio."@en ,
+        "以比例表示的观测 CPU 利用率。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "cpu_utilization" .
+
+dom:gpuUtilizationRatio
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:GPUResource ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "GPU utilization ratio"@en ,
+        "GPU 利用率"@zh ;
+    skos:definition "Observed GPU utilization represented as a ratio."@en ,
+        "以比例表示的观测 GPU 利用率。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "gpu_utilization" .
+
+dom:memoryUsedMb
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:MemoryResource ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "memory used megabytes"@en ,
+        "已用内存兆字节"@zh ;
+    skos:definition "Memory used by a node or task in megabytes."@en ,
+        "节点或任务使用的内存，单位为兆字节。"@zh ;
+    world:unitSymbol "MB" ;
+    world:stateFieldCategory "memory_usage" .
+
+dom:computeQueueLength
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:ComputeQueue ;
+    rdfs:range xsd:integer ;
+    rdfs:label "compute queue length"@en ,
+        "计算队列长度"@zh ;
+    skos:definition "Number of compute tasks waiting in a queue."@en ,
+        "计算队列中等待的任务数量。"@zh ;
+    world:unitSymbol "task" ;
+    world:stateFieldCategory "compute_queue" .
+
+dom:taskExecutionStatus
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:TaskExecution ;
+    rdfs:range xsd:string ;
+    rdfs:label "task execution status"@en ,
+        "任务执行状态"@zh ;
+    skos:definition "Discrete execution status of a compute task."@en ,
+        "计算任务的离散执行状态。"@zh ;
+    world:unitSymbol "state-code" ;
+    world:stateFieldCategory "task_execution_status" .
+
+dom:taskDeadlineMs
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:ComputeTask ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "task deadline milliseconds"@en ,
+        "任务截止期毫秒"@zh ;
+    skos:definition "Declared compute-task deadline in milliseconds."@en ,
+        "计算任务声明的截止期，单位为毫秒。"@zh ;
+    world:unitSymbol "ms" ;
+    world:stateFieldCategory "task_deadline" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:ComputeNodeUnavailableArgument_node
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "node" ;
+    world:argumentClass dom:ComputeNode ;
+    rdfs:label "node"@en .
+
+dom:ComputeNodeUnavailable
+    a aw:PredicateType ;
+    aw:predicateIdentifier "compute.compute_node_unavailable" ;
+    aw:declaresArgumentRole dom:ComputeNodeUnavailableArgument_node ;
+    rdfs:label "compute node unavailable"@en ,
+        "计算节点不可用"@zh ;
+    skos:definition "Holds when a compute node cannot accept or execute tasks."@en ,
+        "当计算节点不能接受或执行任务时成立"@zh .
+
+dom:ComputeTaskQueuedArgument_task
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "task" ;
+    world:argumentClass dom:ComputeTask ;
+    rdfs:label "task"@en .
+
+dom:ComputeTaskQueuedArgument_queue
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "queue" ;
+    world:argumentClass dom:ComputeQueue ;
+    rdfs:label "queue"@en .
+
+dom:ComputeTaskQueued
+    a aw:PredicateType ;
+    aw:predicateIdentifier "compute.compute_task_queued" ;
+    aw:declaresArgumentRole dom:ComputeTaskQueuedArgument_task ,
+        dom:ComputeTaskQueuedArgument_queue ;
+    rdfs:label "compute task queued"@en ,
+        "计算任务排队"@zh ;
+    skos:definition "Holds when a compute task waits in a compute queue."@en ,
+        "当计算任务在计算队列中等待时成立"@zh .
+
+dom:ComputeResourceOverAllocatedArgument_node
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "node" ;
+    world:argumentClass dom:ComputeNode ;
+    rdfs:label "node"@en .
+
+dom:ComputeResourceOverAllocated
+    a aw:PredicateType ;
+    aw:predicateIdentifier "compute.compute_resource_over_allocated" ;
+    aw:declaresArgumentRole dom:ComputeResourceOverAllocatedArgument_node ;
+    rdfs:label "compute resource over allocated"@en ,
+        "计算资源超分配"@zh ;
+    skos:definition "Holds when requested CPU, GPU, or memory exceeds available capacity."@en ,
+        "当请求的 CPU、GPU 或内存超过可用容量时成立"@zh .
+
+dom:ComputeTaskOffloadedArgument_task
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "task" ;
+    world:argumentClass dom:ComputeTask ;
+    rdfs:label "task"@en .
+
+dom:ComputeTaskOffloaded
+    a aw:PredicateType ;
+    aw:predicateIdentifier "compute.compute_task_offloaded" ;
+    aw:declaresArgumentRole dom:ComputeTaskOffloadedArgument_task ;
+    rdfs:label "compute task offloaded"@en ,
+        "计算任务已卸载"@zh ;
+    skos:definition "Holds when a task has been offloaded from one compute node to another."@en ,
+        "当任务已从一个计算节点卸载到另一个计算节点时成立"@zh .
+
+dom:ComputeTaskMigratingArgument_task
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "task" ;
+    world:argumentClass dom:ComputeTask ;
+    rdfs:label "task"@en .
+
+dom:ComputeTaskMigrating
+    a aw:PredicateType ;
+    aw:predicateIdentifier "compute.compute_task_migrating" ;
+    aw:declaresArgumentRole dom:ComputeTaskMigratingArgument_task ;
+    rdfs:label "compute task migrating"@en ,
+        "计算任务正在迁移"@zh ;
+    skos:definition "Holds while a compute task is moving between execution nodes."@en ,
+        "当计算任务正在执行节点之间迁移时成立"@zh .
+
+dom:ComputeTaskExecutionFailedArgument_task
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "task" ;
+    world:argumentClass dom:ComputeTask ;
+    rdfs:label "task"@en .
+
+dom:ComputeTaskExecutionFailed
+    a aw:PredicateType ;
+    aw:predicateIdentifier "compute.compute_task_execution_failed" ;
+    aw:declaresArgumentRole dom:ComputeTaskExecutionFailedArgument_task ;
+    rdfs:label "compute task execution failed"@en ,
+        "计算任务执行失败"@zh ;
+    skos:definition "Holds when a compute task enters an execution-failure state."@en ,
+        "当计算任务进入执行失败状态时成立"@zh .
+
+dom:ComputeTaskDeadlineMissedArgument_task
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "task" ;
+    world:argumentClass dom:ComputeTask ;
+    rdfs:label "task"@en .
+
+dom:ComputeTaskDeadlineMissed
+    a aw:PredicateType ;
+    aw:predicateIdentifier "compute.compute_task_deadline_missed" ;
+    aw:declaresArgumentRole dom:ComputeTaskDeadlineMissedArgument_task ;
+    rdfs:label "compute task deadline missed"@en ,
+        "计算任务错过截止期"@zh ;
+    skos:definition "Holds when a task misses its declared execution deadline."@en ,
+        "当任务错过声明执行截止期时成立"@zh .

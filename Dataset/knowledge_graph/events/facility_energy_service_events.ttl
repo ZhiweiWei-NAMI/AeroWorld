@@ -1,0 +1,91 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/facility_energy_service#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/facility_energy_service#> .
+
+<https://w3id.org/aeroworld/ontology/events/facility_energy_service>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/facility_energy_service/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/facility_energy_service> ;
+    dct:title "AeroWorld Facility and Energy Service Event Ontology"@en ,
+        "AeroWorld 设施与能源服务事件本体"@zh ;
+    dct:description "Objective charging-station availability and landing-pad contention event families."@en ,
+        "既有充电站可用性和起降坪争用事件族。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/facility_energy_service#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:ChargingStationUnavailabilityEventRole_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "station" ;
+    world:participantClass world:ChargingStation ;
+    rdfs:label "station"@en .
+
+evt:ChargingStationUnavailabilityEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "facility.charging_station_unavailability_event" ;
+    aw:declaresParticipantRole evt:ChargingStationUnavailabilityEventRole_station ;
+    rdfs:label "charging station unavailability"@en ,
+        "充电站不可用事件"@zh ;
+    skos:definition "Objective event in which a charging station cannot accept charging service."@en ,
+        "充电站无法接受充电服务的客观事件"@zh .
+
+evt:ChargingQueueOverloadEventRole_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "station" ;
+    world:participantClass world:ChargingStation ;
+    rdfs:label "station"@en .
+
+evt:ChargingQueueOverloadEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "facility.charging_queue_overload_event" ;
+    aw:declaresParticipantRole evt:ChargingQueueOverloadEventRole_station ;
+    rdfs:label "charging queue overload"@en ,
+        "充电队列超容事件"@zh ;
+    skos:definition "Objective event in which the charging station requester queue exceeds its service capacity."@en ,
+        "充电站请求队列超过其服务容量的客观事件"@zh .
+
+evt:LandingPadContentionEventRole_pad
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "pad" ;
+    world:participantClass world:LandingPad ;
+    rdfs:label "pad"@en .
+
+evt:LandingPadContentionEventRole_first_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "first_aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "first aircraft"@en .
+
+evt:LandingPadContentionEventRole_second_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "second_aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "second aircraft"@en .
+
+evt:LandingPadContentionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "facility.landing_pad_contention_event" ;
+    aw:declaresParticipantRole evt:LandingPadContentionEventRole_pad ,
+        evt:LandingPadContentionEventRole_first_aircraft ,
+        evt:LandingPadContentionEventRole_second_aircraft ;
+    rdfs:label "landing pad contention"@en ,
+        "起降坪争用事件"@zh ;
+    skos:definition "Objective event in which multiple UAVs contend for the same landing pad."@en ,
+        "多架无人机争用同一起降坪的客观事件"@zh .

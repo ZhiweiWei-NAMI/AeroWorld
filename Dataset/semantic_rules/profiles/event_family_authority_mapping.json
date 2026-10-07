@@ -1,0 +1,1187 @@
+{
+  "schema_name": "event_family_authority_mapping",
+  "schema_version": "6.0.0",
+  "profile_id": "aeroworld.l2_event_family_authority_mapping.v6",
+  "event_ontology_authority": "Dataset/knowledge_graph/events/catalog.yaml",
+  "predicate_ontology_authority": "Dataset/knowledge_graph/domain/catalog.yaml",
+  "source_classes": [
+    "engine_truth",
+    "deterministic_derived",
+    "simulated_derived",
+    "visual_derived"
+  ],
+  "family_count": 32,
+  "families": {
+    "uav_takeoff": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.aircraft_takeoff_event"
+      ],
+      "trigger": {
+        "predicate_id": "airspace.aircraft_airborne",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_airborne",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "home_pad": {
+            "kind": "support_binding",
+            "predicate_id": "airspace.aircraft_at_home_pad",
+            "predicate_role": "home_pad",
+            "source_ontology_class": "LandingPad",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [
+        {
+          "predicate_id": "airspace.aircraft_at_home_pad",
+          "value": "true",
+          "at": "before",
+          "join_roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "terminal": {
+        "predicate_id": "airspace.aircraft_airborne",
+        "value": "true",
+        "hold_parameter": "terminal_hold_samples",
+        "join_roles": [
+          "aircraft"
+        ]
+      },
+      "authoritative_predicates": [
+        "airspace.aircraft_airborne",
+        "airspace.aircraft_at_home_pad"
+      ],
+      "semantic_rationale": "The airborne rising edge is the authoritative takeoff transition and the prior home-pad assertion supplies the lifecycle guard."
+    },
+    "uav_landing": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.aircraft_landing_event"
+      ],
+      "trigger": {
+        "predicate_id": "airspace.aircraft_touchdown",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_touchdown",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "landing_zone": {
+            "kind": "support_binding",
+            "predicate_id": "airspace.aircraft_in_landing_zone",
+            "predicate_role": "landing_zone",
+            "source_ontology_class": "LandingArea",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [
+        {
+          "predicate_id": "airspace.aircraft_airborne",
+          "value": "false",
+          "at": "after",
+          "join_roles": [
+            "aircraft"
+          ]
+        },
+        {
+          "predicate_id": "airspace.aircraft_in_landing_zone",
+          "value": "true",
+          "at": "after",
+          "join_roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "terminal": {
+        "predicate_id": "airspace.aircraft_touchdown",
+        "value": "true",
+        "hold_parameter": "terminal_hold_samples",
+        "join_roles": [
+          "aircraft"
+        ]
+      },
+      "authoritative_predicates": [
+        "airspace.aircraft_airborne",
+        "airspace.aircraft_touchdown",
+        "airspace.aircraft_in_landing_zone"
+      ],
+      "semantic_rationale": "The touchdown rising edge is the authoritative landing realization; the same sample must be non-airborne and inside the landing zone."
+    },
+    "restricted_region_intrusion": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.restricted_airspace_entry_event"
+      ],
+      "trigger": {
+        "predicate_id": "airspace.aircraft_inside_restricted_airspace",
+        "direction": "rising",
+        "event_role_sources": {
+          "actor": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_inside_restricted_airspace",
+            "predicate_role": "actor",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "restricted_region": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_inside_restricted_airspace",
+            "predicate_role": "restricted_region",
+            "source_ontology_class": "RestrictedAirspaceRegion",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "airspace.aircraft_inside_restricted_airspace",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "actor",
+          "restricted_region"
+        ]
+      },
+      "authoritative_predicates": [
+        "airspace.aircraft_inside_restricted_airspace"
+      ],
+      "semantic_rationale": "The governed boundary-margin rising edge is the authoritative restricted-entry event."
+    },
+    "altitude_excursion": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.assigned_altitude_band_excursion_event"
+      ],
+      "trigger": {
+        "predicate_id": "airspace.aircraft_outside_assigned_altitude_band",
+        "direction": "rising",
+        "event_role_sources": {
+          "actor": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_outside_assigned_altitude_band",
+            "predicate_role": "actor",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "airspace.aircraft_outside_assigned_altitude_band",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "actor"
+        ]
+      },
+      "authoritative_predicates": [
+        "airspace.aircraft_outside_assigned_altitude_band",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "semantic_rationale": "The assigned-altitude-band predicate is a one-to-one authoritative replacement for the legacy altitude excursion flag."
+    },
+    "uav_separation_conflict": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.aircraft_pair_conflict_event"
+      ],
+      "trigger": {
+        "predicate_id": "safety.aircraft_pair_below_separation",
+        "direction": "rising",
+        "event_role_sources": {
+          "first_aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_pair_below_separation",
+            "predicate_role": "first_aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "second_aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_pair_below_separation",
+            "predicate_role": "second_aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "safety.aircraft_pair_below_separation",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "first_aircraft",
+          "second_aircraft"
+        ]
+      },
+      "authoritative_predicates": [
+        "safety.aircraft_pair_below_separation",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "semantic_rationale": "Pair separation below the governed margin is the authoritative UAV-pair conflict surface."
+    },
+    "uav_pedestrian_near_miss": {
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.aircraft_pedestrian_near_miss_event"
+      ],
+      "trigger": {
+        "predicate_id": "safety.aircraft_near_pedestrian",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_pedestrian",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "pedestrian": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_pedestrian",
+            "predicate_role": "pedestrian",
+            "source_ontology_class": "Pedestrian",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [
+        {
+          "predicate_id": "airspace.aircraft_airborne",
+          "value": "true",
+          "at": "after",
+          "hold_samples": 2,
+          "join_roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "terminal": {
+        "predicate_id": "safety.aircraft_near_pedestrian",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "aircraft",
+          "pedestrian"
+        ]
+      },
+      "authoritative_predicates": [
+        "safety.aircraft_near_pedestrian",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "semantic_rationale": "The authoritative near-pedestrian transition supplies objective proximity; absent collision-contact fragments are not asserted."
+    },
+    "uav_vehicle_conflict": {
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.aircraft_ground_vehicle_conflict_event"
+      ],
+      "trigger": {
+        "predicate_id": "safety.aircraft_near_ground_vehicle",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_ground_vehicle",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "vehicle": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_ground_vehicle",
+            "predicate_role": "vehicle",
+            "source_ontology_class": "GroundVehicle",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [
+        {
+          "predicate_id": "airspace.aircraft_airborne",
+          "value": "true",
+          "at": "after",
+          "hold_samples": 2,
+          "join_roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "terminal": {
+        "predicate_id": "safety.aircraft_near_ground_vehicle",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "aircraft",
+          "vehicle"
+        ]
+      },
+      "authoritative_predicates": [
+        "safety.aircraft_near_ground_vehicle",
+        "airspace.aircraft_airborne",
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "semantic_rationale": "The executable projection detects the collision-risk envelope and vehicle response; it never fabricates the removed collision_contact fragment."
+    },
+    "vehicle_pedestrian_conflict": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.pedestrian_vehicle_conflict_event"
+      ],
+      "trigger": {
+        "predicate_id": "safety.vehicle_pedestrian_conflict",
+        "direction": "rising",
+        "event_role_sources": {
+          "pedestrian": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.vehicle_pedestrian_conflict",
+            "predicate_role": "pedestrian",
+            "source_ontology_class": "Pedestrian",
+            "background_allowed": false
+          },
+          "vehicle": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.vehicle_pedestrian_conflict",
+            "predicate_role": "vehicle",
+            "source_ontology_class": "GroundVehicle",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "safety.vehicle_pedestrian_conflict",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "pedestrian",
+          "vehicle"
+        ]
+      },
+      "authoritative_predicates": [
+        "safety.vehicle_pedestrian_conflict",
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "semantic_rationale": "The vehicle-pedestrian conflict predicate is the direct authoritative equivalent."
+    },
+    "vehicle_intersection_conflict": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [],
+      "authoritative_predicates": [
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "non_executable_reason": "The frozen 79-predicate vocabulary has no grounded vehicle-pair intersection-conflict predicate, and the L4-9 SUMO movements do not traverse a network-controlled RightOfWay connection.",
+      "closure_statement": "Add an approved vehicle-pair intersection-conflict predicate grounded in exact intersection geometry and both vehicle trajectories before enabling this event family."
+    },
+    "corridor_congestion": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.airspace_corridor_capacity_exceedance_event"
+      ],
+      "trigger": {
+        "predicate_id": "airspace.airspace_corridor_over_capacity",
+        "direction": "rising",
+        "event_role_sources": {
+          "corridor": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.airspace_corridor_over_capacity",
+            "predicate_role": "corridor",
+            "source_ontology_class": "AirspaceCorridor",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "airspace.airspace_corridor_over_capacity",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "corridor"
+        ]
+      },
+      "authoritative_predicates": [
+        "airspace.airspace_corridor_over_capacity",
+        "utm.deconfliction_active"
+      ],
+      "semantic_rationale": "Corridor occupancy above capacity is a direct authoritative mapping."
+    },
+    "structure_near_miss": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.aircraft_structure_near_miss_event"
+      ],
+      "trigger": {
+        "predicate_id": "safety.aircraft_near_building_structure",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_building_structure",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "structure": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_building_structure",
+            "predicate_role": "structure",
+            "source_ontology_class": "BuildingStructure",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [
+        {
+          "predicate_id": "airspace.aircraft_airborne",
+          "value": "true",
+          "at": "after",
+          "hold_samples": 2,
+          "join_roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "terminal": {
+        "predicate_id": "safety.aircraft_near_building_structure",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "aircraft",
+          "structure"
+        ]
+      },
+      "authoritative_predicates": [
+        "safety.aircraft_near_building_structure",
+        "airspace.aircraft_airborne",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "semantic_rationale": "The L2 family records the governed structure-risk transition and does not add an unsupported collision-contact predicate."
+    },
+    "forced_landing": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "safety.aircraft_forced_landing_populated_area_event"
+      ],
+      "authoritative_predicates": [
+        "safety.forced_landing_in_populated_area",
+        "airspace.aircraft_touchdown",
+        "airspace.aircraft_in_landing_zone",
+        "emergency.mission_aborted"
+      ],
+      "non_executable_reason": "No authoritative scene or land-use source materializes a PopulatedArea individual or an aircraft-to-area proximity relation.",
+      "closure_statement": "Materialize a real PopulatedArea individual and exact membership/proximity relation before enabling this event family."
+    },
+    "c2_degradation_loss": {
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "communication.c2_link_degradation_event",
+        "communication.c2_link_loss_event"
+      ],
+      "trigger": {
+        "any_of": [
+          {
+            "predicate_id": "communication.link_degraded",
+            "direction": "rising",
+            "event_type_id": "communication.c2_link_degradation_event",
+            "event_role_sources": {
+              "actor": {
+                "kind": "trigger_binding",
+                "predicate_id": "communication.link_degraded",
+                "predicate_role": "actor",
+                "source_ontology_class": "UnmannedAircraft",
+                "background_allowed": false
+              },
+              "station": {
+                "kind": "trigger_binding",
+                "predicate_id": "communication.link_degraded",
+                "predicate_role": "station",
+                "source_ontology_class": "CommunicationStation",
+                "background_allowed": false
+              }
+            }
+          },
+          {
+            "predicate_id": "communication.link_unavailable",
+            "direction": "rising",
+            "event_type_id": "communication.c2_link_loss_event",
+            "event_role_sources": {
+              "actor": {
+                "kind": "trigger_binding",
+                "predicate_id": "communication.link_unavailable",
+                "predicate_role": "actor",
+                "source_ontology_class": "UnmannedAircraft",
+                "background_allowed": false
+              },
+              "station": {
+                "kind": "trigger_binding",
+                "predicate_id": "communication.link_unavailable",
+                "predicate_role": "station",
+                "source_ontology_class": "CommunicationStation",
+                "background_allowed": false
+              }
+            }
+          }
+        ]
+      },
+      "support_conditions": [],
+      "terminal": {
+        "any_of": [
+          {
+            "predicate_id": "communication.link_degraded",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "actor",
+              "station"
+            ]
+          },
+          {
+            "predicate_id": "communication.link_unavailable",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "actor",
+              "station"
+            ]
+          }
+        ]
+      },
+      "authoritative_predicates": [
+        "communication.link_degraded",
+        "communication.link_unavailable",
+        "communication.handover_in_progress",
+        "emergency.aircraft_in_safe_hold",
+        "emergency.aircraft_in_return_to_home"
+      ],
+      "semantic_rationale": "Degradation and loss retain distinct authoritative event types; handover/safe-hold/RTH form the response surface."
+    },
+    "gnss_signal_degradation": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "positioning.gnss_signal_degradation_event"
+      ],
+      "trigger": {
+        "predicate_id": "positioning.gnss_quality_degraded",
+        "direction": "rising",
+        "event_role_sources": {
+          "actor": {
+            "kind": "trigger_binding",
+            "predicate_id": "positioning.gnss_quality_degraded",
+            "predicate_role": "actor",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "service": {
+            "kind": "trigger_binding",
+            "predicate_id": "positioning.gnss_quality_degraded",
+            "predicate_role": "service",
+            "source_ontology_class": "GnssService",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "positioning.gnss_quality_degraded",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "actor",
+          "service"
+        ]
+      },
+      "authoritative_predicates": [
+        "positioning.gnss_quality_degraded",
+        "positioning.navigation_error_exceeds_tolerance",
+        "positioning.aircraft_deviates_from_planned_route",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "semantic_rationale": "GNSS quality degradation retains the explicit service-model participant supplied by the authoritative predicate tuple."
+    },
+    "gnss_spoofing_effect": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "positioning.gnss_spoofing_navigation_effect_event"
+      ],
+      "trigger": {
+        "predicate_id": "positioning.gnss_spoofing_active",
+        "direction": "rising",
+        "event_role_sources": {
+          "actor": {
+            "kind": "trigger_binding",
+            "predicate_id": "positioning.gnss_spoofing_active",
+            "predicate_role": "actor",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "signal": {
+            "kind": "trigger_binding",
+            "predicate_id": "positioning.gnss_spoofing_active",
+            "predicate_role": "signal",
+            "source_ontology_class": "SpoofingSignal",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "positioning.gnss_spoofing_active",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "actor",
+          "signal"
+        ]
+      },
+      "authoritative_predicates": [
+        "positioning.gnss_spoofing_active",
+        "positioning.navigation_error_exceeds_tolerance",
+        "positioning.aircraft_deviates_from_planned_route"
+      ],
+      "semantic_rationale": "A typed SpoofingSignal identifier on the governed GNSS observation establishes the spoofing effect directly; navigation-error and route-deviation transitions expose its measured consequences."
+    },
+    "charger_unavailable": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "facility.charging_station_unavailability_event"
+      ],
+      "trigger": {
+        "predicate_id": "facility.charging_station_unavailable",
+        "direction": "rising",
+        "event_role_sources": {
+          "station": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.charging_station_unavailable",
+            "predicate_role": "station",
+            "source_ontology_class": "ChargingStation",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "facility.charging_station_unavailable",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "station"
+        ]
+      },
+      "authoritative_predicates": [
+        "facility.charging_station_unavailable",
+        "facility.charging_queue_over_capacity"
+      ],
+      "semantic_rationale": "Facility unavailability maps one-to-one; legacy alternate-accepted state is not fabricated."
+    },
+    "pad_contention": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "facility.landing_pad_contention_event"
+      ],
+      "trigger": {
+        "predicate_id": "facility.landing_pad_contention",
+        "direction": "rising",
+        "event_role_sources": {
+          "pad": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.landing_pad_contention",
+            "predicate_role": "pad",
+            "source_ontology_class": "LandingPad",
+            "background_allowed": false
+          },
+          "first_aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.landing_pad_contention",
+            "predicate_role": "first_aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "second_aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.landing_pad_contention",
+            "predicate_role": "second_aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "facility.landing_pad_contention",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "first_aircraft",
+          "pad",
+          "second_aircraft"
+        ]
+      },
+      "authoritative_predicates": [
+        "facility.landing_pad_contention",
+        "facility.landing_pad_occupied",
+        "utm.deconfliction_active"
+      ],
+      "semantic_rationale": "Pad contention is a direct authoritative predicate; allocation fragments are represented only when UTM deconfliction is observed."
+    },
+    "signal_malfunction": {
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "ground.traffic_signal_malfunction_event"
+      ],
+      "trigger": {
+        "predicate_id": "ground.traffic_signal_malfunction_active",
+        "direction": "rising",
+        "event_role_sources": {
+          "signal": {
+            "kind": "trigger_binding",
+            "predicate_id": "ground.traffic_signal_malfunction_active",
+            "predicate_role": "signal",
+            "source_ontology_class": "TrafficSignal",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "ground.traffic_signal_malfunction_active",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "signal"
+        ]
+      },
+      "authoritative_predicates": [
+        "ground.traffic_signal_malfunction_active",
+        "ground.vehicle_queue_exceeds_length",
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "semantic_rationale": "The malfunction-state rising transition names the affected traffic signal exactly; queue and stopping truth remain downstream observations."
+    },
+    "road_closure": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "ground.road_segment_closure_event"
+      ],
+      "trigger": {
+        "predicate_id": "ground.road_segment_closed",
+        "direction": "rising",
+        "event_role_sources": {
+          "road_segment": {
+            "kind": "trigger_binding",
+            "predicate_id": "ground.road_segment_closed",
+            "predicate_role": "road_segment",
+            "source_ontology_class": "RoadSegment",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "ground.road_segment_closed",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "road_segment"
+        ]
+      },
+      "authoritative_predicates": [
+        "ground.road_segment_closed"
+      ],
+      "semantic_rationale": "Road-segment closure is the exact occurrence; the separate detour ontology type remains non-executable without a real barrier-to-route binding."
+    },
+    "ambulance_priority": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "regulation.emergency_vehicle_priority_passage_event"
+      ],
+      "authoritative_predicates": [
+        "emergency.emergency_vehicle_priority_active",
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "non_executable_reason": "Typed emergency vehicles and SUMO RightOfWay individuals exist, but no explicit EmergencyResponse or AmbulancePriorityPassage lifecycle binds one vehicle to one response occurrence.",
+      "closure_statement": "Materialize a typed response lifecycle with exact emergency-vehicle, incident, passage, and RightOfWay bindings before enabling this event family."
+    },
+    "av_safe_stop": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [],
+      "authoritative_predicates": [],
+      "non_executable_reason": "The frozen 79-predicate vocabulary has no AV sensor-fault, minimum-risk-manoeuvre, or safe-stop predicate.",
+      "closure_statement": "Add an approved ground-vehicle health and MRM ontology module with engine-derived L0 sensor and stop-area state before execution."
+    },
+    "pedestrian_medical": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "emergency.pedestrian_medical_emergency_event"
+      ],
+      "authoritative_predicates": [],
+      "non_executable_reason": "The event ontology contains the intent, but the frozen 79-predicate vocabulary contains no injury/detection/dispatch/arrival/handoff predicates.",
+      "closure_statement": "Approve medical-state predicates and deterministic responder L0 contracts before enabling this event family."
+    },
+    "crowd_evacuation": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "emergency.crowd_evacuation_event"
+      ],
+      "trigger": {
+        "predicate_id": "safety.crowd_evacuation_active",
+        "direction": "rising",
+        "event_role_sources": {
+          "crowd": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.crowd_evacuation_active",
+            "predicate_role": "crowd",
+            "source_ontology_class": "Crowd",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "safety.crowd_evacuation_active",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "crowd"
+        ]
+      },
+      "authoritative_predicates": [
+        "safety.crowd_evacuation_active",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "semantic_rationale": "Evacuation activation maps directly; all-members-safe is represented by the falling transition rather than a fabricated predicate, and an explicitly observed aircraft safe-hold transition may evidence the response phase."
+    },
+    "temporary_airspace_lockdown": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "emergency.temporary_no_fly_zone_activation_event"
+      ],
+      "authoritative_predicates": [
+        "emergency.temporary_no_fly_zone_active",
+        "emergency.emergency_isolation_active",
+        "utm.deconfliction_active"
+      ],
+      "non_executable_reason": "The predicate names the NoFlyZone region but no authoritative producer names the TemporaryRestriction participant required by the event ontology.",
+      "closure_statement": "Add a real TemporaryRestriction individual and exact restriction-to-region relation before enabling this event family."
+    },
+    "rain_fog_environment": {
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "environment.rain_transition_event",
+        "environment.fog_onset_event",
+        "environment.lighting_condition_change_event"
+      ],
+      "trigger": {
+        "any_of": [
+          {
+            "predicate_id": "environment.rain_active",
+            "direction": "rising",
+            "event_type_id": "environment.rain_transition_event",
+            "event_role_sources": {
+              "region": {
+                "kind": "trigger_binding",
+                "predicate_id": "environment.rain_active",
+                "predicate_role": "region",
+                "source_ontology_class": "OperationalRegion",
+                "background_allowed": false
+              }
+            }
+          },
+          {
+            "predicate_id": "environment.fog_active",
+            "direction": "rising",
+            "event_type_id": "environment.fog_onset_event",
+            "event_role_sources": {
+              "region": {
+                "kind": "trigger_binding",
+                "predicate_id": "environment.fog_active",
+                "predicate_role": "region",
+                "source_ontology_class": "OperationalRegion",
+                "background_allowed": false
+              }
+            }
+          },
+          {
+            "predicate_id": "environment.low_illumination_active",
+            "direction": "rising",
+            "event_type_id": "environment.lighting_condition_change_event",
+            "event_role_sources": {
+              "region": {
+                "kind": "trigger_binding",
+                "predicate_id": "environment.low_illumination_active",
+                "predicate_role": "region",
+                "source_ontology_class": "OperationalRegion",
+                "background_allowed": false
+              }
+            }
+          }
+        ]
+      },
+      "support_conditions": [],
+      "terminal": {
+        "any_of": [
+          {
+            "predicate_id": "environment.rain_active",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "region"
+            ]
+          },
+          {
+            "predicate_id": "environment.fog_active",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "region"
+            ]
+          },
+          {
+            "predicate_id": "environment.low_illumination_active",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "region"
+            ]
+          }
+        ]
+      },
+      "authoritative_predicates": [
+        "environment.rain_active",
+        "environment.fog_active",
+        "environment.visibility_below_threshold",
+        "environment.low_illumination_active"
+      ],
+      "semantic_rationale": "Rain, fog, and governed low illumination remain separate authoritative region observations; no reified weather-condition participant is fabricated."
+    },
+    "crosswind_payload_swing": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "environment.high_wind_gust_event"
+      ],
+      "authoritative_predicates": [
+        "environment.wind_speed_above_threshold"
+      ],
+      "non_executable_reason": "High wind is authoritative, but payload swing and attitude-instability predicates are absent from the frozen vocabulary, so the compound event cannot be proven.",
+      "closure_statement": "Add approved payload dynamics predicates and a physical tether/swing L0 model before execution."
+    },
+    "high_temp_battery_derating": {
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "environment.extreme_temperature_event"
+      ],
+      "trigger": {
+        "predicate_id": "environment.temperature_outside_operating_range",
+        "direction": "rising",
+        "event_role_sources": {
+          "region": {
+            "kind": "trigger_binding",
+            "predicate_id": "environment.temperature_outside_operating_range",
+            "predicate_role": "region",
+            "source_ontology_class": "OperationalRegion",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "environment.temperature_outside_operating_range",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "region"
+        ]
+      },
+      "authoritative_predicates": [
+        "environment.temperature_outside_operating_range",
+        "facility.aircraft_battery_low",
+        "emergency.mission_aborted"
+      ],
+      "semantic_rationale": "Extreme temperature is the onset; battery-low and mission-abort are the only frozen downstream facts, so power-derating fragments are not asserted."
+    },
+    "jamming_gcs_intrusion": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "security.communication_jamming_impact_event",
+        "security.ground_control_station_compromise_event"
+      ],
+      "trigger": {
+        "any_of": [
+          {
+            "predicate_id": "security.communication_jamming_impact_active",
+            "direction": "rising",
+            "event_type_id": "security.communication_jamming_impact_event",
+            "event_role_sources": {
+              "actor": {
+                "kind": "trigger_binding",
+                "predicate_id": "security.communication_jamming_impact_active",
+                "predicate_role": "actor",
+                "source_ontology_class": "UnmannedAircraft",
+                "background_allowed": false
+              },
+              "station": {
+                "kind": "trigger_binding",
+                "predicate_id": "security.communication_jamming_impact_active",
+                "predicate_role": "station",
+                "source_ontology_class": "CommunicationStation",
+                "background_allowed": false
+              }
+            }
+          },
+          {
+            "predicate_id": "security.ground_control_station_compromised",
+            "direction": "rising",
+            "event_type_id": "security.ground_control_station_compromise_event",
+            "event_role_sources": {
+              "station": {
+                "kind": "trigger_binding",
+                "predicate_id": "security.ground_control_station_compromised",
+                "predicate_role": "station",
+                "source_ontology_class": "GroundControlStation",
+                "background_allowed": false
+              }
+            }
+          }
+        ]
+      },
+      "support_conditions": [],
+      "terminal": {
+        "any_of": [
+          {
+            "predicate_id": "security.communication_jamming_impact_active",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "actor",
+              "station"
+            ]
+          },
+          {
+            "predicate_id": "security.ground_control_station_compromised",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "station"
+            ]
+          }
+        ]
+      },
+      "authoritative_predicates": [
+        "security.communication_jamming_impact_active",
+        "security.ground_control_station_compromised",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "semantic_rationale": "Jamming impact and ground-control compromise retain real aircraft/station participants supplied by their exact authoritative tuples."
+    },
+    "unauthorized_command": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "security.unauthorized_command_event"
+      ],
+      "authoritative_predicates": [
+        "security.unauthorized_command_received"
+      ],
+      "non_executable_reason": "No explicit runtime UnauthorizedCommand individual with sender, receiver, and source provenance is available.",
+      "closure_statement": "Materialize typed command individuals and exact sender/receiver provenance before enabling this event family."
+    },
+    "control_command_integrity_violation": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "security.control_command_integrity_violation_event"
+      ],
+      "authoritative_predicates": [
+        "security.control_command_integrity_violated"
+      ],
+      "non_executable_reason": "No explicit runtime CommandStream individual and integrity evidence source is available.",
+      "closure_statement": "Materialize a typed command-stream individual and exact integrity evidence before enabling this event family."
+    },
+    "security_control_unavailability": {
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "security.security_control_unavailability_event"
+      ],
+      "authoritative_predicates": [
+        "security.security_control_unavailable"
+      ],
+      "non_executable_reason": "No explicit runtime CyberSecurityControl individual and service relation is available.",
+      "closure_statement": "Materialize a typed security-control individual and its exact service relation before enabling this event family."
+    },
+    "charging_queue_over_capacity": {
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "facility.charging_queue_overload_event"
+      ],
+      "trigger": {
+        "predicate_id": "facility.charging_queue_over_capacity",
+        "direction": "rising",
+        "event_role_sources": {
+          "station": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.charging_queue_over_capacity",
+            "predicate_role": "station",
+            "source_ontology_class": "ChargingStation",
+            "background_allowed": false
+          }
+        }
+      },
+      "support_conditions": [],
+      "terminal": {
+        "predicate_id": "facility.charging_queue_over_capacity",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "station"
+        ]
+      },
+      "authoritative_predicates": [
+        "facility.charging_queue_over_capacity"
+      ],
+      "semantic_rationale": "Charging queue overload is physically derived from charging service plan requester counts exceeding charger capacity."
+    }
+  }
+}
