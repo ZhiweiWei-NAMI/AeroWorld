@@ -44,18 +44,11 @@ from Dataset.semantic_simulation.p09_dimension_repair_v1.runtime_merge import ( 
 EPISODE_ID = "L2-1_v2__seed00"
 
 ORIGINAL_EPISODE_ROOT = REPO_ROOT / "aw_data" / "render_ready_episodes" / EPISODE_ID
-ADOPTED_TRAJECTORIES = Path(
-    "/mnt/data1/weizhiwei/AERO_WORLD_runtime/p09/linked_native_v13_metadata_artifacts"
-) / EPISODE_ID / "trajectories.jsonl"
-ADOPTED_SCENE_SETUP = Path(
-    "/mnt/data1/weizhiwei/AERO_WORLD_runtime/p09/linked_native_v13_metadata_review"
-) / EPISODE_ID / "scene_setup.json"
-ADOPTED_EVENT_SCRIPT = Path(
-    "/mnt/data1/weizhiwei/AERO_WORLD_runtime/p09/linked_native_v13_metadata_review"
-) / EPISODE_ID / "event_script.json"
-ADOPTED_WEATHER = Path(
-    "/mnt/data1/weizhiwei/AERO_WORLD_runtime/p09/linked_native_v12_remaining"
-) / EPISODE_ID / "adopted" / "weather.jsonl"
+ADOPTED_INPUT_ROOT = REPO_ROOT / "Dataset" / "episodes" / EPISODE_ID / "native_execution"
+ADOPTED_TRAJECTORIES = ADOPTED_INPUT_ROOT / "trajectories.jsonl"
+ADOPTED_SCENE_SETUP = ADOPTED_INPUT_ROOT / "scene_setup.json"
+ADOPTED_EVENT_SCRIPT = ADOPTED_INPUT_ROOT / "event_script.json"
+ADOPTED_WEATHER = ADOPTED_INPUT_ROOT / "weather.jsonl"
 
 SESSION_ROOT = (
     REPO_ROOT
@@ -88,14 +81,7 @@ CONTEXT_INPUTS_NOT_CONSUMED = (
         "reason": "authored future intent; never executed or interpreted by this caller",
     },
     {
-        "path": str(
-            Path(
-                "/mnt/data1/weizhiwei/AERO_WORLD_runtime/p09/linked_native_v12_remaining"
-            )
-            / EPISODE_ID
-            / "adopted"
-            / "actions.json"
-        ),
+        "path": str(ADOPTED_INPUT_ROOT / "actions.json"),
         "reason": "no action replay; adopted trajectory rows and receipts are the recorded runtime authority",
     },
 )
@@ -633,10 +619,7 @@ def _write_stale_sumo_tick0_checkpoint(merged_rows, *, domain_speed, compute_spe
     return payloads["stale_sumo_tick0.readers.json"]
 
 
-FORMAL_UE_TRUTH = Path(
-    "/mnt/data1/weizhiwei/AERO_WORLD_runtime/p09/ue_input_overlay_v14"
-    "/capture_filtered_updates"
-) / EPISODE_ID / "truth_frames.jsonl"
+FORMAL_UE_TRUTH = REPO_ROOT / "aw_data" / "render_ready_episodes_capture_filtered" / EPISODE_ID / "truth_frames.jsonl"
 
 
 L2_V14_NUMERIC_TARGETS = frozenset({
