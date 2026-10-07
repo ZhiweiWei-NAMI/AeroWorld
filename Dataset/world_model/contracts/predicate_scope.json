@@ -1,0 +1,2763 @@
+{
+  "scope": "static current contract declarations, not observed state coverage",
+  "families": {
+    "airspace_operations": 12,
+    "ground_mobility": 6,
+    "mobility_regulation": 5,
+    "agent_interaction_safety": 6,
+    "facility_energy_service": 5,
+    "communication_process": 9,
+    "computation_process": 7,
+    "positioning_navigation": 4,
+    "environment_hazard": 6,
+    "digital_security": 2,
+    "operational_constraint_emergency": 5,
+    "utm": 5
+  },
+  "predicates": [
+    {
+      "predicate": "airspace.aircraft_inside_restricted_airspace",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "all",
+        "lte",
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "restricted_region",
+          "world:RestrictedAirspaceRegion"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.restricted_region_active",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/plan_window_computer",
+          "categories": [],
+          "canonical_field": "state.restricted_region_active",
+          "roles": [
+            "restricted_region"
+          ]
+        },
+        {
+          "contract_field": "geometry.minimum_restricted_boundary_distance_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.minimum_restricted_boundary_distance_m",
+          "roles": [
+            "actor",
+            "restricted_region"
+          ]
+        }
+      ],
+      "parameters": [
+        "boundary_margin_m"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_aircraft_region_geometry"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_inside_protected_airspace",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "protected_region",
+          "world:ProtectedAirspace"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.inside_protected_airspace",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.inside_protected_airspace",
+          "roles": [
+            "aircraft",
+            "protected_region"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_aircraft_protected_region_geometry"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_is_non_cooperative",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "falsy"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "plan.cooperative_flag",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/plan_window_computer",
+          "categories": [],
+          "canonical_field": "plan.cooperative_flag",
+          "roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#uav"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_outside_assigned_altitude_band",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "absolute_difference_gt"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.position_z_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.position_z_m",
+          "roles": [
+            "actor"
+          ]
+        },
+        {
+          "contract_field": "geometry.assigned_altitude_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.assigned_altitude_m",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [
+        "altitude_tolerance_m"
+      ],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#uav"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_occupies_airspace_corridor",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "corridor",
+          "world:AirspaceCorridor"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.aircraft_inside_corridor",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.aircraft_inside_corridor",
+          "roles": [
+            "actor",
+            "corridor"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_aircraft_corridor_geometry"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_moving_in_corridor",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "all",
+        "gt",
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "corridor",
+          "world:AirspaceCorridor"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.aircraft_inside_corridor",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.aircraft_inside_corridor",
+          "roles": [
+            "actor",
+            "corridor"
+          ]
+        },
+        {
+          "contract_field": "geometry.speed_mps",
+          "data_type": "numeric",
+          "unit": "m/s",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.speed_mps",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [
+        "aircraft_stationary_speed_threshold_mps"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_aircraft_corridor_geometry"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_stationary_in_corridor",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "all",
+        "lte",
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "corridor",
+          "world:AirspaceCorridor"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.aircraft_inside_corridor",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.aircraft_inside_corridor",
+          "roles": [
+            "actor",
+            "corridor"
+          ]
+        },
+        {
+          "contract_field": "geometry.speed_mps",
+          "data_type": "numeric",
+          "unit": "m/s",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.speed_mps",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [
+        "aircraft_stationary_speed_threshold_mps"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_aircraft_corridor_geometry"
+      }
+    },
+    {
+      "predicate": "airspace.airspace_corridor_over_capacity",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "gt_fields"
+      ],
+      "roles": [
+        [
+          "corridor",
+          "world:AirspaceCorridor"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "scene.maximum_corridor_occupancy_count",
+          "data_type": "numeric",
+          "unit": "aircraft",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "scene.maximum_corridor_occupancy_count",
+          "roles": [
+            "corridor"
+          ]
+        },
+        {
+          "contract_field": "scene.maximum_corridor_capacity",
+          "data_type": "numeric",
+          "unit": "aircraft",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "scene.maximum_corridor_capacity",
+          "roles": [
+            "corridor"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_corridor_geometry"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_airborne",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "gt"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.z_agl_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.z_agl_m",
+          "roles": [
+            "aircraft"
+          ]
+        },
+        {
+          "contract_field": "geometry.local_ground_reference_z_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.local_ground_reference_z_m",
+          "roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "parameters": [
+        "airborne_threshold_m"
+      ],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#uav"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_at_home_pad",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "lte"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "home_pad",
+          "world:LandingPad"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.xy_distance_to_home_pad_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.xy_distance_to_home_pad_m",
+          "roles": [
+            "aircraft",
+            "home_pad"
+          ]
+        },
+        {
+          "contract_field": "geometry.home_pad_id",
+          "data_type": "identifier",
+          "unit": "identifier",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.home_pad_id",
+          "roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "parameters": [
+        "home_pad_radius_m"
+      ],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "predicate_contract_aircraft_geometry"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_touchdown",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "all",
+        "lte"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.z_agl_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.z_agl_m",
+          "roles": [
+            "aircraft"
+          ]
+        },
+        {
+          "contract_field": "geometry.speed_mps",
+          "data_type": "numeric",
+          "unit": "m/s",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.speed_mps",
+          "roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "parameters": [
+        "touchdown_threshold_m",
+        "aircraft_stationary_speed_threshold_mps"
+      ],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#uav"
+      }
+    },
+    {
+      "predicate": "airspace.aircraft_in_landing_zone",
+      "family": "airspace_operations",
+      "mode": "declared_formula",
+      "operators": [
+        "lte"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "landing_zone",
+          "world:LandingArea"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "geometry.xy_distance_to_assigned_landing_zone_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.xy_distance_to_assigned_landing_zone_m",
+          "roles": [
+            "aircraft",
+            "landing_zone"
+          ]
+        },
+        {
+          "contract_field": "geometry.assigned_landing_zone_id",
+          "data_type": "identifier",
+          "unit": "identifier",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "geometry.assigned_landing_zone_id",
+          "roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "parameters": [
+        "landing_zone_radius_m"
+      ],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "predicate_contract_aircraft_geometry"
+      }
+    },
+    {
+      "predicate": "ground.vehicle_moving_in_lane",
+      "family": "ground_mobility",
+      "mode": "declared_formula",
+      "operators": [
+        "all",
+        "gt",
+        "present"
+      ],
+      "roles": [
+        [
+          "vehicle",
+          "world:GroundVehicle"
+        ],
+        [
+          "lane",
+          "world:RoadLane"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "truth.lane_id",
+          "data_type": "identifier",
+          "unit": "identifier",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.lane_id",
+          "roles": [
+            "vehicle"
+          ]
+        },
+        {
+          "contract_field": "truth.speed_mps",
+          "data_type": "numeric",
+          "unit": "m/s",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.speed_mps",
+          "roles": [
+            "vehicle"
+          ]
+        }
+      ],
+      "parameters": [
+        "vehicle_stopped_speed_threshold_mps"
+      ],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "truth_frames.jsonl#sumo_vehicle"
+      }
+    },
+    {
+      "predicate": "ground.vehicle_stopped_in_lane",
+      "family": "ground_mobility",
+      "mode": "declared_formula",
+      "operators": [
+        "all",
+        "lte",
+        "present"
+      ],
+      "roles": [
+        [
+          "vehicle",
+          "world:GroundVehicle"
+        ],
+        [
+          "lane",
+          "world:RoadLane"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "truth.lane_id",
+          "data_type": "identifier",
+          "unit": "identifier",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.lane_id",
+          "roles": [
+            "vehicle"
+          ]
+        },
+        {
+          "contract_field": "truth.speed_mps",
+          "data_type": "numeric",
+          "unit": "m/s",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.speed_mps",
+          "roles": [
+            "vehicle"
+          ]
+        }
+      ],
+      "parameters": [
+        "vehicle_stopped_speed_threshold_mps"
+      ],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "truth_frames.jsonl#sumo_vehicle"
+      }
+    },
+    {
+      "predicate": "ground.vehicle_queue_exceeds_length",
+      "family": "ground_mobility",
+      "mode": "declared_formula",
+      "operators": [
+        "gt"
+      ],
+      "roles": [
+        [
+          "road_element",
+          "world:RoadElement"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.signal_queue.queue_vehicle_count",
+          "data_type": "numeric",
+          "unit": "vehicle",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.signal_queue.queue_vehicle_count",
+          "roles": [
+            "road_element"
+          ]
+        }
+      ],
+      "parameters": [
+        "queue_length_threshold_vehicles"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "signal_queue_lane_state"
+      }
+    },
+    {
+      "predicate": "ground.road_segment_closed",
+      "family": "ground_mobility",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "road_segment",
+          "world:RoadSegment"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.road_closure.road_closed",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.road_closure.road_closed",
+          "roles": [
+            "road_segment"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "road_segment_state"
+      }
+    },
+    {
+      "predicate": "ground.pedestrian_in_crosswalk",
+      "family": "ground_mobility",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "pedestrian",
+          "world:Pedestrian"
+        ],
+        [
+          "crosswalk",
+          "world:Crosswalk"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "truth.in_crosswalk",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.in_crosswalk",
+          "roles": [
+            "pedestrian"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "scene_setup.json#crosswalk_anchor"
+      }
+    },
+    {
+      "predicate": "ground.traffic_signal_malfunction_active",
+      "family": "ground_mobility",
+      "mode": "declared_formula",
+      "operators": [
+        "equals"
+      ],
+      "roles": [
+        [
+          "signal",
+          "world:TrafficSignal"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.signal_queue.controller_health",
+          "data_type": "categorical",
+          "unit": "state-code",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [
+            "all_red_fault"
+          ],
+          "canonical_field": "domain.signal_queue.controller_health",
+          "roles": [
+            "signal"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "traffic_signal_state"
+      }
+    },
+    {
+      "predicate": "regulation.traffic_signal_applies_to_vehicle",
+      "family": "mobility_regulation",
+      "mode": "declared_formula",
+      "operators": [
+        "present"
+      ],
+      "roles": [
+        [
+          "signal",
+          "world:TrafficSignal"
+        ],
+        [
+          "vehicle",
+          "world:GroundVehicle"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "truth.controlling_signal_id",
+          "data_type": "identifier",
+          "unit": "identifier",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.controlling_signal_id",
+          "roles": [
+            "vehicle"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "truth_frames.jsonl#sumo_vehicle.controlling_signal_id"
+      }
+    },
+    {
+      "predicate": "regulation.vehicle_crosses_stop_line_on_red",
+      "family": "mobility_regulation",
+      "mode": "declared_formula",
+      "operators": [
+        "all",
+        "equals",
+        "truthy"
+      ],
+      "roles": [
+        [
+          "vehicle",
+          "world:GroundVehicle"
+        ],
+        [
+          "stop_line",
+          "world:StopLine"
+        ],
+        [
+          "signal",
+          "world:TrafficSignal"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "truth.crossed_stop_line",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.crossed_stop_line",
+          "roles": [
+            "vehicle",
+            "stop_line",
+            "signal"
+          ]
+        },
+        {
+          "contract_field": "truth.controlling_signal_state",
+          "data_type": "categorical",
+          "unit": "state-code",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [
+            "red"
+          ],
+          "canonical_field": "truth.controlling_signal_state",
+          "roles": [
+            "vehicle",
+            "stop_line",
+            "signal"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "truth_frames.jsonl#sumo_vehicle.stop_line_id"
+      }
+    },
+    {
+      "predicate": "regulation.vehicle_exceeds_posted_speed",
+      "family": "mobility_regulation",
+      "mode": "declared_formula",
+      "operators": [
+        "gt_fields"
+      ],
+      "roles": [
+        [
+          "vehicle",
+          "world:GroundVehicle"
+        ],
+        [
+          "regulation",
+          "world:SpeedLimitRegulation"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "truth.speed_mps",
+          "data_type": "numeric",
+          "unit": "m/s",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.speed_mps",
+          "roles": [
+            "vehicle"
+          ]
+        },
+        {
+          "contract_field": "truth.posted_speed_limit_mps",
+          "data_type": "numeric",
+          "unit": "m/s",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.posted_speed_limit_mps",
+          "roles": [
+            "regulation"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "truth_frames.jsonl#sumo_vehicle.speed_limit_regulation_id"
+      }
+    },
+    {
+      "predicate": "regulation.vehicle_violates_following_distance",
+      "family": "mobility_regulation",
+      "mode": "declared_formula",
+      "operators": [
+        "lt"
+      ],
+      "roles": [
+        [
+          "following_vehicle",
+          "world:GroundVehicle"
+        ],
+        [
+          "leading_vehicle",
+          "world:GroundVehicle"
+        ],
+        [
+          "rule",
+          "world:FollowingDistanceRule"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "truth.following_distance_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "truth/truth_frames.jsonl#sumo_vehicle.following_distance_m",
+          "categories": [],
+          "canonical_field": "truth.following_distance_m",
+          "roles": [
+            "following_vehicle",
+            "leading_vehicle"
+          ]
+        }
+      ],
+      "parameters": [
+        "following_distance_threshold_m"
+      ],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "truth_frames.jsonl#sumo_vehicle.leading_vehicle_id"
+      }
+    },
+    {
+      "predicate": "regulation.pedestrian_has_crosswalk_priority",
+      "family": "mobility_regulation",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "pedestrian",
+          "world:Pedestrian"
+        ],
+        [
+          "crosswalk",
+          "world:Crosswalk"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "truth.in_crosswalk",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "truth/truth_frames.jsonl",
+          "categories": [],
+          "canonical_field": "truth.in_crosswalk",
+          "roles": [
+            "pedestrian"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_relation",
+        "source": "scene_setup.json#crosswalk_anchor"
+      }
+    },
+    {
+      "predicate": "safety.aircraft_pair_below_separation",
+      "family": "agent_interaction_safety",
+      "mode": "declared_formula",
+      "operators": [
+        "lt"
+      ],
+      "roles": [
+        [
+          "first_aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "second_aircraft",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "derived.nearest_aircraft_distance_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "derived.nearest_aircraft_distance_m",
+          "roles": [
+            "first_aircraft",
+            "second_aircraft"
+          ]
+        }
+      ],
+      "parameters": [
+        "separation_margin_m"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_aircraft_pair_geometry"
+      }
+    },
+    {
+      "predicate": "safety.aircraft_near_building_structure",
+      "family": "agent_interaction_safety",
+      "mode": "declared_formula",
+      "operators": [
+        "lt"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "structure",
+          "world:BuildingStructure"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "derived.nearest_building_distance_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "derived.nearest_building_distance_m",
+          "roles": [
+            "aircraft",
+            "structure"
+          ]
+        }
+      ],
+      "parameters": [
+        "safety_near_structure_m"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_aircraft_structure_geometry"
+      }
+    },
+    {
+      "predicate": "safety.aircraft_near_ground_vehicle",
+      "family": "agent_interaction_safety",
+      "mode": "declared_formula",
+      "operators": [
+        "lt"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "vehicle",
+          "world:GroundVehicle"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "derived.nearest_ground_vehicle_distance_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "derived.nearest_ground_vehicle_distance_m",
+          "roles": [
+            "aircraft",
+            "vehicle"
+          ]
+        }
+      ],
+      "parameters": [
+        "safety_near_vehicle_m"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_aircraft_vehicle_geometry"
+      }
+    },
+    {
+      "predicate": "safety.aircraft_near_pedestrian",
+      "family": "agent_interaction_safety",
+      "mode": "declared_formula",
+      "operators": [
+        "lt"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "pedestrian",
+          "world:Pedestrian"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "derived.nearest_pedestrian_distance_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "derived.nearest_pedestrian_distance_m",
+          "roles": [
+            "aircraft",
+            "pedestrian"
+          ]
+        }
+      ],
+      "parameters": [
+        "safety_near_pedestrian_m"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_aircraft_pedestrian_geometry"
+      }
+    },
+    {
+      "predicate": "safety.vehicle_pedestrian_conflict",
+      "family": "agent_interaction_safety",
+      "mode": "declared_formula",
+      "operators": [
+        "lt"
+      ],
+      "roles": [
+        [
+          "vehicle",
+          "world:GroundVehicle"
+        ],
+        [
+          "pedestrian",
+          "world:Pedestrian"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "derived.nearest_pedestrian_distance_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "derived/geometric_computer",
+          "categories": [],
+          "canonical_field": "derived.nearest_pedestrian_distance_m",
+          "roles": [
+            "vehicle",
+            "pedestrian"
+          ]
+        }
+      ],
+      "parameters": [
+        "vehicle_pedestrian_conflict_m"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_vehicle_pedestrian_geometry"
+      }
+    },
+    {
+      "predicate": "safety.crowd_evacuation_active",
+      "family": "agent_interaction_safety",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "crowd",
+          "world:Crowd"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.crowd_evacuation.evacuation_active",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.crowd_evacuation.evacuation_active",
+          "roles": [
+            "crowd"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "crowd_evacuation"
+      }
+    },
+    {
+      "predicate": "facility.aircraft_battery_low",
+      "family": "facility_energy_service",
+      "mode": "declared_formula",
+      "operators": [
+        "lt"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.payload_energy.state_of_charge_ratio",
+          "data_type": "numeric",
+          "unit": "ratio",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.payload_energy.state_of_charge_ratio",
+          "roles": [
+            "aircraft"
+          ]
+        }
+      ],
+      "parameters": [
+        "battery_low_ratio"
+      ],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#uav"
+      }
+    },
+    {
+      "predicate": "facility.charging_station_unavailable",
+      "family": "facility_energy_service",
+      "mode": "declared_formula",
+      "operators": [
+        "equals"
+      ],
+      "roles": [
+        [
+          "station",
+          "world:ChargingStation"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.pad_facility.availability",
+          "data_type": "categorical",
+          "unit": "state-code",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [
+            "unavailable"
+          ],
+          "canonical_field": "domain.pad_facility.availability",
+          "roles": [
+            "station"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#facility"
+      }
+    },
+    {
+      "predicate": "facility.charging_queue_over_capacity",
+      "family": "facility_energy_service",
+      "mode": "declared_formula",
+      "operators": [
+        "gt_fields"
+      ],
+      "roles": [
+        [
+          "station",
+          "world:ChargingStation"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.pad_facility.requester_count",
+          "data_type": "numeric",
+          "unit": "aircraft",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.pad_facility.requester_count",
+          "roles": [
+            "station"
+          ]
+        },
+        {
+          "contract_field": "domain.pad_facility.capacity",
+          "data_type": "numeric",
+          "unit": "aircraft",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.pad_facility.capacity",
+          "roles": [
+            "station"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#facility"
+      }
+    },
+    {
+      "predicate": "facility.landing_pad_occupied",
+      "family": "facility_energy_service",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "pad",
+          "world:LandingPad"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.pad_facility.occupied",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.pad_facility.occupied",
+          "roles": [
+            "pad"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#facility"
+      }
+    },
+    {
+      "predicate": "facility.landing_pad_contention",
+      "family": "facility_energy_service",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "pad",
+          "world:LandingPad"
+        ],
+        [
+          "first_aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "second_aircraft",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.pad_facility.pair_contention",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.pad_facility.pair_contention",
+          "roles": [
+            "pad",
+            "first_aircraft",
+            "second_aircraft"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_nested_relation",
+        "source": "pad_facility:values.contention_pairs"
+      }
+    },
+    {
+      "predicate": "communication.link_unavailable",
+      "family": "communication_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "station",
+          "world:CommunicationStation"
+        ],
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "communication.link_degraded",
+      "family": "communication_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "station",
+          "world:CommunicationStation"
+        ],
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "communication.message_transmission_failed",
+      "family": "communication_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "attempt",
+          "world:TransmissionAttempt"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "communication.channel_bandwidth_over_allocated",
+      "family": "communication_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "allocation",
+          "world:ChannelAllocation"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "communication.communication_session_interrupted",
+      "family": "communication_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "session",
+          "world:CommunicationSession"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "communication.handover_in_progress",
+      "family": "communication_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "handover",
+          "world:Handover"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "communication.data_flow_latency_above_threshold",
+      "family": "communication_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "flow",
+          "world:DataFlow"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "communication.packet_loss_above_threshold",
+      "family": "communication_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "flow",
+          "world:DataFlow"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "communication.retransmission_in_progress",
+      "family": "communication_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "retransmission",
+          "world:Retransmission"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "compute.compute_node_unavailable",
+      "family": "computation_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "node",
+          "world:ComputeNode"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "compute.compute_task_queued",
+      "family": "computation_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "task",
+          "world:ComputeTask"
+        ],
+        [
+          "queue",
+          "world:ComputeQueue"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "compute.compute_resource_over_allocated",
+      "family": "computation_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "node",
+          "world:ComputeNode"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "compute.compute_task_offloaded",
+      "family": "computation_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "task",
+          "world:ComputeTask"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "compute.compute_task_migrating",
+      "family": "computation_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "task",
+          "world:ComputeTask"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "compute.compute_task_execution_failed",
+      "family": "computation_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "task",
+          "world:ComputeTask"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "compute.compute_task_deadline_missed",
+      "family": "computation_process",
+      "mode": "direct_observation",
+      "operators": [
+        "direct_truth"
+      ],
+      "roles": [
+        [
+          "task",
+          "world:ComputeTask"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "direct_predicate_value",
+          "data_type": "four_value",
+          "unit": "four-value",
+          "source": "compute_comm_supplement/predicate_truth.jsonl",
+          "categories": [
+            "false",
+            "true",
+            "unknown",
+            "out_of_scope"
+          ],
+          "binding": "direct truth output placeholder; use declared producer operand/owner adapter, never label as state"
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "direct_predicate_row",
+        "source": "compute_comm_supplement/predicate_truth.jsonl"
+      }
+    },
+    {
+      "predicate": "positioning.gnss_quality_degraded",
+      "family": "positioning_navigation",
+      "mode": "declared_formula",
+      "operators": [
+        "in"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "service",
+          "world:GnssService"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.gnss_navigation.quality_level",
+          "data_type": "categorical",
+          "unit": "state-code",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [
+            "degraded",
+            "spoofing_suspect"
+          ],
+          "canonical_field": "domain.gnss_navigation.quality_level",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "gnss_navigation"
+      }
+    },
+    {
+      "predicate": "positioning.gnss_spoofing_active",
+      "family": "positioning_navigation",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "signal",
+          "world:SpoofingSignal"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.gnss_navigation.gnss_spoofed",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.gnss_navigation.gnss_spoofed",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "gnss_navigation"
+      }
+    },
+    {
+      "predicate": "positioning.navigation_error_exceeds_tolerance",
+      "family": "positioning_navigation",
+      "mode": "declared_formula",
+      "operators": [
+        "gt"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.gnss_navigation.position_error_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.gnss_navigation.position_error_m",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [
+        "gnss_error_tolerance_m"
+      ],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "gnss_navigation"
+      }
+    },
+    {
+      "predicate": "positioning.aircraft_deviates_from_planned_route",
+      "family": "positioning_navigation",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "navigation.path_deviation",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/control_response_state",
+          "categories": [],
+          "canonical_field": "navigation.path_deviation",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#uav"
+      }
+    },
+    {
+      "predicate": "environment.rain_active",
+      "family": "environment_hazard",
+      "mode": "declared_formula",
+      "operators": [
+        "gt"
+      ],
+      "roles": [
+        [
+          "region",
+          "world:OperationalRegion"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "weather.rain",
+          "data_type": "numeric",
+          "unit": "ratio",
+          "source": "truth/weather_meta.jsonl",
+          "categories": [],
+          "canonical_field": "weather.rain",
+          "roles": [
+            "region"
+          ]
+        }
+      ],
+      "parameters": [
+        "rain_active_threshold"
+      ],
+      "authority": {
+        "kind": "episode_operational_region",
+        "source": "episode_manifest.json#capture_boundary_id"
+      }
+    },
+    {
+      "predicate": "environment.fog_active",
+      "family": "environment_hazard",
+      "mode": "declared_formula",
+      "operators": [
+        "gt"
+      ],
+      "roles": [
+        [
+          "region",
+          "world:OperationalRegion"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "weather.fog_density",
+          "data_type": "numeric",
+          "unit": "ratio",
+          "source": "truth/weather_meta.jsonl",
+          "categories": [],
+          "canonical_field": "weather.fog_density",
+          "roles": [
+            "region"
+          ]
+        }
+      ],
+      "parameters": [
+        "fog_density_threshold"
+      ],
+      "authority": {
+        "kind": "episode_operational_region",
+        "source": "episode_manifest.json#capture_boundary_id"
+      }
+    },
+    {
+      "predicate": "environment.visibility_below_threshold",
+      "family": "environment_hazard",
+      "mode": "declared_formula",
+      "operators": [
+        "lt"
+      ],
+      "roles": [
+        [
+          "region",
+          "world:OperationalRegion"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "weather.visibility_m",
+          "data_type": "numeric",
+          "unit": "m",
+          "source": "truth/weather_meta.jsonl",
+          "categories": [],
+          "canonical_field": "weather.visibility_m",
+          "roles": [
+            "region"
+          ]
+        }
+      ],
+      "parameters": [
+        "visibility_threshold_m"
+      ],
+      "authority": {
+        "kind": "episode_operational_region",
+        "source": "episode_manifest.json#capture_boundary_id"
+      }
+    },
+    {
+      "predicate": "environment.wind_speed_above_threshold",
+      "family": "environment_hazard",
+      "mode": "declared_formula",
+      "operators": [
+        "gt"
+      ],
+      "roles": [
+        [
+          "region",
+          "world:OperationalRegion"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "weather.wind_speed",
+          "data_type": "numeric",
+          "unit": "m/s",
+          "source": "truth/weather_meta.jsonl",
+          "categories": [],
+          "canonical_field": "weather.wind_speed",
+          "roles": [
+            "region"
+          ]
+        }
+      ],
+      "parameters": [
+        "wind_speed_threshold_mps"
+      ],
+      "authority": {
+        "kind": "episode_operational_region",
+        "source": "episode_manifest.json#capture_boundary_id"
+      }
+    },
+    {
+      "predicate": "environment.low_illumination_active",
+      "family": "environment_hazard",
+      "mode": "declared_formula",
+      "operators": [
+        "lt"
+      ],
+      "roles": [
+        [
+          "region",
+          "world:OperationalRegion"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "weather.illumination_lux",
+          "data_type": "numeric",
+          "unit": "lux",
+          "source": "truth/weather_meta.jsonl",
+          "categories": [],
+          "canonical_field": "weather.illumination_lux",
+          "roles": [
+            "region"
+          ]
+        }
+      ],
+      "parameters": [
+        "low_illumination_threshold_lux"
+      ],
+      "authority": {
+        "kind": "episode_operational_region",
+        "source": "episode_manifest.json#capture_boundary_id"
+      }
+    },
+    {
+      "predicate": "environment.temperature_outside_operating_range",
+      "family": "environment_hazard",
+      "mode": "declared_formula",
+      "operators": [
+        "outside_range"
+      ],
+      "roles": [
+        [
+          "region",
+          "world:OperationalRegion"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "weather.temperature_c",
+          "data_type": "numeric",
+          "unit": "degC",
+          "source": "truth/weather_meta.jsonl",
+          "categories": [],
+          "canonical_field": "weather.temperature_c",
+          "roles": [
+            "region"
+          ]
+        }
+      ],
+      "parameters": [
+        "temperature_min_c",
+        "temperature_max_c"
+      ],
+      "authority": {
+        "kind": "episode_operational_region",
+        "source": "episode_manifest.json#capture_boundary_id"
+      }
+    },
+    {
+      "predicate": "security.ground_control_station_compromised",
+      "family": "digital_security",
+      "mode": "declared_formula",
+      "operators": [
+        "equals"
+      ],
+      "roles": [
+        [
+          "station",
+          "world:GroundControlStation"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.security_command.auth_state",
+          "data_type": "categorical",
+          "unit": "state-code",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [
+            "compromised"
+          ],
+          "canonical_field": "domain.security_command.auth_state",
+          "roles": [
+            "station"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "security_command"
+      }
+    },
+    {
+      "predicate": "security.communication_jamming_impact_active",
+      "family": "digital_security",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "station",
+          "world:CommunicationStation"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "domain.security_command.jamming_indicator",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "domain.security_command.jamming_indicator",
+          "roles": [
+            "actor",
+            "station"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "security_command"
+      }
+    },
+    {
+      "predicate": "emergency.temporary_no_fly_zone_active",
+      "family": "operational_constraint_emergency",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "region",
+          "world:NoFlyZone"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "scene.restricted_region_active",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/runtime_region_state",
+          "categories": [],
+          "canonical_field": "state.restricted_region_active",
+          "roles": [
+            "region"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "predicate_contract_region_runtime_state"
+      }
+    },
+    {
+      "predicate": "emergency.emergency_isolation_active",
+      "family": "operational_constraint_emergency",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "zone",
+          "world:EmergencyIsolationZone"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "scene.emergency_isolation_active",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "domain_state_supplement/domain_state_observations.jsonl",
+          "categories": [],
+          "canonical_field": "scene.emergency_isolation_active",
+          "roles": [
+            "zone"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "domain_observation",
+        "source": "lockdown_region_state"
+      }
+    },
+    {
+      "predicate": "emergency.aircraft_in_return_to_home",
+      "family": "operational_constraint_emergency",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "plan.rth_mode_active",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/plan_window_computer",
+          "categories": [],
+          "canonical_field": "plan.rth_mode_active",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#uav"
+      }
+    },
+    {
+      "predicate": "emergency.mission_aborted",
+      "family": "operational_constraint_emergency",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:MobileAgent"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "control.mission_abort_active",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/control_response_state",
+          "categories": [],
+          "canonical_field": "control.mission_abort_active",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#uav"
+      }
+    },
+    {
+      "predicate": "emergency.aircraft_in_safe_hold",
+      "family": "operational_constraint_emergency",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "actor",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "control.safe_hold_active",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "derived/control_response_state",
+          "categories": [],
+          "canonical_field": "control.safe_hold_active",
+          "roles": [
+            "actor"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "scope_entity",
+        "source": "global_entity_roster.json#uav"
+      }
+    },
+    {
+      "predicate": "utm.airspace_authorization_active",
+      "family": "utm",
+      "mode": "declared_formula",
+      "operators": [
+        "equals"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "authorization",
+          "world:AirspaceAuthorization"
+        ],
+        [
+          "airspace",
+          "world:OperationalRegion"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "utm.authorization.status",
+          "data_type": "categorical",
+          "unit": "state-code",
+          "source": "utm_supplement/airspace_authorization_log.jsonl",
+          "categories": [
+            "active"
+          ],
+          "canonical_field": "utm.authorization.status",
+          "roles": [
+            "authorization"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "utm_record",
+        "source": "airspace_authorization_log.jsonl"
+      }
+    },
+    {
+      "predicate": "utm.airspace_authorization_revoked",
+      "family": "utm",
+      "mode": "declared_formula",
+      "operators": [
+        "equals"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "authorization",
+          "world:AirspaceAuthorization"
+        ],
+        [
+          "airspace",
+          "world:OperationalRegion"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "utm.authorization.status",
+          "data_type": "categorical",
+          "unit": "state-code",
+          "source": "utm_supplement/airspace_authorization_log.jsonl",
+          "categories": [
+            "revoked"
+          ],
+          "canonical_field": "utm.authorization.status",
+          "roles": [
+            "authorization"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "utm_record",
+        "source": "airspace_authorization_log.jsonl"
+      }
+    },
+    {
+      "predicate": "utm.flight_plan_approved",
+      "family": "utm",
+      "mode": "declared_formula",
+      "operators": [
+        "equals"
+      ],
+      "roles": [
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ],
+        [
+          "flight_plan",
+          "world:FlightPlan"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "utm.flight_plan.approval_status",
+          "data_type": "categorical",
+          "unit": "state-code",
+          "source": "utm_supplement/flight_plan_log.jsonl",
+          "categories": [
+            "approved"
+          ],
+          "canonical_field": "utm.flight_plan.approval_status",
+          "roles": [
+            "flight_plan"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "utm_record",
+        "source": "flight_plan_log.jsonl"
+      }
+    },
+    {
+      "predicate": "utm.operational_intent_conflict",
+      "family": "utm",
+      "mode": "declared_formula",
+      "operators": [
+        "truthy"
+      ],
+      "roles": [
+        [
+          "first_intent",
+          "world:OperationalIntent"
+        ],
+        [
+          "second_intent",
+          "world:OperationalIntent"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "utm.operational_intent.conflict_active",
+          "data_type": "boolean",
+          "unit": "bool",
+          "source": "utm_supplement/operational_intent_pair_log.jsonl",
+          "categories": [],
+          "canonical_field": "utm.operational_intent.conflict_active",
+          "roles": [
+            "first_intent",
+            "second_intent"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "utm_record",
+        "source": "operational_intent_pair_log.jsonl"
+      }
+    },
+    {
+      "predicate": "utm.deconfliction_active",
+      "family": "utm",
+      "mode": "declared_formula",
+      "operators": [
+        "equals"
+      ],
+      "roles": [
+        [
+          "system",
+          "world:UTMSystem"
+        ],
+        [
+          "aircraft",
+          "world:UnmannedAircraft"
+        ]
+      ],
+      "fields": [
+        {
+          "contract_field": "utm.deconfliction.resolution_status",
+          "data_type": "categorical",
+          "unit": "state-code",
+          "source": "utm_supplement/deconfliction_log.jsonl",
+          "categories": [
+            "active"
+          ],
+          "canonical_field": "utm.deconfliction.resolution_status",
+          "roles": [
+            "system",
+            "aircraft"
+          ]
+        }
+      ],
+      "parameters": [],
+      "authority": {
+        "kind": "utm_record",
+        "source": "deconfliction_log.jsonl"
+      }
+    }
+  ]
+}

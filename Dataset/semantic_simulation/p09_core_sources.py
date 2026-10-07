@@ -367,7 +367,7 @@ def produce(project: Path, output: Path, *, compute_sources: list[tuple[Path,str
         "products":{"lifetimes":"global_uav_lifetimes.jsonl","energy":"global_uav_energy.jsonl","field_status":"core_field_status.jsonl","compute_sources":"compute_source_index.jsonl","candidate_task_ledger":"compute_tasks.jsonl.gz"},
         "consumer_contract":"select an explicit source_id and regime; candidates are separate worlds, not historical replacements",
         "p01_import_contract_changed":False,"frozen_episode_and_arm_bytes_changed":False,
-        "current_p01_import":{"module":"Dataset/world_model/p01_schema_rollout_v4/src/p01v4/data/import_episode.py",
+        "current_p01_import":{"module":"Dataset/world_model/data/import_episode.py",
             "reads":["truth_frames.jsonl","global_entity_roster.json","world_truth_graph_base.json.initial_assertions","world_truth_graph_deltas.jsonl","event_occurrences.jsonl"],
             "new_core_side_tables_consumed":False,"new_core_labels_in_current_p01_head":False},
         "typed_truth_producer":{"module":"Dataset/semantic_simulation/domain_state.py","family":"payload_energy",
