@@ -1,0 +1,48 @@
+{
+  "serialization": "p01v4/serialization",
+  "version": 2,
+  "changes_from_v1": [
+    "compact-table cell grammar rewritten to an exactly reversible shape-tagged scheme (coordinator gap 2 / review F5): v1 encoded non-present markers as bare '!kind' strings, which collided with present source strings such as '!missing', and frame tags as {f, v}, which collided with present objects of that exact shape; v2 makes the wire shapes explicit and escapes colliding data, so every present value round-trips",
+    "typed/model-visible separation (coordinator gap 4 / review F1): verbatim source archive lives in archive.* field families of the canonical records; model_visible_typed_view strips them and applies the cutoff/availability policy independently"
+  ],
+  "lossless_definition": {
+    "equality": "decode(encode(x)) == x exactly; ints/strings/bools by value, floats as binary64 values parsed from source JSON text; no epsilon",
+    "tolerance_source": "the original data's own JSON decimal precision; no arbitrary tolerance is introduced at any stage",
+    "float_rule": "repr-roundtrip binary64; NaN/Inf rejected upstream by the schema",
+    "order_semantics": {
+      "field_keys": "sorted at encode; key order carries no semantics",
+      "record_order": "normalized away; semantic_equivalent() compares sorted canonical JSON multisets",
+      "list_order": "preserved and semantically significant: vector axis order (E,N,U / N,E,D), field_names/cells pairing, bindings object key order is normalized but bindings are name-keyed"
+    }
+  },
+  "encodings": {
+    "jsonl": {
+      "writer": "p01v4.data.serialization.encode_jsonl",
+      "reader": "p01v4.data.serialization.decode_jsonl",
+      "options": {"ensure_ascii": false, "sort_keys": true, "separators": [",", ":"]}
+    },
+    "compact_table": {
+      "writer": "p01v4.data.serialization.encode_compact",
+      "reader": "p01v4.data.serialization.decode_compact",
+      "cell_encoding_id": "p01v4-compact-cells-2",
+      "columns": ["id", "episode_id", "tick", "entity_id", "source", "provenance", "source_family", "field_names", "field_cells"],
+      "column_presence": "an absent record key is a null cell; a key literally present with None is the explicit non-present marker {\"np\": <column>}; decode restores presence exactly",
+      "record_metadata": "provenance and source_family columns (native-review D1) carry complete record metadata through the roundtrip, so transported_q / archive_only exclusion stays enforceable after any compact decode; canonicalize() preserves this semantic metadata (native third replay), so canonicalize->compact keeps the availability gates effective",
+      "pool_interning": "repeated strings/structures (source dicts, field-name lists, entity ids, episode id) are interned per table into 'pool'; rows store indices; lossless by index resolution",
+      "cell_encodings": {
+        "non_present_kind": "explicit object {\"np\": kind} for kinds present/mapping-check in VALUE_KINDS; unknown kinds raise",
+        "frame_tagged_vector": "{\"f\": frame, \"v\": [components...]} with exact float passthrough",
+        "escaped_data": "any data object whose key set would collide with a reserved wire shape ({np}, {d}, {f, v}) is stored as {\"d\": data} and unwrapped on decode; no legal payload is ever rejected",
+        "literal_passthrough": "everything else, including '!'-prefixed present strings, is stored and decoded verbatim"
+      }
+    }
+  },
+  "typed_views": {
+    "to_typed_input": "entities/states/edges/events dictionaries built from the same canonical records; used for graph/typed consumers",
+    "model_visible_typed_view": "record-level availability/cutoff policy plus field-level strip of all families outside TYPED_VIEW_FAMILY_PREFIXES; verbatim archive.*, full future scripts/names, terminal and hindsight-only content never reach this view"
+  },
+  "measurement_policy": {
+    "bytes": "always reported from len(utf-8 encoded text)",
+    "tokens": "only from the authorized local Qwen tokenizer (CPU, no weight load); if the tokenizer is not loaded, byte counts are reported and never presented as token counts"
+  }
+}
