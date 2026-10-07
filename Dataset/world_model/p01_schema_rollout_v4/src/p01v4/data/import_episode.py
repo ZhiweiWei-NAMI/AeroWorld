@@ -643,7 +643,26 @@ def import_episode(render_ready_root: Path, semantic_truth_root: Path,
                    view_dir_name: str | None, observer_entity_id: str | None) -> tuple[
         CanonicalEpisode, ImportReport]:
     """Import one complete episode from read-only sources."""
-    ep_dir = render_ready_root / episode_id
+    index_path = render_ready_root.parent / "domain_state_supplement/source_index.json"
+    source_index = json.loads(index_path.read_text())
+    entries = [entry for entry in source_index["episodes"] if entry["episode_id"] == episode_id]
+    if len(entries) != 1:
+        raise ValueError(f"Current source index must uniquely bind episode: {episode_id}")
+    ep_dir = Path(entries[0]["render_ready_input"])
+    if not ep_dir.is_absolute():
+        raise ValueError(f"Current render input must be an absolute source path: {ep_dir}")
+    ep_dir = ep_dir.resolve()
+    objective = entries[0]["objective_semantic_truth"]
+    if "matches_current_execution" not in objective:
+        raise ValueError(f"Current objective binding flag is missing: {episode_id}")
+    matches_current = objective["matches_current_execution"]
+    if matches_current is False:
+        raise ValueError(
+            f"Full objective has not been generated for the current execution: {episode_id}; "
+            f"full-semantic import is refused. Actual native execution remains independently readable at "
+            f"{entries[0]['actual_execution_source']}")
+    if matches_current is not True:
+        raise ValueError(f"Current objective binding flag must be an explicit boolean for {episode_id}: {matches_current!r}")
     sem_dir = semantic_truth_root / episode_id
     report = ImportReport(episode_id=episode_id)
     report.event_traceability["_observer_entity_id"] = observer_entity_id
@@ -654,10 +673,16 @@ def import_episode(render_ready_root: Path, semantic_truth_root: Path,
         "world_truth_deltas": str(sem_dir / "world_truth_graph_deltas.jsonl"),
         "events": str(sem_dir / "event_occurrences.jsonl"),
         "capture": str(capture_root) if capture_root else None,
+        "episode_source_index": str(index_path),
     }
     episode = CanonicalEpisode(episode_id)
     import_roster(episode, ep_dir / "global_entity_roster.json", report)
     import_truth_frames(episode, ep_dir / "truth_frames.jsonl", report)
+    declared = Path(objective["path"])
+    if not declared.is_absolute():
+        declared = render_ready_root.parent.parent / declared
+    if declared.resolve() != sem_dir.resolve():
+        raise ValueError(f"Current objective source binding differs: {declared} != {sem_dir}")
     import_truth_base(episode, sem_dir / "world_truth_graph_base.json", report)
     import_truth_deltas(episode, sem_dir / "world_truth_graph_deltas.jsonl", report)
     import_events(episode, sem_dir / "event_occurrences.jsonl", report)
@@ -686,7 +711,7 @@ def _cli(argv: list[str] | None = None) -> int:
     ap.add_argument("--episode", required=True)
     ap.add_argument("--view", required=True, help="capture view directory name")
     ap.add_argument("--observer", required=True, help="observer entity id")
-    ap.add_argument("--render-ready-root", default=str(REPO / "aw_data/render_ready_episodes"))
+    ap.add_argument("--render-ready-root", default=str(REPO / "aw_data/render_ready_episodes_capture_filtered"))
     ap.add_argument("--semantic-truth-root", default=str(REPO / "aw_data/objective_semantic_truth"))
     ap.add_argument("--capture-root", required=True)
     ap.add_argument("--out-derived", required=True, help="output canonical records jsonl")

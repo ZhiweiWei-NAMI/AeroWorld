@@ -229,7 +229,7 @@ def declared_arm_scope(arm: Mapping[str, Any]) -> dict[str, Any]:
     raise ValueError(f"Unsupported current ARM scope contract: {schema}")
 
 
-def produce(project: Path, runtime: Path, output: Path, *, episode_filter: str | None = None) -> dict[str, Any]:
+def produce(project: Path, output: Path, *, compute_sources: list[tuple[Path,str,str]], episode_filter: str | None = None) -> dict[str, Any]:
     sys.path.insert(0, str(project))
     from Dataset.tools.uav_global_flow.generate_uav_flow import RouteSampler, UavTask
     integration = _load_module(Path(__file__).resolve().parents[1]/"tools/uav_global_flow/truth_integration.py", "p09_source_integration")
@@ -362,13 +362,13 @@ def produce(project: Path, runtime: Path, output: Path, *, episode_filter: str |
                     "factual_labels_copied":False,"p01_imported":False,
                     "reason":"declared_scope_requires_own_window_core_history" if declared else "outside_this_arm_declared_predicate_scope"})
             counts["arms"] += 1
-    compute_counts = _produce_compute_index(project,runtime,output,episode_filter)
+    compute_counts = _produce_compute_index(project,compute_sources,output,episode_filter)
     result = {"schema_version":VERSION,"counts":dict(counts),"status_counts":dict(status_counts),"compute_counts":compute_counts,
         "products":{"lifetimes":"global_uav_lifetimes.jsonl","energy":"global_uav_energy.jsonl","field_status":"core_field_status.jsonl","compute_sources":"compute_source_index.jsonl","candidate_task_ledger":"compute_tasks.jsonl.gz"},
         "consumer_contract":"select an explicit source_id and regime; candidates are separate worlds, not historical replacements",
         "p01_import_contract_changed":False,"frozen_episode_and_arm_bytes_changed":False,
         "current_p01_import":{"module":"Dataset/world_model/p01_schema_rollout_v4/src/p01v4/data/import_episode.py",
-            "reads":["truth_frames.jsonl","global_entity_roster.json","world_truth_graph_deltas.jsonl","event_occurrences.jsonl"],
+            "reads":["truth_frames.jsonl","global_entity_roster.json","world_truth_graph_base.json.initial_assertions","world_truth_graph_deltas.jsonl","event_occurrences.jsonl"],
             "new_core_side_tables_consumed":False,"new_core_labels_in_current_p01_head":False},
         "typed_truth_producer":{"module":"Dataset/semantic_simulation/domain_state.py","family":"payload_energy",
             "connector":"domain_global_energy","shared_computation":"world_energy_history -> energy_step",
@@ -378,14 +378,14 @@ def produce(project: Path, runtime: Path, output: Path, *, episode_filter: str |
         "limitations":["Pre-episode temperature, charging and initial energy history are unrecorded; current weather is never backfilled.",
             "ARM target truth remains arm-local; out-of-scope core ledgers are immutable source references.",
             "Compute candidate resource models do not supply missing historical TX/RX data or adopt business load as frozen world truth."]}
-    _write_json(output/"source_index.json",result)
+    index_path = output/"source_index.json"
+    existing = _json(index_path) if index_path.is_file() else {}
+    existing.update(result)
+    _write_json(index_path,existing)
     return result
 
 
-def _produce_compute_index(project: Path,runtime: Path,output: Path,episode_filter: str | None) -> dict[str,int]:
-    roots = [(project/"aw_data/p09_compute_authored_v1","AUTHORED_MODEL_CANDIDATE_NOT_HISTORICAL","compute_tasks.jsonl.gz"),
-             (runtime/"compute_source_all210_v2_reference","LOW_LOAD_REFERENCE_ONLY","compute_tasks.jsonl.gz"),
-             (runtime/"compute_business_requests_v3_pilot","MECHANISM_CANDIDATE_NOT_FINAL_RELEASE","tasks.jsonl.gz")]
+def _produce_compute_index(project: Path,roots: list[tuple[Path,str,str]],output: Path,episode_filter: str | None) -> dict[str,int]:
     counts = Counter()
     roster_ids: dict[str,set[str]] = {}
     with (output/"compute_source_index.jsonl").open("w") as stream,gzip.open(output/"compute_tasks.jsonl.gz","wt",encoding="utf-8") as tasks:
@@ -430,12 +430,18 @@ def _produce_compute_index(project: Path,runtime: Path,output: Path,episode_filt
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--project-root",type=Path,required=True)
-    parser.add_argument("--runtime-root",type=Path,required=True)
-    parser.add_argument("--output",type=Path,required=True)
+    parser.add_argument("--project-root",type=Path,default=Path(__file__).resolve().parents[2])
+    parser.add_argument("--output",type=Path)
+    parser.add_argument("--compute-source",nargs=3,action="append",required=True,
+        metavar=("DIRECTORY","APPLICABILITY","TASK_FILENAME"),
+        help="Explicit retained task-source directory and scientific scope; repeat for separate regimes")
     parser.add_argument("--episode")
     args = parser.parse_args()
-    print(json.dumps(produce(args.project_root.resolve(),args.runtime_root.resolve(),args.output.resolve(),episode_filter=args.episode),ensure_ascii=False),flush=True)
+    project = args.project_root.resolve()
+    output = (args.output or project/"aw_data/domain_state_supplement").resolve()
+    compute_sources = [(Path(directory).resolve(), applicability, filename)
+                       for directory, applicability, filename in args.compute_source]
+    print(json.dumps(produce(project,output,compute_sources=compute_sources,episode_filter=args.episode),ensure_ascii=False),flush=True)
 
 
 if __name__ == "__main__":

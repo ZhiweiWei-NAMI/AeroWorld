@@ -20,17 +20,12 @@ from Dataset.semantic_simulation.ns3_episode.linked_transport import episode_fro
 from Dataset.semantic_simulation.ns3_episode.provider_adapter import ProviderAdapter
 from Dataset.semantic_simulation.p09_l6_5_receipt_v1 import adapter as A
 from Dataset.semantic_simulation.p09_l6_5_receipt_v1 import single_action_prefix as S
-from Dataset.tools.arm_ue_export import write_engine_inputs
 
 ROOT = Path(__file__).resolve().parents[3]
 SCENE = ROOT / 'Dataset/scenarios/L6_digital_layer/failure/L6-5_v1/scene_setup.json'
 SCRIPT = ROOT / 'Dataset/scenarios/L6_digital_layer/failure/L6-5_v1/event_script.json'
 RADIO_REF = ROOT / 'design/p01_ns3/radio_reference_R1.json'
-R1_DIR = ROOT / 'design/p09/mechanism_completion_v1/l6_5_command_receipt_revision/real_prefix_run_r1'
-R1_TRAJECTORY = R1_DIR / 'trajectories.jsonl'
-PUBLISHED = ROOT / 'aw_data/render_ready_episodes_capture_filtered/L6-5_v1__seed00/trajectories.jsonl'
-OUTPUT_DIR = Path('/mnt/data1/weizhiwei/AERO_WORLD_runtime/p09/l6_receipt_r2')
-PROGRESS = OUTPUT_DIR.parent / 'current_dispatch/l6_progress.json'
+OUTPUT_DIR = ROOT / 'Dataset/episodes' / A.EPISODE_ID
 RUN_COMMAND = shlex.join(sys.orig_argv)
 MAX_ITERATIONS = 6
 PROFILE = {'episode_id': A.EPISODE_ID, 'source_script': str(SCRIPT),
@@ -61,10 +56,8 @@ def write_jsonl(path, rows):
 
 
 def progress(status, **fields):
-    PROGRESS.parent.mkdir(parents=True, exist_ok=True)
     row = {'task_id': 'P09-M03-L6R2', 'status': status, 'pid': os.getpid(),
            'command': RUN_COMMAND, 'output_dir': str(OUTPUT_DIR), **fields}
-    write_json(PROGRESS, row)
     print(json.dumps(row), flush=True)
 
 
@@ -150,49 +143,6 @@ def converge(scene, script, bindings, history):
     raise RuntimeError(f'actual receipt/mobility coupling did not converge in {MAX_ITERATIONS} iterations')
 
 
-def pose_differences(rows, source_path, *, capture_only=False):
-    actual = {(r['entity_id'], r['tick']): (r['pos_enu'], r['vel_mps'])
-              for r in rows if r['entity_id'] in (A.UAV, A.GCS)
-              and (not capture_only or r['tick'] % 5 == 0)}
-    first, counts = {}, {A.UAV: 0, A.GCS: 0}
-    first_position, first_velocity = {}, {}
-    positions, velocity_only = {A.UAV: 0, A.GCS: 0}, {A.UAV: 0, A.GCS: 0}
-    velocity_only_max_abs_delta = {A.UAV: 0.0, A.GCS: 0.0}
-    velocity_only_ticks = {A.UAV: [], A.GCS: []}
-    matched = {A.UAV: 0, A.GCS: 0}
-    with Path(source_path).open(encoding='utf-8') as handle:
-        for line in handle:
-            row = json.loads(line)
-            key = row['entity_id'], row['tick']
-            if key in actual:
-                eid = row['entity_id']
-                matched[eid] += 1
-                position_changed = actual[key][0] != row['pos_enu']
-                velocity_changed = actual[key][1] != row['vel_mps']
-                if position_changed:
-                    positions[eid] += 1
-                elif velocity_changed:
-                    velocity_only[eid] += 1
-                    velocity_only_ticks[eid].append(row['tick'])
-                    velocity_only_max_abs_delta[eid] = max(velocity_only_max_abs_delta[eid],
-                        max(abs(a - b) for a, b in zip(actual[key][1], row['vel_mps'])))
-                if actual[key][0] != row['pos_enu'] and row['entity_id'] not in first_position:
-                    first_position[row['entity_id']] = row['tick']
-                if actual[key][1] != row['vel_mps'] and row['entity_id'] not in first_velocity:
-                    first_velocity[row['entity_id']] = row['tick']
-            if key in actual and actual[key] != (row['pos_enu'], row['vel_mps']):
-                counts[row['entity_id']] += 1
-                if row['entity_id'] not in first:
-                    first[row['entity_id']] = row['tick']
-    return {'source_ref': str(source_path), 'pose_fields': ['pos_enu', 'vel_mps'],
-            'capture_only': capture_only, 'first_changed_tick': first, 'changed_rows': counts,
-            'first_position_changed_tick': first_position,
-            'first_velocity_changed_tick': first_velocity,
-            'matched_source_rows': matched, 'position_changed_rows': positions,
-            'velocity_only_changed_rows': velocity_only,
-            'velocity_only_changed_ticks': velocity_only_ticks,
-            'velocity_only_max_abs_component_delta_mps': velocity_only_max_abs_delta,
-            'comparison_semantics': 'Exact source values; velocity-only differences do not establish a position change'}
 
 
 def produce(outcome, bindings, script, history, started):
@@ -207,12 +157,9 @@ def produce(outcome, bindings, script, history, started):
         write_json(OUTPUT_DIR / (name + '.json'), payload)
     for name, rows in (('network_packets', network['network_packets']),
             ('network_events', network['network_events']), ('audit', run['audit']),
-            ('trajectories', engine.trajectory_rows), ('weather', engine.weather_rows),
+            ('actual_execution_trajectories', engine.trajectory_rows), ('weather', engine.weather_rows),
             ('executed_actions', engine.executed_actions), ('event_trace', run['interpreter'].get_event_log())):
         write_jsonl(OUTPUT_DIR / (name + '.jsonl'), rows)
-    write_jsonl(OUTPUT_DIR / 'raw' / 'actions.jsonl', run['audit'])
-    ue_inputs = write_engine_inputs(OUTPUT_DIR, engine, run['interpreter'],
-        {'start_tick': 0, 'end_tick': engine.duration_ticks}, script=script)
     successes = {r['action']['action_id']: r for r in run['audit'] if r['result']['status'] == 'ok'}
     physical = {}
     for action in (A.MOVEMENT_ACTION, A.LANDING_ACTION):
@@ -238,45 +185,29 @@ def produce(outcome, bindings, script, history, started):
     terminal = {'first_landed_row': landed[0], 'first_landed_zero_velocity_row': stopped[0],
                 'final_uav_row': uav_rows[-1]}
     write_json(OUTPUT_DIR / 'physical_evidence.json', {'movement': physical, 'terminal': terminal})
-    differences = {'versus_r1': pose_differences(engine.trajectory_rows, R1_TRAJECTORY),
-                   'versus_published_dense': pose_differences(engine.trajectory_rows, PUBLISHED),
-                   'versus_published_capture': pose_differences(engine.trajectory_rows, PUBLISHED, capture_only=True)}
-    write_json(OUTPUT_DIR / 'pose_comparison.json', differences)
     native_missing = [p for p in network['network_packets'] if p['rx_ns'] is None]
     return {'task_id': 'P09-M03-L6R2', 'episode_id': A.EPISODE_ID, 'stop_reason': 'converged',
         'runtime_identity': A.runtime_identity(), 'converged_iteration': outcome['iteration'],
         'total_elapsed_s': time.perf_counter() - started, 'iteration_history': history,
         'fired_ticks': fired_tick_map(run), 'recovery_application': state,
-        'physical_evidence': physical, 'terminal': terminal, 'pose_comparison': differences,
-        'ue_engine_inputs': ue_inputs, 'native_missing_rx_packets': len(native_missing),
+        'physical_evidence': physical, 'terminal': terminal,
+        'native_missing_rx_packets': len(native_missing),
         'native_loss_negative_observed': bool(native_missing),
         'workflow': 'authorized implementation executed directly; result assessment follows actual run'}
 
 
 def main():
-    global OUTPUT_DIR, PROGRESS, R1_TRAJECTORY, PUBLISHED
+    global OUTPUT_DIR
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, default=OUTPUT_DIR,
-                        help='R2 output directory; completed outputs cannot be overwritten')
-    parser.add_argument('--r1-trajectory', type=Path, default=R1_TRAJECTORY,
-                        help='Required immutable R1 trajectories.jsonl for comparison')
-    parser.add_argument('--published-trajectory', type=Path, default=PUBLISHED,
-                        help='Required published trajectories.jsonl for dense/capture comparison')
+                        help='Episode raw directory for actual execution sources')
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir.resolve()
-    R1_TRAJECTORY = args.r1_trajectory.resolve()
-    PUBLISHED = args.published_trajectory.resolve()
-    PROGRESS = OUTPUT_DIR.parent / 'current_dispatch/l6_progress.json'
-    required_inputs = (SCENE, SCRIPT, RADIO_REF, R1_TRAJECTORY, PUBLISHED)
+    required_inputs = (SCENE, SCRIPT, RADIO_REF)
     missing = [str(path) for path in required_inputs if not path.is_file()]
     if missing:
         raise FileNotFoundError('Required input files missing: ' + ', '.join(missing))
-    if (OUTPUT_DIR / 'summary.json').exists():
-        raise FileExistsError(f'refusing completed output: {OUTPUT_DIR}')
-    if (OUTPUT_DIR / 'trajectories.jsonl').resolve() in (R1_TRAJECTORY, PUBLISHED):
-        raise ValueError('Output trajectories.jsonl collides with a required comparison input')
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUTPUT_DIR / 'raw').mkdir(exist_ok=True)
     started, history = time.perf_counter(), []
     progress('launched')
     try:
