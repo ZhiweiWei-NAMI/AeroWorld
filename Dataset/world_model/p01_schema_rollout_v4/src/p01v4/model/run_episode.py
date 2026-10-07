@@ -261,7 +261,7 @@ def run(args):
                            "geometry_policy": "source AGL and capture world altitude differ; no calibrated instance visibility; independent sensor-frame forecasts"}
         static_text += "SENSOR_TEMPLATE="+dumps(sensor_template)+"\n"
     aliases = {source: alias for alias, source in index.identity_aliases.items()}
-    static_text += "GRAPH_IDENTITIES="+dumps([[aliases.get(identity, identity), node["ontology_class"]] for identity, node in sorted(index.graph_nodes.items())])+"\n"
+    static_text += "GRAPH_IDENTITIES="+dumps([[aliases.get(identity, identity), node["ontology_classes"]] for identity, node in sorted(index.graph_nodes.items())])+"\n"
     static_text += "PREDICATE_VOCABULARY="+dumps(index.graph_predicates)+"\n"
     character_spans = {k:(lo+len(static_text),hi+len(static_text)) for k,(lo,hi) in character_spans.items()}
     text = static_text+text

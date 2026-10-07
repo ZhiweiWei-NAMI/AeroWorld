@@ -156,9 +156,8 @@ LANDING_ACTION = "move_uav_digital_l6_5_v1_landing_return"
 # Predeclared authority PROFILES: the production default predeclares ONLY the
 # frozen seed-00 story's epoch0 control authority (movement epoch0 control
 # phase, revoked by the original 31-tick owner isolation; story notification
-# authority at epoch0). No other control epoch is predeclared in production;
-# a test may inject an isolated profile and must remove it again (exact
-# cleanup) — no production authorization mechanism exists beyond this table.
+# authority at epoch0). No other control epoch is predeclared;
+# no production authorization mechanism exists beyond this table.
 # Control epochs are NOT fixed by the transport life and are NOT inferred from
 # it; callers must present the predeclared epoch explicitly and cannot
 # self-authorize another.

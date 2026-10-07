@@ -166,14 +166,12 @@ def wire_single_action_prefix(scene, script, script_path, episode_id, seed, *,
     """Pass the hook into the EXISTING ``execute_linked`` call and run it.
 
     ``execute_linked`` defaults to the real
-    ``Dataset.semantic_simulation.ns3_episode.linked_engine.execute_linked``;
-    the synthetic tests substitute an in-memory fake of the same boundary. The
-    decision gate and action filter are this function's own closures over the
+    ``Dataset.semantic_simulation.ns3_episode.linked_engine.execute_linked``.
+    The decision gate and action filter are this function's own closures over the
     submitted binding and same-run receipt record — no future story content is
     read and no other callback is added. Every concrete first-execution refusal
     recorded by the dispatcher side is surfaced on the returned run dict under
-    ``prefix_refusals``. Native later authorizes the actual representative
-    coupled execution; this module is code-only until then.
+    ``prefix_refusals``.
     """
     if execute_linked is None:
         from Dataset.semantic_simulation.ns3_episode.linked_engine import \

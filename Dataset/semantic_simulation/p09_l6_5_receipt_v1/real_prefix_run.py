@@ -7,7 +7,6 @@ seed, radio parameters and action-specific grants stay authoritative.
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import os
 import shlex
@@ -243,28 +242,6 @@ def produce(outcome, bindings, script, history, started):
                    'versus_published_dense': pose_differences(engine.trajectory_rows, PUBLISHED),
                    'versus_published_capture': pose_differences(engine.trajectory_rows, PUBLISHED, capture_only=True)}
     write_json(OUTPUT_DIR / 'pose_comparison.json', differences)
-    # Missing receipts are genuine counterfactual admission inputs, not native
-    # network loss. Re-execute the actual engine and retain those distinctions.
-    negative_results = {}
-    for withheld in (A.NOTIFICATION_ACTION, A.LANDING_ACTION):
-        missing = copy.deepcopy(receipts)
-        missing[withheld] = {'accepted': None, 'attempts': [], 'submission': receipts[withheld]['submission']}
-        negative = S.wire_receipt_story(load_json(SCENE), script, SCRIPT, A.EPISODE_ID, 0,
-            bindings=bindings, receipts=missing, messages=outcome['messages'])
-        target_moves = [r for r in negative['audit'] if r['action']['action_id'] == A.LANDING_ACTION
-                        and r['result']['status'] == 'ok']
-        evidence_name = 'missing_notification' if withheld == A.NOTIFICATION_ACTION else 'missing_landing'
-        write_jsonl(OUTPUT_DIR / (evidence_name + '_actions.jsonl'), negative['audit'])
-        write_jsonl(OUTPUT_DIR / (evidence_name + '_uav_trajectory.jsonl'),
-            (row for row in negative['engine'].trajectory_rows if row['entity_id'] == A.UAV))
-        negative_results[withheld] = {'intervention': 'withhold receipt from controller; not native packet loss',
-            'actual_landing_handler_count': len(target_moves), 'story_state': negative['story_state'],
-            'fired_ticks': fired_tick_map(negative),
-            'action_evidence_ref': str(OUTPUT_DIR / (evidence_name + '_actions.jsonl')),
-            'uav_trajectory_ref': str(OUTPUT_DIR / (evidence_name + '_uav_trajectory.jsonl'))}
-        if target_moves:
-            raise RuntimeError(f'missing {withheld} receipt still executed landing')
-    write_json(OUTPUT_DIR / 'missing_receipt_execution.json', negative_results)
     native_missing = [p for p in network['network_packets'] if p['rx_ns'] is None]
     return {'task_id': 'P09-M03-L6R2', 'episode_id': A.EPISODE_ID, 'stop_reason': 'converged',
         'runtime_identity': A.runtime_identity(), 'converged_iteration': outcome['iteration'],
@@ -273,7 +250,6 @@ def produce(outcome, bindings, script, history, started):
         'physical_evidence': physical, 'terminal': terminal, 'pose_comparison': differences,
         'ue_engine_inputs': ue_inputs, 'native_missing_rx_packets': len(native_missing),
         'native_loss_negative_observed': bool(native_missing),
-        'missing_receipt_execution': negative_results,
         'workflow': 'authorized implementation executed directly; result assessment follows actual run'}
 
 

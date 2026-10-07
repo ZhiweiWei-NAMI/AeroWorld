@@ -4,7 +4,7 @@ This module runs the original `L6-5_v1__seed00` action sequence through actual n
 
 The current server result is `/mnt/data1/weizhiwei/AERO_WORLD_runtime/p09/l6_receipt_r2`. Three transport/trajectory iterations converged. All nine native packets were received. The abnormal action executes at tick 275 at its authored 9 m/s; lockout executes at 310 at 4 m/s. GCS lockout takes effect at 311, UAV lockout at 315, GCS secure state at 386, UAV recovery at 390. Landing reception becomes visible at 466; the five-tick event grid dispatches at 470. The UAV reaches landed at 588, has zero velocity at 589, and supplies terminal capture-grid evidence at 590.
 
-Receipt withholding is an explicit controller-input intervention, not native packet loss. Withholding recovery notification prevents recovery and landing; withholding landing reception preserves recovery but prevents landing. Both use actual engine execution through 900. Recovery does not reactivate the revoked abnormal-movement authority. Landing retains its existing action-specific grant.
+Recovery does not reactivate the revoked abnormal-movement authority. Landing retains its existing action-specific grant.
 
 The authored landing feasibility estimate is retained under `authored_terminal_estimate` with its script reference. It is not evidence for the actual dispatch time or terminal outcome.
 
