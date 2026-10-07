@@ -1,9 +1,13 @@
-# World model inputs
+# World model
 
-This directory consumes recorded episode state, semantic graphs and observations. P09 produces and repairs truth; it does not train a new model or create sensor captures.
+Recorded episode states, semantic graphs and observations feed the [multimodal state model](model/README.md). The executable path uses frozen Qwen and Sonata, shared typed prediction heads, future observation features and cached rollout. The retained result covers one TRAIN window; it does not establish generalization or calibration.
 
-The planned shared backbone is Qwen. Sonata (Point Transformer V3-S) is the retained external perception encoder. Its weights and isolated runtime remain under `runs/pretrained_encoders_20260822/` in the working deployment and are not stored in Git. Checkpoints, the LiDAR adapter and tensor dimensions are defined during stage B; the retired three-encoder dimensions are not an input contract.
+- `contracts/`: canonical field schema and predicate scope.
+- `data/`: source import, causal windows, serialization and sensor geometry.
+- `model/`: encoders, shared heads and the `Dataset.world_model.model.run_episode` entry point.
+- `configs/`: current serialization, split and window configuration.
+- `models/sonata/`: retained external LiDAR encoder assets in local storage.
+- `runs/capture/`, `runs/inputs/`, `runs/observations/`, `runs/prediction/`: prepared captures, canonical inputs, actual observation arrays and the current model output.
+- `graph/`: semantic graph projection helpers.
 
-`p01_schema_rollout_v4/` contains the current structured importer. It imports native world-graph initial assertions as well as deltas, preserving their source identity and existing record fields. The P09 repair does not change fixed cohorts, sampling, seeds or losses, and does not replace existing training caches.
-
-`graph/` owns semantic graph projection helpers. The current P09 sources and execution boundaries are documented in [design/p09](../../design/p09/README.md). Raw episodes, sensor captures, weights and large derived products remain in their declared external storage.
+[Current results](../../design/belief/multimodal_state_model.md) document measurements and source limits. P09 owns truth production and repair; see [its source boundaries](../../design/p09/README.md). Raw episodes, weights, runtimes and large tensors remain in local storage. Episode IDs and schema protocol identities are preserved when paths move.
