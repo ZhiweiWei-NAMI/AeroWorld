@@ -1,39 +1,13 @@
-"""P01 v4 dynamic typed query model."""
+"""Causal Qwen hidden-state queries, typed distributions and sensor forecasts."""
 
-from .query_head import (
-    DynamicQueryBatch,
-    FieldTarget,
-    InputScale,
-    QueryAddress,
-    QueryInventory,
-    SharedTypedQueryHead,
-    STATUS_KINDS,
-    TypedLabels,
-    TypedQueryOutput,
-    attach_typed_labels,
-    compile_query_batch,
-    compile_query_inventory,
-    declared_component_axis,
-    fit_input_scales,
-    modelable_field_targets,
-    typed_supervision_loss,
-)
+from .query_head import FieldTarget, InputScale, QueryAddress, modelable_field_targets
+from .causal_input import EpisodeIndex, load_index, semantic_text, query_tensors, labels
+from .distributions import SharedDistributionHead, typed_loss, predictions
+from .multimodal import ModalityProjectors, FutureEmbeddingHead, CoarseLidarDecoder
 
 __all__ = [
-    "DynamicQueryBatch",
-    "FieldTarget",
-    "InputScale",
-    "QueryAddress",
-    "QueryInventory",
-    "SharedTypedQueryHead",
-    "STATUS_KINDS",
-    "TypedLabels",
-    "TypedQueryOutput",
-    "attach_typed_labels",
-    "compile_query_batch",
-    "compile_query_inventory",
-    "declared_component_axis",
-    "fit_input_scales",
-    "modelable_field_targets",
-    "typed_supervision_loss",
+    "FieldTarget", "InputScale", "QueryAddress", "modelable_field_targets",
+    "EpisodeIndex", "load_index", "semantic_text", "query_tensors", "labels",
+    "SharedDistributionHead", "typed_loss", "predictions",
+    "ModalityProjectors", "FutureEmbeddingHead", "CoarseLidarDecoder",
 ]

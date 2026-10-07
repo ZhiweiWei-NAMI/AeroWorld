@@ -1,10 +1,6 @@
 {
   "serialization": "p01v4/serialization",
   "version": 2,
-  "changes_from_v1": [
-    "compact-table cell grammar rewritten to an exactly reversible shape-tagged scheme (coordinator gap 2 / review F5): v1 encoded non-present markers as bare '!kind' strings, which collided with present source strings such as '!missing', and frame tags as {f, v}, which collided with present objects of that exact shape; v2 makes the wire shapes explicit and escapes colliding data, so every present value round-trips",
-    "typed/model-visible separation (coordinator gap 4 / review F1): verbatim source archive lives in archive.* field families of the canonical records; model_visible_typed_view strips them and applies the cutoff/availability policy independently"
-  ],
   "lossless_definition": {
     "equality": "decode(encode(x)) == x exactly; ints/strings/bools by value, floats as binary64 values parsed from source JSON text; no epsilon",
     "tolerance_source": "the original data's own JSON decimal precision; no arbitrary tolerance is introduced at any stage",
@@ -19,15 +15,32 @@
     "jsonl": {
       "writer": "p01v4.data.serialization.encode_jsonl",
       "reader": "p01v4.data.serialization.decode_jsonl",
-      "options": {"ensure_ascii": false, "sort_keys": true, "separators": [",", ":"]}
+      "options": {
+        "ensure_ascii": false,
+        "sort_keys": true,
+        "separators": [
+          ",",
+          ":"
+        ]
+      }
     },
     "compact_table": {
       "writer": "p01v4.data.serialization.encode_compact",
       "reader": "p01v4.data.serialization.decode_compact",
       "cell_encoding_id": "p01v4-compact-cells-2",
-      "columns": ["id", "episode_id", "tick", "entity_id", "source", "provenance", "source_family", "field_names", "field_cells"],
+      "columns": [
+        "id",
+        "episode_id",
+        "tick",
+        "entity_id",
+        "source",
+        "provenance",
+        "source_family",
+        "field_names",
+        "field_cells"
+      ],
       "column_presence": "an absent record key is a null cell; a key literally present with None is the explicit non-present marker {\"np\": <column>}; decode restores presence exactly",
-      "record_metadata": "provenance and source_family columns (native-review D1) carry complete record metadata through the roundtrip, so transported_q / archive_only exclusion stays enforceable after any compact decode; canonicalize() preserves this semantic metadata (native third replay), so canonicalize->compact keeps the availability gates effective",
+      "record_metadata": "Provenance and source_family survive compact encoding, allowing transported_q/archive-only exclusion and availability gates after decoding.",
       "pool_interning": "repeated strings/structures (source dicts, field-name lists, entity ids, episode id) are interned per table into 'pool'; rows store indices; lossless by index resolution",
       "cell_encodings": {
         "non_present_kind": "explicit object {\"np\": kind} for kinds present/mapping-check in VALUE_KINDS; unknown kinds raise",
@@ -44,5 +57,11 @@
   "measurement_policy": {
     "bytes": "always reported from len(utf-8 encoded text)",
     "tokens": "only from the authorized local Qwen tokenizer (CPU, no weight load); if the tokenizer is not loaded, byte counts are reported and never presented as token counts"
+  },
+  "model_execution_text": {
+    "writer": "p01v4.model.causal_input.semantic_text",
+    "format": "static schema followed by reversible frozen-prefix symbol/change text",
+    "scope": "Retained causal world truth; archive bookkeeping and renderer hardcoded network defaults excluded.",
+    "incremental_real_history": "Extending the real prefix reassigns aliases and requires recomputation."
   }
 }

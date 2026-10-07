@@ -2,7 +2,7 @@
 
 Executable single-writer schema for canonical episode records.  All field
 families, units, coordinate frames, value types and missing-value semantics are
-declared here and serialized to contracts/schema-v1.json by ``write_schema``.
+declared here and serialized to contracts/schema-v2.json by ``write_schema``.
 Import, serialization and windowing code must validate against that contract.
 
 Source of truth for units, coordinate frames, and missing rules is the current
@@ -526,7 +526,7 @@ def schema_document() -> dict[str, Any]:
 
 
 def write_schema(path: Path) -> dict[str, Any]:
-    """Serialize the executable schema to contracts/schema-v1.json."""
+    """Serialize the executable schema to contracts/schema-v2.json."""
     doc = schema_document()
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -1,45 +1,56 @@
 {
   "windows": "p01v4/pilot-windows",
   "version": 2,
-  "changes_from_v1": [
-    "split-group authority is wired into build_supervision_window (coordinator gap 3 / review F6): the caller split must equal the group of the episode's ORIGINAL source resolved through configs/split-table.json (versioned, loaded via load_split_table); unknown sources raise instead of receiving an invented assignment; SupervisionSample carries source_family and split_group_id",
-    "dead second branch in scan_input_leak removed (review F7); the single tick<=cutoff check remains the per-record control",
-    "lossless archive (coordinator gap 4 / review F1): every source stream is archived verbatim into archive.* families with a per-stream mapping/residual inventory in the import manifest; removal edges carry removal evidence instead of asserting from_value as current truth (review F2)"
-  ],
   "pilot_episode": {
     "episode_id": "L4-1_v1__seed00",
     "split": "TRAIN",
     "tick_hz": 10,
     "dt_s": 0.1,
-    "tick_range": [0, 900]
+    "tick_range": [
+      0,
+      900
+    ]
   },
   "supervision_windows": [
     {
-      "window_id": "L4-1_v1__seed00:cutoff250:t+50..t+100",
-      "cutoff": 250,
-      "target_times": [300, 305, 310, 315, 320, 325, 330, 335, 340, 345, 350],
-      "horizon_ticks": [50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
-      "horizon_seconds": [5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0],
-      "target_branch_kinds": ["frame", "observation"],
-      "note": "cutoff 250 is the fixed TRAIN cutoff of the prior v2 engineering cohort for this episode; targets are the 11 subsequent capture-step frames"
-    },
-    {
-      "window_id": "L4-1_v1__seed00:cutoff250:single_step",
-      "cutoff": 250,
-      "target_times": [255],
-      "horizon_ticks": [5],
-      "horizon_seconds": [0.5],
-      "target_branch_kinds": ["frame", "observation"],
-      "note": "one-step horizon: 5 ticks = 0.5 s physical time"
+      "window_id": "L4-1_v1__seed00:cutoff5:rollout",
+      "cutoff": 5,
+      "target_times": [
+        10,
+        15
+      ],
+      "horizon_ticks": [
+        5,
+        10
+      ],
+      "horizon_seconds": [
+        0.5,
+        1.0
+      ],
+      "target_branch_kinds": [
+        "frame",
+        "observation"
+      ],
+      "training_target_times": [
+        10
+      ],
+      "evaluation": "tick 10 one step; tick 15 predicted feedback and direct horizon; all within the same TRAIN episode"
     }
   ],
   "fit_policy": {
-    "scaler_version": "p01v4-norm-1",
-    "allowed_fit_splits": ["TRAIN"],
-    "fit_input_rule": "tick <= cutoff records of TRAIN episodes only; VALID/TEST fit raises NormalizationScopeError",
-    "fit_fields_pilot": ["motion.speed_mps"],
-    "max_fit_tick_reporting": "scaler.scope_document() records the largest tick that entered the fit",
-    "note": "never fabricated"
+    "allowed_fit_splits": [
+      "TRAIN"
+    ],
+    "fit_input_rule": "Only recorded real values and temporal increments at tick <= cutoff; model/causal_input.py indexes the TRAIN prefix once.",
+    "fit_fields_pilot": [
+      "pose.position_enu_m",
+      "pose.velocity_enu_mps",
+      "motion.speed_mps",
+      "pose.yaw_deg",
+      "communication.latency_ms",
+      "communication.packet_loss_ratio"
+    ],
+    "scale_semantics": "Current forecast scale uses historical raw increment RMS; residual-scale calibration is subsequent work. Constant dimensions use an explicit model prior, never replacement truth."
   },
   "leak_audit": {
     "future_truth": "p01v4.data.windows.reject_future_truth_inputs rejects truth records with tick > cutoff AND input records whose provenance available_time.tick > cutoff",
@@ -48,9 +59,17 @@
   },
   "split_group_policy": {
     "rule": "source_family and split_group derive from the ORIGINAL scenario/seed key <scenario>_v<N>__seed<M>; every old/new copy, 36overlay and normal/congested branch, and every supervision window built from one source shares exactly that original's single split group; versions are not independent examples",
-    "table_source": "configs/split-table.json (version 2; TRAIN/VALID assignment transcribed from the prior v2 engineering cohort host_data_v2/cohort.json, cross-checked episode-by-episode in tests/unit/test_split_provenance.py); build_supervision_window enforces it through resolve_source_split",
-    "train_originals": ["L1-1_v1__seed00", "L4-1_v1__seed00", "L4-5_v1__seed00", "L4-8_v1__seed00"],
-    "valid_originals": ["L1-1_v1__seed01", "L4-3_v1__seed00"],
+    "table_source": "configs/split-table.json; assignments retained from design/p01_generic/structured_mm_20261006/host_data_v2/cohort.json; build_supervision_window and model.load_index resolve the original source group.",
+    "train_originals": [
+      "L1-1_v1__seed00",
+      "L4-1_v1__seed00",
+      "L4-5_v1__seed00",
+      "L4-8_v1__seed00"
+    ],
+    "valid_originals": [
+      "L1-1_v1__seed01",
+      "L4-3_v1__seed00"
+    ],
     "decorated_ids": "variant marks after '::' or '++' are preserved verbatim and never create a new split group; TEST originals are not present in the old cohort and are not invented here",
     "unknown": "any episode id outside the declared table raises SplitGroupError instead of guessing"
   },
