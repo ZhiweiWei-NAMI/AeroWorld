@@ -1,0 +1,280 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/ground_mobility#> .
+
+<https://w3id.org/aeroworld/ontology/domain/ground_mobility>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/ground_mobility/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Ground Mobility Ontology"@en ,
+        "AeroWorld 地面交通运行本体"@zh ;
+    dct:description "Vehicles, pedestrians, traffic signals, road occupancy, queues, detours, closures, and ground movement states."@en ,
+        "刻画车辆、行人、交通信号、道路占用、排队、绕行、封闭和地面移动状态。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/ground_mobility#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:GroundTrafficState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "ground traffic state"@en ,
+        "地面交通状态"@zh ;
+    skos:definition "Tick-indexed state of vehicles, pedestrians, lanes, intersections, or signals."@en ,
+        "车辆、行人、车道、路口或信号灯在某一时刻的交通状态。"@zh .
+
+dom:VehicleTrip
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "vehicle trip"@en ,
+        "车辆行程"@zh ;
+    skos:definition "A ground-vehicle movement process represented by SUMO or truth-frame records."@en ,
+        "由 SUMO 或真值帧记录表示的车辆移动过程。"@zh .
+
+dom:PedestrianTrip
+    a owl:Class ;
+    rdfs:subClassOf world:Process ;
+    rdfs:label "pedestrian trip"@en ,
+        "行人行程"@zh ;
+    skos:definition "A pedestrian movement process represented by managed pedestrian flow records."@en ,
+        "由受控行人流记录表示的行人移动过程。"@zh .
+
+dom:RoadQueueState
+    a owl:Class ;
+    rdfs:subClassOf dom:GroundTrafficState ;
+    rdfs:label "road queue state"@en ,
+        "道路排队状态"@zh ;
+    skos:definition "State describing vehicle queuing on a lane or road segment."@en ,
+        "描述车道或道路段车辆排队情况的状态。"@zh .
+
+dom:RoadDetourState
+    a owl:Class ;
+    rdfs:subClassOf dom:GroundTrafficState ;
+    rdfs:label "road detour state"@en ,
+        "道路绕行状态"@zh ;
+    skos:definition "State describing detour routing caused by construction, blockage, or emergency control."@en ,
+        "描述施工、阻塞或应急控制引发绕行的状态。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:vehicleOccupiesLane
+    a owl:ObjectProperty ;
+    rdfs:domain world:GroundVehicle ;
+    rdfs:range world:RoadLane ;
+    rdfs:label "vehicle occupies lane"@en ,
+        "车辆占用车道"@zh ;
+    skos:definition "Relates a vehicle to the road lane it occupies."@en ,
+        "表示车辆占用的道路车道。"@zh .
+
+dom:pedestrianOccupiesCrosswalk
+    a owl:ObjectProperty ;
+    rdfs:domain world:Pedestrian ;
+    rdfs:range world:Crosswalk ;
+    rdfs:label "pedestrian occupies crosswalk"@en ,
+        "行人占用人行横道"@zh ;
+    skos:definition "Relates a pedestrian to a crosswalk being used."@en ,
+        "表示行人正在使用的人行横道。"@zh .
+
+dom:detourAffectsRoadSegment
+    a owl:ObjectProperty ;
+    rdfs:domain dom:RoadDetourState ;
+    rdfs:range world:RoadSegment ;
+    rdfs:label "detour affects road segment"@en ,
+        "绕行影响道路段"@zh ;
+    skos:definition "Relates a detour state to the affected road segment."@en ,
+        "表示绕行状态影响的道路段。"@zh .
+
+dom:vehicleTripHasActor
+    a owl:ObjectProperty ;
+    rdfs:domain dom:VehicleTrip ;
+    rdfs:range world:GroundVehicle ;
+    rdfs:label "vehicle trip has actor"@en ,
+        "车辆行程具有主体"@zh ;
+    skos:definition "Relates a vehicle trip process to its vehicle actor."@en ,
+        "表示车辆行程过程对应的车辆主体。"@zh .
+
+dom:pedestrianTripHasActor
+    a owl:ObjectProperty ;
+    rdfs:domain dom:PedestrianTrip ;
+    rdfs:range world:Pedestrian ;
+    rdfs:label "pedestrian trip has actor"@en ,
+        "行人行程具有主体"@zh ;
+    skos:definition "Relates a pedestrian trip process to its pedestrian actor."@en ,
+        "表示行人行程过程对应的行人主体。"@zh .
+
+dom:tripUsesRoadElement
+    a owl:ObjectProperty ;
+    rdfs:domain dom:VehicleTrip ;
+    rdfs:range world:RoadElement ;
+    rdfs:label "trip uses road element"@en ,
+        "行程使用道路元素"@zh ;
+    skos:definition "Relates a trip process to the road element it uses."@en ,
+        "表示行程过程使用的道路元素。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:queueLengthVehicles
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:RoadQueueState ;
+    rdfs:range xsd:integer ;
+    rdfs:label "queue length vehicles"@en ,
+        "排队车辆数"@zh ;
+    skos:definition "Number of vehicles queued on a road element."@en ,
+        "道路元素上的排队车辆数量。"@zh ;
+    world:unitSymbol "vehicle" ;
+    world:stateFieldCategory "road_queue" .
+
+dom:trafficSignalPhase
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:GroundTrafficState ;
+    rdfs:range xsd:string ;
+    rdfs:label "traffic signal phase"@en ,
+        "交通信号相位"@zh ;
+    skos:definition "Observed phase or state of a traffic signal."@en ,
+        "观测到的交通信号相位或状态。"@zh ;
+    world:unitSymbol "phase-code" ;
+    world:stateFieldCategory "traffic_signal_state" .
+
+dom:detourActive
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:RoadDetourState ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "detour active"@en ,
+        "绕行激活"@zh ;
+    skos:definition "Whether detour routing is active at a tick."@en ,
+        "某一时刻绕行路径是否激活。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "road_detour" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:VehicleMovingInLaneArgument_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+dom:VehicleMovingInLaneArgument_lane
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "lane" ;
+    world:argumentClass world:RoadLane ;
+    rdfs:label "lane"@en .
+
+dom:VehicleMovingInLane
+    a aw:PredicateType ;
+    aw:predicateIdentifier "ground.vehicle_moving_in_lane" ;
+    aw:declaresArgumentRole dom:VehicleMovingInLaneArgument_vehicle ,
+        dom:VehicleMovingInLaneArgument_lane ;
+    rdfs:label "vehicle moving in lane"@en ,
+        "车辆在车道内移动"@zh ;
+    skos:definition "Holds when a vehicle occupies a lane and its objective speed is strictly greater than the stopped threshold at that tick."@en ,
+        "当车辆占用车道且其客观速度在该时刻严格高于停止阈值时成立"@zh .
+
+dom:VehicleStoppedInLaneArgument_vehicle
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "vehicle" ;
+    world:argumentClass world:GroundVehicle ;
+    rdfs:label "vehicle"@en .
+
+dom:VehicleStoppedInLaneArgument_lane
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "lane" ;
+    world:argumentClass world:RoadLane ;
+    rdfs:label "lane"@en .
+
+dom:VehicleStoppedInLane
+    a aw:PredicateType ;
+    aw:predicateIdentifier "ground.vehicle_stopped_in_lane" ;
+    aw:declaresArgumentRole dom:VehicleStoppedInLaneArgument_vehicle ,
+        dom:VehicleStoppedInLaneArgument_lane ;
+    rdfs:label "vehicle stopped in lane"@en ,
+        "车辆在车道内停止"@zh ;
+    skos:definition "Holds when a vehicle speed is below the stopped threshold while occupying a lane."@en ,
+        "当车辆占用车道且速度低于停止阈值时成立"@zh .
+
+dom:VehicleQueueExceedsLengthArgument_road_element
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "road_element" ;
+    world:argumentClass world:RoadElement ;
+    rdfs:label "road element"@en .
+
+dom:VehicleQueueExceedsLength
+    a aw:PredicateType ;
+    aw:predicateIdentifier "ground.vehicle_queue_exceeds_length" ;
+    aw:declaresArgumentRole dom:VehicleQueueExceedsLengthArgument_road_element ;
+    rdfs:label "vehicle queue exceeds length"@en ,
+        "车辆排队长度超限"@zh ;
+    skos:definition "Holds when the queue on a lane or road segment exceeds a configured length."@en ,
+        "当车道或道路段排队长度超过配置阈值时成立"@zh .
+
+dom:RoadSegmentClosedArgument_road_segment
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "road_segment" ;
+    world:argumentClass world:RoadSegment ;
+    rdfs:label "road segment"@en .
+
+dom:RoadSegmentClosed
+    a aw:PredicateType ;
+    aw:predicateIdentifier "ground.road_segment_closed" ;
+    aw:declaresArgumentRole dom:RoadSegmentClosedArgument_road_segment ;
+    rdfs:label "road segment closed"@en ,
+        "道路段封闭"@zh ;
+    skos:definition "Holds when a road segment is closed to normal traffic."@en ,
+        "当道路段对常规交通关闭时成立"@zh .
+
+dom:PedestrianInCrosswalkArgument_pedestrian
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "pedestrian" ;
+    world:argumentClass world:Pedestrian ;
+    rdfs:label "pedestrian"@en .
+
+dom:PedestrianInCrosswalkArgument_crosswalk
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "crosswalk" ;
+    world:argumentClass world:Crosswalk ;
+    rdfs:label "crosswalk"@en .
+
+dom:PedestrianInCrosswalk
+    a aw:PredicateType ;
+    aw:predicateIdentifier "ground.pedestrian_in_crosswalk" ;
+    aw:declaresArgumentRole dom:PedestrianInCrosswalkArgument_pedestrian ,
+        dom:PedestrianInCrosswalkArgument_crosswalk ;
+    rdfs:label "pedestrian in crosswalk"@en ,
+        "行人位于人行横道"@zh ;
+    skos:definition "Holds when a pedestrian occupies a crosswalk region."@en ,
+        "当行人位于人行横道区域内时成立"@zh .
+
+dom:TrafficSignalMalfunctionActiveArgument_signal
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "signal" ;
+    world:argumentClass world:TrafficSignal ;
+    rdfs:label "signal"@en .
+
+dom:TrafficSignalMalfunctionActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "ground.traffic_signal_malfunction_active" ;
+    aw:declaresArgumentRole dom:TrafficSignalMalfunctionActiveArgument_signal ;
+    rdfs:label "traffic signal malfunction active"@en ,
+        "交通信号故障激活"@zh ;
+    skos:definition "Holds while a traffic-signal controller is in the explicit all-red fault state."@en ,
+        "当交通信号控制器处于明确的全红故障状态时成立"@zh .

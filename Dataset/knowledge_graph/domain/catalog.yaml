@@ -1,0 +1,2437 @@
+schema: aeroworld.domain-catalog.v1
+version: 0.3.0
+module_policy: stable_domain_modules_only
+modules:
+  airspace_operations:
+    slug: airspace_operations
+    title_en: AeroWorld Airspace Operations Ontology
+    title_zh: AeroWorld 空域运行本体
+    scope_en: Airspace regions, corridors, altitude bands, no-fly or protected regions,
+      aircraft occupancy, and airspace operating states.
+    scope_zh: 刻画空域区域、航路、指定高度带、禁飞或保护区域、航空器占用关系和空域运行状态。
+    concepts:
+    - id: MissionAirspace
+      parent: AirspaceRegion
+      label_en: Mission airspace
+      label_zh: 任务空域
+      definition_en: Airspace allocated for a UAV mission or inspection operation.
+      definition_zh: 分配给无人机任务或巡检运行的空域。
+    - id: AirspaceConstraintRegion
+      parent: AirspaceRegion
+      label_en: airspace constraint region
+      label_zh: 空域约束区域
+      definition_en: A spatial or vertical region that constrains airspace use.
+      definition_zh: 对空域使用形成限制的空间或高度区域。
+    - id: CorridorOccupancyState
+      parent: EntityStateAtTick
+      label_en: corridor occupancy state
+      label_zh: 航路占用状态
+      definition_en: Tick-indexed state describing aircraft occupancy of an airspace
+        corridor.
+      definition_zh: 描述某一时刻航空器占用空中航路情况的状态。
+    - id: AssignedAltitudeState
+      parent: EntityStateAtTick
+      label_en: assigned altitude state
+      label_zh: 指定高度状态
+      definition_en: Tick-indexed state comparing aircraft altitude against its assigned
+        altitude band.
+      definition_zh: 比较航空器当前高度与指定高度带的时刻状态。
+    object_relations:
+    - id: aircraftAssignedToAirspace
+      domain: UnmannedAircraft
+      range: MissionAirspace
+      label_en: aircraft assigned to airspace
+      label_zh: 航空器分配至空域
+      definition_en: Relates a UAV to the mission airspace it is expected to use.
+      definition_zh: 表示无人机与其预期使用任务空域之间的关系。
+    - id: aircraftOccupiesCorridor
+      domain: UnmannedAircraft
+      range: AirspaceCorridor
+      label_en: aircraft occupies corridor
+      label_zh: 航空器占用航路
+      definition_en: Relates a UAV to the corridor it occupies at a tick.
+      definition_zh: 表示某一时刻无人机占用的空中航路。
+    - id: airspaceConstrainedByRegion
+      domain: MissionAirspace
+      range: AirspaceConstraintRegion
+      label_en: airspace constrained by region
+      label_zh: 空域受区域约束
+      definition_en: Relates mission airspace to a spatial or vertical constraint
+        region.
+      definition_zh: 表示任务空域受到某个空间或高度约束区域限制。
+    state_properties:
+    - id: assignedAltitudeMinM
+      domain: AssignedAltitudeState
+      range: xsd:decimal
+      unit: m
+      evidence_field_category: altitude_assignment
+      label_en: assigned altitude minimum meters
+      label_zh: 指定最低高度米
+      definition_en: Lower bound of the assigned altitude band in meters.
+      definition_zh: 指定高度带的最低边界，单位为米。
+    - id: assignedAltitudeMaxM
+      domain: AssignedAltitudeState
+      range: xsd:decimal
+      unit: m
+      evidence_field_category: altitude_assignment
+      label_en: assigned altitude maximum meters
+      label_zh: 指定最高高度米
+      definition_en: Upper bound of the assigned altitude band in meters.
+      definition_zh: 指定高度带的最高边界，单位为米。
+    - id: corridorOccupancyCount
+      domain: CorridorOccupancyState
+      range: xsd:integer
+      unit: aircraft
+      evidence_field_category: corridor_occupancy
+      label_en: corridor occupancy count
+      label_zh: 航路占用数量
+      definition_en: Number of aircraft occupying a corridor at a tick.
+      definition_zh: 某一时刻占用航路的航空器数量。
+    - id: corridorCapacityCount
+      domain: CorridorOccupancyState
+      range: xsd:integer
+      unit: aircraft
+      evidence_field_category: corridor_capacity
+      label_en: corridor capacity count
+      label_zh: 航路容量数量
+      definition_en: Declared maximum number of aircraft accepted by a corridor.
+      definition_zh: 航路声明允许的最大航空器数量。
+    predicates:
+    - id: AircraftInsideRestrictedAirspace
+      identifier: airspace.aircraft_inside_restricted_airspace
+      label_en: aircraft inside restricted airspace
+      label_zh: 航空器位于限制空域内
+      definition_en: Holds when a UAV is within the effective range of an active
+        restricted airspace region, including its governed boundary margin.
+      definition_zh: 当无人机处于有效限制空域的影响范围内（含受治理的边界余量）时成立。
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: restricted_region
+        class: RestrictedAirspaceRegion
+    - id: AircraftInsideProtectedAirspace
+      identifier: airspace.aircraft_inside_protected_airspace
+      label_en: aircraft inside protected airspace
+      label_zh: 航空器位于保护空域内
+      definition_en: Holds when a UAV is spatially inside protected airspace.
+      definition_zh: 当无人机在空间上位于保护空域内时成立
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: protected_region
+        class: ProtectedAirspace
+    - id: AircraftIsNonCooperative
+      identifier: airspace.aircraft_is_non_cooperative
+      label_en: aircraft is non-cooperative
+      label_zh: 航空器处于非合作状态
+      definition_en: Holds when a UAV is observed in a non-cooperative operating state.
+      definition_zh: 当无人机被观测为非合作运行状态时成立
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+    - id: AircraftOutsideAssignedAltitudeBand
+      identifier: airspace.aircraft_outside_assigned_altitude_band
+      label_en: aircraft outside assigned altitude band
+      label_zh: 航空器超出指定高度带
+      definition_en: Holds when a UAV altitude lies outside its assigned altitude
+        band.
+      definition_zh: 当无人机高度位于指定高度带之外时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+    - id: AircraftOccupiesAirspaceCorridor
+      identifier: airspace.aircraft_occupies_airspace_corridor
+      label_en: aircraft occupies airspace corridor
+      label_zh: 航空器占用空中航路
+      definition_en: Holds when a UAV occupies a declared airspace corridor.
+      definition_zh: 当无人机占用已声明空中航路时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: corridor
+        class: AirspaceCorridor
+    - id: AircraftMovingInCorridor
+      identifier: airspace.aircraft_moving_in_corridor
+      label_en: aircraft moving in corridor
+      label_zh: 航空器在航路中移动
+      definition_en: Holds when a UAV occupies a declared airspace corridor and its measured speed exceeds the configured stationary threshold.
+      definition_zh: 当无人机占用已声明空中航路且测得速度超过配置的静止阈值时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: corridor
+        class: AirspaceCorridor
+    - id: AircraftStationaryInCorridor
+      identifier: airspace.aircraft_stationary_in_corridor
+      label_en: aircraft stationary in corridor
+      label_zh: 航空器在航路中静止
+      definition_en: Holds when a UAV occupies a declared airspace corridor and its measured speed does not exceed the configured stationary threshold.
+      definition_zh: 当无人机占用已声明空中航路且测得速度不超过配置的静止阈值时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: corridor
+        class: AirspaceCorridor
+    - id: AirspaceCorridorOverCapacity
+      identifier: airspace.airspace_corridor_over_capacity
+      label_en: airspace corridor over capacity
+      label_zh: 空中航路超容量
+      definition_en: Holds when corridor occupancy exceeds the declared capacity.
+      definition_zh: 当航路占用数量超过声明容量时成立
+      roles:
+      - key: corridor
+        class: AirspaceCorridor
+    - id: AircraftAirborne
+      identifier: airspace.aircraft_airborne
+      label_en: aircraft airborne
+      label_zh: 航空器处于空中
+      definition_en: Holds when an unmanned aircraft is above its governed clearance threshold relative to the currently assigned local ground or landing surface.
+      definition_zh: 当无人机相对当前指派的本地地面或降落表面高于受控净空阈值时成立。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+    - id: AircraftAtHomePad
+      identifier: airspace.aircraft_at_home_pad
+      label_en: aircraft at home pad
+      label_zh: 航空器位于归属起降坪
+      definition_en: Holds when an unmanned aircraft is horizontally within the governed radius of its assigned home pad.
+      definition_zh: 当无人机在水平方向位于其指派归属起降坪受控半径内时成立。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: home_pad
+        class: LandingPad
+    - id: AircraftTouchdown
+      identifier: airspace.aircraft_touchdown
+      label_en: aircraft touchdown
+      label_zh: 航空器接地
+      definition_en: Holds when an unmanned aircraft is at or below its governed touchdown clearance above the currently assigned local landing surface.
+      definition_zh: 当无人机相对当前指派的本地降落表面净空不高于受控接地阈值时成立。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+    - id: AircraftInLandingZone
+      identifier: airspace.aircraft_in_landing_zone
+      label_en: aircraft in landing zone
+      label_zh: 航空器位于降落区
+      definition_en: Holds when an unmanned aircraft is horizontally within the governed radius of its assigned landing zone.
+      definition_zh: 当无人机在水平方向位于其指派降落区受控半径内时成立。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: landing_zone
+        class: LandingArea
+  ground_mobility:
+    slug: ground_mobility
+    title_en: AeroWorld Ground Mobility Ontology
+    title_zh: AeroWorld 地面交通运行本体
+    scope_en: Vehicles, pedestrians, traffic signals, road occupancy, queues, detours,
+      closures, and ground movement states.
+    scope_zh: 刻画车辆、行人、交通信号、道路占用、排队、绕行、封闭和地面移动状态。
+    concepts:
+    - id: GroundTrafficState
+      parent: EntityStateAtTick
+      label_en: ground traffic state
+      label_zh: 地面交通状态
+      definition_en: Tick-indexed state of vehicles, pedestrians, lanes, intersections,
+        or signals.
+      definition_zh: 车辆、行人、车道、路口或信号灯在某一时刻的交通状态。
+    - id: VehicleTrip
+      parent: Process
+      label_en: vehicle trip
+      label_zh: 车辆行程
+      definition_en: A ground-vehicle movement process represented by SUMO or truth-frame
+        records.
+      definition_zh: 由 SUMO 或真值帧记录表示的车辆移动过程。
+    - id: PedestrianTrip
+      parent: Process
+      label_en: pedestrian trip
+      label_zh: 行人行程
+      definition_en: A pedestrian movement process represented by managed pedestrian
+        flow records.
+      definition_zh: 由受控行人流记录表示的行人移动过程。
+    - id: RoadQueueState
+      parent: GroundTrafficState
+      label_en: road queue state
+      label_zh: 道路排队状态
+      definition_en: State describing vehicle queuing on a lane or road segment.
+      definition_zh: 描述车道或道路段车辆排队情况的状态。
+    - id: RoadDetourState
+      parent: GroundTrafficState
+      label_en: road detour state
+      label_zh: 道路绕行状态
+      definition_en: State describing detour routing caused by construction, blockage,
+        or emergency control.
+      definition_zh: 描述施工、阻塞或应急控制引发绕行的状态。
+    object_relations:
+    - id: vehicleOccupiesLane
+      domain: GroundVehicle
+      range: RoadLane
+      label_en: vehicle occupies lane
+      label_zh: 车辆占用车道
+      definition_en: Relates a vehicle to the road lane it occupies.
+      definition_zh: 表示车辆占用的道路车道。
+    - id: pedestrianOccupiesCrosswalk
+      domain: Pedestrian
+      range: Crosswalk
+      label_en: pedestrian occupies crosswalk
+      label_zh: 行人占用人行横道
+      definition_en: Relates a pedestrian to a crosswalk being used.
+      definition_zh: 表示行人正在使用的人行横道。
+    - id: detourAffectsRoadSegment
+      domain: RoadDetourState
+      range: RoadSegment
+      label_en: detour affects road segment
+      label_zh: 绕行影响道路段
+      definition_en: Relates a detour state to the affected road segment.
+      definition_zh: 表示绕行状态影响的道路段。
+    - id: vehicleTripHasActor
+      domain: VehicleTrip
+      range: GroundVehicle
+      label_en: vehicle trip has actor
+      label_zh: 车辆行程具有主体
+      definition_en: Relates a vehicle trip process to its vehicle actor.
+      definition_zh: 表示车辆行程过程对应的车辆主体。
+    - id: pedestrianTripHasActor
+      domain: PedestrianTrip
+      range: Pedestrian
+      label_en: pedestrian trip has actor
+      label_zh: 行人行程具有主体
+      definition_en: Relates a pedestrian trip process to its pedestrian actor.
+      definition_zh: 表示行人行程过程对应的行人主体。
+    - id: tripUsesRoadElement
+      domain: VehicleTrip
+      range: RoadElement
+      label_en: trip uses road element
+      label_zh: 行程使用道路元素
+      definition_en: Relates a trip process to the road element it uses.
+      definition_zh: 表示行程过程使用的道路元素。
+    state_properties:
+    - id: queueLengthVehicles
+      domain: RoadQueueState
+      range: xsd:integer
+      unit: vehicle
+      evidence_field_category: road_queue
+      label_en: queue length vehicles
+      label_zh: 排队车辆数
+      definition_en: Number of vehicles queued on a road element.
+      definition_zh: 道路元素上的排队车辆数量。
+    - id: trafficSignalPhase
+      domain: GroundTrafficState
+      range: xsd:string
+      unit: phase-code
+      evidence_field_category: traffic_signal_state
+      label_en: traffic signal phase
+      label_zh: 交通信号相位
+      definition_en: Observed phase or state of a traffic signal.
+      definition_zh: 观测到的交通信号相位或状态。
+    - id: detourActive
+      domain: RoadDetourState
+      range: xsd:boolean
+      unit: '1'
+      evidence_field_category: road_detour
+      label_en: detour active
+      label_zh: 绕行激活
+      definition_en: Whether detour routing is active at a tick.
+      definition_zh: 某一时刻绕行路径是否激活。
+    predicates:
+    - id: VehicleMovingInLane
+      identifier: ground.vehicle_moving_in_lane
+      label_en: vehicle moving in lane
+      label_zh: 车辆在车道内移动
+      definition_en: Holds when a vehicle occupies a lane and its objective speed
+        is strictly greater than the stopped threshold at that tick.
+      definition_zh: 当车辆占用车道且其客观速度在该时刻严格高于停止阈值时成立
+      roles:
+      - key: vehicle
+        class: GroundVehicle
+      - key: lane
+        class: RoadLane
+    - id: VehicleStoppedInLane
+      identifier: ground.vehicle_stopped_in_lane
+      label_en: vehicle stopped in lane
+      label_zh: 车辆在车道内停止
+      definition_en: Holds when a vehicle speed is below the stopped threshold while
+        occupying a lane.
+      definition_zh: 当车辆占用车道且速度低于停止阈值时成立
+      roles:
+      - key: vehicle
+        class: GroundVehicle
+      - key: lane
+        class: RoadLane
+    - id: VehicleQueueExceedsLength
+      identifier: ground.vehicle_queue_exceeds_length
+      label_en: vehicle queue exceeds length
+      label_zh: 车辆排队长度超限
+      definition_en: Holds when the queue on a lane or road segment exceeds a configured
+        length.
+      definition_zh: 当车道或道路段排队长度超过配置阈值时成立
+      roles:
+      - key: road_element
+        class: RoadElement
+    - id: RoadSegmentClosed
+      identifier: ground.road_segment_closed
+      label_en: road segment closed
+      label_zh: 道路段封闭
+      definition_en: Holds when a road segment is closed to normal traffic.
+      definition_zh: 当道路段对常规交通关闭时成立
+      roles:
+      - key: road_segment
+        class: RoadSegment
+    - id: PedestrianInCrosswalk
+      identifier: ground.pedestrian_in_crosswalk
+      label_en: pedestrian in crosswalk
+      label_zh: 行人位于人行横道
+      definition_en: Holds when a pedestrian occupies a crosswalk region.
+      definition_zh: 当行人位于人行横道区域内时成立
+      roles:
+      - key: pedestrian
+        class: Pedestrian
+      - key: crosswalk
+        class: Crosswalk
+    - id: TrafficSignalMalfunctionActive
+      identifier: ground.traffic_signal_malfunction_active
+      label_en: traffic signal malfunction active
+      label_zh: 交通信号故障激活
+      definition_en: Holds while a traffic-signal controller is in the explicit
+        all-red fault state.
+      definition_zh: 当交通信号控制器处于明确的全红故障状态时成立
+      roles:
+      - key: signal
+        class: TrafficSignal
+  mobility_regulation:
+    slug: mobility_regulation
+    title_en: AeroWorld Mobility Regulation Ontology
+    title_zh: AeroWorld 交通法规本体
+    scope_en: Normative mobility rules, permissions, prohibitions, obligations, right-of-way,
+      applicability conditions, and violations.
+    scope_zh: 刻画交通运行中的规范规则、许可、禁止、义务、路权、适用条件和违规。
+    concepts:
+    - id: Regulation
+      parent: NormativeEntity
+      label_en: regulation
+      label_zh: 法规
+      definition_en: A normative rule governing mobility behavior in a spatial or
+        operational context.
+      definition_zh: 约束空间或运行场景中移动行为的规范规则。
+    - id: Permission
+      parent: Regulation
+      label_en: permission
+      label_zh: 许可
+      definition_en: A regulation that permits an action under declared conditions.
+      definition_zh: 在声明条件下允许某项行为的规范。
+    - id: Prohibition
+      parent: Regulation
+      label_en: prohibition
+      label_zh: 禁止
+      definition_en: A regulation that forbids an action under declared conditions.
+      definition_zh: 在声明条件下禁止某项行为的规范。
+    - id: Obligation
+      parent: Regulation
+      label_en: obligation
+      label_zh: 义务
+      definition_en: A regulation that requires an actor to perform or avoid an action.
+      definition_zh: 要求主体执行或避免某项行为的规范。
+    - id: RightOfWay
+      parent: Regulation
+      label_en: right of way
+      label_zh: 通行优先权
+      definition_en: A normative priority relation among traffic participants.
+      definition_zh: 交通参与者之间的规范性优先通行关系。
+    - id: ApplicabilityCondition
+      parent: EntityStateAtTick
+      label_en: applicability condition
+      label_zh: 适用条件
+      definition_en: A state condition under which a regulation applies.
+      definition_zh: 法规发生适用效力的状态条件。
+    - id: Violation
+      parent: EntityStateAtTick
+      label_en: violation
+      label_zh: 违规
+      definition_en: A state in which an actor behavior contradicts an applicable
+        regulation.
+      definition_zh: 主体行为违反已适用规范的状态。
+    - id: StopLine
+      parent: RoadElement
+      label_en: stop line
+      label_zh: 停止线
+      definition_en: A road marking that bounds where vehicles must stop under signal
+        or rule control.
+      definition_zh: 在信号或规则控制下车辆必须停止的位置标线。
+    - id: SpeedLimitRegulation
+      parent: Regulation
+      label_en: speed limit regulation
+      label_zh: 限速法规
+      definition_en: A regulation that defines a maximum permitted speed.
+      definition_zh: 定义最高允许速度的法规。
+    - id: LaneUseRestriction
+      parent: Regulation
+      label_en: lane use restriction
+      label_zh: 车道使用限制
+      definition_en: A regulation constraining which actors may use a lane.
+      definition_zh: 约束哪些主体可使用某条车道的法规。
+    - id: FollowingDistanceRule
+      parent: Regulation
+      label_en: following distance rule
+      label_zh: 跟车距离规则
+      definition_en: A regulation defining minimum safe following distance.
+      definition_zh: 定义最小安全跟车距离的规则。
+    object_relations:
+    - id: regulationAppliesToActor
+      domain: Regulation
+      range: MobileAgent
+      label_en: regulation applies to actor
+      label_zh: 法规适用于主体
+      definition_en: Relates a regulation to an actor category or actor instance under
+        its scope.
+      definition_zh: 表示法规适用的主体类别或主体实例。
+    - id: regulationAppliesAtRoadElement
+      domain: Regulation
+      range: RoadElement
+      label_en: regulation applies at road element
+      label_zh: 法规适用于道路元素
+      definition_en: Relates a regulation to its spatial road element context.
+      definition_zh: 表示法规适用的道路空间元素。
+    - id: violationOfRegulation
+      domain: Violation
+      range: Regulation
+      label_en: violation of regulation
+      label_zh: 违反法规
+      definition_en: Relates a violation state to the regulation being violated.
+      definition_zh: 表示违规状态所违反的法规。
+    - id: regulationConstrainsProcess
+      domain: Regulation
+      range: Process
+      label_en: regulation constrains process
+      label_zh: 法规约束过程
+      definition_en: Relates a regulation to the mobility or operational process it
+        constrains.
+      definition_zh: 表示法规约束的移动或运行过程。
+    - id: permissionPermitsProcess
+      domain: Permission
+      range: Process
+      label_en: permission permits process
+      label_zh: 许可允许过程
+      definition_en: Relates a permission to the process it permits under applicable
+        conditions.
+      definition_zh: 表示许可在适用条件下允许的过程。
+    - id: prohibitionForbidsProcess
+      domain: Prohibition
+      range: Process
+      label_en: prohibition forbids process
+      label_zh: 禁止约束过程
+      definition_en: Relates a prohibition to the process it forbids under applicable
+        conditions.
+      definition_zh: 表示禁止在适用条件下禁止的过程。
+    - id: obligationRequiresProcess
+      domain: Obligation
+      range: Process
+      label_en: obligation requires process
+      label_zh: 义务要求过程
+      definition_en: Relates an obligation to the process it requires or constrains.
+      definition_zh: 表示义务要求或约束的过程。
+    state_properties:
+    - id: regulationIdentifier
+      domain: Regulation
+      range: xsd:string
+      unit: identifier
+      evidence_field_category: regulation_catalog
+      label_en: regulation identifier
+      label_zh: 法规标识
+      definition_en: Stable identifier of a mobility regulation.
+      definition_zh: 交通法规的稳定标识。
+    - id: allowedSpeedMps
+      domain: SpeedLimitRegulation
+      range: xsd:decimal
+      unit: m/s
+      evidence_field_category: speed_limit
+      label_en: allowed speed meters per second
+      label_zh: 允许速度米每秒
+      definition_en: Maximum permitted speed under the regulation.
+      definition_zh: 法规允许的最高速度。
+    - id: redSignalActive
+      domain: ApplicabilityCondition
+      range: xsd:boolean
+      unit: '1'
+      evidence_field_category: traffic_signal_state
+      label_en: red signal active
+      label_zh: 红灯激活
+      definition_en: Whether an applicable red-signal prohibition is active.
+      definition_zh: 适用红灯禁止条件是否激活。
+    - id: minimumFollowingDistanceM
+      domain: FollowingDistanceRule
+      range: xsd:decimal
+      unit: m
+      evidence_field_category: following_distance_rule
+      label_en: minimum following distance meters
+      label_zh: 最小跟车距离米
+      definition_en: Minimum permitted following distance required by the rule.
+      definition_zh: 规则要求的最小允许跟车距离。
+    predicates:
+    - id: TrafficSignalAppliesToVehicle
+      identifier: regulation.traffic_signal_applies_to_vehicle
+      label_en: traffic signal applies to vehicle
+      label_zh: 交通信号适用于车辆
+      definition_en: Holds when a traffic signal controls a vehicle movement at a
+        road element.
+      definition_zh: 当交通信号控制某车辆在道路元素上的运动时成立
+      roles:
+      - key: signal
+        class: TrafficSignal
+      - key: vehicle
+        class: GroundVehicle
+    - id: VehicleCrossesStopLineOnRed
+      identifier: regulation.vehicle_crosses_stop_line_on_red
+      label_en: vehicle crosses stop line on red
+      label_zh: 车辆红灯越过停止线
+      definition_en: Holds when a vehicle crosses a stop line while an applicable
+        red signal prohibits the movement.
+      definition_zh: 当适用红灯禁止通行时车辆越过停止线成立
+      roles:
+      - key: vehicle
+        class: GroundVehicle
+      - key: stop_line
+        class: StopLine
+      - key: signal
+        class: TrafficSignal
+    - id: VehicleExceedsPostedSpeed
+      identifier: regulation.vehicle_exceeds_posted_speed
+      label_en: vehicle exceeds posted speed
+      label_zh: 车辆超过限速
+      definition_en: Holds when a vehicle speed exceeds the applicable speed-limit
+        regulation.
+      definition_zh: 当车辆速度超过适用限速法规时成立
+      roles:
+      - key: vehicle
+        class: GroundVehicle
+      - key: regulation
+        class: SpeedLimitRegulation
+    - id: VehicleViolatesRightOfWay
+      identifier: regulation.vehicle_violates_right_of_way
+      label_en: vehicle violates right of way
+      label_zh: 车辆违反通行优先权
+      definition_en: Holds when a vehicle movement contradicts an applicable right-of-way
+        rule.
+      definition_zh: 当车辆运动违反适用通行优先权规则时成立
+      roles:
+      - key: vehicle
+        class: GroundVehicle
+      - key: right_of_way
+        class: RightOfWay
+    - id: VehicleViolatesFollowingDistance
+      identifier: regulation.vehicle_violates_following_distance
+      label_en: vehicle violates following distance
+      label_zh: 车辆违反跟车距离
+      definition_en: Holds when a vehicle follows another vehicle closer than the
+        applicable minimum distance.
+      definition_zh: 当车辆与前车距离小于适用最小距离时成立
+      roles:
+      - key: following_vehicle
+        class: GroundVehicle
+      - key: leading_vehicle
+        class: GroundVehicle
+      - key: rule
+        class: FollowingDistanceRule
+    - id: PedestrianHasCrosswalkPriority
+      identifier: regulation.pedestrian_has_crosswalk_priority
+      label_en: pedestrian has crosswalk priority
+      label_zh: 行人具有人行横道优先权
+      definition_en: Holds when an applicable regulation gives a pedestrian priority
+        at a crosswalk.
+      definition_zh: 当适用法规赋予行人在人行横道上的优先权时成立
+      roles:
+      - key: pedestrian
+        class: Pedestrian
+      - key: crosswalk
+        class: Crosswalk
+  agent_interaction_safety:
+    slug: agent_interaction_safety
+    title_en: AeroWorld Agent Interaction Safety Ontology
+    title_zh: AeroWorld 主体交互安全本体
+    scope_en: Safety relations among UAVs, vehicles, pedestrians, crowds, structures,
+      conflict points, near misses, collisions, and forced landing risk.
+    scope_zh: 刻画无人机、车辆、行人、人群和结构物之间的安全关系、冲突点、近失、碰撞和迫降风险。
+    concepts:
+    - id: SafetySeparationVolume
+      parent: SpatialRegion
+      label_en: safety separation volume
+      label_zh: 安全间隔体
+      definition_en: Spatial volume used to assess minimum separation between actors
+        or objects.
+      definition_zh: 用于评估主体或物体之间最小安全间隔的空间体。
+    - id: ConflictPoint
+      parent: SpatialRegion
+      label_en: conflict point
+      label_zh: 冲突点
+      definition_en: Spatial point or region where actor trajectories may conflict.
+      definition_zh: 主体轨迹可能发生冲突的空间点或区域。
+    - id: NearMissState
+      parent: EntityStateAtTick
+      label_en: near miss state
+      label_zh: 近失状态
+      definition_en: Tick-indexed state in which separation is below a safety threshold
+        without contact.
+      definition_zh: 间隔低于安全阈值但尚未接触的时刻状态。
+    - id: CollisionState
+      parent: EntityStateAtTick
+      label_en: collision state
+      label_zh: 碰撞状态
+      definition_en: Tick-indexed state in which two physical entities contact or
+        overlap beyond the collision criterion.
+      definition_zh: 两个物理实体满足接触或重叠碰撞判据的时刻状态。
+    - id: Crowd
+      parent: GroundAgent
+      label_en: crowd
+      label_zh: 人群
+      definition_en: A collective ground-agent entity represented by a crowd anchor
+        or grouped pedestrians.
+      definition_zh: 由人群锚点或行人组表示的集合地面主体。
+    - id: PopulatedLandingRiskState
+      parent: EntityStateAtTick
+      label_en: populated landing risk state
+      label_zh: 人群区域迫降风险状态
+      definition_en: State describing forced-landing risk near pedestrians or populated
+        areas.
+      definition_zh: 描述靠近行人或人群区域迫降风险的状态。
+    object_relations:
+    - id: actorApproachesConflictPoint
+      domain: MobileAgent
+      range: ConflictPoint
+      label_en: actor approaches conflict point
+      label_zh: 主体接近冲突点
+      definition_en: Relates a mobile actor to a conflict point on its path.
+      definition_zh: 表示移动主体接近其路径上的冲突点。
+    - id: actorHasSafetySeparationVolume
+      domain: MobileAgent
+      range: SafetySeparationVolume
+      label_en: actor has safety separation volume
+      label_zh: 主体具有安全间隔体
+      definition_en: Relates a mobile actor to the spatial volume used to evaluate
+        its required separation.
+      definition_zh: 表示移动主体与用于评估其所需安全间隔的空间体之间的关系。
+    - id: safetyStateInvolvesActor
+      domain: EntityStateAtTick
+      range: MobileAgent
+      label_en: safety state involves actor
+      label_zh: 安全状态涉及主体
+      definition_en: Relates a safety state to an involved mobile actor.
+      definition_zh: 表示安全状态涉及的移动主体。
+    state_properties:
+    - id: separationDistanceM
+      domain: NearMissState
+      range: xsd:decimal
+      unit: m
+      evidence_field_category: actor_separation
+      label_en: separation distance meters
+      label_zh: 间隔距离米
+      definition_en: Observed distance between actors used for near-miss evaluation.
+      definition_zh: 用于近失判定的主体间观测距离。
+    - id: collisionOverlapRatio
+      domain: CollisionState
+      range: xsd:decimal
+      unit: '1'
+      evidence_field_category: collision_overlap
+      label_en: collision overlap ratio
+      label_zh: 碰撞重叠比例
+      definition_en: Numeric overlap or contact ratio used by collision evidence.
+      definition_zh: 碰撞证据使用的数值重叠或接触比例。
+    - id: crowdSizeCount
+      domain: Crowd
+      range: xsd:integer
+      unit: person
+      evidence_field_category: crowd_state
+      label_en: crowd size count
+      label_zh: 人群规模数量
+      definition_en: Number of persons represented by a crowd entity or grouped pedestrian
+        state.
+      definition_zh: 人群实体或行人组状态表示的人数。
+    - id: forcedLandingRiskScore
+      domain: PopulatedLandingRiskState
+      range: xsd:decimal
+      unit: '1'
+      evidence_field_category: forced_landing_risk
+      label_en: forced landing risk score
+      label_zh: 迫降风险分数
+      definition_en: Numeric score representing forced-landing risk near populated
+        areas.
+      definition_zh: 表示靠近人群区域迫降风险的数值分数。
+    predicates:
+    - id: AircraftPairBelowSeparation
+      identifier: safety.aircraft_pair_below_separation
+      label_en: aircraft pair below separation
+      label_zh: 两航空器间隔不足
+      definition_en: Holds when two UAVs are closer than the required safety separation.
+      definition_zh: 当两架无人机间距小于要求安全间隔时成立
+      roles:
+      - key: first_aircraft
+        class: UnmannedAircraft
+      - key: second_aircraft
+        class: UnmannedAircraft
+    - id: AircraftNearBuildingStructure
+      identifier: safety.aircraft_near_building_structure
+      label_en: aircraft near building structure
+      label_zh: 航空器接近建筑结构
+      definition_en: Holds when a UAV is closer to a building or facade than the safety
+        threshold.
+      definition_zh: 当无人机与建筑或立面距离小于安全阈值时成立
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: structure
+        class: BuildingStructure
+    - id: AircraftNearGroundVehicle
+      identifier: safety.aircraft_near_ground_vehicle
+      label_en: aircraft near ground vehicle
+      label_zh: 航空器接近地面车辆
+      definition_en: Holds when a UAV is closer to a ground vehicle than the safety
+        threshold.
+      definition_zh: 当无人机与地面车辆距离小于安全阈值时成立
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: vehicle
+        class: GroundVehicle
+    - id: AircraftNearPedestrian
+      identifier: safety.aircraft_near_pedestrian
+      label_en: aircraft near pedestrian
+      label_zh: 航空器接近行人
+      definition_en: Holds when a UAV is closer to a pedestrian than the safety threshold.
+      definition_zh: 当无人机与行人距离小于安全阈值时成立
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: pedestrian
+        class: Pedestrian
+    - id: VehiclePedestrianConflict
+      identifier: safety.vehicle_pedestrian_conflict
+      label_en: vehicle pedestrian conflict
+      label_zh: 车辆行人冲突
+      definition_en: Holds when a vehicle and pedestrian have a spatial or temporal
+        conflict.
+      definition_zh: 当车辆与行人存在空间或时间冲突时成立
+      roles:
+      - key: vehicle
+        class: GroundVehicle
+      - key: pedestrian
+        class: Pedestrian
+    - id: CrowdEvacuationActive
+      identifier: safety.crowd_evacuation_active
+      label_en: crowd evacuation active
+      label_zh: 人群疏散进行中
+      definition_en: Holds when a crowd or grouped pedestrians are in an evacuation
+        state.
+      definition_zh: 当人群或行人组处于疏散状态时成立
+      roles:
+      - key: crowd
+        class: Crowd
+    - id: ForcedLandingInPopulatedArea
+      identifier: safety.forced_landing_in_populated_area
+      label_en: forced landing in populated area
+      label_zh: 人群区域迫降
+      definition_en: Holds when a UAV forced-landing trajectory or landing site intersects
+        a populated area.
+      definition_zh: 当无人机迫降轨迹或落点与人群区域相交时成立
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: populated_area
+        class: PopulatedArea
+  facility_energy_service:
+    slug: facility_energy_service
+    title_en: AeroWorld Facility and Energy Service Ontology
+    title_zh: AeroWorld 设施与能源服务本体
+    scope_en: Charging stations, landing pads, base stations as facilities, service
+      availability, battery state, allocations, queues, and pad occupancy.
+    scope_zh: 刻画充电站、起降坪、基站等设施，以及服务可用性、电池状态、资源分配、排队和坪位占用。
+    concepts:
+    - id: BatteryState
+      parent: EntityStateAtTick
+      label_en: battery state
+      label_zh: 电池状态
+      definition_en: Tick-indexed state describing remaining energy or low-battery
+        condition.
+      definition_zh: 描述剩余能量或低电量条件的时刻状态。
+    - id: ChargingSession
+      parent: Process
+      label_en: charging session
+      label_zh: 充电会话
+      definition_en: Time-bounded service process between an actor and a charging
+        station.
+      definition_zh: 主体与充电站之间有时间边界的服务过程。
+    - id: ChargingQueue
+      parent: EntityStateAtTick
+      label_en: charging queue
+      label_zh: 充电排队
+      definition_en: Queue state for actors waiting to use a charging service.
+      definition_zh: 等待使用充电服务的主体排队状态。
+    - id: PadOccupancyState
+      parent: EntityStateAtTick
+      label_en: pad occupancy state
+      label_zh: 坪位占用状态
+      definition_en: State describing occupancy of a landing pad.
+      definition_zh: 描述起降坪占用情况的状态。
+    - id: FacilityAvailabilityState
+      parent: EntityStateAtTick
+      label_en: facility availability state
+      label_zh: 设施可用性状态
+      definition_en: State describing whether a facility can provide its declared
+        service.
+      definition_zh: 描述设施是否能够提供声明服务的状态。
+    object_relations:
+    - id: aircraftAllocatedToPad
+      domain: UnmannedAircraft
+      range: LandingPad
+      label_en: aircraft allocated to pad
+      label_zh: 航空器分配至起降坪
+      definition_en: Relates an aircraft to an assigned landing pad.
+      definition_zh: 表示航空器与分配起降坪之间的关系。
+    - id: aircraftUsesChargingStation
+      domain: UnmannedAircraft
+      range: ChargingStation
+      label_en: aircraft uses charging station
+      label_zh: 航空器使用充电站
+      definition_en: Relates an aircraft to a charging station used for energy service.
+      definition_zh: 表示航空器使用的充电服务设施。
+    - id: chargingSessionServesActor
+      domain: ChargingSession
+      range: UnmannedAircraft
+      label_en: charging session serves actor
+      label_zh: 充电会话服务主体
+      definition_en: Relates a charging-session process to the aircraft receiving
+        service.
+      definition_zh: 表示充电会话过程服务的航空器。
+    - id: chargingSessionUsesStation
+      domain: ChargingSession
+      range: ChargingStation
+      label_en: charging session uses station
+      label_zh: 充电会话使用充电站
+      definition_en: Relates a charging-session process to the charging station providing
+        service.
+      definition_zh: 表示充电会话过程使用的充电站。
+    state_properties:
+    - id: batteryStateOfChargeRatio
+      domain: BatteryState
+      range: xsd:decimal
+      unit: '1'
+      evidence_field_category: battery_state
+      label_en: battery state of charge ratio
+      label_zh: 电池荷电比例
+      definition_en: Remaining battery state of charge represented as a ratio.
+      definition_zh: 以比例表示的剩余电池荷电状态。
+    - id: facilityAvailable
+      domain: FacilityAvailabilityState
+      range: xsd:boolean
+      unit: '1'
+      evidence_field_category: facility_availability
+      label_en: facility available
+      label_zh: 设施可用
+      definition_en: Whether a facility can provide its declared service.
+      definition_zh: 设施是否能够提供其声明服务。
+    - id: chargingQueueLength
+      domain: ChargingQueue
+      range: xsd:integer
+      unit: aircraft
+      evidence_field_category: charging_queue
+      label_en: charging queue length
+      label_zh: 充电队列长度
+      definition_en: Number of aircraft waiting for charging service.
+      definition_zh: 等待充电服务的航空器数量。
+    - id: padOccupancyCount
+      domain: PadOccupancyState
+      range: xsd:integer
+      unit: aircraft
+      evidence_field_category: pad_occupancy
+      label_en: pad occupancy count
+      label_zh: 坪位占用数量
+      definition_en: Number of aircraft or blockers occupying a landing pad.
+      definition_zh: 占用起降坪的航空器或阻塞物数量。
+    predicates:
+    - id: AircraftBatteryLow
+      identifier: facility.aircraft_battery_low
+      label_en: aircraft battery low
+      label_zh: 航空器低电量
+      definition_en: Holds when an aircraft battery state is below the low-energy
+        threshold.
+      definition_zh: 当航空器电池状态低于低电量阈值时成立
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+    - id: ChargingStationUnavailable
+      identifier: facility.charging_station_unavailable
+      label_en: charging station unavailable
+      label_zh: 充电站不可用
+      definition_en: Holds when a charging station cannot accept a charging session.
+      definition_zh: 当充电站不能接受充电会话时成立
+      roles:
+      - key: station
+        class: ChargingStation
+    - id: ChargingQueueOverCapacity
+      identifier: facility.charging_queue_over_capacity
+      label_en: charging queue over capacity
+      label_zh: 充电队列超容量
+      definition_en: Holds when the charging queue exceeds the accepted capacity.
+      definition_zh: 当充电队列超过可接受容量时成立
+      roles:
+      - key: station
+        class: ChargingStation
+    - id: LandingPadOccupied
+      identifier: facility.landing_pad_occupied
+      label_en: landing pad occupied
+      label_zh: 起降坪被占用
+      definition_en: Holds when a landing pad is occupied by an aircraft or obstacle.
+      definition_zh: 当起降坪被航空器或障碍物占用时成立
+      roles:
+      - key: pad
+        class: LandingPad
+    - id: LandingPadContention
+      identifier: facility.landing_pad_contention
+      label_en: landing pad contention
+      label_zh: 起降坪争用
+      definition_en: Holds when multiple aircraft are allocated to or attempting to
+        use the same landing pad.
+      definition_zh: 当多架航空器被分配至或尝试使用同一起降坪时成立
+      roles:
+      - key: pad
+        class: LandingPad
+      - key: first_aircraft
+        class: UnmannedAircraft
+      - key: second_aircraft
+        class: UnmannedAircraft
+  communication_process:
+    slug: communication_process
+    title_en: AeroWorld Communication Process Ontology
+    title_zh: AeroWorld 通信过程本体
+    scope_en: Messages, sessions, data flows, channel allocation, bandwidth use, routes,
+      handovers, retransmissions, latency, packet loss, and link quality.
+    scope_zh: 刻画消息、会话、数据流、信道分配、带宽占用、路由、切换、重传、时延、丢包和链路质量。
+    concepts:
+    - id: Message
+      parent: InformationEntity
+      label_en: message
+      label_zh: 消息
+      definition_en: A unit of information transmitted over a communication process.
+      definition_zh: 通过通信过程传输的信息单元。
+    - id: CommunicationSession
+      parent: Process
+      label_en: communication session
+      label_zh: 通信会话
+      definition_en: Time-bounded communication process among actors and communication
+        infrastructure.
+      definition_zh: 主体与通信基础设施之间有时间边界的通信过程。
+    - id: DataFlow
+      parent: Process
+      label_en: data flow
+      label_zh: 数据流
+      definition_en: Flow process of task, control, telemetry, or service data between
+        endpoints.
+      definition_zh: 端点之间的任务、控制、遥测或服务数据流过程。
+    - id: ChannelAllocation
+      parent: EntityStateAtTick
+      label_en: channel allocation
+      label_zh: 信道分配
+      definition_en: Allocation of a communication channel to a session or data flow.
+      definition_zh: 将通信信道分配给会话或数据流的状态。
+    - id: BandwidthReservation
+      parent: EntityStateAtTick
+      label_en: bandwidth reservation
+      label_zh: 带宽预留
+      definition_en: Reserved bandwidth for a session, route, or data flow.
+      definition_zh: 为会话、路由或数据流预留的带宽。
+    - id: CommunicationRoute
+      parent: Process
+      label_en: communication route
+      label_zh: 通信路由
+      definition_en: Ordered communication process connecting sender, relay, and receiver
+        nodes.
+      definition_zh: 连接发送、转发和接收节点的有序通信过程。
+    - id: TransmissionAttempt
+      parent: Process
+      label_en: transmission attempt
+      label_zh: 传输尝试
+      definition_en: Attempt process to send a message or packet over a channel.
+      definition_zh: 通过信道发送消息或分组的尝试过程。
+    - id: Retransmission
+      parent: TransmissionAttempt
+      label_en: retransmission
+      label_zh: 重传
+      definition_en: Transmission attempt repeated after loss, timeout, or failed
+        acknowledgement.
+      definition_zh: 在丢失、超时或确认失败后重复的传输尝试。
+    - id: Handover
+      parent: Process
+      label_en: handover
+      label_zh: 通信切换
+      definition_en: Transfer process of a session or route from one station or channel
+        to another.
+      definition_zh: 会话或路由从一个站点或信道转移到另一个站点或信道的过程。
+    - id: LinkQualityState
+      parent: EntityStateAtTick
+      label_en: link quality state
+      label_zh: 链路质量状态
+      definition_en: State covering latency, packet loss, signal quality, and throughput
+        of a link.
+      definition_zh: 覆盖链路时延、丢包、信号质量和吞吐的状态。
+    object_relations:
+    - id: sessionUsesStation
+      domain: CommunicationSession
+      range: CommunicationStation
+      label_en: session uses station
+      label_zh: 会话使用通信站
+      definition_en: Relates a communication session to the station serving it.
+      definition_zh: 表示通信会话使用的通信站。
+    - id: flowUsesRoute
+      domain: DataFlow
+      range: CommunicationRoute
+      label_en: flow uses route
+      label_zh: 数据流使用路由
+      definition_en: Relates a data flow to its communication route.
+      definition_zh: 表示数据流使用的通信路由。
+    - id: allocationServesFlow
+      domain: ChannelAllocation
+      range: DataFlow
+      label_en: allocation serves flow
+      label_zh: 分配服务数据流
+      definition_en: Relates a channel allocation to the data flow it serves.
+      definition_zh: 表示信道分配服务的数据流。
+    - id: sessionCarriesFlow
+      domain: CommunicationSession
+      range: DataFlow
+      label_en: session carries flow
+      label_zh: 会话承载数据流
+      definition_en: Relates a communication session to a data flow carried by the
+        session.
+      definition_zh: 表示通信会话承载的数据流。
+    - id: transmissionSendsMessage
+      domain: TransmissionAttempt
+      range: Message
+      label_en: transmission sends message
+      label_zh: 传输发送消息
+      definition_en: Relates a transmission attempt to the message being sent.
+      definition_zh: 表示传输尝试发送的消息。
+    - id: transmissionUsesAllocation
+      domain: TransmissionAttempt
+      range: ChannelAllocation
+      label_en: transmission uses allocation
+      label_zh: 传输使用信道分配
+      definition_en: Relates a transmission attempt to its channel allocation.
+      definition_zh: 表示传输尝试使用的信道分配。
+    - id: retransmissionRepeatsTransmission
+      domain: Retransmission
+      range: TransmissionAttempt
+      label_en: retransmission repeats transmission
+      label_zh: 重传重复传输
+      definition_en: Relates a retransmission to the earlier transmission attempt
+        it repeats.
+      definition_zh: 表示重传所重复的先前传输尝试。
+    - id: handoverTransfersSession
+      domain: Handover
+      range: CommunicationSession
+      label_en: handover transfers session
+      label_zh: 切换转移会话
+      definition_en: Relates a handover process to the session it transfers.
+      definition_zh: 表示切换过程转移的会话。
+    - id: handoverSourceStation
+      domain: Handover
+      range: CommunicationStation
+      label_en: handover source station
+      label_zh: 切换源通信站
+      definition_en: Relates a handover process to the station serving the session
+        before transfer.
+      definition_zh: 表示切换前为会话提供服务的通信站。
+    - id: handoverTargetStation
+      domain: Handover
+      range: CommunicationStation
+      label_en: handover target station
+      label_zh: 切换目标通信站
+      definition_en: Relates a handover process to the station serving the session
+        after transfer.
+      definition_zh: 表示切换后为会话提供服务的通信站。
+    - id: reservationServesFlow
+      domain: BandwidthReservation
+      range: DataFlow
+      label_en: reservation serves flow
+      label_zh: 带宽预留服务数据流
+      definition_en: Relates a bandwidth reservation to the data flow receiving the
+        reserved capacity.
+      definition_zh: 表示带宽预留与获得该预留容量的数据流之间的关系。
+    - id: routeUsesStation
+      domain: CommunicationRoute
+      range: CommunicationStation
+      label_en: route uses station
+      label_zh: 路由使用通信站
+      definition_en: Relates a communication route to a station on the route.
+      definition_zh: 表示通信路由使用的站点。
+    state_properties:
+    - id: latencyMs
+      domain: LinkQualityState
+      range: xsd:decimal
+      unit: ms
+      evidence_field_category: network_latency
+      label_en: latency milliseconds
+      label_zh: 时延毫秒
+      definition_en: Observed one-way or end-to-end communication latency in milliseconds.
+      definition_zh: 以毫秒表示的单向或端到端通信时延。
+    - id: packetLossRatio
+      domain: LinkQualityState
+      range: xsd:decimal
+      unit: '1'
+      evidence_field_category: packet_loss
+      label_en: packet loss ratio
+      label_zh: 丢包率
+      definition_en: Observed packet loss ratio for a link, session, or data flow.
+      definition_zh: 链路、会话或数据流的观测丢包比例。
+    - id: bandwidthMbps
+      domain: BandwidthReservation
+      range: xsd:decimal
+      unit: Mbps
+      evidence_field_category: bandwidth
+      label_en: bandwidth megabits per second
+      label_zh: 带宽兆比特每秒
+      definition_en: Reserved or observed bandwidth in megabits per second.
+      definition_zh: 以兆比特每秒表示的预留或观测带宽。
+    - id: channelIdentifier
+      domain: ChannelAllocation
+      range: xsd:string
+      unit: identifier
+      evidence_field_category: channel_assignment
+      label_en: channel identifier
+      label_zh: 信道标识
+      definition_en: Identifier of the channel allocated to a session or data flow.
+      definition_zh: 分配给会话或数据流的信道标识。
+    - id: retransmissionCount
+      domain: Retransmission
+      range: xsd:integer
+      unit: attempt
+      evidence_field_category: retransmission
+      label_en: retransmission count
+      label_zh: 重传次数
+      definition_en: Number of repeated transmission attempts.
+      definition_zh: 重复传输尝试次数。
+    - id: sessionActive
+      domain: CommunicationSession
+      range: xsd:boolean
+      unit: '1'
+      evidence_field_category: session_state
+      label_en: session active
+      label_zh: 会话激活
+      definition_en: Whether a communication session is active at a tick.
+      definition_zh: 某一时刻通信会话是否处于活动状态。
+    predicates:
+    - id: LinkUnavailable
+      identifier: communication.link_unavailable
+      label_en: link unavailable
+      label_zh: 链路不可用
+      definition_en: Holds when a communication link cannot support the required session
+        or data flow.
+      definition_zh: 当通信链路不能支持所需会话或数据流时成立
+      roles:
+      - key: station
+        class: CommunicationStation
+      - key: actor
+        class: UnmannedAircraft
+    - id: LinkDegraded
+      identifier: communication.link_degraded
+      label_en: link degraded
+      label_zh: 链路退化
+      definition_en: Holds when communication quality is below required thresholds
+        while not fully unavailable.
+      definition_zh: 当通信质量低于要求阈值但未完全不可用时成立
+      roles:
+      - key: station
+        class: CommunicationStation
+      - key: actor
+        class: UnmannedAircraft
+    - id: MessageTransmissionFailed
+      identifier: communication.message_transmission_failed
+      label_en: message transmission failed
+      label_zh: 消息传输失败
+      definition_en: Holds when a transmission attempt fails for a message or packet.
+      definition_zh: 当消息或分组传输尝试失败时成立
+      roles:
+      - key: attempt
+        class: TransmissionAttempt
+    - id: ChannelBandwidthOverAllocated
+      identifier: communication.channel_bandwidth_over_allocated
+      label_en: channel bandwidth over allocated
+      label_zh: 信道带宽超分配
+      definition_en: Holds when allocated or observed bandwidth demand exceeds channel
+        capacity.
+      definition_zh: 当分配或观测带宽需求超过信道容量时成立
+      roles:
+      - key: allocation
+        class: ChannelAllocation
+    - id: CommunicationSessionInterrupted
+      identifier: communication.communication_session_interrupted
+      label_en: communication session interrupted
+      label_zh: 通信会话中断
+      definition_en: Holds when an active communication session loses continuity.
+      definition_zh: 当活动通信会话失去连续性时成立
+      roles:
+      - key: session
+        class: CommunicationSession
+    - id: HandoverInProgress
+      identifier: communication.handover_in_progress
+      label_en: handover in progress
+      label_zh: 通信切换进行中
+      definition_en: Holds while a session or route is being handed over.
+      definition_zh: 当会话或路由处于切换过程中时成立
+      roles:
+      - key: handover
+        class: Handover
+    - id: DataFlowLatencyAboveThreshold
+      identifier: communication.data_flow_latency_above_threshold
+      label_en: data flow latency above threshold
+      label_zh: 数据流时延超阈值
+      definition_en: Holds when end-to-end latency of a data flow exceeds a declared
+        threshold.
+      definition_zh: 当数据流端到端时延超过声明阈值时成立
+      roles:
+      - key: flow
+        class: DataFlow
+    - id: PacketLossAboveThreshold
+      identifier: communication.packet_loss_above_threshold
+      label_en: packet loss above threshold
+      label_zh: 丢包率超阈值
+      definition_en: Holds when observed packet loss exceeds a declared threshold.
+      definition_zh: 当观测丢包率超过声明阈值时成立
+      roles:
+      - key: flow
+        class: DataFlow
+    - id: RetransmissionInProgress
+      identifier: communication.retransmission_in_progress
+      label_en: retransmission in progress
+      label_zh: 重传进行中
+      definition_en: Holds when a message retransmission process has at least one repeated attempt.
+      definition_zh: 当消息重传过程至少包含一次重复传输尝试时成立
+      roles:
+      - key: retransmission
+        class: Retransmission
+  computation_process:
+    slug: computation_process
+    title_en: AeroWorld Computation Process Ontology
+    title_zh: AeroWorld 计算过程本体
+    scope_en: Compute nodes, CPU/GPU/memory resources, queues, tasks, offloading,
+      migration, execution state, deadlines, and execution failure.
+    scope_zh: 刻画计算节点、CPU/GPU/内存资源、队列、任务、卸载、迁移、执行状态、截止期和执行失败。
+    concepts:
+    - id: ComputeNode
+      parent: InfrastructureAsset
+      label_en: compute node
+      label_zh: 计算节点
+      definition_en: Infrastructure or onboard node capable of executing compute tasks.
+      definition_zh: 能够执行计算任务的基础设施或机载节点。
+    - id: ComputeTask
+      parent: InformationEntity
+      label_en: compute task
+      label_zh: 计算任务
+      definition_en: Unit of computation required by perception, communication, control,
+        or service logic.
+      definition_zh: 感知、通信、控制或服务逻辑所需的计算单元。
+    - id: TaskExecution
+      parent: Process
+      label_en: task execution
+      label_zh: 任务执行
+      definition_en: Execution process of a compute task on a compute node.
+      definition_zh: 计算任务在计算节点上的执行过程。
+    - id: ComputeResource
+      parent: Resource
+      label_en: compute resource
+      label_zh: 计算资源
+      definition_en: CPU, GPU, memory, or other bounded capacity consumed by compute
+        task execution.
+      definition_zh: 计算任务执行所消耗的 CPU、GPU、内存或其他有限容量。
+    - id: ProcessorResource
+      parent: ComputeResource
+      label_en: processor resource
+      label_zh: 处理器资源
+      definition_en: Processor capacity used by compute tasks.
+      definition_zh: 计算任务使用的处理器能力。
+    - id: CPUResource
+      parent: ProcessorResource
+      label_en: CPU resource
+      label_zh: CPU 资源
+      definition_en: Central processor resource available for task execution.
+      definition_zh: 可用于任务执行的中央处理器资源。
+    - id: GPUResource
+      parent: ProcessorResource
+      label_en: GPU resource
+      label_zh: GPU 资源
+      definition_en: Graphics or accelerator resource available for task execution.
+      definition_zh: 可用于任务执行的图形或加速器资源。
+    - id: MemoryResource
+      parent: ComputeResource
+      label_en: memory resource
+      label_zh: 内存资源
+      definition_en: Memory capacity available to compute tasks.
+      definition_zh: 可供计算任务使用的内存容量。
+    - id: ComputeQueue
+      parent: EntityStateAtTick
+      label_en: compute queue
+      label_zh: 计算队列
+      definition_en: Queue state for tasks waiting to execute on a compute node.
+      definition_zh: 等待在计算节点上执行的任务队列状态。
+    - id: ResourceAllocation
+      parent: EntityStateAtTick
+      label_en: resource allocation
+      label_zh: 资源分配
+      definition_en: Allocation of CPU, GPU, memory, or node capacity to a task.
+      definition_zh: 将 CPU、GPU、内存或节点能力分配给任务的状态。
+    - id: TaskOffload
+      parent: Process
+      label_en: task offload
+      label_zh: 任务卸载
+      definition_en: Movement process of a compute task from one execution node to
+        another before or during execution.
+      definition_zh: 计算任务在执行前或执行中从一个节点转移到另一个节点的过程。
+    - id: TaskMigration
+      parent: TaskOffload
+      label_en: task migration
+      label_zh: 任务迁移
+      definition_en: Runtime relocation of an executing task between compute nodes.
+      definition_zh: 正在执行的任务在计算节点之间的运行时迁移。
+    - id: ExecutionFailure
+      parent: EntityStateAtTick
+      label_en: execution failure
+      label_zh: 执行失败
+      definition_en: State in which a compute task cannot complete according to its
+        contract.
+      definition_zh: 计算任务无法按其契约完成的状态。
+    object_relations:
+    - id: taskAssignedToNode
+      domain: ComputeTask
+      range: ComputeNode
+      label_en: task assigned to node
+      label_zh: 任务分配至节点
+      definition_en: Relates a compute task to the node selected for execution.
+      definition_zh: 表示计算任务被分配到的执行节点。
+    - id: taskConsumesResource
+      domain: ComputeTask
+      range: ProcessorResource
+      label_en: task consumes resource
+      label_zh: 任务消耗资源
+      definition_en: Relates a compute task to processor resources consumed by execution.
+      definition_zh: 表示计算任务执行所消耗的处理器资源。
+    - id: allocationUsesMemory
+      domain: ResourceAllocation
+      range: MemoryResource
+      label_en: allocation uses memory
+      label_zh: 分配使用内存
+      definition_en: Relates a resource allocation to its memory resource.
+      definition_zh: 表示资源分配使用的内存资源。
+    - id: executionRunsTask
+      domain: TaskExecution
+      range: ComputeTask
+      label_en: execution runs task
+      label_zh: 执行运行任务
+      definition_en: Relates a task-execution process to the compute task being executed.
+      definition_zh: 表示任务执行过程运行的计算任务。
+    - id: executionRunsOnNode
+      domain: TaskExecution
+      range: ComputeNode
+      label_en: execution runs on node
+      label_zh: 执行运行于节点
+      definition_en: Relates a task-execution process to the compute node executing
+        it.
+      definition_zh: 表示任务执行过程所在的计算节点。
+    - id: taskQueuedInQueue
+      domain: ComputeTask
+      range: ComputeQueue
+      label_en: task queued in queue
+      label_zh: 任务位于队列
+      definition_en: Relates a compute task to the queue in which it waits.
+      definition_zh: 表示计算任务所在的等待队列。
+    - id: queueServedByNode
+      domain: ComputeQueue
+      range: ComputeNode
+      label_en: queue served by node
+      label_zh: 队列由节点服务
+      definition_en: Relates a compute queue to the compute node serving it.
+      definition_zh: 表示计算队列由哪个计算节点服务。
+    - id: allocationAssignedToTask
+      domain: ResourceAllocation
+      range: ComputeTask
+      label_en: allocation assigned to task
+      label_zh: 分配指向任务
+      definition_en: Relates a resource allocation to the task receiving resources.
+      definition_zh: 表示资源分配指向的计算任务。
+    - id: allocationAssignedToNode
+      domain: ResourceAllocation
+      range: ComputeNode
+      label_en: allocation assigned to node
+      label_zh: 分配指向节点
+      definition_en: Relates a resource allocation to the compute node providing resources.
+      definition_zh: 表示资源分配指向的计算节点。
+    - id: offloadMovesTask
+      domain: TaskOffload
+      range: ComputeTask
+      label_en: offload moves task
+      label_zh: 卸载移动任务
+      definition_en: Relates an offload process to the task being moved.
+      definition_zh: 表示卸载过程移动的任务。
+    - id: offloadSourceNode
+      domain: TaskOffload
+      range: ComputeNode
+      label_en: offload source node
+      label_zh: 卸载源节点
+      definition_en: Relates an offload process to its source compute node.
+      definition_zh: 表示卸载过程的源计算节点。
+    - id: offloadTargetNode
+      domain: TaskOffload
+      range: ComputeNode
+      label_en: offload target node
+      label_zh: 卸载目标节点
+      definition_en: Relates an offload process to its target compute node.
+      definition_zh: 表示卸载过程的目标计算节点。
+    state_properties:
+    - id: cpuUtilizationRatio
+      domain: CPUResource
+      range: xsd:decimal
+      unit: '1'
+      evidence_field_category: cpu_utilization
+      label_en: CPU utilization ratio
+      label_zh: CPU 利用率
+      definition_en: Observed CPU utilization represented as a ratio.
+      definition_zh: 以比例表示的观测 CPU 利用率。
+    - id: gpuUtilizationRatio
+      domain: GPUResource
+      range: xsd:decimal
+      unit: '1'
+      evidence_field_category: gpu_utilization
+      label_en: GPU utilization ratio
+      label_zh: GPU 利用率
+      definition_en: Observed GPU utilization represented as a ratio.
+      definition_zh: 以比例表示的观测 GPU 利用率。
+    - id: memoryUsedMb
+      domain: MemoryResource
+      range: xsd:decimal
+      unit: MB
+      evidence_field_category: memory_usage
+      label_en: memory used megabytes
+      label_zh: 已用内存兆字节
+      definition_en: Memory used by a node or task in megabytes.
+      definition_zh: 节点或任务使用的内存，单位为兆字节。
+    - id: computeQueueLength
+      domain: ComputeQueue
+      range: xsd:integer
+      unit: task
+      evidence_field_category: compute_queue
+      label_en: compute queue length
+      label_zh: 计算队列长度
+      definition_en: Number of compute tasks waiting in a queue.
+      definition_zh: 计算队列中等待的任务数量。
+    - id: taskExecutionStatus
+      domain: TaskExecution
+      range: xsd:string
+      unit: state-code
+      evidence_field_category: task_execution_status
+      label_en: task execution status
+      label_zh: 任务执行状态
+      definition_en: Discrete execution status of a compute task.
+      definition_zh: 计算任务的离散执行状态。
+    - id: taskDeadlineMs
+      domain: ComputeTask
+      range: xsd:decimal
+      unit: ms
+      evidence_field_category: task_deadline
+      label_en: task deadline milliseconds
+      label_zh: 任务截止期毫秒
+      definition_en: Declared compute-task deadline in milliseconds.
+      definition_zh: 计算任务声明的截止期，单位为毫秒。
+    predicates:
+    - id: ComputeNodeUnavailable
+      identifier: compute.compute_node_unavailable
+      label_en: compute node unavailable
+      label_zh: 计算节点不可用
+      definition_en: Holds when a compute node cannot accept or execute tasks.
+      definition_zh: 当计算节点不能接受或执行任务时成立
+      roles:
+      - key: node
+        class: ComputeNode
+    - id: ComputeTaskQueued
+      identifier: compute.compute_task_queued
+      label_en: compute task queued
+      label_zh: 计算任务排队
+      definition_en: Holds when a compute task waits in a compute queue.
+      definition_zh: 当计算任务在计算队列中等待时成立
+      roles:
+      - key: task
+        class: ComputeTask
+      - key: queue
+        class: ComputeQueue
+    - id: ComputeResourceOverAllocated
+      identifier: compute.compute_resource_over_allocated
+      label_en: compute resource over allocated
+      label_zh: 计算资源超分配
+      definition_en: Holds when requested CPU, GPU, or memory exceeds available capacity.
+      definition_zh: 当请求的 CPU、GPU 或内存超过可用容量时成立
+      roles:
+      - key: node
+        class: ComputeNode
+    - id: ComputeTaskOffloaded
+      identifier: compute.compute_task_offloaded
+      label_en: compute task offloaded
+      label_zh: 计算任务已卸载
+      definition_en: Holds when a task has been offloaded from one compute node to
+        another.
+      definition_zh: 当任务已从一个计算节点卸载到另一个计算节点时成立
+      roles:
+      - key: task
+        class: ComputeTask
+    - id: ComputeTaskMigrating
+      identifier: compute.compute_task_migrating
+      label_en: compute task migrating
+      label_zh: 计算任务正在迁移
+      definition_en: Holds while a compute task is moving between execution nodes.
+      definition_zh: 当计算任务正在执行节点之间迁移时成立
+      roles:
+      - key: task
+        class: ComputeTask
+    - id: ComputeTaskExecutionFailed
+      identifier: compute.compute_task_execution_failed
+      label_en: compute task execution failed
+      label_zh: 计算任务执行失败
+      definition_en: Holds when a compute task enters an execution-failure state.
+      definition_zh: 当计算任务进入执行失败状态时成立
+      roles:
+      - key: task
+        class: ComputeTask
+    - id: ComputeTaskDeadlineMissed
+      identifier: compute.compute_task_deadline_missed
+      label_en: compute task deadline missed
+      label_zh: 计算任务错过截止期
+      definition_en: Holds when a task misses its declared execution deadline.
+      definition_zh: 当任务错过声明执行截止期时成立
+      roles:
+      - key: task
+        class: ComputeTask
+  positioning_navigation:
+    slug: positioning_navigation
+    title_en: AeroWorld Positioning and Navigation Ontology
+    title_zh: AeroWorld 定位与导航本体
+    scope_en: GNSS service, navigation estimates, route adherence, positioning quality,
+      drift, spoofing, and navigation error.
+    scope_zh: 刻画 GNSS 服务、导航估计、航线遵循、定位质量、漂移、欺骗和导航误差。
+    concepts:
+    - id: GnssService
+      parent: InfrastructureAsset
+      label_en: GNSS service
+      label_zh: GNSS 服务
+      definition_en: Positioning service used by an actor for navigation.
+      definition_zh: 主体用于导航的定位服务。
+    - id: NavigationEstimate
+      parent: EntityStateAtTick
+      label_en: navigation estimate
+      label_zh: 导航估计
+      definition_en: Estimated position, velocity, or route state produced by navigation
+        systems.
+      definition_zh: 导航系统产生的位置、速度或航线状态估计。
+    - id: PositioningErrorState
+      parent: EntityStateAtTick
+      label_en: positioning error state
+      label_zh: 定位误差状态
+      definition_en: State describing difference between estimated and truth-frame
+        position.
+      definition_zh: 描述估计位置与真值帧位置差异的状态。
+    - id: NavigationDrift
+      parent: PositioningErrorState
+      label_en: navigation drift
+      label_zh: 导航漂移
+      definition_en: Positioning error that accumulates or persists over time.
+      definition_zh: 随时间累积或持续存在的定位误差。
+    - id: SpoofingSignal
+      parent: InformationEntity
+      label_en: spoofing signal
+      label_zh: 欺骗信号
+      definition_en: Signal information that intentionally misleads positioning or
+        navigation estimates.
+      definition_zh: 有意误导定位或导航估计的信号信息。
+    - id: LocalizationQualityState
+      parent: EntityStateAtTick
+      label_en: localization quality state
+      label_zh: 定位质量状态
+      definition_en: State describing GNSS or localization accuracy, integrity, and
+        availability.
+      definition_zh: 描述 GNSS 或定位准确性、完好性和可用性的状态。
+    object_relations:
+    - id: actorUsesGnssService
+      domain: UnmannedAircraft
+      range: GnssService
+      label_en: actor uses GNSS service
+      label_zh: 主体使用 GNSS 服务
+      definition_en: Relates a UAV to the GNSS service supporting its navigation.
+      definition_zh: 表示无人机使用的 GNSS 导航服务。
+    - id: estimateAffectedBySignal
+      domain: NavigationEstimate
+      range: SpoofingSignal
+      label_en: estimate affected by signal
+      label_zh: 估计受信号影响
+      definition_en: Relates a navigation estimate to a spoofing or interference signal
+        that affects it.
+      definition_zh: 表示导航估计受欺骗或干扰信号影响。
+    state_properties:
+    - id: gnssErrorM
+      domain: PositioningErrorState
+      range: xsd:decimal
+      unit: m
+      evidence_field_category: gnss_error
+      label_en: GNSS error meters
+      label_zh: GNSS 误差米
+      definition_en: Positioning error magnitude in meters.
+      definition_zh: 以米表示的定位误差大小。
+    - id: localizationQualityRatio
+      domain: LocalizationQualityState
+      range: xsd:decimal
+      unit: '1'
+      evidence_field_category: localization_quality
+      label_en: localization quality ratio
+      label_zh: 定位质量比例
+      definition_en: Localization quality score represented as a ratio.
+      definition_zh: 以比例表示的定位质量分数。
+    - id: navigationDriftM
+      domain: NavigationDrift
+      range: xsd:decimal
+      unit: m
+      evidence_field_category: navigation_drift
+      label_en: navigation drift meters
+      label_zh: 导航漂移米
+      definition_en: Accumulated or persistent navigation drift in meters.
+      definition_zh: 以米表示的累积或持续导航漂移。
+    - id: routeDeviationM
+      domain: NavigationEstimate
+      range: xsd:decimal
+      unit: m
+      evidence_field_category: route_deviation
+      label_en: route deviation meters
+      label_zh: 航线偏离米
+      definition_en: Distance between the observed actor path and the planned route.
+      definition_zh: 观测主体路径与计划航线之间的距离。
+    predicates:
+    - id: GnssQualityDegraded
+      identifier: positioning.gnss_quality_degraded
+      label_en: GNSS quality degraded
+      label_zh: GNSS 质量退化
+      definition_en: Holds when GNSS localization quality is below the required threshold.
+      definition_zh: 当 GNSS 定位质量低于要求阈值时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: service
+        class: GnssService
+    - id: GnssSpoofingActive
+      identifier: positioning.gnss_spoofing_active
+      label_en: GNSS spoofing active
+      label_zh: GNSS 欺骗激活
+      definition_en: Holds when a spoofing signal affects the actor's positioning
+        service.
+      definition_zh: 当欺骗信号影响主体定位服务时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: signal
+        class: SpoofingSignal
+    - id: NavigationErrorExceedsTolerance
+      identifier: positioning.navigation_error_exceeds_tolerance
+      label_en: navigation error exceeds tolerance
+      label_zh: 导航误差超容限
+      definition_en: Holds when navigation error exceeds a declared tolerance.
+      definition_zh: 当导航误差超过声明容限时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+    - id: AircraftDeviatesFromPlannedRoute
+      identifier: positioning.aircraft_deviates_from_planned_route
+      label_en: aircraft deviates from planned route
+      label_zh: 航空器偏离计划航线
+      definition_en: Holds when a UAV route state deviates from the declared mission
+        path.
+      definition_zh: 当无人机航线状态偏离声明任务路径时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+  environment_hazard:
+    slug: environment_hazard
+    title_en: AeroWorld Environment Hazard Ontology
+    title_zh: AeroWorld 环境风险本体
+    scope_en: Weather, rain, fog, wind, visibility, lighting, temperature, and environmental
+      hazard zones.
+    scope_zh: 刻画天气、降雨、雾、风、能见度、照明、温度和环境风险区域。
+    concepts:
+    - id: WeatherCondition
+      parent: EntityStateAtTick
+      label_en: weather condition
+      label_zh: 天气条件
+      definition_en: Tick-indexed environmental condition affecting operations.
+      definition_zh: 影响运行的时刻环境条件。
+    - id: RainCondition
+      parent: WeatherCondition
+      label_en: rain condition
+      label_zh: 降雨条件
+      definition_en: Weather condition describing rain intensity or transition.
+      definition_zh: 描述降雨强度或变化的天气条件。
+    - id: FogCondition
+      parent: WeatherCondition
+      label_en: fog condition
+      label_zh: 雾条件
+      definition_en: Weather condition describing fog onset or density.
+      definition_zh: 描述雾出现或浓度的天气条件。
+    - id: WindGust
+      parent: WeatherCondition
+      label_en: wind gust
+      label_zh: 阵风
+      definition_en: Wind condition with speed or direction exceeding operational
+        thresholds.
+      definition_zh: 风速或风向超过运行阈值的风条件。
+    - id: LightingCondition
+      parent: WeatherCondition
+      label_en: lighting condition
+      label_zh: 光照条件
+      definition_en: Environmental lighting state affecting visual operation.
+      definition_zh: 影响视觉运行的环境光照状态。
+    - id: TemperatureCondition
+      parent: WeatherCondition
+      label_en: temperature condition
+      label_zh: 温度条件
+      definition_en: Environmental temperature state affecting operation or equipment.
+      definition_zh: 影响运行或设备的环境温度状态。
+    - id: VisibilityState
+      parent: EntityStateAtTick
+      label_en: visibility state
+      label_zh: 能见度状态
+      definition_en: State describing visual range or sensor visibility quality.
+      definition_zh: 描述视觉距离或传感器可见质量的状态。
+    - id: EnvironmentalHazardZone
+      parent: HazardSource
+      label_en: environmental hazard zone
+      label_zh: 环境风险区域
+      definition_en: Spatial region affected by environmental hazard conditions.
+      definition_zh: 受环境风险条件影响的空间区域。
+    object_relations:
+    - id: hazardAffectsRegion
+      domain: EnvironmentalHazardZone
+      range: SpatialRegion
+      label_en: hazard affects region
+      label_zh: 风险影响区域
+      definition_en: Relates an environmental hazard zone to the affected spatial
+        region.
+      definition_zh: 表示环境风险区域影响的空间区域。
+    - id: conditionAffectsActor
+      domain: WeatherCondition
+      range: MobileAgent
+      label_en: condition affects actor
+      label_zh: 条件影响主体
+      definition_en: Relates an environmental condition to an affected actor.
+      definition_zh: 表示环境条件影响的主体。
+    state_properties:
+    - id: rainIntensityMmPerHr
+      domain: RainCondition
+      range: xsd:decimal
+      unit: mm/h
+      evidence_field_category: weather_rain
+      label_en: rain intensity millimeters per hour
+      label_zh: 降雨强度毫米每小时
+      definition_en: Rain intensity measured in millimeters per hour.
+      definition_zh: 以毫米每小时表示的降雨强度。
+    - id: fogDensityRatio
+      domain: FogCondition
+      range: xsd:decimal
+      unit: '1'
+      evidence_field_category: weather_fog
+      label_en: fog density ratio
+      label_zh: 雾浓度比例
+      definition_en: Fog density or opacity represented as a ratio.
+      definition_zh: 以比例表示的雾浓度或不透明度。
+    - id: windSpeedMps
+      domain: WindGust
+      range: xsd:decimal
+      unit: m/s
+      evidence_field_category: weather_wind
+      label_en: wind speed meters per second
+      label_zh: 风速米每秒
+      definition_en: Wind or gust speed in meters per second.
+      definition_zh: 以米每秒表示的风或阵风速度。
+    - id: visibilityRangeM
+      domain: VisibilityState
+      range: xsd:decimal
+      unit: m
+      evidence_field_category: visibility
+      label_en: visibility range meters
+      label_zh: 能见距离米
+      definition_en: Visual range or visibility distance in meters.
+      definition_zh: 以米表示的视觉距离或能见距离。
+    - id: ambientTemperatureC
+      domain: TemperatureCondition
+      range: xsd:decimal
+      unit: C
+      evidence_field_category: temperature
+      label_en: ambient temperature Celsius
+      label_zh: 环境温度摄氏度
+      definition_en: Ambient temperature measured in degrees Celsius.
+      definition_zh: 以摄氏度表示的环境温度。
+    - id: lightingLevelLux
+      domain: LightingCondition
+      range: xsd:decimal
+      unit: lux
+      evidence_field_category: lighting
+      label_en: lighting level lux
+      label_zh: 光照强度勒克斯
+      definition_en: Environmental illumination measured in lux.
+      definition_zh: 以勒克斯表示的环境照度。
+    predicates:
+    - id: RainActive
+      identifier: environment.rain_active
+      label_en: rain active
+      label_zh: 降雨激活
+      definition_en: Holds when rain is active in the operational region.
+      definition_zh: 当运行区域存在降雨时成立
+      roles:
+      - key: region
+        class: OperationalRegion
+    - id: FogActive
+      identifier: environment.fog_active
+      label_en: fog active
+      label_zh: 雾激活
+      definition_en: Holds when fog is active in the operational region.
+      definition_zh: 当运行区域存在雾时成立
+      roles:
+      - key: region
+        class: OperationalRegion
+    - id: VisibilityBelowThreshold
+      identifier: environment.visibility_below_threshold
+      label_en: visibility below threshold
+      label_zh: 能见度低于阈值
+      definition_en: Holds when visibility is lower than an operational threshold.
+      definition_zh: 当能见度低于运行阈值时成立
+      roles:
+      - key: region
+        class: OperationalRegion
+    - id: WindSpeedAboveThreshold
+      identifier: environment.wind_speed_above_threshold
+      label_en: wind speed above threshold
+      label_zh: 风速高于阈值
+      definition_en: Holds when wind speed or gust exceeds an operational threshold.
+      definition_zh: 当风速或阵风超过运行阈值时成立
+      roles:
+      - key: region
+        class: OperationalRegion
+    - id: LowIlluminationActive
+      identifier: environment.low_illumination_active
+      label_en: low illumination active
+      label_zh: 低照度激活
+      definition_en: Holds when measured illumination is below the governed visual-operation
+        threshold.
+      definition_zh: 当测得照度低于受治理的视觉运行阈值时成立
+      roles:
+      - key: region
+        class: OperationalRegion
+    - id: TemperatureOutsideOperatingRange
+      identifier: environment.temperature_outside_operating_range
+      label_en: temperature outside operating range
+      label_zh: 温度超出运行范围
+      definition_en: Holds when environmental temperature is outside the operating
+        range.
+      definition_zh: 当环境温度超出运行范围时成立
+      roles:
+      - key: region
+        class: OperationalRegion
+  digital_security:
+    slug: digital_security
+    title_en: AeroWorld Digital Security Ontology
+    title_zh: AeroWorld 数字安全本体
+    scope_en: Ground-control security, command integrity, unauthorized command streams,
+      compromise states, jamming impact, and security-control availability.
+    scope_zh: 刻画地面控制安全、指令完整性、未授权指令流、受控状态、干扰影响和安全控制可用性。
+    concepts:
+    - id: CyberSecurityControl
+      parent: InfrastructureAsset
+      label_en: cyber security control
+      label_zh: 网络安全控制
+      definition_en: Control mechanism intended to protect digital command, communication,
+        or service processes.
+      definition_zh: 用于保护数字指令、通信或服务过程的控制机制。
+    - id: GroundControlSession
+      parent: Process
+      label_en: ground control session
+      label_zh: 地面控制会话
+      definition_en: Control session between a ground control station and a UAV.
+      definition_zh: 地面控制站与无人机之间的控制会话。
+    - id: CommandStream
+      parent: InformationEntity
+      label_en: command stream
+      label_zh: 指令流
+      definition_en: Ordered stream of control commands sent to an actor.
+      definition_zh: 发送给主体的有序控制指令流。
+    - id: UnauthorizedCommand
+      parent: InformationEntity
+      label_en: unauthorized command
+      label_zh: 未授权指令
+      definition_en: Command not authorized by the expected control authority.
+      definition_zh: 未由预期控制授权方授权的指令。
+    - id: CompromisedControlState
+      parent: EntityStateAtTick
+      label_en: compromised control state
+      label_zh: 控制受损状态
+      definition_en: State in which a control station, session, or command stream
+        is compromised.
+      definition_zh: 控制站、会话或指令流受损的状态。
+    object_relations:
+    - id: commandStreamControlsActor
+      domain: CommandStream
+      range: UnmannedAircraft
+      label_en: command stream controls actor
+      label_zh: 指令流控制主体
+      definition_en: Relates a command stream to the UAV it controls.
+      definition_zh: 表示指令流控制的无人机。
+    - id: securityControlProtectsSession
+      domain: CyberSecurityControl
+      range: GroundControlSession
+      label_en: security control protects session
+      label_zh: 安全控制保护会话
+      definition_en: Relates a security control to the ground-control session it protects.
+      definition_zh: 表示安全控制保护的地面控制会话。
+    state_properties:
+    - id: commandIntegrityValid
+      domain: CommandStream
+      range: xsd:boolean
+      unit: '1'
+      evidence_field_category: command_integrity
+      label_en: command integrity valid
+      label_zh: 指令完整性有效
+      definition_en: Whether a command stream passes integrity validation.
+      definition_zh: 指令流是否通过完整性验证。
+    - id: unauthorizedCommandCount
+      domain: CommandStream
+      range: xsd:integer
+      unit: command
+      evidence_field_category: unauthorized_command
+      label_en: unauthorized command count
+      label_zh: 未授权指令数量
+      definition_en: Number of unauthorized commands observed in a command stream.
+      definition_zh: 指令流中观测到的未授权指令数量。
+    - id: securityControlAvailable
+      domain: CyberSecurityControl
+      range: xsd:boolean
+      unit: '1'
+      evidence_field_category: security_control_availability
+      label_en: security control available
+      label_zh: 安全控制可用
+      definition_en: Whether a security-control mechanism is available.
+      definition_zh: 安全控制机制是否可用。
+    predicates:
+    - id: GroundControlStationCompromised
+      identifier: security.ground_control_station_compromised
+      label_en: ground control station compromised
+      label_zh: 地面控制站受损
+      definition_en: Holds when a ground control station is in a compromised control
+        state.
+      definition_zh: 当地面控制站处于控制受损状态时成立
+      roles:
+      - key: station
+        class: GroundControlStation
+    - id: UnauthorizedCommandReceived
+      identifier: security.unauthorized_command_received
+      label_en: unauthorized command received
+      label_zh: 收到未授权指令
+      definition_en: Holds when an actor receives an unauthorized command.
+      definition_zh: 当主体收到未授权指令时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: command
+        class: UnauthorizedCommand
+    - id: CommunicationJammingImpactActive
+      identifier: security.communication_jamming_impact_active
+      label_en: communication jamming impact active
+      label_zh: 通信干扰影响激活
+      definition_en: Holds when an observed jamming state affects the communication
+        link between an aircraft and its bound station.
+      definition_zh: 当观测到的干扰状态影响航空器与其绑定通信站之间的链路时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+      - key: station
+        class: CommunicationStation
+    - id: SecurityControlUnavailable
+      identifier: security.security_control_unavailable
+      label_en: security control unavailable
+      label_zh: 安全控制不可用
+      definition_en: Holds when a security-control mechanism cannot provide its declared
+        protection.
+      definition_zh: 当安全控制机制无法提供声明保护时成立
+      roles:
+      - key: control
+        class: CyberSecurityControl
+    - id: ControlCommandIntegrityViolated
+      identifier: security.control_command_integrity_violated
+      label_en: control command integrity violated
+      label_zh: 控制指令完整性受损
+      definition_en: Holds when a command stream fails integrity checks.
+      definition_zh: 当指令流未通过完整性检查时成立
+      roles:
+      - key: stream
+        class: CommandStream
+  operational_constraint_emergency:
+    slug: operational_constraint_emergency
+    title_en: AeroWorld Operational Constraint and Emergency Ontology
+    title_zh: AeroWorld 运行约束与应急本体
+    scope_en: Temporary restrictions, isolation zones, evacuation, emergency response,
+      priority passage, mission abort, return-to-home, safe hold, and emergency procedures.
+    scope_zh: 刻画临时限制、隔离区、疏散、应急响应、优先通行、任务中止、返航、安全等待和应急程序。
+    concepts:
+    - id: OperationalConstraint
+      parent: NormativeEntity
+      label_en: operational constraint
+      label_zh: 运行约束
+      definition_en: Time-bounded operational limitation imposed on actors or regions.
+      definition_zh: 对主体或区域施加的有时间边界的运行限制。
+    - id: TemporaryRestriction
+      parent: OperationalConstraint
+      label_en: temporary restriction
+      label_zh: 临时限制
+      definition_en: Operational constraint activated for a limited period.
+      definition_zh: 在有限时间内激活的运行约束。
+    - id: EmergencyIsolationZone
+      parent: OperationalRegion
+      label_en: emergency isolation zone
+      label_zh: 应急隔离区
+      definition_en: Region isolated due to emergency response or hazard control.
+      definition_zh: 因应急响应或风险控制而隔离的区域。
+    - id: EvacuationRoute
+      parent: SpatialRegion
+      label_en: evacuation route
+      label_zh: 疏散路线
+      definition_en: Route used by pedestrians, crowds, or responders during evacuation.
+      definition_zh: 行人、人群或应急人员在疏散期间使用的路线。
+    - id: EmergencyResponse
+      parent: Process
+      label_en: emergency response
+      label_zh: 应急响应
+      definition_en: Response process involving emergency actors, procedures, or access
+        control.
+      definition_zh: 涉及应急主体、程序或通行控制的响应过程。
+    - id: AmbulancePriorityPassage
+      parent: EmergencyResponse
+      label_en: ambulance priority passage
+      label_zh: 救护车优先通行
+      definition_en: Response state granting priority passage to an ambulance or emergency
+        vehicle.
+      definition_zh: 向救护车或应急车辆授予优先通行的响应状态。
+    - id: MissionAbort
+      parent: Process
+      label_en: mission abort
+      label_zh: 任务中止
+      definition_en: Process in which an actor terminates its active mission before
+        normal completion.
+      definition_zh: 主体在正常完成前终止活动任务的过程。
+    - id: ReturnToHomeProcedure
+      parent: Process
+      label_en: return-to-home procedure
+      label_zh: 返航程序
+      definition_en: Procedure process in which a UAV returns to a designated home
+        or recovery site.
+      definition_zh: 无人机返回指定起点或回收点的程序过程。
+    - id: SafeHoldProcedure
+      parent: Process
+      label_en: safe hold procedure
+      label_zh: 安全等待程序
+      definition_en: Procedure process in which an actor holds position to reduce
+        risk.
+      definition_zh: 主体保持位置以降低风险的程序过程。
+    object_relations:
+    - id: constraintAppliesToRegion
+      domain: OperationalConstraint
+      range: OperationalRegion
+      label_en: constraint applies to region
+      label_zh: 约束适用于区域
+      definition_en: Relates an operational constraint to the region it governs.
+      definition_zh: 表示运行约束治理的区域。
+    - id: emergencyResponseUsesRoute
+      domain: EmergencyResponse
+      range: EvacuationRoute
+      label_en: emergency response uses route
+      label_zh: 应急响应使用路线
+      definition_en: Relates an emergency response to an evacuation or priority route.
+      definition_zh: 表示应急响应使用的疏散或优先路线。
+    - id: emergencyResponseInvolvesResponder
+      domain: EmergencyResponse
+      range: EmergencyResponder
+      label_en: emergency response involves responder
+      label_zh: 应急响应涉及响应者
+      definition_en: Relates an emergency-response process to an emergency responder.
+      definition_zh: 表示应急响应过程涉及的应急响应者。
+    - id: missionAbortAffectsActor
+      domain: MissionAbort
+      range: MobileAgent
+      label_en: mission abort affects actor
+      label_zh: 任务中止影响主体
+      definition_en: Relates a mission-abort process to the affected actor.
+      definition_zh: 表示任务中止过程影响的主体。
+    - id: returnToHomeAffectsAircraft
+      domain: ReturnToHomeProcedure
+      range: UnmannedAircraft
+      label_en: return to home affects aircraft
+      label_zh: 返航影响航空器
+      definition_en: Relates a return-to-home procedure to the UAV executing it.
+      definition_zh: 表示执行返航程序的无人机。
+    - id: safeHoldAffectsAircraft
+      domain: SafeHoldProcedure
+      range: UnmannedAircraft
+      label_en: safe hold affects aircraft
+      label_zh: 安全等待影响航空器
+      definition_en: Relates a safe-hold procedure to the UAV executing it.
+      definition_zh: 表示执行安全等待程序的无人机。
+    state_properties:
+    - id: constraintActive
+      domain: OperationalConstraint
+      range: xsd:boolean
+      unit: '1'
+      evidence_field_category: operational_constraint
+      label_en: constraint active
+      label_zh: 约束激活
+      definition_en: Whether an operational constraint is active at a tick.
+      definition_zh: 某一时刻运行约束是否激活。
+    - id: evacuationProgressRatio
+      domain: EmergencyResponse
+      range: xsd:decimal
+      unit: '1'
+      evidence_field_category: evacuation_progress
+      label_en: evacuation progress ratio
+      label_zh: 疏散进度比例
+      definition_en: Progress of evacuation represented as a ratio.
+      definition_zh: 以比例表示的疏散进度。
+    - id: emergencyPriorityActive
+      domain: AmbulancePriorityPassage
+      range: xsd:boolean
+      unit: '1'
+      evidence_field_category: emergency_priority
+      label_en: emergency priority active
+      label_zh: 应急优先激活
+      definition_en: Whether emergency priority passage is active.
+      definition_zh: 应急优先通行是否激活。
+    - id: missionProcedureState
+      domain: MissionAbort
+      range: xsd:string
+      unit: state-code
+      evidence_field_category: mission_state
+      label_en: mission procedure state
+      label_zh: 任务程序状态
+      definition_en: Discrete procedure state such as abort, return-to-home, or safe
+        hold.
+      definition_zh: 中止、返航或安全等待等离散任务程序状态。
+    predicates:
+    - id: TemporaryNoFlyZoneActive
+      identifier: emergency.temporary_no_fly_zone_active
+      label_en: temporary no-fly zone active
+      label_zh: 临时禁飞区激活
+      definition_en: Holds when a temporary no-fly restriction is active in an operational
+        region.
+      definition_zh: 当运行区域内临时禁飞限制激活时成立
+      roles:
+      - key: region
+        class: NoFlyZone
+    - id: EmergencyIsolationActive
+      identifier: emergency.emergency_isolation_active
+      label_en: emergency isolation active
+      label_zh: 应急隔离激活
+      definition_en: Holds when an emergency isolation zone is active.
+      definition_zh: 当应急隔离区处于激活状态时成立
+      roles:
+      - key: zone
+        class: EmergencyIsolationZone
+    - id: EvacuationInProgress
+      identifier: emergency.evacuation_in_progress
+      label_en: evacuation in progress
+      label_zh: 疏散进行中
+      definition_en: Holds when evacuation movement is active along an evacuation
+        route.
+      definition_zh: 当疏散路线上的疏散移动处于活动状态时成立
+      roles:
+      - key: route
+        class: EvacuationRoute
+    - id: EmergencyVehiclePriorityActive
+      identifier: emergency.emergency_vehicle_priority_active
+      label_en: emergency vehicle priority active
+      label_zh: 应急车辆优先通行激活
+      definition_en: Holds when priority passage for an emergency vehicle is active.
+      definition_zh: 当应急车辆优先通行处于激活状态时成立
+      roles:
+      - key: response
+        class: AmbulancePriorityPassage
+    - id: AircraftInReturnToHome
+      identifier: emergency.aircraft_in_return_to_home
+      label_en: aircraft in return to home
+      label_zh: 航空器处于返航
+      definition_en: Holds when a UAV is executing a return-to-home procedure.
+      definition_zh: 当无人机正在执行返航程序时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+    - id: MissionAborted
+      identifier: emergency.mission_aborted
+      label_en: mission aborted
+      label_zh: 任务已中止
+      definition_en: Holds when an active mission has been aborted before nominal
+        completion.
+      definition_zh: 当活动任务在正常完成前已中止时成立
+      roles:
+      - key: actor
+        class: MobileAgent
+    - id: AircraftInSafeHold
+      identifier: emergency.aircraft_in_safe_hold
+      label_en: aircraft in safe hold
+      label_zh: 航空器处于安全等待
+      definition_en: Holds when a UAV is executing a safe-hold procedure.
+      definition_zh: 当无人机正在执行安全等待程序时成立
+      roles:
+      - key: actor
+        class: UnmannedAircraft
+  utm:
+    slug: utm
+    title_en: AeroWorld UTM Ontology
+    title_zh: AeroWorld 无人机交通管理本体
+    scope_en: UTM systems, operational intents, flight plans, airspace authorizations,
+      intent conflicts, and deconfliction state.
+    scope_zh: 刻画无人机交通管理系统、运行意图、飞行计划、空域授权、意图冲突和冲突消解状态。
+    concepts:
+    - id: UTMSystem
+      parent: InfrastructureAsset
+      label_en: UTM system
+      label_zh: 无人机交通管理系统
+      definition_en: Infrastructure service that coordinates low-altitude operational intents and airspace authorization.
+      definition_zh: 协调低空运行意图和空域授权的基础设施服务。
+    - id: OperationalIntent
+      parent: InformationEntity
+      label_en: operational intent
+      label_zh: 运行意图
+      definition_en: Time-bounded declaration of an aircraft's intended operational volume or corridor.
+      definition_zh: 航空器预期运行体积或航路的有时间边界声明。
+    - id: FlightPlan
+      parent: InformationEntity
+      label_en: flight plan
+      label_zh: 飞行计划
+      definition_en: Submitted route and schedule plan for an unmanned aircraft operation.
+      definition_zh: 无人机运行提交的航线和时间计划。
+    - id: AirspaceAuthorization
+      parent: NormativeEntity
+      label_en: airspace authorization
+      label_zh: 空域授权
+      definition_en: Normative authorization that permits an aircraft to use a declared airspace region during a validity window.
+      definition_zh: 允许航空器在有效时间窗内使用指定空域区域的规范授权。
+    object_relations:
+    - id: hasOperationalIntent
+      domain: UnmannedAircraft
+      range: OperationalIntent
+      label_en: has operational intent
+      label_zh: 具有运行意图
+      definition_en: Relates an unmanned aircraft to its declared operational intent.
+      definition_zh: 表示无人机及其声明的运行意图。
+    - id: operatesUnder
+      domain: UnmannedAircraft
+      range: UTMSystem
+      label_en: operates under
+      label_zh: 在管理下运行
+      definition_en: Relates an unmanned aircraft to the UTM system governing its operation.
+      definition_zh: 表示无人机及管理其运行的无人机交通管理系统。
+    - id: authorizesAirspace
+      domain: AirspaceAuthorization
+      range: OperationalRegion
+      label_en: authorizes airspace
+      label_zh: 授权空域
+      definition_en: Relates an authorization to the operational region it permits.
+      definition_zh: 表示授权及其许可使用的运行区域。
+    state_properties:
+    - id: authorizationStatus
+      domain: AirspaceAuthorization
+      range: xsd:string
+      unit: state-code
+      evidence_field_category: utm_authorization
+      label_en: authorization status
+      label_zh: 授权状态
+      definition_en: Current validity or revocation status of an airspace authorization.
+      definition_zh: 空域授权当前的有效或撤销状态。
+    - id: intentConflictActive
+      domain: OperationalIntent
+      range: xsd:boolean
+      unit: '1'
+      evidence_field_category: utm_intent_conflict
+      label_en: intent conflict active
+      label_zh: 意图冲突激活
+      definition_en: Whether an operational intent currently conflicts with another declared intent.
+      definition_zh: 运行意图当前是否与另一声明意图冲突。
+    - id: flightPlanApprovalStatus
+      domain: FlightPlan
+      range: xsd:string
+      unit: state-code
+      evidence_field_category: utm_flight_plan
+      label_en: flight plan approval status
+      label_zh: 飞行计划批准状态
+      definition_en: Current approval status of a submitted flight plan.
+      definition_zh: 已提交飞行计划的当前批准状态。
+    - id: deconflictionStatus
+      domain: UTMSystem
+      range: xsd:string
+      unit: state-code
+      evidence_field_category: utm_deconfliction
+      label_en: deconfliction status
+      label_zh: 冲突消解状态
+      definition_en: Current state of UTM deconfliction processing.
+      definition_zh: 无人机交通管理冲突消解处理的当前状态。
+    predicates:
+    - id: AirspaceAuthorizationActive
+      identifier: utm.airspace_authorization_active
+      label_en: airspace authorization active
+      label_zh: 空域授权有效
+      definition_en: Holds when an aircraft airspace authorization is valid at the current tick.
+      definition_zh: 当航空器空域授权在当前时刻有效时成立。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: authorization
+        class: AirspaceAuthorization
+      - key: airspace
+        class: OperationalRegion
+    - id: AirspaceAuthorizationRevoked
+      identifier: utm.airspace_authorization_revoked
+      label_en: airspace authorization revoked
+      label_zh: 空域授权已撤销
+      definition_en: Holds when a declared airspace authorization has been revoked.
+      definition_zh: 当声明的空域授权已被撤销时成立。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: authorization
+        class: AirspaceAuthorization
+      - key: airspace
+        class: OperationalRegion
+    - id: FlightPlanApproved
+      identifier: utm.flight_plan_approved
+      label_en: flight plan approved
+      label_zh: 飞行计划已批准
+      definition_en: Holds when an aircraft flight plan has approval for execution.
+      definition_zh: 当航空器飞行计划已获执行批准时成立。
+      roles:
+      - key: aircraft
+        class: UnmannedAircraft
+      - key: flight_plan
+        class: FlightPlan
+    - id: OperationalIntentConflict
+      identifier: utm.operational_intent_conflict
+      label_en: operational intent conflict
+      label_zh: 运行意图冲突
+      definition_en: Holds when two operational intents overlap in space and time beyond the declared separation policy.
+      definition_zh: 当两个运行意图在时空上重叠并超过声明的间隔策略时成立。
+      roles:
+      - key: first_intent
+        class: OperationalIntent
+      - key: second_intent
+        class: OperationalIntent
+    - id: DeconflictionActive
+      identifier: utm.deconfliction_active
+      label_en: deconfliction active
+      label_zh: 冲突消解激活
+      definition_en: Holds when the UTM system is actively resolving an operational-intent conflict.
+      definition_zh: 当无人机交通管理系统正在主动消解运行意图冲突时成立。
+      roles:
+      - key: system
+        class: UTMSystem
+      - key: aircraft
+        class: UnmannedAircraft

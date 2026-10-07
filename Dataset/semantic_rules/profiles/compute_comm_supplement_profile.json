@@ -1,0 +1,570 @@
+{
+  "schema_name": "compute_comm_supplement_profile",
+  "schema_version": "2.0.0",
+  "profile_id": "aeroworld_compute_comm_supplement_v1",
+  "semantics_scope": "simulated_derived_compute_communication_supplement",
+  "decision_layer_included": false,
+  "default_input_root": "aw_data/render_ready_episodes_capture_filtered",
+  "default_output_root": "aw_data/compute_comm_supplement",
+  "model": {
+    "model_id": "aeroworld_discrete_compute_comm_sim",
+    "model_version": "1.6.0",
+    "seed_namespace": "profile_whitelisted_model_input_digest_v3"
+  },
+  "inputs": {
+    "episode_manifest": "episode_manifest.json",
+    "entity_roster": "global_entity_roster.json",
+    "truth_frames": "truth_frames.jsonl",
+    "weather": "weather_meta.jsonl"
+  },
+  "authoritative_tick_policy": {
+    "start": 0,
+    "end": 900,
+    "step": 5,
+    "adjacency": "exact_step"
+  },
+  "source_policy": {
+    "authoritative_inputs": [
+      "episode_manifest.json",
+      "global_entity_roster.json",
+      "truth_frames.jsonl",
+      "weather_meta.jsonl"
+    ],
+    "forbidden_inputs": [
+      "event_trace.jsonl",
+      "event_realization.jsonl",
+      "dynamic_labels.jsonl",
+      "scenario_plan.json",
+      "source_event_script_path",
+      "n_events"
+    ],
+    "model_input_fields": [
+      "episode_manifest.tick_hz",
+      "episode_manifest.time_range.tick_start",
+      "episode_manifest.time_range.tick_end",
+      "episode_manifest.time_range.sim_time_start",
+      "episode_manifest.time_range.sim_time_end",
+      "global_entity_roster.entities[].entity_id",
+      "global_entity_roster.entities[].entity_category",
+      "global_entity_roster.entities[].entity_kind",
+      "global_entity_roster.entities[].truth_pose.position_enu_m",
+      "global_entity_roster.entities[].initial_position_enu_m",
+      "truth_frames.tick",
+      "truth_frames.entities[].entity_id",
+      "truth_frames.entities[].entity_category",
+      "truth_frames.entities[].entity_kind",
+      "truth_frames.entities[].truth_pose.position_enu_m",
+      "truth_frames.entities[].truth_pose.velocity_enu_mps",
+      "truth_frames.entities[].communication_state.station_unavailable",
+      "truth_frames.entities[].communication_state.communication_unavailable",
+      "truth_frames.entities[].communication_state.available",
+      "truth_frames.entities[].communication_state.link_available",
+      "truth_frames.entities[].communication_state.availability",
+      "truth_frames.entities[].communication_state.mode",
+      "truth_frames.entities[].communication_state.handover_active",
+      "truth_frames.entities[].security_state.jamming",
+      "truth_frames.entities[].security_state.jamming_active",
+      "truth_frames.entities[].security_state.gcs_compromised",
+      "truth_frames.entities[].annotations.speed_mps",
+      "truth_frames.entities[].sumo_vehicle.speed_mps",
+      "weather_meta.tick",
+      "weather_meta.condition",
+      "weather_meta.rain",
+      "weather_meta.fog_density",
+      "weather_meta.dust",
+      "weather_meta.wind_speed"
+    ],
+    "forbidden_manifest_fields": [
+      "artifacts.event_trace",
+      "artifacts.event_realization",
+      "artifacts.dynamic_labels",
+      "scenario_plan",
+      "source_event_script_path",
+      "n_events"
+    ],
+    "missing_parameter_policy": "unknown_with_missing_source_record",
+    "authored_event_labels_are_fact_source": false
+  },
+  "parameter_governance": {
+    "review_status": "reviewed_for_controlled_simulation",
+    "measurement_provenance": {
+      "hardware_logs_present": false,
+      "network_logs_present": false
+    },
+    "source_class": "standard_referenced_parameter",
+    "permitted_uses": [
+      "controlled_simulation_sensitivity_analysis",
+      "source_separated_baseline_training"
+    ],
+    "forbidden_claims": [
+      "measured_hardware_performance",
+      "measured_network_performance",
+      "real_world_generalization"
+    ],
+    "references": [
+      {
+        "document_id": "3GPP TR 36.885 (Release 14)",
+        "title": "Study on LTE-based V2X Services",
+        "publisher": "3GPP",
+        "year": 2016,
+        "anchors": [
+          {
+            "group": "communication_channel",
+            "parameter": "communication.station_profiles.base_station.nominal_range_m",
+            "value": 350.0,
+            "mapping": "urban V2X scenario inter-site distance (ISD) 350 m used as nominal station range"
+          }
+        ]
+      },
+      {
+        "document_id": "3GPP TR 36.912 (Release 15)",
+        "title": "Feasibility Study for Further Advancements for E-UTRA (LTE-Advanced)",
+        "publisher": "3GPP",
+        "year": 2018,
+        "anchors": [
+          {
+            "group": "communication_channel",
+            "parameter": "communication.channel.nominal_latency_ms",
+            "value": 20.0,
+            "mapping": "one-way RAN user-plane latency target 20 ms used as nominal channel latency"
+          }
+        ]
+      },
+      {
+        "document_id": "3GPP TS 22.125 (Release 16)",
+        "title": "Uncrewed Aerial System (UAS) support in 3GPP",
+        "publisher": "3GPP",
+        "year": 2019,
+        "anchors": [
+          {
+            "group": "communication_channel",
+            "parameter": "communication.flow_profiles.uav.bandwidth_mbps",
+            "value": 12.0,
+            "mapping": "telemetry/control/video-keyframe aggregate flow within UAS service data-rate order of magnitude"
+          }
+        ]
+      },
+      {
+        "document_id": "3GPP TS 36.321 (Release 16)",
+        "title": "E-UTRA; Medium Access Control (MAC) protocol specification",
+        "publisher": "3GPP",
+        "year": 2021,
+        "anchors": [
+          {
+            "group": "retransmission",
+            "parameter": "mechanism",
+            "value": "harq_rlc_am",
+            "mapping": "retransmission mechanism modeled after HARQ/RLC AM; deterministic count and floor are profile-declared"
+          }
+        ]
+      },
+      {
+        "document_id": "3GPP TS 36.331 (Release 16)",
+        "title": "E-UTRA; Radio Resource Control (RRC) protocol specification",
+        "publisher": "3GPP",
+        "year": 2021,
+        "anchors": [
+          {
+            "group": "communication_channel",
+            "parameter": "communication.handover_policy.handover_margin_m",
+            "value": 15.0,
+            "mapping": "distance-domain proxy for the A3 event offset/hysteresis trigger; offset value profile-declared"
+          }
+        ]
+      },
+      {
+        "document_id": "NVIDIA Jetson Orin NX Datasheet",
+        "title": "Jetson Orin NX Series System-on-Module Datasheet",
+        "publisher": "NVIDIA",
+        "year": 2022,
+        "anchors": [
+          {
+            "group": "compute_capacity",
+            "parameter": "compute.node_profiles.uav.cpu_cores",
+            "value": 4.0,
+            "mapping": "conservative sub-envelope of the 8-core Arm A78AE CPU; not measured on device"
+          },
+          {
+            "group": "compute_capacity",
+            "parameter": "compute.node_profiles.uav.gpu_units",
+            "value": 1.0,
+            "mapping": "normalized GPU unit as sub-envelope of the 1024-CUDA Ampere GPU"
+          },
+          {
+            "group": "compute_capacity",
+            "parameter": "compute.node_profiles.uav.memory_mb",
+            "value": 4096.0,
+            "mapping": "sub-envelope of the 8-16 GB LPDDR5 memory; not measured on device"
+          }
+        ]
+      }
+    ],
+    "bandwidth_model": {
+      "parameter": "communication.station_profiles.base_station.channel_bandwidth_mbps",
+      "value": 80.0,
+      "scope": "per_flow_nominal_cap",
+      "external_numeric_basis": "unverified",
+      "mapping": "Each UAV communication flow copies this profile value as nominal_capacity_mbps; its own capacity_factor sets effective capacity_mbps. No station aggregate budget is modeled."
+    },
+    "parameter_groups": {
+      "compute_capacity": {
+        "status": "standard_referenced_parameter",
+        "basis": "device-spec-referenced envelope: UAV node uses a conservative NVIDIA Jetson Orin NX-class edge-AI sub-profile; vehicle node uses an automotive ADAS/cockpit SoC-class sub-envelope",
+        "sensitivity_required": true
+      },
+      "compute_task_demand": {
+        "status": "deterministic_simulation",
+        "basis": "controlled perception, navigation, and onboard video workload tiers cover 3.8 to more than 8 CPU cores; speed scaling represents motion-planning growth and the declared peak window exercises queue behavior",
+        "sensitivity_required": true
+      },
+      "communication_channel": {
+        "status": "standard_referenced_parameter",
+        "basis": "3GPP-referenced discrete urban LTE/V2X baseline: TR 36.885 urban deployment (350 m ISD, 20 MHz), TR 36.912 one-way user-plane latency target (20 ms), TS 22.125 UAS service class; the 80 Mbps per-flow cap and latency/packet-loss envelopes are profile-declared model inputs without a verified external numeric basis",
+        "sensitivity_required": true
+      },
+      "station_operational_state": {
+        "status": "deterministic_simulation",
+        "basis": "controlled conversion from structured communication and security state to operational capacity, range, availability, and quality factors",
+        "sensitivity_required": true
+      },
+      "weather_attenuation": {
+        "status": "standard_referenced_parameter",
+        "basis": "bounded condition coefficients follow the ITU-R P.838 rain-attenuation relationship and are mapped into the discrete channel model",
+        "sensitivity_required": true
+      },
+      "retransmission": {
+        "status": "standard_referenced_parameter",
+        "basis": "deterministic retransmission mechanism anchored to HARQ/RLC AM in 3GPP TS 36.321, with controlled count and probability floor",
+        "sensitivity_required": true
+      },
+      "seed_variation": {
+        "status": "deterministic_simulation",
+        "basis": "whitelisted current-state input digest and profile digest",
+        "sensitivity_required": false
+      },
+      "event_labels": {
+        "status": "simulated_derived",
+        "basis": "adjacent false-to-true predicate transitions; authored labels are excluded",
+        "sensitivity_required": true
+      }
+    }
+  },
+  "compute": {
+    "rule_version": "1.1.0",
+    "overcapacity_utilization_threshold": 0.92,
+    "max_queue_depth_default": 1,
+    "node_unavailability_schedule": [
+      {
+        "entity_category": "uav",
+        "entity_rank": 0,
+        "start_tick": 300,
+        "end_tick": 340
+      }
+    ],
+    "node_profiles": {
+      "uav": {
+        "cpu_cores": 4.0,
+        "gpu_units": 1.0,
+        "memory_mb": 4096.0,
+        "max_queue_depth": 1.0
+      },
+      "vehicle": {
+        "cpu_cores": 2.0,
+        "gpu_units": 0.25,
+        "memory_mb": 1536.0,
+        "max_queue_depth": 1.0
+      }
+    },
+    "task_profiles": {
+      "uav": {
+        "task_kind": "uav_perception_navigation",
+        "cpu_cores": 3.8,
+        "cpu_cores_per_mps": 0.22,
+        "gpu_units": 0.62,
+        "memory_mb": 2048.0,
+        "deadline_slack_ticks": 5,
+        "deterministic_variation": 0.0,
+        "load_windows": [
+          {
+            "start_tick": 180,
+            "end_tick": 260,
+            "demand_multiplier": 1.5
+          }
+        ]
+      },
+      "vehicle": {
+        "task_kind": "vehicle_tracking_context",
+        "cpu_cores": 0.7,
+        "cpu_cores_per_mps": 0.03,
+        "gpu_units": 0.08,
+        "memory_mb": 384.0,
+        "deadline_slack_ticks": 10,
+        "deterministic_variation": 0.03,
+        "load_windows": []
+      }
+    }
+  },
+  "communication": {
+    "rule_version": "1.3.0",
+    "channel": {
+      "kind": "urban_lte_v2x_discrete",
+      "nominal_latency_ms": 20.0,
+      "worst_case_latency_ms": 220.0,
+      "maximum_packet_loss_ratio": 0.25,
+      "weather_attenuation": {
+        "rain": 0.18,
+        "fog_density": 0.08,
+        "dust": 0.12
+      },
+      "deterministic_retransmission_probability_floor": 0.12
+    },
+    "station_profiles": {
+      "base_station": {
+        "backup_station_id": "contract_facility_l6_2_v1_03",
+        "nominal_range_m": 350.0,
+        "channel_bandwidth_mbps": 80.0,
+        "operational_states": {
+          "online": {
+            "operational_factor": 1.0,
+            "capacity_factor": 1.0,
+            "range_factor": 1.0,
+            "availability": 1.0
+          },
+          "available": {
+            "operational_factor": 1.0,
+            "capacity_factor": 1.0,
+            "range_factor": 1.0,
+            "availability": 1.0
+          },
+          "backup_link": {
+            "operational_factor": 0.92,
+            "capacity_factor": 0.85,
+            "range_factor": 0.9,
+            "availability": 0.98
+          },
+          "degraded": {
+            "operational_factor": 0.22,
+            "capacity_factor": 0.6,
+            "range_factor": 0.75,
+            "availability": 0.85
+          },
+          "rain_stressed": {
+            "operational_factor": 0.22,
+            "capacity_factor": 0.6,
+            "range_factor": 0.75,
+            "availability": 0.85
+          },
+          "link_lost": {
+            "operational_factor": 0.0,
+            "capacity_factor": 0.0,
+            "range_factor": 0.0,
+            "availability": 0.0
+          }
+        }
+      }
+    },
+    "flow_profiles": {
+      "uav": {
+        "flow_kind": "telemetry_control_video_keyframes",
+        "bandwidth_mbps": 12.0,
+        "deadline_slack_ticks": 5,
+        "latency_threshold_ms": 120.0,
+        "packet_loss_threshold_ratio": 0.05
+      }
+    },
+    "handover_policy": {
+      "handover_margin_m": 15.0,
+      "minimum_dwell_ticks": 30
+    }
+  },
+  "predicate_rules": {
+    "compute.compute_node_unavailable": {
+      "rule_id": "compute_comm_supplement.compute.compute_node_unavailable",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "node"
+      ]
+    },
+    "compute.compute_resource_over_allocated": {
+      "rule_id": "compute_comm_supplement.compute.compute_resource_over_allocated",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "node"
+      ]
+    },
+    "compute.compute_task_deadline_missed": {
+      "rule_id": "compute_comm_supplement.compute.compute_task_deadline_missed",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "task"
+      ]
+    },
+    "compute.compute_task_execution_failed": {
+      "rule_id": "compute_comm_supplement.compute.compute_task_execution_failed",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "task"
+      ]
+    },
+    "compute.compute_task_migrating": {
+      "rule_id": "compute_comm_supplement.compute.compute_task_migrating",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "task"
+      ]
+    },
+    "compute.compute_task_offloaded": {
+      "rule_id": "compute_comm_supplement.compute.compute_task_offloaded",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "task"
+      ]
+    },
+    "compute.compute_task_queued": {
+      "rule_id": "compute_comm_supplement.compute.compute_task_queued",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "queue",
+        "task"
+      ]
+    },
+    "communication.channel_bandwidth_over_allocated": {
+      "rule_id": "compute_comm_supplement.communication.channel_bandwidth_over_allocated",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "allocation"
+      ]
+    },
+    "communication.communication_session_interrupted": {
+      "rule_id": "compute_comm_supplement.communication.communication_session_interrupted",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "session"
+      ]
+    },
+    "communication.data_flow_latency_above_threshold": {
+      "rule_id": "compute_comm_supplement.communication.data_flow_latency_above_threshold",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "flow"
+      ]
+    },
+    "communication.handover_in_progress": {
+      "rule_id": "compute_comm_supplement.communication.handover_in_progress",
+      "rule_version": "1.1.0",
+      "role_bindings": [
+        "handover"
+      ]
+    },
+    "communication.link_degraded": {
+      "rule_id": "compute_comm_supplement.communication.link_degraded",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "actor",
+        "station"
+      ]
+    },
+    "communication.link_unavailable": {
+      "rule_id": "compute_comm_supplement.communication.link_unavailable",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "actor",
+        "station"
+      ]
+    },
+    "communication.message_transmission_failed": {
+      "rule_id": "compute_comm_supplement.communication.message_transmission_failed",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "attempt"
+      ]
+    },
+    "communication.packet_loss_above_threshold": {
+      "rule_id": "compute_comm_supplement.communication.packet_loss_above_threshold",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "flow"
+      ]
+    },
+    "communication.retransmission_in_progress": {
+      "rule_id": "compute_comm_supplement.communication.retransmission_in_progress",
+      "rule_version": "1.0.0",
+      "role_bindings": [
+        "retransmission"
+      ]
+    }
+  },
+  "event_rules": {
+    "compute.compute_resource_over_allocated": {
+      "event_type_id": "compute.compute_resource_saturation_event",
+      "rule_id": "compute_comm_supplement.event.compute_resource_saturation",
+      "rule_version": "1.0.0",
+      "participant_bindings": {
+        "node": "node",
+        "resource": "resource"
+      }
+    },
+    "compute.compute_task_execution_failed": {
+      "event_type_id": "compute.compute_task_execution_failure_event",
+      "rule_id": "compute_comm_supplement.event.compute_task_execution_failure",
+      "rule_version": "1.0.0",
+      "participant_bindings": {
+        "execution": "execution",
+        "failure_state": "failure_state",
+        "node": "node",
+        "task": "task"
+      }
+    },
+    "communication.retransmission_in_progress": {
+      "event_type_id": "communication.message_retransmission_event",
+      "rule_id": "compute_comm_supplement.event.message_retransmission",
+      "rule_version": "1.0.0",
+      "participant_bindings": {
+        "message": "message",
+        "original_attempt": "original_attempt",
+        "retransmission": "retransmission"
+      }
+    },
+    "communication.handover_in_progress": {
+      "event_type_id": "communication.communication_handover_event",
+      "rule_id": "compute_comm_supplement.event.communication_handover",
+      "rule_version": "1.0.0",
+      "participant_bindings": {
+        "handover": "handover",
+        "session": "session",
+        "source_station": "source_station",
+        "target_station": "target_station"
+      }
+    },
+    "communication.link_degraded": {
+      "event_type_id": "communication.c2_link_degradation_event",
+      "rule_id": "compute_comm_supplement.event.c2_link_degradation",
+      "rule_version": "1.0.0",
+      "participant_bindings": {
+        "actor": "actor",
+        "station": "station"
+      }
+    },
+    "communication.link_unavailable": {
+      "event_type_id": "communication.c2_link_loss_event",
+      "rule_id": "compute_comm_supplement.event.c2_link_loss",
+      "rule_version": "1.0.0",
+      "participant_bindings": {
+        "actor": "actor",
+        "station": "station"
+      }
+    }
+  },
+  "validation": {
+    "require_schema_profile": true,
+    "require_capacity_conservation": true,
+    "require_time_adjacency": true,
+    "predicate_truth_values": [
+      "true",
+      "false",
+      "unknown",
+      "out_of_scope"
+    ],
+    "event_transition_policy": "adjacent_false_to_true_only"
+  }
+}

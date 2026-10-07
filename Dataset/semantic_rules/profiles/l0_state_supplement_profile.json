@@ -1,0 +1,101 @@
+{
+  "schema_name": "l0_state_supplement_profile",
+  "schema_version": "1.0.0",
+  "profile_id": "aeroworld_l0_state_supplement_v1",
+  "weather_temperature_c_by_condition": {
+    "clear": 24.0,
+    "dusk": 18.0,
+    "fog": 18.0,
+    "heat": 46.0,
+    "light smoke": 25.0,
+    "rain": 21.0,
+    "wind": 23.0
+  },
+  "runtime_nominal_state_by_category": {
+    "airspace_constraint": {
+      "incident_state": {
+        "lockdown_clear": true,
+        "temporary_lockdown_active": false
+      }
+    },
+    "facility": {
+      "facility_state": {
+        "availability": "available",
+        "fault": false,
+        "reserved": false
+      },
+      "security_state": {
+        "command_integrity_violation": false,
+        "command_lockout": false,
+        "gcs_compromised": false,
+        "jamming_active": false,
+        "lockout_active": false,
+        "mode": "nominal",
+        "unauthorized_command": false
+      }
+    },
+    "uav": {
+      "control_state": {
+        "hold_active": false,
+        "mode": "nominal",
+        "safe_hold_active": false
+      },
+      "incident_state": {
+        "physical_fault_active": false
+      },
+      "mission_state": {
+        "mission_abort_active": false,
+        "mode": "active",
+        "termination_active": false
+      },
+      "navigation_state": {
+        "geofence_alert": false,
+        "gnss_spoofed": false,
+        "mission_recovered": false,
+        "multipath_warning": false,
+        "operational_state": "nominal",
+        "visual_relocalization": false
+      },
+      "security_state": {
+        "command_integrity_violation": false,
+        "command_lockout": false,
+        "gcs_compromised": false,
+        "jamming_active": false,
+        "lockout_active": false,
+        "mode": "nominal",
+        "unauthorized_command": false
+      }
+    }
+  },
+  "source_unavailability_contracts": {
+    "pedestrian_crosswalk_geometry": {
+      "executable": false,
+      "closure_statement": "Pedestrian crossing semantics are intentionally closed for this corpus because the authoritative SUMO network contains no crossing geometry.",
+      "non_executable_reason": "The authoritative SUMO network contains zero crossing elements, so no pedestrian crossing geometry exists.",
+      "predicate_ids": [
+        "ground.pedestrian_in_crosswalk",
+        "regulation.pedestrian_has_crosswalk_priority"
+      ],
+      "scope_type": "pedestrian"
+    },
+    "uav_building_geometry": {
+      "executable": false,
+      "closure_statement": "This UAV-building predicate is out of scope for episodes without contract-bound building or facade geometry.",
+      "non_executable_reason": "The episode has no contract-bound building or facade geometry source for aircraft-to-structure distance.",
+      "predicate_ids": [
+        "safety.aircraft_near_building_structure"
+      ],
+      "scope_type": "uav"
+    },
+    "uav_pad_assignment": {
+      "executable": false,
+      "closure_statement": "Lifecycle pad predicates are out of scope for UAVs whose authoritative roster declares no home pad or landing-zone assignment.",
+      "non_executable_reason": "The UAV roster has no home-pad or assigned landing-zone identity and geometry.",
+      "predicate_ids": [
+        "airspace.aircraft_at_home_pad",
+        "airspace.aircraft_in_landing_zone"
+      ],
+      "scope_type": "uav"
+    }
+  }
+}

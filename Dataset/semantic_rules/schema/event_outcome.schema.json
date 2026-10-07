@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aeroworld.local/schema/event_outcome.schema.json",
+  "title": "Objective semantic event outcome",
+  "type": "object",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pending"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "terminal_tick": {
+            "const": null
+          },
+          "lifecycle_status": {
+            "enum": [
+              "terminal_transition_not_observed",
+              "terminal_hold_not_observed"
+            ]
+          },
+          "supporting_truth_ids": {
+            "maxItems": 0
+          },
+          "lifecycle_phase_evidence": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "succeeded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "terminal_tick": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lifecycle_status": {
+            "enum": [
+              "terminal_predicate_hold",
+              "recovery_predicate_hold"
+            ]
+          },
+          "supporting_truth_ids": {
+            "minItems": 1
+          },
+          "lifecycle_phase_evidence": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "required": [
+    "schema_name",
+    "schema_version",
+    "annotation_layer",
+    "source_layer",
+    "outcome_id",
+    "event_id",
+    "episode_id",
+    "event_family_id",
+    "event_type_id",
+    "status",
+    "terminal_tick",
+    "lifecycle_status",
+    "source_class",
+    "supporting_truth_ids",
+    "lifecycle_phase_evidence"
+  ],
+  "properties": {
+    "schema_name": {
+      "const": "event_outcome"
+    },
+    "schema_version": {
+      "const": "3.0.0"
+    },
+    "annotation_layer": {
+      "const": "L2"
+    },
+    "source_layer": {
+      "const": "L1"
+    },
+    "outcome_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "episode_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_family_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_type_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "succeeded"
+      ]
+    },
+    "terminal_tick": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "lifecycle_status": {
+      "enum": [
+        "terminal_predicate_hold",
+        "recovery_predicate_hold",
+        "terminal_transition_not_observed",
+        "terminal_hold_not_observed"
+      ]
+    },
+    "source_class": {
+      "const": "deterministic_derived"
+    },
+    "supporting_truth_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "lifecycle_phase_evidence": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "phase_kind",
+          "predicate_id",
+          "predicate_tuple_id",
+          "predicate_bindings",
+          "value",
+          "start_tick",
+          "end_tick",
+          "entry_transition_id",
+          "supporting_truth_ids"
+        ],
+        "properties": {
+          "phase_kind": {
+            "const": "terminal_hold"
+          },
+          "predicate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "predicate_tuple_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "predicate_bindings": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "value": {
+            "enum": [
+              "true",
+              "false"
+            ]
+          },
+          "start_tick": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end_tick": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entry_transition_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "supporting_truth_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

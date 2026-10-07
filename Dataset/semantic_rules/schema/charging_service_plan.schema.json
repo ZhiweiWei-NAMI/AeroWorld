@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w3id.org/aeroworld/schema/charging_service_plan.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_name", "schema_version", "model_id", "model_version", "facilities"],
+  "properties": {
+    "schema_name": {"const": "charging_service_plan"},
+    "schema_version": {"const": "1.0.0"},
+    "model_id": {"const": "aeroworld_deterministic_charging_service"},
+    "model_version": {"const": "1.0.0"},
+    "facilities": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/facility"}
+    }
+  },
+  "$defs": {
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_tick", "end_tick", "status"],
+      "properties": {
+        "start_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "end_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "status": {"enum": ["available", "unavailable"]}
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uav_id", "arrival_tick", "departure_tick"],
+      "properties": {
+        "uav_id": {"type": "string", "minLength": 1},
+        "arrival_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "departure_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5}
+      }
+    },
+    "facility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["facility_id", "capacity", "availability_schedule", "requests"],
+      "properties": {
+        "facility_id": {"type": "string", "minLength": 1},
+        "capacity": {"type": "integer", "minimum": 1},
+        "availability_schedule": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/window"}},
+        "requests": {"type": "array", "items": {"$ref": "#/$defs/request"}}
+      }
+    }
+  }
+}

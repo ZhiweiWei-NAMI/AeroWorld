@@ -1,0 +1,105 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/utm#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/utm#> .
+
+<https://w3id.org/aeroworld/ontology/events/utm>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/utm/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/utm> ;
+    dct:title "AeroWorld UTM Event Ontology"@en ,
+        "AeroWorld 无人机交通管理事件本体"@zh ;
+    dct:description "Objective authorization revocation, operational-intent conflict, and deconfliction resolution event families."@en ,
+        "客观空域授权撤销、运行意图冲突和冲突消解完成事件族。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/utm#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:AirspaceAuthorizationRevocationEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:AirspaceAuthorizationRevocationEventRole_authorization
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "authorization" ;
+    world:participantClass dom:AirspaceAuthorization ;
+    rdfs:label "authorization"@en .
+
+evt:AirspaceAuthorizationRevocationEventRole_airspace
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "airspace" ;
+    world:participantClass world:OperationalRegion ;
+    rdfs:label "airspace"@en .
+
+evt:AirspaceAuthorizationRevocationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "utm.airspace_authorization_revocation_event" ;
+    aw:declaresParticipantRole evt:AirspaceAuthorizationRevocationEventRole_aircraft ,
+        evt:AirspaceAuthorizationRevocationEventRole_authorization ,
+        evt:AirspaceAuthorizationRevocationEventRole_airspace ;
+    rdfs:label "airspace authorization revocation"@en ,
+        "空域授权撤销事件"@zh ;
+    skos:definition "Objective event in which an aircraft airspace authorization becomes revoked."@en ,
+        "航空器空域授权变为撤销状态的客观事件。"@zh .
+
+evt:OperationalIntentConflictEventRole_first_intent
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "first_intent" ;
+    world:participantClass dom:OperationalIntent ;
+    rdfs:label "first intent"@en .
+
+evt:OperationalIntentConflictEventRole_second_intent
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "second_intent" ;
+    world:participantClass dom:OperationalIntent ;
+    rdfs:label "second intent"@en .
+
+evt:OperationalIntentConflictEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "utm.operational_intent_conflict_event" ;
+    aw:declaresParticipantRole evt:OperationalIntentConflictEventRole_first_intent ,
+        evt:OperationalIntentConflictEventRole_second_intent ;
+    rdfs:label "operational intent conflict"@en ,
+        "运行意图冲突事件"@zh ;
+    skos:definition "Objective event in which two declared operational intents enter conflict."@en ,
+        "两个声明运行意图进入冲突状态的客观事件。"@zh .
+
+evt:DeconflictionResolutionEventRole_system
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "system" ;
+    world:participantClass dom:UTMSystem ;
+    rdfs:label "system"@en .
+
+evt:DeconflictionResolutionEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:DeconflictionResolutionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "utm.deconfliction_resolution_event" ;
+    aw:declaresParticipantRole evt:DeconflictionResolutionEventRole_system ,
+        evt:DeconflictionResolutionEventRole_aircraft ;
+    rdfs:label "deconfliction resolution"@en ,
+        "冲突消解完成事件"@zh ;
+    skos:definition "Objective event in which an active UTM deconfliction process resolves its intent conflict."@en ,
+        "激活的无人机交通管理冲突消解过程解决意图冲突的客观事件。"@zh .

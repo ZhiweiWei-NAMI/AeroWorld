@@ -1,0 +1,102 @@
+{
+  "schema_name": "aeroworld_entity_scope_classes",
+  "schema_version": "2.0.0",
+  "purpose": "Classify episode entities for the event layer.  Predicate truth is computed for every in-scope entity; this table decides which entities an authored event may name.  Classification reads the authoritative roster record fields, never the identifier text: an identifier is used only to look the entity record up.",
+  "source_authority": "global_entity_roster.json",
+  "background_role_values": [
+    "sumo_background_traffic",
+    "donghu_global_uav_flow",
+    "global_uav_pad",
+    "semantic_context",
+    "sumo_source_required_context_vehicle"
+  ],
+  "actor_categories": [
+    "uav",
+    "vehicle",
+    "pedestrian"
+  ],
+  "non_actor_categories": [
+    "airspace_corridor",
+    "facility",
+    "prop",
+    "crowd_anchor",
+    "facade_anchor",
+    "vehicle_anchor",
+    "traffic_light"
+  ],
+  "policy": {
+    "background": "An entity whose roster background_role is listed in background_role_values is background presence. Its predicates are computed, but no authored event may bind it in any role.",
+    "actor": "A non-background entity may be bound as an event actor when its roster entity_category is listed in actor_categories.",
+    "non_actor": "A non-background entity whose roster entity_category is listed in non_actor_categories may be bound only in non-actor roles, such as restricted_region, landing_zone or corridor. It can never act.",
+    "unrostered": "An identifier absent from the roster is infrastructure (road-network element, service, signal). It may fill non-actor roles only and never acts.",
+    "observer_uav": "A UAV whose authored roster fields classify its task role (uav_role_classification) as inspect or observer is observation presence. Its predicates are computed, and no authored event may bind it in any role. The classification reads the declared role fields already present in the scene/roster contract; it does not require an extra background_role field and it never inspects identifier text."
+  },
+  "role_role_kinds": {
+    "actor_roles": [
+      "actor",
+      "aircraft",
+      "vehicle",
+      "pedestrian",
+      "first_vehicle",
+      "second_vehicle",
+      "first_aircraft",
+      "second_aircraft",
+      "intruder",
+      "pair"
+    ],
+    "non_actor_roles": [
+      "restricted_region",
+      "landing_zone",
+      "home_pad",
+      "corridor",
+      "facility",
+      "protected_region",
+      "site",
+      "zone",
+      "pad",
+      "road_segment",
+      "signal",
+      "station",
+      "structure",
+      "service",
+      "region",
+      "crowd"
+    ]
+  },
+  "uav_role_classification": {
+    "purpose": "Map roster role fields to the UAV task role used by scene validation, the capture-filter step and the render-ready converter.  Values are read from the roster record; identifier text is never inspected.",
+    "evaluation_order": [
+      "inspect",
+      "observer",
+      "mission"
+    ],
+    "class_rules": {
+      "inspect": {
+        "role_in": [
+          "U_inspect"
+        ],
+        "uav_corridor_role_in": [
+          "inspect_observer"
+        ],
+        "contract_field": "contract_inspect_uav"
+      },
+      "observer": {
+        "uav_corridor_role_in": [
+          "observer"
+        ],
+        "semantic_role_in": [
+          "corridor_observer"
+        ]
+      },
+      "mission": {
+        "fallback": true
+      }
+    },
+    "description": "inspect: the authored boundary-observation aircraft. observer: an authored corridor observer. mission: the declared fallback for every other UAV.",
+    "fallback_class": "mission"
+  },
+  "non_bindable_uav_task_roles": [
+    "inspect",
+    "observer"
+  ]
+}

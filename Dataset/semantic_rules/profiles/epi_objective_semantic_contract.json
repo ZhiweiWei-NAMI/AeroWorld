@@ -1,0 +1,4634 @@
+{
+  "schema_name": "epi_objective_semantic_contract",
+  "schema_version": "5.0.0",
+  "profile_id": "aeroworld_low_altitude_epi_objective_contract_v5",
+  "source_policy": {
+    "authored_event_labels_are_fact_source": false,
+    "forbidden_evidentiary_fields": [
+      "event_trace.jsonl",
+      "event_trace",
+      "event_realization.jsonl",
+      "event_realization",
+      "active_event_ids",
+      "dynamic_labels",
+      "authored_event_label",
+      "expected_event",
+      "expected_event_id",
+      "semantic_role",
+      "confirmedAtTick",
+      "scenario_plan",
+      "scenario_plan_as_truth",
+      "scenario_title",
+      "epi_id",
+      "level",
+      "state_facets",
+      "task_id",
+      "variant"
+    ],
+    "permitted_source_classes": [
+      "engine_truth",
+      "deterministic_derived",
+      "simulated_derived",
+      "visual_derived"
+    ],
+    "unknown_policy": "emit_unknown_not_false_when_required_observable_missing"
+  },
+  "event_families": {
+    "uav_takeoff": {
+      "display_name": "uav_takeoff",
+      "required_state_fields": [
+        "z_agl_m",
+        "takeoff_ground_z_m",
+        "xy_distance_to_home_pad_m",
+        "home_pad_pose_enu_m"
+      ],
+      "required_response": "the aircraft becomes airborne after occupying its home pad",
+      "observable_dimensions": [
+        "pose_3d",
+        "home_pad_geometry"
+      ],
+      "unknown_policy": "unknown if aircraft height or home-pad geometry is absent",
+      "required_predicates": [
+        "airspace.aircraft_airborne",
+        "airspace.aircraft_at_home_pad"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.aircraft_takeoff_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "aircraft",
+          "scope_type": "uav",
+          "binding": "trigger_binding:airspace.aircraft_airborne:aircraft",
+          "background_allowed": false
+        },
+        {
+          "role": "home_pad",
+          "scope_type": "facility",
+          "binding": "support_binding:airspace.aircraft_at_home_pad:home_pad",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "The airborne rising edge is the authoritative takeoff transition and the prior home-pad assertion supplies the lifecycle guard.",
+      "trigger_expression": {
+        "predicate_id": "airspace.aircraft_airborne",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_airborne",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "home_pad": {
+            "kind": "support_binding",
+            "predicate_id": "airspace.aircraft_at_home_pad",
+            "predicate_role": "home_pad",
+            "source_ontology_class": "LandingPad",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "airspace.aircraft_airborne",
+        "value": "true",
+        "hold_parameter": "terminal_hold_samples",
+        "join_roles": [
+          "aircraft"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"aircraft\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"airspace.aircraft_airborne\", \"predicate_role\": \"aircraft\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"home_pad\": {\"background_allowed\": false, \"kind\": \"support_binding\", \"predicate_id\": \"airspace.aircraft_at_home_pad\", \"predicate_role\": \"home_pad\", \"source_ontology_class\": \"LandingPad\"}}, \"predicate_id\": \"airspace.aircraft_airborne\"}",
+      "terminal_condition": "{\"hold_parameter\": \"terminal_hold_samples\", \"join_roles\": [\"aircraft\"], \"predicate_id\": \"airspace.aircraft_airborne\", \"value\": \"true\"}"
+    },
+    "uav_landing": {
+      "display_name": "uav_landing",
+      "required_state_fields": [
+        "z_agl_m",
+        "takeoff_ground_z_m",
+        "xy_distance_to_home_pad_m",
+        "home_pad_pose_enu_m"
+      ],
+      "required_response": "touchdown occurs inside the aircraft landing zone",
+      "observable_dimensions": [
+        "pose_3d",
+        "landing_zone_geometry"
+      ],
+      "unknown_policy": "unknown if aircraft height or landing-zone geometry is absent",
+      "required_predicates": [
+        "airspace.aircraft_airborne",
+        "airspace.aircraft_touchdown",
+        "airspace.aircraft_in_landing_zone"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.aircraft_landing_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "aircraft",
+          "scope_type": "uav",
+          "binding": "trigger_binding:airspace.aircraft_touchdown:aircraft",
+          "background_allowed": false
+        },
+        {
+          "role": "landing_zone",
+          "scope_type": "facility",
+          "binding": "support_binding:airspace.aircraft_in_landing_zone:landing_zone",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "The touchdown rising edge is the authoritative landing realization; the same sample must be non-airborne and inside the landing zone.",
+      "trigger_expression": {
+        "predicate_id": "airspace.aircraft_touchdown",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_touchdown",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "landing_zone": {
+            "kind": "support_binding",
+            "predicate_id": "airspace.aircraft_in_landing_zone",
+            "predicate_role": "landing_zone",
+            "source_ontology_class": "LandingArea",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "airspace.aircraft_touchdown",
+        "value": "true",
+        "hold_parameter": "terminal_hold_samples",
+        "join_roles": [
+          "aircraft"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"aircraft\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"airspace.aircraft_touchdown\", \"predicate_role\": \"aircraft\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"landing_zone\": {\"background_allowed\": false, \"kind\": \"support_binding\", \"predicate_id\": \"airspace.aircraft_in_landing_zone\", \"predicate_role\": \"landing_zone\", \"source_ontology_class\": \"LandingArea\"}}, \"predicate_id\": \"airspace.aircraft_touchdown\"}",
+      "terminal_condition": "{\"hold_parameter\": \"terminal_hold_samples\", \"join_roles\": [\"aircraft\"], \"predicate_id\": \"airspace.aircraft_touchdown\", \"value\": \"true\"}"
+    },
+    "restricted_region_intrusion": {
+      "display_name": "restricted_region_intrusion",
+      "required_state_fields": [
+        "minimum_restricted_boundary_distance_m",
+        "restricted_region_active",
+        "boundary_margin_m",
+        "rth_mode_active"
+      ],
+      "required_response": "the aircraft is objectively detected crossing the governed restricted-airspace boundary margin",
+      "observable_dimensions": [
+        "pose_3d",
+        "restricted_region_geometry",
+        "region_activation",
+        "control_plan_window"
+      ],
+      "unknown_policy": "unknown if authoritative region geometry, activation, or boundary-margin evidence is absent",
+      "required_predicates": [
+        "airspace.aircraft_inside_restricted_airspace"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.restricted_airspace_entry_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "actor",
+          "scope_type": "uav",
+          "binding": "trigger_binding:airspace.aircraft_inside_restricted_airspace:actor",
+          "background_allowed": false
+        },
+        {
+          "role": "restricted_region",
+          "scope_type": "scene",
+          "binding": "trigger_binding:airspace.aircraft_inside_restricted_airspace:restricted_region",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "The governed boundary-margin rising edge is the authoritative restricted-entry event.",
+      "trigger_expression": {
+        "predicate_id": "airspace.aircraft_inside_restricted_airspace",
+        "direction": "rising",
+        "event_role_sources": {
+          "actor": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_inside_restricted_airspace",
+            "predicate_role": "actor",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "restricted_region": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_inside_restricted_airspace",
+            "predicate_role": "restricted_region",
+            "source_ontology_class": "RestrictedAirspaceRegion",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "airspace.aircraft_inside_restricted_airspace",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "actor",
+          "restricted_region"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"actor\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"airspace.aircraft_inside_restricted_airspace\", \"predicate_role\": \"actor\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"restricted_region\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"airspace.aircraft_inside_restricted_airspace\", \"predicate_role\": \"restricted_region\", \"source_ontology_class\": \"RestrictedAirspaceRegion\"}}, \"predicate_id\": \"airspace.aircraft_inside_restricted_airspace\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"actor\", \"restricted_region\"], \"predicate_id\": \"airspace.aircraft_inside_restricted_airspace\", \"value\": \"false\"}"
+    },
+    "altitude_excursion": {
+      "display_name": "altitude_excursion",
+      "required_state_fields": [
+        "altitude_agl_m",
+        "altitude_min_m",
+        "altitude_max_m",
+        "corridor_geometry"
+      ],
+      "required_response": "UAV climbs or descends toward the assigned altitude band",
+      "observable_dimensions": [
+        "pose_3d",
+        "assigned_altitude_band",
+        "vertical_velocity"
+      ],
+      "unknown_policy": "unknown if assigned band is missing",
+      "required_predicates": [
+        "airspace.aircraft_outside_assigned_altitude_band",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.assigned_altitude_band_excursion_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "actor",
+          "scope_type": "uav",
+          "binding": "trigger_binding:airspace.aircraft_outside_assigned_altitude_band:actor",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "The assigned-altitude-band predicate is a one-to-one authoritative replacement for the legacy altitude excursion flag.",
+      "trigger_expression": {
+        "predicate_id": "airspace.aircraft_outside_assigned_altitude_band",
+        "direction": "rising",
+        "event_role_sources": {
+          "actor": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.aircraft_outside_assigned_altitude_band",
+            "predicate_role": "actor",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "airspace.aircraft_outside_assigned_altitude_band",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "actor"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"actor\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"airspace.aircraft_outside_assigned_altitude_band\", \"predicate_role\": \"actor\", \"source_ontology_class\": \"UnmannedAircraft\"}}, \"predicate_id\": \"airspace.aircraft_outside_assigned_altitude_band\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"actor\"], \"predicate_id\": \"airspace.aircraft_outside_assigned_altitude_band\", \"value\": \"false\"}"
+    },
+    "uav_separation_conflict": {
+      "display_name": "uav_separation_conflict",
+      "required_state_fields": [
+        "pair_type",
+        "horizontal_separation_m",
+        "vertical_separation_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact"
+      ],
+      "required_response": "both affected UAVs execute deconfliction or one yields by hold/divert",
+      "observable_dimensions": [
+        "pose_3d",
+        "velocity_3d",
+        "uav_pair_identity",
+        "trajectory_prediction"
+      ],
+      "unknown_policy": "unknown if either UAV trajectory is missing",
+      "required_predicates": [
+        "safety.aircraft_pair_below_separation",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.aircraft_pair_conflict_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "first_aircraft",
+          "scope_type": "uav",
+          "binding": "trigger_binding:safety.aircraft_pair_below_separation:first_aircraft",
+          "background_allowed": false
+        },
+        {
+          "role": "second_aircraft",
+          "scope_type": "uav",
+          "binding": "trigger_binding:safety.aircraft_pair_below_separation:second_aircraft",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Pair separation below the governed margin is the authoritative UAV-pair conflict surface.",
+      "trigger_expression": {
+        "predicate_id": "safety.aircraft_pair_below_separation",
+        "direction": "rising",
+        "event_role_sources": {
+          "first_aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_pair_below_separation",
+            "predicate_role": "first_aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "second_aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_pair_below_separation",
+            "predicate_role": "second_aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "safety.aircraft_pair_below_separation",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "first_aircraft",
+          "second_aircraft"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"first_aircraft\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.aircraft_pair_below_separation\", \"predicate_role\": \"first_aircraft\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"second_aircraft\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.aircraft_pair_below_separation\", \"predicate_role\": \"second_aircraft\", \"source_ontology_class\": \"UnmannedAircraft\"}}, \"predicate_id\": \"safety.aircraft_pair_below_separation\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"first_aircraft\", \"second_aircraft\"], \"predicate_id\": \"safety.aircraft_pair_below_separation\", \"value\": \"false\"}"
+    },
+    "uav_pedestrian_near_miss": {
+      "display_name": "uav_pedestrian_near_miss",
+      "required_state_fields": [
+        "pair_type",
+        "distance_3d_m",
+        "uav_altitude_agl_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact"
+      ],
+      "required_response": "UAV pulls up or clears the pedestrian exposure zone",
+      "observable_dimensions": [
+        "uav_pose_3d",
+        "pedestrian_pose_3d",
+        "uav_velocity_3d",
+        "pedestrian_presence"
+      ],
+      "unknown_policy": "unknown if pedestrian pose or UAV altitude is missing",
+      "required_predicates": [
+        "safety.aircraft_near_pedestrian",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.aircraft_pedestrian_near_miss_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "aircraft",
+          "scope_type": "uav",
+          "binding": "trigger_binding:safety.aircraft_near_pedestrian:aircraft",
+          "background_allowed": false
+        },
+        {
+          "role": "pedestrian",
+          "scope_type": "pedestrian",
+          "binding": "trigger_binding:safety.aircraft_near_pedestrian:pedestrian",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "The authoritative near-pedestrian transition supplies objective proximity; absent collision-contact fragments are not asserted.",
+      "trigger_expression": {
+        "predicate_id": "safety.aircraft_near_pedestrian",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_pedestrian",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "pedestrian": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_pedestrian",
+            "predicate_role": "pedestrian",
+            "source_ontology_class": "Pedestrian",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "safety.aircraft_near_pedestrian",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "aircraft",
+          "pedestrian"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"aircraft\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.aircraft_near_pedestrian\", \"predicate_role\": \"aircraft\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"pedestrian\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.aircraft_near_pedestrian\", \"predicate_role\": \"pedestrian\", \"source_ontology_class\": \"Pedestrian\"}}, \"predicate_id\": \"safety.aircraft_near_pedestrian\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"aircraft\", \"pedestrian\"], \"predicate_id\": \"safety.aircraft_near_pedestrian\", \"value\": \"false\"}"
+    },
+    "uav_vehicle_conflict": {
+      "display_name": "uav_vehicle_conflict",
+      "required_state_fields": [
+        "pair_type",
+        "distance_3d_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact"
+      ],
+      "required_response": "the bound ground vehicle brakes or enters emergency stop after the UAV-vehicle risk transition",
+      "observable_dimensions": [
+        "uav_pose",
+        "vehicle_pose",
+        "three_dimensional_clearance",
+        "relative_closing_speed",
+        "TTC",
+        "contact_or_near_miss_source",
+        "vehicle_response_state"
+      ],
+      "unknown_policy": "unknown when UAV pose, vehicle pose, pair distance, pair TTC, closing speed, or contact classification source is missing",
+      "required_predicates": [
+        "safety.aircraft_near_ground_vehicle",
+        "airspace.aircraft_airborne",
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.aircraft_ground_vehicle_conflict_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "aircraft",
+          "scope_type": "uav",
+          "binding": "trigger_binding:safety.aircraft_near_ground_vehicle:aircraft",
+          "background_allowed": false
+        },
+        {
+          "role": "vehicle",
+          "scope_type": "vehicle",
+          "binding": "trigger_binding:safety.aircraft_near_ground_vehicle:vehicle",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "The executable projection detects the collision-risk envelope and vehicle response; it never fabricates the removed collision_contact fragment.",
+      "trigger_expression": {
+        "predicate_id": "safety.aircraft_near_ground_vehicle",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_ground_vehicle",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "vehicle": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_ground_vehicle",
+            "predicate_role": "vehicle",
+            "source_ontology_class": "GroundVehicle",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "safety.aircraft_near_ground_vehicle",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "aircraft",
+          "vehicle"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"aircraft\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.aircraft_near_ground_vehicle\", \"predicate_role\": \"aircraft\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"vehicle\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.aircraft_near_ground_vehicle\", \"predicate_role\": \"vehicle\", \"source_ontology_class\": \"GroundVehicle\"}}, \"predicate_id\": \"safety.aircraft_near_ground_vehicle\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"aircraft\", \"vehicle\"], \"predicate_id\": \"safety.aircraft_near_ground_vehicle\", \"value\": \"false\"}"
+    },
+    "vehicle_pedestrian_conflict": {
+      "display_name": "vehicle_pedestrian_conflict",
+      "required_state_fields": [
+        "pair_type",
+        "distance_2d_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact"
+      ],
+      "required_response": "vehicle brakes and pedestrian retreats or clears the conflict zone",
+      "observable_dimensions": [
+        "vehicle_pose",
+        "vehicle_velocity",
+        "pedestrian_pose",
+        "conflict_zone_geometry"
+      ],
+      "unknown_policy": "unknown if pedestrian or vehicle trajectory is incomplete",
+      "required_predicates": [
+        "safety.vehicle_pedestrian_conflict",
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.pedestrian_vehicle_conflict_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "pedestrian",
+          "scope_type": "pedestrian",
+          "binding": "trigger_binding:safety.vehicle_pedestrian_conflict:pedestrian",
+          "background_allowed": false
+        },
+        {
+          "role": "vehicle",
+          "scope_type": "vehicle",
+          "binding": "trigger_binding:safety.vehicle_pedestrian_conflict:vehicle",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "The vehicle-pedestrian conflict predicate is the direct authoritative equivalent.",
+      "trigger_expression": {
+        "predicate_id": "safety.vehicle_pedestrian_conflict",
+        "direction": "rising",
+        "event_role_sources": {
+          "pedestrian": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.vehicle_pedestrian_conflict",
+            "predicate_role": "pedestrian",
+            "source_ontology_class": "Pedestrian",
+            "background_allowed": false
+          },
+          "vehicle": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.vehicle_pedestrian_conflict",
+            "predicate_role": "vehicle",
+            "source_ontology_class": "GroundVehicle",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "safety.vehicle_pedestrian_conflict",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "pedestrian",
+          "vehicle"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"pedestrian\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.vehicle_pedestrian_conflict\", \"predicate_role\": \"pedestrian\", \"source_ontology_class\": \"Pedestrian\"}, \"vehicle\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.vehicle_pedestrian_conflict\", \"predicate_role\": \"vehicle\", \"source_ontology_class\": \"GroundVehicle\"}}, \"predicate_id\": \"safety.vehicle_pedestrian_conflict\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"pedestrian\", \"vehicle\"], \"predicate_id\": \"safety.vehicle_pedestrian_conflict\", \"value\": \"false\"}"
+    },
+    "vehicle_intersection_conflict": {
+      "display_name": "vehicle_intersection_conflict",
+      "required_state_fields": [
+        "pair_type",
+        "distance_2d_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact",
+        "intersection_geometry"
+      ],
+      "required_response": "braking or yielding prevents collision",
+      "observable_dimensions": [
+        "vehicle_pose",
+        "vehicle_velocity",
+        "intersection_geometry",
+        "predicted_trajectory"
+      ],
+      "unknown_policy": "unknown if either vehicle trajectory is missing",
+      "participant_roles": [
+        {
+          "role": "first_vehicle",
+          "scope_type": "vehicle",
+          "binding": "documented_intent",
+          "background_allowed": false
+        },
+        {
+          "role": "second_vehicle",
+          "scope_type": "vehicle",
+          "binding": "documented_intent",
+          "background_allowed": false
+        }
+      ],
+      "required_predicates": [
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [],
+      "semantic_rationale": "",
+      "non_executable_reason": "The frozen 79-predicate vocabulary has no grounded vehicle-pair intersection-conflict predicate, and the L4-9 SUMO movements do not traverse a network-controlled RightOfWay connection.",
+      "closure_statement": "Add an approved vehicle-pair intersection-conflict predicate grounded in exact intersection geometry and both vehicle trajectories before enabling this event family.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "corridor_congestion": {
+      "display_name": "corridor_congestion",
+      "required_state_fields": [
+        "corridor_geometry",
+        "occupancy",
+        "capacity"
+      ],
+      "required_response": "hold, resequence, or divert reduces demand",
+      "observable_dimensions": [
+        "corridor_geometry",
+        "uav_corridor_membership",
+        "corridor_capacity",
+        "uav_intent"
+      ],
+      "unknown_policy": "unknown if corridor capacity or membership cannot be enumerated",
+      "required_predicates": [
+        "airspace.airspace_corridor_over_capacity",
+        "utm.deconfliction_active"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "airspace.airspace_corridor_capacity_exceedance_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "corridor",
+          "scope_type": "scene",
+          "binding": "trigger_binding:airspace.airspace_corridor_over_capacity:corridor",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Corridor occupancy above capacity is a direct authoritative mapping.",
+      "trigger_expression": {
+        "predicate_id": "airspace.airspace_corridor_over_capacity",
+        "direction": "rising",
+        "event_role_sources": {
+          "corridor": {
+            "kind": "trigger_binding",
+            "predicate_id": "airspace.airspace_corridor_over_capacity",
+            "predicate_role": "corridor",
+            "source_ontology_class": "AirspaceCorridor",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "airspace.airspace_corridor_over_capacity",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "corridor"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"corridor\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"airspace.airspace_corridor_over_capacity\", \"predicate_role\": \"corridor\", \"source_ontology_class\": \"AirspaceCorridor\"}}, \"predicate_id\": \"airspace.airspace_corridor_over_capacity\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"corridor\"], \"predicate_id\": \"airspace.airspace_corridor_over_capacity\", \"value\": \"false\"}"
+    },
+    "structure_near_miss": {
+      "display_name": "structure_near_miss",
+      "required_state_fields": [
+        "clearance_m",
+        "closing_speed_mps",
+        "structure_geometry",
+        "collision_contact"
+      ],
+      "required_response": "UAV performs evasion away from structure",
+      "observable_dimensions": [
+        "pose_3d",
+        "velocity_3d",
+        "building_geometry",
+        "trajectory_prediction"
+      ],
+      "unknown_policy": "unknown if structure geometry is absent",
+      "required_predicates": [
+        "safety.aircraft_near_building_structure",
+        "airspace.aircraft_airborne",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "safety.aircraft_structure_near_miss_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "aircraft",
+          "scope_type": "uav",
+          "binding": "trigger_binding:safety.aircraft_near_building_structure:aircraft",
+          "background_allowed": false
+        },
+        {
+          "role": "structure",
+          "scope_type": "facility",
+          "binding": "trigger_binding:safety.aircraft_near_building_structure:structure",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "The L2 family records the governed structure-risk transition and does not add an unsupported collision-contact predicate.",
+      "trigger_expression": {
+        "predicate_id": "safety.aircraft_near_building_structure",
+        "direction": "rising",
+        "event_role_sources": {
+          "aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_building_structure",
+            "predicate_role": "aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "structure": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.aircraft_near_building_structure",
+            "predicate_role": "structure",
+            "source_ontology_class": "BuildingStructure",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "safety.aircraft_near_building_structure",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "aircraft",
+          "structure"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"aircraft\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.aircraft_near_building_structure\", \"predicate_role\": \"aircraft\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"structure\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.aircraft_near_building_structure\", \"predicate_role\": \"structure\", \"source_ontology_class\": \"BuildingStructure\"}}, \"predicate_id\": \"safety.aircraft_near_building_structure\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"aircraft\", \"structure\"], \"predicate_id\": \"safety.aircraft_near_building_structure\", \"value\": \"false\"}"
+    },
+    "forced_landing": {
+      "display_name": "forced_landing",
+      "required_state_fields": [
+        "vertical_speed_mps",
+        "fault_active",
+        "failsafe_active",
+        "at_landing_zone",
+        "touchdown_contact",
+        "speed_mps"
+      ],
+      "required_response": "safe landing zone is established, cleared, and used for touchdown",
+      "observable_dimensions": [
+        "uav_state",
+        "pose_3d",
+        "vertical_velocity",
+        "landing_zone_geometry",
+        "crowd_or_obstacle_presence"
+      ],
+      "unknown_policy": "unknown if descent driver or landing-zone validity is absent",
+      "required_predicates": [
+        "safety.forced_landing_in_populated_area",
+        "airspace.aircraft_touchdown",
+        "airspace.aircraft_in_landing_zone",
+        "emergency.mission_aborted"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "safety.aircraft_forced_landing_populated_area_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "aircraft",
+          "scope_type": "uav",
+          "binding": "ontology_role:safety.aircraft_forced_landing_populated_area_event:aircraft",
+          "background_allowed": false
+        },
+        {
+          "role": "populated_area",
+          "scope_type": "scene",
+          "binding": "ontology_role:safety.aircraft_forced_landing_populated_area_event:populated_area",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "",
+      "non_executable_reason": "No authoritative scene or land-use source materializes a PopulatedArea individual or an aircraft-to-area proximity relation.",
+      "closure_statement": "Materialize a real PopulatedArea individual and exact membership/proximity relation before enabling this event family.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "c2_degradation_loss": {
+      "display_name": "c2_degradation_loss",
+      "required_state_fields": [
+        "link_available",
+        "packet_loss_ratio",
+        "latency_ms",
+        "link_degraded_duration_samples",
+        "link_unavailable_duration_samples",
+        "backup_link_active",
+        "handover_complete"
+      ],
+      "required_response": "UAV enters safe-hold or RTH",
+      "observable_dimensions": [
+        "latency_series",
+        "packet_loss_series",
+        "heartbeat_series",
+        "station_status",
+        "uav_control_state"
+      ],
+      "unknown_policy": "unknown if link metrics are absent and no governed simulation model is available",
+      "required_predicates": [
+        "communication.link_degraded",
+        "communication.link_unavailable",
+        "communication.handover_in_progress",
+        "emergency.aircraft_in_safe_hold",
+        "emergency.aircraft_in_return_to_home"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "communication.c2_link_degradation_event",
+        "communication.c2_link_loss_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "actor",
+          "scope_type": "uav",
+          "binding": "trigger_binding:communication.link_unavailable:actor",
+          "background_allowed": false
+        },
+        {
+          "role": "station",
+          "scope_type": "facility",
+          "binding": "trigger_binding:communication.link_unavailable:station",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Degradation and loss retain distinct authoritative event types; handover/safe-hold/RTH form the response surface.",
+      "trigger_expression": {
+        "any_of": [
+          {
+            "predicate_id": "communication.link_degraded",
+            "direction": "rising",
+            "event_type_id": "communication.c2_link_degradation_event",
+            "event_role_sources": {
+              "actor": {
+                "kind": "trigger_binding",
+                "predicate_id": "communication.link_degraded",
+                "predicate_role": "actor",
+                "source_ontology_class": "UnmannedAircraft",
+                "background_allowed": false
+              },
+              "station": {
+                "kind": "trigger_binding",
+                "predicate_id": "communication.link_degraded",
+                "predicate_role": "station",
+                "source_ontology_class": "CommunicationStation",
+                "background_allowed": false
+              }
+            }
+          },
+          {
+            "predicate_id": "communication.link_unavailable",
+            "direction": "rising",
+            "event_type_id": "communication.c2_link_loss_event",
+            "event_role_sources": {
+              "actor": {
+                "kind": "trigger_binding",
+                "predicate_id": "communication.link_unavailable",
+                "predicate_role": "actor",
+                "source_ontology_class": "UnmannedAircraft",
+                "background_allowed": false
+              },
+              "station": {
+                "kind": "trigger_binding",
+                "predicate_id": "communication.link_unavailable",
+                "predicate_role": "station",
+                "source_ontology_class": "CommunicationStation",
+                "background_allowed": false
+              }
+            }
+          }
+        ]
+      },
+      "terminal_expression": {
+        "any_of": [
+          {
+            "predicate_id": "communication.link_degraded",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "actor",
+              "station"
+            ]
+          },
+          {
+            "predicate_id": "communication.link_unavailable",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "actor",
+              "station"
+            ]
+          }
+        ]
+      },
+      "start_condition": "{\"any_of\": [{\"direction\": \"rising\", \"event_role_sources\": {\"actor\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"communication.link_degraded\", \"predicate_role\": \"actor\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"station\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"communication.link_degraded\", \"predicate_role\": \"station\", \"source_ontology_class\": \"CommunicationStation\"}}, \"event_type_id\": \"communication.c2_link_degradation_event\", \"predicate_id\": \"communication.link_degraded\"}, {\"direction\": \"rising\", \"event_role_sources\": {\"actor\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"communication.link_unavailable\", \"predicate_role\": \"actor\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"station\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"communication.link_unavailable\", \"predicate_role\": \"station\", \"source_ontology_class\": \"CommunicationStation\"}}, \"event_type_id\": \"communication.c2_link_loss_event\", \"predicate_id\": \"communication.link_unavailable\"}]}",
+      "terminal_condition": "{\"any_of\": [{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"actor\", \"station\"], \"predicate_id\": \"communication.link_degraded\", \"value\": \"false\"}, {\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"actor\", \"station\"], \"predicate_id\": \"communication.link_unavailable\", \"value\": \"false\"}]}"
+    },
+    "gnss_signal_degradation": {
+      "display_name": "gnss_signal_degradation",
+      "required_state_fields": [
+        "true_pose_3d",
+        "reported_pose_3d",
+        "gnss_quality",
+        "gnss_pose_error_m",
+        "route_error_m"
+      ],
+      "required_response": "relocalization, safe hold, or route correction starts after a real GNSS service degradation",
+      "observable_dimensions": [
+        "true_pose_3d",
+        "reported_pose_3d",
+        "gnss_quality",
+        "navigation_mode"
+      ],
+      "unknown_policy": "unknown if true and reported pose cannot both be recovered",
+      "required_predicates": [
+        "positioning.gnss_quality_degraded",
+        "positioning.navigation_error_exceeds_tolerance",
+        "positioning.aircraft_deviates_from_planned_route",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "positioning.gnss_signal_degradation_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "actor",
+          "scope_type": "uav",
+          "binding": "trigger_binding:positioning.gnss_quality_degraded:actor",
+          "background_allowed": false
+        },
+        {
+          "role": "service",
+          "scope_type": "scene",
+          "binding": "trigger_binding:positioning.gnss_quality_degraded:service",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "GNSS quality degradation retains the explicit service-model participant supplied by the authoritative predicate tuple.",
+      "trigger_expression": {
+        "predicate_id": "positioning.gnss_quality_degraded",
+        "direction": "rising",
+        "event_role_sources": {
+          "actor": {
+            "kind": "trigger_binding",
+            "predicate_id": "positioning.gnss_quality_degraded",
+            "predicate_role": "actor",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "service": {
+            "kind": "trigger_binding",
+            "predicate_id": "positioning.gnss_quality_degraded",
+            "predicate_role": "service",
+            "source_ontology_class": "GnssService",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "positioning.gnss_quality_degraded",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "actor",
+          "service"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"actor\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"positioning.gnss_quality_degraded\", \"predicate_role\": \"actor\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"service\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"positioning.gnss_quality_degraded\", \"predicate_role\": \"service\", \"source_ontology_class\": \"GnssService\"}}, \"predicate_id\": \"positioning.gnss_quality_degraded\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"actor\", \"service\"], \"predicate_id\": \"positioning.gnss_quality_degraded\", \"value\": \"false\"}"
+    },
+    "gnss_spoofing_effect": {
+      "display_name": "gnss_spoofing_effect",
+      "required_state_fields": [
+        "true_pose_3d",
+        "reported_pose_3d",
+        "spoof_mode",
+        "gnss_pose_error_m",
+        "route_error_m"
+      ],
+      "required_response": "a typed spoofing signal and exact navigation-effect relation are available before claiming the spoofing event",
+      "observable_dimensions": [
+        "true_pose_3d",
+        "reported_pose_3d",
+        "gnss_quality",
+        "navigation_mode"
+      ],
+      "unknown_policy": "unknown if true and reported pose cannot both be recovered",
+      "required_predicates": [
+        "positioning.gnss_spoofing_active",
+        "positioning.navigation_error_exceeds_tolerance",
+        "positioning.aircraft_deviates_from_planned_route"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "positioning.gnss_spoofing_navigation_effect_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "actor",
+          "scope_type": "uav",
+          "binding": "trigger_binding:positioning.gnss_spoofing_active:actor",
+          "background_allowed": false
+        },
+        {
+          "role": "signal",
+          "scope_type": "scene",
+          "binding": "trigger_binding:positioning.gnss_spoofing_active:signal",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "A typed SpoofingSignal identifier on the governed GNSS observation establishes the spoofing effect directly; navigation-error and route-deviation transitions expose its measured consequences.",
+      "trigger_expression": {
+        "predicate_id": "positioning.gnss_spoofing_active",
+        "direction": "rising",
+        "event_role_sources": {
+          "actor": {
+            "kind": "trigger_binding",
+            "predicate_id": "positioning.gnss_spoofing_active",
+            "predicate_role": "actor",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "signal": {
+            "kind": "trigger_binding",
+            "predicate_id": "positioning.gnss_spoofing_active",
+            "predicate_role": "signal",
+            "source_ontology_class": "SpoofingSignal",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "positioning.gnss_spoofing_active",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "actor",
+          "signal"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"actor\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"positioning.gnss_spoofing_active\", \"predicate_role\": \"actor\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"signal\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"positioning.gnss_spoofing_active\", \"predicate_role\": \"signal\", \"source_ontology_class\": \"SpoofingSignal\"}}, \"predicate_id\": \"positioning.gnss_spoofing_active\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"actor\", \"signal\"], \"predicate_id\": \"positioning.gnss_spoofing_active\", \"value\": \"false\"}"
+    },
+    "charger_unavailable": {
+      "display_name": "charger_unavailable",
+      "required_state_fields": [
+        "facility_kind",
+        "available",
+        "alternate_accepted",
+        "reservation_state"
+      ],
+      "required_response": "route planner selects an alternate charger or rejects the task safely",
+      "observable_dimensions": [
+        "facility_status",
+        "reservation_state",
+        "uav_energy_state",
+        "planner_assignment"
+      ],
+      "unknown_policy": "unknown if facility availability or reservation state is absent",
+      "required_predicates": [
+        "facility.charging_station_unavailable",
+        "facility.charging_queue_over_capacity"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "facility.charging_station_unavailability_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "station",
+          "scope_type": "facility",
+          "binding": "trigger_binding:facility.charging_station_unavailable:station",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Facility unavailability maps one-to-one; legacy alternate-accepted state is not fabricated.",
+      "trigger_expression": {
+        "predicate_id": "facility.charging_station_unavailable",
+        "direction": "rising",
+        "event_role_sources": {
+          "station": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.charging_station_unavailable",
+            "predicate_role": "station",
+            "source_ontology_class": "ChargingStation",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "facility.charging_station_unavailable",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "station"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"station\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"facility.charging_station_unavailable\", \"predicate_role\": \"station\", \"source_ontology_class\": \"ChargingStation\"}}, \"predicate_id\": \"facility.charging_station_unavailable\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"station\"], \"predicate_id\": \"facility.charging_station_unavailable\", \"value\": \"false\"}"
+    },
+    "pad_contention": {
+      "display_name": "pad_contention",
+      "required_state_fields": [
+        "facility_kind",
+        "active_requests",
+        "capacity",
+        "priority_granted",
+        "allocation_resolved"
+      ],
+      "required_response": "arbitration grants priority and diverts non-priority UAVs",
+      "observable_dimensions": [
+        "pad_geometry",
+        "pad_occupancy",
+        "reservation_state",
+        "uav_request_state",
+        "priority_policy"
+      ],
+      "unknown_policy": "unknown if requesters or pad capacity cannot be enumerated",
+      "required_predicates": [
+        "facility.landing_pad_contention",
+        "facility.landing_pad_occupied",
+        "utm.deconfliction_active"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "facility.landing_pad_contention_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "first_aircraft",
+          "scope_type": "uav",
+          "binding": "trigger_binding:facility.landing_pad_contention:first_aircraft",
+          "background_allowed": false
+        },
+        {
+          "role": "pad",
+          "scope_type": "facility",
+          "binding": "trigger_binding:facility.landing_pad_contention:pad",
+          "background_allowed": false
+        },
+        {
+          "role": "second_aircraft",
+          "scope_type": "uav",
+          "binding": "trigger_binding:facility.landing_pad_contention:second_aircraft",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Pad contention is a direct authoritative predicate; allocation fragments are represented only when UTM deconfliction is observed.",
+      "trigger_expression": {
+        "predicate_id": "facility.landing_pad_contention",
+        "direction": "rising",
+        "event_role_sources": {
+          "pad": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.landing_pad_contention",
+            "predicate_role": "pad",
+            "source_ontology_class": "LandingPad",
+            "background_allowed": false
+          },
+          "first_aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.landing_pad_contention",
+            "predicate_role": "first_aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          },
+          "second_aircraft": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.landing_pad_contention",
+            "predicate_role": "second_aircraft",
+            "source_ontology_class": "UnmannedAircraft",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "facility.landing_pad_contention",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "first_aircraft",
+          "pad",
+          "second_aircraft"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"first_aircraft\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"facility.landing_pad_contention\", \"predicate_role\": \"first_aircraft\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"pad\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"facility.landing_pad_contention\", \"predicate_role\": \"pad\", \"source_ontology_class\": \"LandingPad\"}, \"second_aircraft\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"facility.landing_pad_contention\", \"predicate_role\": \"second_aircraft\", \"source_ontology_class\": \"UnmannedAircraft\"}}, \"predicate_id\": \"facility.landing_pad_contention\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"first_aircraft\", \"pad\", \"second_aircraft\"], \"predicate_id\": \"facility.landing_pad_contention\", \"value\": \"false\"}"
+    },
+    "signal_malfunction": {
+      "display_name": "signal_malfunction",
+      "required_state_fields": [
+        "controller_mode",
+        "phase_valid",
+        "fault_duration_samples",
+        "queue_length",
+        "queue_threshold",
+        "manual_control_active",
+        "flow_safe"
+      ],
+      "required_response": "vehicle queues form and police/manual control becomes active",
+      "observable_dimensions": [
+        "signal_state",
+        "controller_health",
+        "lane_queue_length",
+        "manual_control_state"
+      ],
+      "unknown_policy": "unknown if controller health or signal state is absent",
+      "required_predicates": [
+        "ground.traffic_signal_malfunction_active",
+        "ground.vehicle_queue_exceeds_length",
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "ground.traffic_signal_malfunction_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "signal",
+          "scope_type": "facility",
+          "binding": "trigger_binding:ground.traffic_signal_malfunction_active:signal",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "The malfunction-state rising transition names the affected traffic signal exactly; queue and stopping truth remain downstream observations.",
+      "trigger_expression": {
+        "predicate_id": "ground.traffic_signal_malfunction_active",
+        "direction": "rising",
+        "event_role_sources": {
+          "signal": {
+            "kind": "trigger_binding",
+            "predicate_id": "ground.traffic_signal_malfunction_active",
+            "predicate_role": "signal",
+            "source_ontology_class": "TrafficSignal",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "ground.traffic_signal_malfunction_active",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "signal"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"signal\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"ground.traffic_signal_malfunction_active\", \"predicate_role\": \"signal\", \"source_ontology_class\": \"TrafficSignal\"}}, \"predicate_id\": \"ground.traffic_signal_malfunction_active\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"signal\"], \"predicate_id\": \"ground.traffic_signal_malfunction_active\", \"value\": \"false\"}"
+    },
+    "road_closure": {
+      "display_name": "road_closure",
+      "required_state_fields": [
+        "barrier_active",
+        "lane_passable",
+        "affected_vehicles_clear",
+        "inspection_complete",
+        "road_geometry"
+      ],
+      "required_response": "affected vehicles take detour and leave the closed segment",
+      "observable_dimensions": [
+        "road_segment_geometry",
+        "barrier_state",
+        "vehicle_pose",
+        "vehicle_route"
+      ],
+      "unknown_policy": "unknown if segment geometry or barrier state is absent",
+      "required_predicates": [
+        "ground.road_segment_closed"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "ground.road_segment_closure_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "road_segment",
+          "scope_type": "scene",
+          "binding": "trigger_binding:ground.road_segment_closed:road_segment",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Road-segment closure is the exact occurrence; the separate detour ontology type remains non-executable without a real barrier-to-route binding.",
+      "trigger_expression": {
+        "predicate_id": "ground.road_segment_closed",
+        "direction": "rising",
+        "event_role_sources": {
+          "road_segment": {
+            "kind": "trigger_binding",
+            "predicate_id": "ground.road_segment_closed",
+            "predicate_role": "road_segment",
+            "source_ontology_class": "RoadSegment",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "ground.road_segment_closed",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "road_segment"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"road_segment\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"ground.road_segment_closed\", \"predicate_role\": \"road_segment\", \"source_ontology_class\": \"RoadSegment\"}}, \"predicate_id\": \"ground.road_segment_closed\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"road_segment\"], \"predicate_id\": \"ground.road_segment_closed\", \"value\": \"false\"}"
+    },
+    "ambulance_priority": {
+      "display_name": "ambulance_priority",
+      "required_state_fields": [
+        "priority_active",
+        "approaching_junction",
+        "civilian_yielding",
+        "ambulance_cleared",
+        "junction_geometry"
+      ],
+      "required_response": "civilian vehicles yield and ambulance passes the conflict zone",
+      "observable_dimensions": [
+        "vehicle_pose",
+        "vehicle_velocity",
+        "emergency_priority_state",
+        "lane_geometry"
+      ],
+      "unknown_policy": "unknown if priority state or vehicle class is absent",
+      "required_predicates": [
+        "emergency.emergency_vehicle_priority_active",
+        "ground.vehicle_stopped_in_lane"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "regulation.emergency_vehicle_priority_passage_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "emergency_vehicle",
+          "scope_type": "vehicle",
+          "binding": "ontology_role:regulation.emergency_vehicle_priority_passage_event:emergency_vehicle",
+          "background_allowed": false
+        },
+        {
+          "role": "right_of_way",
+          "scope_type": "scene",
+          "binding": "ontology_role:regulation.emergency_vehicle_priority_passage_event:right_of_way",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "",
+      "non_executable_reason": "Typed emergency vehicles and SUMO RightOfWay individuals exist, but no explicit EmergencyResponse or AmbulancePriorityPassage lifecycle binds one vehicle to one response occurrence.",
+      "closure_statement": "Materialize a typed response lifecycle with exact emergency-vehicle, incident, passage, and RightOfWay bindings before enabling this event family.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "av_safe_stop": {
+      "display_name": "av_safe_stop",
+      "required_state_fields": [
+        "sensor_fault",
+        "mrm_active",
+        "speed_mps",
+        "in_safe_area"
+      ],
+      "required_response": "AV reaches and holds a safe stopped position with warning active",
+      "observable_dimensions": [
+        "vehicle_pose",
+        "vehicle_velocity",
+        "sensor_health",
+        "mrm_state",
+        "warning_state"
+      ],
+      "unknown_policy": "unknown if sensor fault or MRM state is absent",
+      "participant_roles": [
+        {
+          "role": "vehicle",
+          "scope_type": "vehicle",
+          "binding": "documented_intent",
+          "background_allowed": false
+        }
+      ],
+      "required_predicates": [],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [],
+      "semantic_rationale": "",
+      "non_executable_reason": "The frozen 79-predicate vocabulary has no AV sensor-fault, minimum-risk-manoeuvre, or safe-stop predicate.",
+      "closure_statement": "Add an approved ground-vehicle health and MRM ontology module with engine-derived L0 sensor and stop-area state before execution.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "pedestrian_medical": {
+      "display_name": "pedestrian_medical",
+      "required_state_fields": [
+        "injury_flag",
+        "posture_fallen",
+        "fallen_duration_samples",
+        "detected",
+        "dispatched",
+        "arrived",
+        "handoff_complete"
+      ],
+      "required_response": "detection, dispatch, arrival, handoff, and resolution are evidenced",
+      "observable_dimensions": [
+        "pedestrian_pose",
+        "pedestrian_posture",
+        "pedestrian_activity",
+        "health_state",
+        "dispatch_state",
+        "responder_pose"
+      ],
+      "unknown_policy": "unknown if posture or response state is absent",
+      "required_predicates": [],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "emergency.pedestrian_medical_emergency_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "pedestrian",
+          "scope_type": "pedestrian",
+          "binding": "ontology_role:emergency.pedestrian_medical_emergency_event:pedestrian",
+          "background_allowed": false
+        },
+        {
+          "role": "response",
+          "scope_type": "scene",
+          "binding": "ontology_role:emergency.pedestrian_medical_emergency_event:response",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "",
+      "non_executable_reason": "The event ontology contains the intent, but the frozen 79-predicate vocabulary contains no injury/detection/dispatch/arrival/handoff predicates.",
+      "closure_statement": "Approve medical-state predicates and deterministic responder L0 contracts before enabling this event family.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "crowd_evacuation": {
+      "display_name": "crowd_evacuation",
+      "required_state_fields": [
+        "required_member_count",
+        "moving_to_safe_zone_ratio",
+        "safe_member_count",
+        "hazard_zone_geometry",
+        "safe_zone_geometry"
+      ],
+      "required_response": "crowd members move continuously from hazard zone to safe zone",
+      "observable_dimensions": [
+        "pedestrian_pose",
+        "hazard_zone_geometry",
+        "safe_zone_geometry",
+        "crowd_membership"
+      ],
+      "unknown_policy": "unknown if crowd membership or zones are incomplete",
+      "required_predicates": [
+        "safety.crowd_evacuation_active",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "emergency.crowd_evacuation_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "crowd",
+          "scope_type": "scene",
+          "binding": "trigger_binding:safety.crowd_evacuation_active:crowd",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Evacuation activation maps directly; all-members-safe is represented by the falling transition rather than a fabricated predicate, and an explicitly observed aircraft safe-hold transition may evidence the response phase.",
+      "trigger_expression": {
+        "predicate_id": "safety.crowd_evacuation_active",
+        "direction": "rising",
+        "event_role_sources": {
+          "crowd": {
+            "kind": "trigger_binding",
+            "predicate_id": "safety.crowd_evacuation_active",
+            "predicate_role": "crowd",
+            "source_ontology_class": "Crowd",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "safety.crowd_evacuation_active",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "crowd"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"crowd\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"safety.crowd_evacuation_active\", \"predicate_role\": \"crowd\", \"source_ontology_class\": \"Crowd\"}}, \"predicate_id\": \"safety.crowd_evacuation_active\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"crowd\"], \"predicate_id\": \"safety.crowd_evacuation_active\", \"value\": \"false\"}"
+    },
+    "temporary_airspace_lockdown": {
+      "display_name": "temporary_airspace_lockdown",
+      "required_state_fields": [
+        "region_active",
+        "region_kind",
+        "region_geometry",
+        "reroute_complete",
+        "affected_uav_count",
+        "rerouted_uav_count"
+      ],
+      "required_response": "the controlled region isolates the hazardous area while affected UAVs reroute or hold outside it",
+      "observable_dimensions": [
+        "hazard_source_state",
+        "hazard_concentration",
+        "hazard_radius",
+        "region_activation",
+        "lockdown_geometry",
+        "uav_pose_3d",
+        "uav_route_state"
+      ],
+      "unknown_policy": "unknown if hazardous-release measurements, lockdown state, or controlled-region geometry are absent",
+      "required_predicates": [
+        "emergency.temporary_no_fly_zone_active",
+        "emergency.emergency_isolation_active",
+        "utm.deconfliction_active"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "emergency.temporary_no_fly_zone_activation_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "constraint",
+          "scope_type": "scene",
+          "binding": "ontology_role:emergency.temporary_no_fly_zone_activation_event:constraint",
+          "background_allowed": false
+        },
+        {
+          "role": "region",
+          "scope_type": "scene",
+          "binding": "ontology_role:emergency.temporary_no_fly_zone_activation_event:region",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "",
+      "non_executable_reason": "The predicate names the NoFlyZone region but no authoritative producer names the TemporaryRestriction participant required by the event ontology.",
+      "closure_statement": "Add a real TemporaryRestriction individual and exact restriction-to-region relation before enabling this event family.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "rain_fog_environment": {
+      "display_name": "rain_fog_environment",
+      "required_state_fields": [
+        "rain_rate_mm_h",
+        "rain_duration_samples",
+        "visibility_m",
+        "fog_duration_samples",
+        "illumination_lux",
+        "exposure_score",
+        "ir_mode_active"
+      ],
+      "required_response": "only an environment event is emitted directly; UAV or traffic consequences require independent rules",
+      "observable_dimensions": [
+        "weather_state",
+        "visibility",
+        "precipitation_rate",
+        "duration"
+      ],
+      "unknown_policy": "unknown if weather parameters are absent",
+      "required_predicates": [
+        "environment.rain_active",
+        "environment.fog_active",
+        "environment.visibility_below_threshold",
+        "environment.low_illumination_active"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "environment.rain_transition_event",
+        "environment.fog_onset_event",
+        "environment.lighting_condition_change_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "region",
+          "scope_type": "scene",
+          "binding": "trigger_binding:environment.low_illumination_active:region",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Rain, fog, and governed low illumination remain separate authoritative region observations; no reified weather-condition participant is fabricated.",
+      "trigger_expression": {
+        "any_of": [
+          {
+            "predicate_id": "environment.rain_active",
+            "direction": "rising",
+            "event_type_id": "environment.rain_transition_event",
+            "event_role_sources": {
+              "region": {
+                "kind": "trigger_binding",
+                "predicate_id": "environment.rain_active",
+                "predicate_role": "region",
+                "source_ontology_class": "OperationalRegion",
+                "background_allowed": false
+              }
+            }
+          },
+          {
+            "predicate_id": "environment.fog_active",
+            "direction": "rising",
+            "event_type_id": "environment.fog_onset_event",
+            "event_role_sources": {
+              "region": {
+                "kind": "trigger_binding",
+                "predicate_id": "environment.fog_active",
+                "predicate_role": "region",
+                "source_ontology_class": "OperationalRegion",
+                "background_allowed": false
+              }
+            }
+          },
+          {
+            "predicate_id": "environment.low_illumination_active",
+            "direction": "rising",
+            "event_type_id": "environment.lighting_condition_change_event",
+            "event_role_sources": {
+              "region": {
+                "kind": "trigger_binding",
+                "predicate_id": "environment.low_illumination_active",
+                "predicate_role": "region",
+                "source_ontology_class": "OperationalRegion",
+                "background_allowed": false
+              }
+            }
+          }
+        ]
+      },
+      "terminal_expression": {
+        "any_of": [
+          {
+            "predicate_id": "environment.rain_active",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "region"
+            ]
+          },
+          {
+            "predicate_id": "environment.fog_active",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "region"
+            ]
+          },
+          {
+            "predicate_id": "environment.low_illumination_active",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "region"
+            ]
+          }
+        ]
+      },
+      "start_condition": "{\"any_of\": [{\"direction\": \"rising\", \"event_role_sources\": {\"region\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"environment.rain_active\", \"predicate_role\": \"region\", \"source_ontology_class\": \"OperationalRegion\"}}, \"event_type_id\": \"environment.rain_transition_event\", \"predicate_id\": \"environment.rain_active\"}, {\"direction\": \"rising\", \"event_role_sources\": {\"region\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"environment.fog_active\", \"predicate_role\": \"region\", \"source_ontology_class\": \"OperationalRegion\"}}, \"event_type_id\": \"environment.fog_onset_event\", \"predicate_id\": \"environment.fog_active\"}, {\"direction\": \"rising\", \"event_role_sources\": {\"region\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"environment.low_illumination_active\", \"predicate_role\": \"region\", \"source_ontology_class\": \"OperationalRegion\"}}, \"event_type_id\": \"environment.lighting_condition_change_event\", \"predicate_id\": \"environment.low_illumination_active\"}]}",
+      "terminal_condition": "{\"any_of\": [{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"region\"], \"predicate_id\": \"environment.rain_active\", \"value\": \"false\"}, {\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"region\"], \"predicate_id\": \"environment.fog_active\", \"value\": \"false\"}, {\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"region\"], \"predicate_id\": \"environment.low_illumination_active\", \"value\": \"false\"}]}"
+    },
+    "crosswind_payload_swing": {
+      "display_name": "crosswind_payload_swing",
+      "required_state_fields": [
+        "crosswind_mps",
+        "payload_swing_deg",
+        "attitude_error_deg",
+        "safe_terminal"
+      ],
+      "required_response": "attitude recovery reduces swing or mission terminates safely",
+      "observable_dimensions": [
+        "wind_vector",
+        "uav_attitude",
+        "payload_state",
+        "uav_pose_3d"
+      ],
+      "unknown_policy": "unknown if wind vector or payload state is absent",
+      "required_predicates": [
+        "environment.wind_speed_above_threshold"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "environment.high_wind_gust_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "region",
+          "scope_type": "scene",
+          "binding": "ontology_role:environment.high_wind_gust_event:region",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "",
+      "non_executable_reason": "High wind is authoritative, but payload swing and attitude-instability predicates are absent from the frozen vocabulary, so the compound event cannot be proven.",
+      "closure_statement": "Add approved payload dynamics predicates and a physical tether/swing L0 model before execution.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "high_temp_battery_derating": {
+      "display_name": "high_temp_battery_derating",
+      "required_state_fields": [
+        "temperature_c",
+        "power_derated",
+        "remaining_range_m",
+        "required_range_m",
+        "safe_terminal"
+      ],
+      "required_response": "planner replans, aborts, returns home, or lands safely",
+      "observable_dimensions": [
+        "temperature",
+        "battery_state",
+        "power_limit",
+        "mission_plan",
+        "predicted_range"
+      ],
+      "unknown_policy": "unknown if battery or temperature is absent",
+      "required_predicates": [
+        "environment.temperature_outside_operating_range",
+        "facility.aircraft_battery_low",
+        "emergency.mission_aborted"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "B_composite",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "environment.extreme_temperature_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "region",
+          "scope_type": "scene",
+          "binding": "trigger_binding:environment.temperature_outside_operating_range:region",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Extreme temperature is the onset; battery-low and mission-abort are the only frozen downstream facts, so power-derating fragments are not asserted.",
+      "trigger_expression": {
+        "predicate_id": "environment.temperature_outside_operating_range",
+        "direction": "rising",
+        "event_role_sources": {
+          "region": {
+            "kind": "trigger_binding",
+            "predicate_id": "environment.temperature_outside_operating_range",
+            "predicate_role": "region",
+            "source_ontology_class": "OperationalRegion",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "environment.temperature_outside_operating_range",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "region"
+        ]
+      },
+      "start_condition": "{\"direction\": \"rising\", \"event_role_sources\": {\"region\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"environment.temperature_outside_operating_range\", \"predicate_role\": \"region\", \"source_ontology_class\": \"OperationalRegion\"}}, \"predicate_id\": \"environment.temperature_outside_operating_range\"}",
+      "terminal_condition": "{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"region\"], \"predicate_id\": \"environment.temperature_outside_operating_range\", \"value\": \"false\"}"
+    },
+    "jamming_gcs_intrusion": {
+      "display_name": "jamming_gcs_intrusion",
+      "required_state_fields": [
+        "jamming_active",
+        "communication_station_id",
+        "gcs_compromised",
+        "safe_terminal"
+      ],
+      "required_response": "channel protection, safe hold, or control-station recovery starts from exact station evidence",
+      "observable_dimensions": [
+        "spectrum_state",
+        "command_source",
+        "command_integrity",
+        "authentication_state",
+        "control_station_state"
+      ],
+      "unknown_policy": "unknown if security telemetry or governed simulation state is absent",
+      "required_predicates": [
+        "security.communication_jamming_impact_active",
+        "security.ground_control_station_compromised",
+        "emergency.aircraft_in_safe_hold"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "security.communication_jamming_impact_event",
+        "security.ground_control_station_compromise_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "actor",
+          "scope_type": "uav",
+          "binding": "trigger_binding:security.communication_jamming_impact_active:actor",
+          "background_allowed": false
+        },
+        {
+          "role": "station",
+          "scope_type": "facility",
+          "binding": "trigger_binding:security.ground_control_station_compromised:station",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Jamming impact and ground-control compromise retain real aircraft/station participants supplied by their exact authoritative tuples.",
+      "trigger_expression": {
+        "any_of": [
+          {
+            "predicate_id": "security.communication_jamming_impact_active",
+            "direction": "rising",
+            "event_type_id": "security.communication_jamming_impact_event",
+            "event_role_sources": {
+              "actor": {
+                "kind": "trigger_binding",
+                "predicate_id": "security.communication_jamming_impact_active",
+                "predicate_role": "actor",
+                "source_ontology_class": "UnmannedAircraft",
+                "background_allowed": false
+              },
+              "station": {
+                "kind": "trigger_binding",
+                "predicate_id": "security.communication_jamming_impact_active",
+                "predicate_role": "station",
+                "source_ontology_class": "CommunicationStation",
+                "background_allowed": false
+              }
+            }
+          },
+          {
+            "predicate_id": "security.ground_control_station_compromised",
+            "direction": "rising",
+            "event_type_id": "security.ground_control_station_compromise_event",
+            "event_role_sources": {
+              "station": {
+                "kind": "trigger_binding",
+                "predicate_id": "security.ground_control_station_compromised",
+                "predicate_role": "station",
+                "source_ontology_class": "GroundControlStation",
+                "background_allowed": false
+              }
+            }
+          }
+        ]
+      },
+      "terminal_expression": {
+        "any_of": [
+          {
+            "predicate_id": "security.communication_jamming_impact_active",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "actor",
+              "station"
+            ]
+          },
+          {
+            "predicate_id": "security.ground_control_station_compromised",
+            "value": "false",
+            "hold_parameter": "recovery_hold_samples",
+            "join_roles": [
+              "station"
+            ]
+          }
+        ]
+      },
+      "start_condition": "{\"any_of\": [{\"direction\": \"rising\", \"event_role_sources\": {\"actor\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"security.communication_jamming_impact_active\", \"predicate_role\": \"actor\", \"source_ontology_class\": \"UnmannedAircraft\"}, \"station\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"security.communication_jamming_impact_active\", \"predicate_role\": \"station\", \"source_ontology_class\": \"CommunicationStation\"}}, \"event_type_id\": \"security.communication_jamming_impact_event\", \"predicate_id\": \"security.communication_jamming_impact_active\"}, {\"direction\": \"rising\", \"event_role_sources\": {\"station\": {\"background_allowed\": false, \"kind\": \"trigger_binding\", \"predicate_id\": \"security.ground_control_station_compromised\", \"predicate_role\": \"station\", \"source_ontology_class\": \"GroundControlStation\"}}, \"event_type_id\": \"security.ground_control_station_compromise_event\", \"predicate_id\": \"security.ground_control_station_compromised\"}]}",
+      "terminal_condition": "{\"any_of\": [{\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"actor\", \"station\"], \"predicate_id\": \"security.communication_jamming_impact_active\", \"value\": \"false\"}, {\"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"station\"], \"predicate_id\": \"security.ground_control_station_compromised\", \"value\": \"false\"}]}"
+    },
+    "unauthorized_command": {
+      "display_name": "unauthorized_command",
+      "required_state_fields": [
+        "unauthorized_command",
+        "command_source",
+        "authentication_state"
+      ],
+      "required_response": "typed command provenance is available and rejected before claiming an unauthorized-command event",
+      "observable_dimensions": [
+        "command_source",
+        "authentication_state",
+        "receiver_state"
+      ],
+      "unknown_policy": "unknown if security telemetry or governed simulation state is absent",
+      "required_predicates": [
+        "security.unauthorized_command_received"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "security.unauthorized_command_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "actor",
+          "scope_type": "uav",
+          "binding": "ontology_role:security.unauthorized_command_event:actor",
+          "background_allowed": false
+        },
+        {
+          "role": "command",
+          "scope_type": "scene",
+          "binding": "ontology_role:security.unauthorized_command_event:command",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "",
+      "non_executable_reason": "No explicit runtime UnauthorizedCommand individual with sender, receiver, and source provenance is available.",
+      "closure_statement": "Materialize typed command individuals and exact sender/receiver provenance before enabling this event family.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "control_command_integrity_violation": {
+      "display_name": "control_command_integrity_violation",
+      "required_state_fields": [
+        "command_stream_id",
+        "command_integrity_ok",
+        "authentication_state"
+      ],
+      "required_response": "a typed command stream and exact integrity failure are available before claiming the event",
+      "observable_dimensions": [
+        "command_stream",
+        "command_integrity",
+        "authentication_state"
+      ],
+      "unknown_policy": "unknown if security telemetry or governed simulation state is absent",
+      "required_predicates": [
+        "security.control_command_integrity_violated"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "security.control_command_integrity_violation_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "stream",
+          "scope_type": "scene",
+          "binding": "ontology_role:security.control_command_integrity_violation_event:stream",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "",
+      "non_executable_reason": "No explicit runtime CommandStream individual and integrity evidence source is available.",
+      "closure_statement": "Materialize a typed command-stream individual and exact integrity evidence before enabling this event family.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "security_control_unavailability": {
+      "display_name": "security_control_unavailability",
+      "required_state_fields": [
+        "security_control_id",
+        "lockout_active",
+        "security_recovered"
+      ],
+      "required_response": "a typed security control and exact unavailability relation are available before claiming the event",
+      "observable_dimensions": [
+        "security_control_state",
+        "authentication_state",
+        "control_station_state"
+      ],
+      "unknown_policy": "unknown if security telemetry or governed simulation state is absent",
+      "required_predicates": [
+        "security.security_control_unavailable"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "C_non_executable",
+      "executable": false,
+      "ontology_event_type_ids": [
+        "security.security_control_unavailability_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "control",
+          "scope_type": "scene",
+          "binding": "ontology_role:security.security_control_unavailability_event:control",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "",
+      "non_executable_reason": "No explicit runtime CyberSecurityControl individual and service relation is available.",
+      "closure_statement": "Materialize a typed security-control individual and its exact service relation before enabling this event family.",
+      "start_condition": "not_applicable: no authoritative trigger chain",
+      "terminal_condition": "not_applicable: event is not executed"
+    },
+    "charging_queue_over_capacity": {
+      "display_name": "charging_queue_over_capacity",
+      "required_state_fields": [
+        "facility_kind",
+        "requester_count",
+        "capacity"
+      ],
+      "required_response": "the charging facility queue exceeds its capacity and the planner must wait or reroute",
+      "observable_dimensions": [
+        "facility_status",
+        "queue_length",
+        "uav_energy_state",
+        "planner_assignment"
+      ],
+      "unknown_policy": "unknown if facility requester counts or capacity are absent",
+      "required_predicates": [
+        "facility.charging_queue_over_capacity"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ],
+      "mapping_class": "A_direct",
+      "executable": true,
+      "ontology_event_type_ids": [
+        "facility.charging_queue_overload_event"
+      ],
+      "participant_roles": [
+        {
+          "role": "station",
+          "scope_type": "facility",
+          "binding": "trigger_binding:facility.charging_queue_over_capacity:station",
+          "background_allowed": false
+        }
+      ],
+      "semantic_rationale": "Charging queue overload is physically derived from charging service plan requester counts exceeding charger capacity.",
+      "trigger_expression": {
+        "predicate_id": "facility.charging_queue_over_capacity",
+        "direction": "rising",
+        "event_role_sources": {
+          "station": {
+            "kind": "trigger_binding",
+            "predicate_id": "facility.charging_queue_over_capacity",
+            "predicate_role": "station",
+            "source_ontology_class": "ChargingStation",
+            "background_allowed": false
+          }
+        }
+      },
+      "terminal_expression": {
+        "predicate_id": "facility.charging_queue_over_capacity",
+        "value": "false",
+        "hold_parameter": "recovery_hold_samples",
+        "join_roles": [
+          "station"
+        ]
+      },
+      "start_condition": "{\"predicate_id\": \"facility.charging_queue_over_capacity\", \"direction\": \"rising\", \"event_role_sources\": {\"station\": {\"kind\": \"trigger_binding\", \"predicate_id\": \"facility.charging_queue_over_capacity\", \"predicate_role\": \"station\", \"source_ontology_class\": \"ChargingStation\", \"background_allowed\": false}}}",
+      "terminal_condition": "{\"predicate_id\": \"facility.charging_queue_over_capacity\", \"value\": \"false\", \"hold_parameter\": \"recovery_hold_samples\", \"join_roles\": [\"station\"]}"
+    }
+  },
+  "epi_contracts": {
+    "L1-1_v1": {
+      "motivation": "验证接近禁飞边界后的风险识别和RTH",
+      "required_chain": [
+        {
+          "stage_goal": "takeoff",
+          "event_family_id": "uav_takeoff"
+        },
+        {
+          "stage_goal": "approach boundary",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "boundary conflict",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "return to safe airspace",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landing",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "boundary geometry",
+        "route state",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when boundary or route evidence is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L1-1_v2": {
+      "motivation": "验证另一边界几何下的侵入风险和返航",
+      "required_chain": [
+        {
+          "stage_goal": "takeoff",
+          "event_family_id": "uav_takeoff"
+        },
+        {
+          "stage_goal": "approach boundary",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "boundary conflict",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "return to safe airspace",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landing",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "alternate boundary geometry",
+        "route state",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when boundary geometry is not authoritative",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L1-2_v1": {
+      "motivation": "验证指派高度带偏离检测",
+      "required_chain": [
+        {
+          "stage_goal": "altitude excursion",
+          "event_family_id": "altitude_excursion"
+        },
+        {
+          "stage_goal": "corrective maneuver",
+          "event_family_id": "altitude_excursion"
+        },
+        {
+          "stage_goal": "altitude restored",
+          "event_family_id": "altitude_excursion"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "uav altitude",
+        "assigned altitude band",
+        "vertical speed"
+      ],
+      "unknown_policy": "unknown when assigned band is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L1-3_v1": {
+      "motivation": "验证非合作UAV侵入与双机解冲突",
+      "required_chain": [
+        {
+          "stage_goal": "intruder detected",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "pair conflict",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "deconfliction",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "dual safe landing",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "two-uav trajectories",
+        "separation",
+        "TTC",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when either UAV trajectory is incomplete",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L1-3_v2": {
+      "motivation": "验证高速穿越UAV的提前冲突判定",
+      "required_chain": [
+        {
+          "stage_goal": "fast crossing risk",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "separation response",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "conflict cleared",
+          "event_family_id": "uav_separation_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "two-uav trajectories",
+        "closing speed",
+        "TTC"
+      ],
+      "unknown_policy": "unknown when speed or trajectory prediction is unavailable",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L1-4_v1": {
+      "motivation": "验证多UAV走廊容量与优先级重排",
+      "required_chain": [
+        {
+          "stage_goal": "over-capacity",
+          "event_family_id": "corridor_congestion"
+        },
+        {
+          "stage_goal": "resequence or divert",
+          "event_family_id": "corridor_congestion"
+        },
+        {
+          "stage_goal": "capacity restored",
+          "event_family_id": "corridor_congestion"
+        }
+      ],
+      "observable_dimensions": [
+        "corridor occupancy",
+        "capacity",
+        "UAV routing"
+      ],
+      "unknown_policy": "unknown when corridor capacity is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L1-4_v2": {
+      "motivation": "验证高密度拥堵下的分阶段恢复",
+      "required_chain": [
+        {
+          "stage_goal": "dense congestion",
+          "event_family_id": "corridor_congestion"
+        },
+        {
+          "stage_goal": "hold or divert",
+          "event_family_id": "corridor_congestion"
+        },
+        {
+          "stage_goal": "staged landings",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "corridor occupancy",
+        "capacity",
+        "hold state",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when membership enumeration is incomplete",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L2-1_v1": {
+      "motivation": "验证通信站故障后的备份链路恢复",
+      "required_chain": [
+        {
+          "stage_goal": "station failure",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "C2 degraded or lost",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "backup link",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "safe landing",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "station status",
+        "link metrics",
+        "control state",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when link metrics are not available",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L2-1_v2": {
+      "motivation": "验证替代布局下的C2恢复策略",
+      "required_chain": [
+        {
+          "stage_goal": "link degradation",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "hold or reroute",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "restored",
+          "event_family_id": "c2_degradation_loss"
+        }
+      ],
+      "observable_dimensions": [
+        "link metrics",
+        "uav control state",
+        "route state"
+      ],
+      "unknown_policy": "unknown when link degradation cannot be computed",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L2-2_v1": {
+      "motivation": "验证城市峡谷GNSS漂移与视觉重定位",
+      "required_chain": [
+        {
+          "stage_goal": "GNSS degraded",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "navigation error",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "relocalization",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "route recovered",
+          "event_family_id": "gnss_signal_degradation"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "GNSS quality",
+        "navigation mode"
+      ],
+      "unknown_policy": "unknown when true/reported pose pair is unavailable",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L2-2_v2": {
+      "motivation": "验证更长漂移窗口下的纠偏",
+      "required_chain": [
+        {
+          "stage_goal": "sustained drift",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "correction",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "navigation recovered",
+          "event_family_id": "gnss_signal_degradation"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "drift duration",
+        "navigation mode"
+      ],
+      "unknown_policy": "unknown when drift duration cannot be measured",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L2-3_v1": {
+      "motivation": "验证主充电站不可用后的备选设施选择",
+      "required_chain": [
+        {
+          "stage_goal": "charger unavailable",
+          "event_family_id": "charger_unavailable"
+        },
+        {
+          "stage_goal": "replanning",
+          "event_family_id": "charging_queue_over_capacity"
+        },
+        {
+          "stage_goal": "backup charger accepted",
+          "event_family_id": "charger_unavailable"
+        }
+      ],
+      "observable_dimensions": [
+        "charger availability",
+        "reservation",
+        "planner assignment"
+      ],
+      "unknown_policy": "unknown when facility state is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L2-3_v2": {
+      "motivation": "验证不同设施位置下的重新规划",
+      "required_chain": [
+        {
+          "stage_goal": "unavailable facility",
+          "event_family_id": "charger_unavailable"
+        },
+        {
+          "stage_goal": "alternate selection",
+          "event_family_id": "charging_queue_over_capacity"
+        },
+        {
+          "stage_goal": "terminal resolution",
+          "event_family_id": "charger_unavailable"
+        }
+      ],
+      "observable_dimensions": [
+        "facility availability",
+        "facility geometry",
+        "planner assignment"
+      ],
+      "unknown_policy": "unknown when alternate facility cannot be identified",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L2-4_v1": {
+      "motivation": "验证应急停机坪争用和优先级仲裁",
+      "required_chain": [
+        {
+          "stage_goal": "simultaneous requests",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "contention",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "priority grant",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "diversion",
+          "event_family_id": "pad_contention"
+        }
+      ],
+      "observable_dimensions": [
+        "pad requests",
+        "pad occupancy",
+        "priority policy",
+        "uav routing"
+      ],
+      "unknown_policy": "unknown when requester set is incomplete",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L2-4_v2": {
+      "motivation": "验证不同几何下的优先着陆",
+      "required_chain": [
+        {
+          "stage_goal": "contention",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "arbitration",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "contention cleared",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "priority landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "pad geometry",
+        "pad occupancy",
+        "priority request",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when pad geometry is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L2-5_v1": {
+      "motivation": "验证信号灯全红故障和人工交通接管",
+      "required_chain": [
+        {
+          "stage_goal": "signal malfunction",
+          "event_family_id": "signal_malfunction"
+        },
+        {
+          "stage_goal": "queue formation",
+          "event_family_id": "signal_malfunction"
+        },
+        {
+          "stage_goal": "police manual control",
+          "event_family_id": "signal_malfunction"
+        },
+        {
+          "stage_goal": "restored",
+          "event_family_id": "signal_malfunction"
+        }
+      ],
+      "observable_dimensions": [
+        "signal state",
+        "controller health",
+        "queue length",
+        "manual control state"
+      ],
+      "unknown_policy": "unknown when manual control state is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L3-1_v1": {
+      "motivation": "验证道路施工封闭、绕行及UAV检查",
+      "required_chain": [
+        {
+          "stage_goal": "barrier activation",
+          "event_family_id": "road_closure"
+        },
+        {
+          "stage_goal": "road closed",
+          "event_family_id": "road_closure"
+        },
+        {
+          "stage_goal": "vehicle detour",
+          "event_family_id": "road_closure"
+        },
+        {
+          "stage_goal": "inspection complete",
+          "event_family_id": "road_closure"
+        }
+      ],
+      "observable_dimensions": [
+        "barrier state",
+        "road segment geometry",
+        "vehicle route",
+        "uav inspection state"
+      ],
+      "unknown_policy": "unknown when closure state has no physical barrier/segment evidence",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L3-2_v1": {
+      "motivation": "验证飞行过程中临时禁飞区激活",
+      "required_chain": [
+        {
+          "stage_goal": "NFZ active",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "boundary risk",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "reroute",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "safe separation",
+          "event_family_id": "restricted_region_intrusion"
+        }
+      ],
+      "observable_dimensions": [
+        "NFZ activation",
+        "region geometry",
+        "uav pose",
+        "route state"
+      ],
+      "unknown_policy": "unknown when temporary region activation is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L3-2_v2": {
+      "motivation": "验证另一禁飞区几何下的绕行",
+      "required_chain": [
+        {
+          "stage_goal": "NFZ activation",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "conflict",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "alternate reroute",
+          "event_family_id": "temporary_airspace_lockdown"
+        }
+      ],
+      "observable_dimensions": [
+        "NFZ geometry",
+        "region activation",
+        "uav pose",
+        "route state"
+      ],
+      "unknown_policy": "unknown when active region membership cannot be computed",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L3-3_v1": {
+      "motivation": "验证危化品泄漏、隔离和疏散协同",
+      "required_chain": [
+        {
+          "stage_goal": "leak detected",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "isolation active",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "evacuation",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe zone reached",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "responder arrived",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "responder handoff",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "resolved",
+          "event_family_id": "crowd_evacuation"
+        }
+      ],
+      "observable_dimensions": [
+        "hazard_source_active",
+        "hazard_concentration_ppm",
+        "hazard_radius_m",
+        "crowd pose",
+        "safe zone",
+        "responder state",
+        "handoff state"
+      ],
+      "unknown_policy": "unknown when numeric hazard or hazmat response state is missing",
+      "required_state_fields": [
+        "hazard_source_active",
+        "hazard_concentration_ppm",
+        "hazard_radius_m",
+        "hazmat_isolation_active",
+        "hazmat_responder_arrived",
+        "hazmat_handoff_complete",
+        "hazmat_resolved"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L3-3_v2": {
+      "motivation": "验证扩大泄漏范围后的应急交接",
+      "required_chain": [
+        {
+          "stage_goal": "hazard spread",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "isolation active",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "evacuation",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe zone reached",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "responder arrived",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "responder handoff",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "resolved",
+          "event_family_id": "pedestrian_medical"
+        }
+      ],
+      "observable_dimensions": [
+        "hazard_source_active",
+        "hazard_concentration_ppm",
+        "hazard_radius_m",
+        "crowd pose",
+        "responder state",
+        "handoff state",
+        "resolved state"
+      ],
+      "unknown_policy": "unknown when responder handoff is not represented as hazmat response state",
+      "required_state_fields": [
+        "hazard_source_active",
+        "hazard_concentration_ppm",
+        "hazard_radius_m",
+        "hazmat_isolation_active",
+        "hazmat_responder_arrived",
+        "hazmat_handoff_complete",
+        "hazmat_resolved"
+      ],
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-1_v1": {
+      "motivation": "验证双UAV会聚冲突和分离",
+      "required_chain": [
+        {
+          "stage_goal": "convergence",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "separation breach",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "evasion",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "separation restored",
+          "event_family_id": "uav_separation_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "two-uav pose",
+        "velocity",
+        "separation",
+        "TTC"
+      ],
+      "unknown_policy": "unknown when pair trajectory is incomplete",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-1_v2": {
+      "motivation": "验证替代航线下的双机解冲突",
+      "required_chain": [
+        {
+          "stage_goal": "convergence risk",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "deconfliction",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "recovered",
+          "event_family_id": "uav_separation_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "two-uav pose",
+        "alternate route",
+        "separation"
+      ],
+      "unknown_policy": "unknown when alternate route evidence is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-2_v1": {
+      "motivation": "验证建筑立面近撞和紧急规避",
+      "required_chain": [
+        {
+          "stage_goal": "structure clearance breach",
+          "event_family_id": "structure_near_miss"
+        },
+        {
+          "stage_goal": "evasion",
+          "event_family_id": "structure_near_miss"
+        },
+        {
+          "stage_goal": "clearance restored",
+          "event_family_id": "structure_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "velocity",
+        "building geometry",
+        "clearance"
+      ],
+      "unknown_policy": "unknown when building geometry is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-2_v2": {
+      "motivation": "验证另一立面几何下的近失恢复",
+      "required_chain": [
+        {
+          "stage_goal": "near-strike",
+          "event_family_id": "structure_near_miss"
+        },
+        {
+          "stage_goal": "recovery maneuver",
+          "event_family_id": "structure_near_miss"
+        },
+        {
+          "stage_goal": "safe clearance",
+          "event_family_id": "structure_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "facade geometry",
+        "clearance"
+      ],
+      "unknown_policy": "unknown when clearance cannot be computed",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-3_v1": {
+      "motivation": "验证人群附近UAV故障迫降",
+      "required_chain": [
+        {
+          "stage_goal": "UAV fault",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "forced descent",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "crowd evacuation",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe touchdown",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "uav fault",
+        "descent",
+        "crowd pose",
+        "landing zone"
+      ],
+      "unknown_policy": "unknown when fault or evacuation state is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-3_v2": {
+      "motivation": "验证另一迫降区的人群清场",
+      "required_chain": [
+        {
+          "stage_goal": "forced landing risk",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "clear zone",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "descent",
+        "landing zone",
+        "crowd pose",
+        "touchdown"
+      ],
+      "unknown_policy": "unknown when landing zone clearance is not observable",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-3_v3": {
+      "motivation": "验证第三种故障轨迹的迫降结果",
+      "required_chain": [
+        {
+          "stage_goal": "fault",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "descent",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "touchdown success or failure",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "fault state",
+        "descent",
+        "landing zone",
+        "touchdown"
+      ],
+      "unknown_policy": "unknown when outcome cannot be classified",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-4_v1": {
+      "motivation": "验证UAV与移动车辆碰撞或近失",
+      "required_chain": [
+        {
+          "stage_goal": "UAV-vehicle trajectory conflict",
+          "event_family_id": "uav_vehicle_conflict"
+        },
+        {
+          "stage_goal": "UAV-vehicle contact or near-miss classification",
+          "event_family_id": "uav_vehicle_conflict"
+        },
+        {
+          "stage_goal": "vehicle emergency response",
+          "event_family_id": "uav_vehicle_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "vehicle pose",
+        "3D clearance",
+        "TTC",
+        "closing speed",
+        "contact or near-miss source",
+        "vehicle braking state"
+      ],
+      "unknown_policy": "unknown when UAV/vehicle trajectories, 3D distance, TTC, closing speed, or classification source are incomplete",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-4_v2": {
+      "motivation": "验证替代道路下的同类事故",
+      "required_chain": [
+        {
+          "stage_goal": "UAV-vehicle crossing risk",
+          "event_family_id": "uav_vehicle_conflict"
+        },
+        {
+          "stage_goal": "UAV-vehicle contact or safe avoidance",
+          "event_family_id": "uav_vehicle_conflict"
+        },
+        {
+          "stage_goal": "vehicle braking outcome",
+          "event_family_id": "uav_vehicle_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "vehicle pose",
+        "road geometry",
+        "3D clearance",
+        "TTC",
+        "closing speed",
+        "contact or near-miss source",
+        "braking state"
+      ],
+      "unknown_policy": "unknown when UAV/vehicle trajectories, 3D distance, TTC, closing speed, classification source, or braking outcome are absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-5_v1": {
+      "motivation": "验证低空巡检中的行人近失",
+      "required_chain": [
+        {
+          "stage_goal": "unsafe clearance",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "near-miss",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "pull-up",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "pedestrian clear",
+          "event_family_id": "uav_pedestrian_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "pedestrian pose",
+        "altitude",
+        "separation"
+      ],
+      "unknown_policy": "unknown when pedestrian presence is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-5_v2": {
+      "motivation": "验证带上下文行人的近失",
+      "required_chain": [
+        {
+          "stage_goal": "pedestrian exposure",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "near-miss",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "zone cleared",
+          "event_family_id": "uav_pedestrian_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "pedestrian pose",
+        "exposure zone"
+      ],
+      "unknown_policy": "unknown when exposure zone cannot be computed",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-5_v3": {
+      "motivation": "验证另一低空高度下的恢复",
+      "required_chain": [
+        {
+          "stage_goal": "low-altitude risk",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "recovery maneuver",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "safe separation",
+          "event_family_id": "uav_pedestrian_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav altitude",
+        "pedestrian pose",
+        "separation"
+      ],
+      "unknown_policy": "unknown when altitude or pedestrian pose is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-6_v1": {
+      "motivation": "验证行人横穿和车辆紧急制动",
+      "required_chain": [
+        {
+          "stage_goal": "jaywalk",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "TTC conflict",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "braking",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "pedestrian retreat",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "vehicle pose",
+        "pedestrian pose",
+        "TTC",
+        "braking state"
+      ],
+      "unknown_policy": "unknown when pedestrian/vehicle trajectory is incomplete",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-6_v2": {
+      "motivation": "验证另一车道几何下的冲突解除",
+      "required_chain": [
+        {
+          "stage_goal": "crosswalk conflict",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "braking",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "safe clearance",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "crosswalk geometry",
+        "vehicle pose",
+        "pedestrian pose",
+        "braking state"
+      ],
+      "unknown_policy": "unknown when crosswalk conflict zone is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-7_v1": {
+      "motivation": "验证行人跌倒、UAV发现与救护响应",
+      "required_chain": [
+        {
+          "stage_goal": "fall",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "detection",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "dispatch",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "arrival",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "handoff",
+          "event_family_id": "pedestrian_medical"
+        }
+      ],
+      "observable_dimensions": [
+        "pedestrian posture",
+        "static duration",
+        "uav detection",
+        "dispatch",
+        "responder arrival"
+      ],
+      "unknown_policy": "unknown when posture or response state is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-7_v2": {
+      "motivation": "验证另一位置下的医疗响应链",
+      "required_chain": [
+        {
+          "stage_goal": "medical emergency",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "response",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "documented resolution",
+          "event_family_id": "pedestrian_medical"
+        }
+      ],
+      "observable_dimensions": [
+        "pedestrian posture",
+        "health",
+        "response state",
+        "handoff state"
+      ],
+      "unknown_policy": "unknown when resolution state is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-8_v1": {
+      "motivation": "验证人群完整疏散和UAV监控",
+      "required_chain": [
+        {
+          "stage_goal": "evacuation start",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "continuous movement",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe zone reached",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe hold",
+          "event_family_id": "crowd_evacuation"
+        }
+      ],
+      "observable_dimensions": [
+        "crowd membership",
+        "hazard zone",
+        "safe zone",
+        "uav hold state"
+      ],
+      "unknown_policy": "unknown when crowd membership is incomplete",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-8_v2": {
+      "motivation": "验证另一人群布局下的疏散",
+      "required_chain": [
+        {
+          "stage_goal": "crowd evacuation",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "monitored clearance",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "crowd membership",
+        "safe zone",
+        "uav monitoring",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when monitored clearance cannot be measured",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-9_v1": {
+      "motivation": "验证车辆路口轨迹冲突",
+      "required_chain": [
+        {
+          "stage_goal": "simultaneous intersection occupancy",
+          "event_family_id": "vehicle_intersection_conflict"
+        },
+        {
+          "stage_goal": "risk",
+          "event_family_id": "vehicle_intersection_conflict"
+        },
+        {
+          "stage_goal": "braking or yielding",
+          "event_family_id": "vehicle_intersection_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "vehicle pose",
+        "intersection occupancy",
+        "TTC",
+        "braking/yielding"
+      ],
+      "unknown_policy": "unknown when intersection geometry is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-9_v2": {
+      "motivation": "验证替代车道下的碰撞风险解除",
+      "required_chain": [
+        {
+          "stage_goal": "intersection conflict",
+          "event_family_id": "vehicle_intersection_conflict"
+        },
+        {
+          "stage_goal": "avoidance response",
+          "event_family_id": "vehicle_intersection_conflict"
+        },
+        {
+          "stage_goal": "safe passage",
+          "event_family_id": "vehicle_intersection_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "vehicle pose",
+        "lane geometry",
+        "avoidance state",
+        "clearance"
+      ],
+      "unknown_policy": "unknown when avoidance state is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-10_v1": {
+      "motivation": "验证救护车路权和民车让行",
+      "required_chain": [
+        {
+          "stage_goal": "priority active",
+          "event_family_id": "ambulance_priority"
+        },
+        {
+          "stage_goal": "civilian yielding",
+          "event_family_id": "ambulance_priority"
+        },
+        {
+          "stage_goal": "ambulance clears intersection",
+          "event_family_id": "ambulance_priority"
+        }
+      ],
+      "observable_dimensions": [
+        "emergency priority",
+        "civilian vehicle pose",
+        "ambulance pose",
+        "right-of-way"
+      ],
+      "unknown_policy": "unknown when civilian yielding state is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-10_v2": {
+      "motivation": "验证另一通行方向下的优先放行",
+      "required_chain": [
+        {
+          "stage_goal": "priority approach",
+          "event_family_id": "ambulance_priority"
+        },
+        {
+          "stage_goal": "clearance",
+          "event_family_id": "ambulance_priority"
+        },
+        {
+          "stage_goal": "passage completed",
+          "event_family_id": "ambulance_priority"
+        }
+      ],
+      "observable_dimensions": [
+        "ambulance pose",
+        "lane geometry",
+        "yielding",
+        "intersection clearance"
+      ],
+      "unknown_policy": "unknown when passage completion cannot be computed",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-11_v1": {
+      "motivation": "验证AV传感器故障和最小风险停车",
+      "required_chain": [
+        {
+          "stage_goal": "sensor fault",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "MRM active",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "stopped_safe",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "UAV report or hazard hold",
+          "event_family_id": "av_safe_stop"
+        }
+      ],
+      "observable_dimensions": [
+        "sensor fault",
+        "MRM state",
+        "vehicle stop",
+        "warning/hold state"
+      ],
+      "unknown_policy": "unknown when sensor or MRM state is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L4-11_v2": {
+      "motivation": "验证另一道路条件下的安全停车",
+      "required_chain": [
+        {
+          "stage_goal": "fault",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "safe-stop achieved or failed",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "hazard managed",
+          "event_family_id": "av_safe_stop"
+        }
+      ],
+      "observable_dimensions": [
+        "sensor fault",
+        "vehicle pose",
+        "stop state",
+        "hazard management"
+      ],
+      "unknown_policy": "unknown when outcome cannot be classified",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L5-1_v1": {
+      "motivation": "验证降雨对UAV和车辆策略的真实影响",
+      "required_chain": [
+        {
+          "stage_goal": "rain active",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "visibility or road effect",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "slowdown policy",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "recovery",
+          "event_family_id": "rain_fog_environment"
+        }
+      ],
+      "observable_dimensions": [
+        "rain rate",
+        "visibility",
+        "road effect",
+        "vehicle/uav policy state"
+      ],
+      "unknown_policy": "unknown when weather effect model is missing",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L5-1_v2": {
+      "motivation": "验证另一雨强下的降级航线",
+      "required_chain": [
+        {
+          "stage_goal": "rain threshold",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "degraded route",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "restored",
+          "event_family_id": "rain_fog_environment"
+        }
+      ],
+      "observable_dimensions": [
+        "rain rate",
+        "visibility",
+        "route state"
+      ],
+      "unknown_policy": "unknown when rain-to-route mechanism is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L5-1_v3": {
+      "motivation": "验证强降雨下的安全终止",
+      "required_chain": [
+        {
+          "stage_goal": "heavy rain",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "mission unsafe",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "abort or RTH",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "rain rate",
+        "visibility",
+        "mission safety state",
+        "RTH route",
+        "landing"
+      ],
+      "unknown_policy": "unknown when mission unsafe state is not derivable",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L5-2_v1": {
+      "motivation": "验证突发雾导致的视觉导航失败",
+      "required_chain": [
+        {
+          "stage_goal": "fog active",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "visibility low",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "navigation degraded",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "abort",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "fog state",
+        "visibility",
+        "navigation mode",
+        "route state",
+        "landing"
+      ],
+      "unknown_policy": "unknown when visibility or navigation mode is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L5-2_v2": {
+      "motivation": "验证另一雾强下的恢复策略",
+      "required_chain": [
+        {
+          "stage_goal": "fog threshold",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "visual failure",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "recovery or abort",
+          "event_family_id": "gnss_signal_degradation"
+        }
+      ],
+      "observable_dimensions": [
+        "fog state",
+        "visibility",
+        "navigation mode",
+        "route state"
+      ],
+      "unknown_policy": "unknown when visual failure cannot be derived",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L5-3_v1": {
+      "motivation": "验证横风、载荷摆动与姿态异常",
+      "required_chain": [
+        {
+          "stage_goal": "crosswind high",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "payload swing",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "attitude anomaly",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "recovered",
+          "event_family_id": "crosswind_payload_swing"
+        }
+      ],
+      "observable_dimensions": [
+        "wind vector",
+        "payload angle",
+        "uav attitude",
+        "mission state"
+      ],
+      "unknown_policy": "unknown when wind or payload state is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L5-3_v2": {
+      "motivation": "验证阵风变体下的安全着陆",
+      "required_chain": [
+        {
+          "stage_goal": "gust",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "swing",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "mission termination",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "wind vector",
+        "payload state",
+        "mission state",
+        "landing"
+      ],
+      "unknown_policy": "unknown when gust or swing state is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L5-4_v1": {
+      "motivation": "验证黄昏欠曝与红外模式切换",
+      "required_chain": [
+        {
+          "stage_goal": "illumination low",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "underexposed",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "IR active",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "exposure recovered",
+          "event_family_id": "rain_fog_environment"
+        }
+      ],
+      "observable_dimensions": [
+        "illumination",
+        "image exposure",
+        "sensor mode",
+        "visibility"
+      ],
+      "unknown_policy": "unknown when image exposure or sensor mode is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L5-5_v1": {
+      "motivation": "验证高温电池降额和航程不足",
+      "required_chain": [
+        {
+          "stage_goal": "temperature high",
+          "event_family_id": "high_temp_battery_derating"
+        },
+        {
+          "stage_goal": "power derated",
+          "event_family_id": "high_temp_battery_derating"
+        },
+        {
+          "stage_goal": "range insufficient",
+          "event_family_id": "high_temp_battery_derating"
+        },
+        {
+          "stage_goal": "abort or land",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "temperature",
+        "battery state",
+        "power limit",
+        "predicted range",
+        "landing"
+      ],
+      "unknown_policy": "unknown when battery model or range estimate is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-1_v1": {
+      "motivation": "验证C2完全丢失后的RTH",
+      "required_chain": [
+        {
+          "stage_goal": "link unavailable",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "failsafe",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "RTH active",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "link metrics",
+        "failsafe state",
+        "RTH route",
+        "landing"
+      ],
+      "unknown_policy": "unknown when failsafe state is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-1_v2": {
+      "motivation": "验证长航线链路丢失的恢复",
+      "required_chain": [
+        {
+          "stage_goal": "C2 loss",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "RTH or recovery",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "safe terminal",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "link metrics",
+        "control state",
+        "route state",
+        "landing"
+      ],
+      "unknown_policy": "unknown when recovery state cannot be derived",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-2_v1": {
+      "motivation": "验证间歇性链路退化和备份链路",
+      "required_chain": [
+        {
+          "stage_goal": "packet loss or latency",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "slowdown",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "handover",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "nominal",
+          "event_family_id": "c2_degradation_loss"
+        }
+      ],
+      "observable_dimensions": [
+        "packet loss",
+        "latency",
+        "speed policy",
+        "handover state"
+      ],
+      "unknown_policy": "unknown when handover or link metrics are absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-2_v2": {
+      "motivation": "验证另一退化参数下的恢复",
+      "required_chain": [
+        {
+          "stage_goal": "intermittent degradation",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "backup link",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "recovered",
+          "event_family_id": "c2_degradation_loss"
+        }
+      ],
+      "observable_dimensions": [
+        "latency",
+        "packet loss",
+        "backup link state",
+        "control state"
+      ],
+      "unknown_policy": "unknown when backup link state is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-3_v1": {
+      "motivation": "验证GNSS欺骗、路径劫持和纠正",
+      "required_chain": [
+        {
+          "stage_goal": "spoofing",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "navigation error",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "abnormal path",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "lock or correction",
+          "event_family_id": "gnss_spoofing_effect"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "path deviation",
+        "lockout/correction"
+      ],
+      "unknown_policy": "unknown when reported pose or path evidence is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-3_v2": {
+      "motivation": "验证另一欺骗强度下的恢复",
+      "required_chain": [
+        {
+          "stage_goal": "spoofing",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "offset",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "relocalization",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "recovered",
+          "event_family_id": "gnss_spoofing_effect"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "offset",
+        "relocalization state"
+      ],
+      "unknown_policy": "unknown when relocalization state is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-4_v1": {
+      "motivation": "验证宽带干扰对多UAV的影响",
+      "required_chain": [
+        {
+          "stage_goal": "jamming",
+          "event_family_id": "jamming_gcs_intrusion"
+        },
+        {
+          "stage_goal": "multi-UAV link degradation",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "safe hold",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "channel recovery",
+          "event_family_id": "jamming_gcs_intrusion"
+        }
+      ],
+      "observable_dimensions": [
+        "spectrum state",
+        "multi-uav link metrics",
+        "safe hold state",
+        "channel state"
+      ],
+      "unknown_policy": "unknown when spectrum or link metrics are absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-4_v2": {
+      "motivation": "验证另一干扰场景下的安全终止",
+      "required_chain": [
+        {
+          "stage_goal": "jamming",
+          "event_family_id": "jamming_gcs_intrusion"
+        },
+        {
+          "stage_goal": "safe hold",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "alternate channel or landing",
+          "event_family_id": "jamming_gcs_intrusion"
+        }
+      ],
+      "observable_dimensions": [
+        "spectrum state",
+        "link metrics",
+        "safe hold",
+        "landing"
+      ],
+      "unknown_policy": "unknown when alternate channel state is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-5_v1": {
+      "motivation": "验证GCS入侵和异常命令路径",
+      "required_chain": [
+        {
+          "stage_goal": "GCS compromised",
+          "event_family_id": "jamming_gcs_intrusion"
+        },
+        {
+          "stage_goal": "unauthorized command",
+          "event_family_id": "unauthorized_command"
+        },
+        {
+          "stage_goal": "path deviation",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "lockout",
+          "event_family_id": "security_control_unavailability"
+        }
+      ],
+      "observable_dimensions": [
+        "command source",
+        "authentication",
+        "path deviation",
+        "lockout state"
+      ],
+      "unknown_policy": "unknown when command provenance is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "L6-5_v2": {
+      "motivation": "验证另一入侵路径下的安全恢复",
+      "required_chain": [
+        {
+          "stage_goal": "intrusion",
+          "event_family_id": "jamming_gcs_intrusion"
+        },
+        {
+          "stage_goal": "command integrity violation",
+          "event_family_id": "control_command_integrity_violation"
+        },
+        {
+          "stage_goal": "secure recovery",
+          "event_family_id": "jamming_gcs_intrusion"
+        }
+      ],
+      "observable_dimensions": [
+        "command integrity",
+        "authentication",
+        "control station state"
+      ],
+      "unknown_policy": "unknown when secure recovery state is absent",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "X1_rain_to_c2loss_to_forced_landing": {
+      "motivation": "验证天气、通信和迫降之间的真实机制链",
+      "required_chain": [
+        {
+          "stage_goal": "rain effect",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "C2 degradation or loss",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "failsafe",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "forced landing",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "outcome",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "rain rate",
+        "attenuation parameters",
+        "link metrics",
+        "failsafe state",
+        "descent",
+        "touchdown"
+      ],
+      "unknown_policy": "unknown or precedes unless every rain-to-link-to-failsafe-to-descent transition is evidenced",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "X2_gnss_spoof_to_geofence_violation": {
+      "motivation": "验证欺骗定位如何导致空域风险",
+      "required_chain": [
+        {
+          "stage_goal": "spoofing",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "navigation error",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "boundary approach or entry",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "correction",
+          "event_family_id": "gnss_spoofing_effect"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "geofence geometry",
+        "boundary distance",
+        "correction state"
+      ],
+      "unknown_policy": "unknown or precedes unless spoofing explains boundary approach with continuity",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "X3_pedestrian_fall_to_emergency_response": {
+      "motivation": "验证跌倒到医疗交接的完整过程",
+      "required_chain": [
+        {
+          "stage_goal": "fall",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "UAV detection",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "ambulance dispatch and arrival",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "isolation",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "handoff",
+          "event_family_id": "pedestrian_medical"
+        }
+      ],
+      "observable_dimensions": [
+        "posture",
+        "health",
+        "detection",
+        "ambulance pose",
+        "isolation region",
+        "handoff"
+      ],
+      "unknown_policy": "unknown or precedes unless response chain is fully evidenced",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "X4_fog_to_uav_conflict": {
+      "motivation": "验证雾导致导航退化和双机冲突",
+      "required_chain": [
+        {
+          "stage_goal": "fog",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "visibility loss",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "route uncertainty",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "convergence conflict",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "evasion",
+          "event_family_id": "uav_separation_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "fog visibility",
+        "navigation mode",
+        "two-uav pose",
+        "separation",
+        "evasion state"
+      ],
+      "unknown_policy": "unknown or precedes unless fog-to-navigation-to-conflict mechanism is evidenced",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "X5_comm_failure_to_pad_contention": {
+      "motivation": "验证通信故障如何导致停机坪争用",
+      "required_chain": [
+        {
+          "stage_goal": "station failure",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "stale or failed allocation",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "simultaneous request",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "arbitration",
+          "event_family_id": "pad_contention"
+        }
+      ],
+      "observable_dimensions": [
+        "station status",
+        "link metrics",
+        "allocation state",
+        "pad requests",
+        "arbitration state"
+      ],
+      "unknown_policy": "unknown or precedes unless failed allocation bridges link failure to contention",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    },
+    "X6_crowd_evacuation_to_airspace_lockdown": {
+      "motivation": "验证地面疏散如何触发低空封控",
+      "required_chain": [
+        {
+          "stage_goal": "evacuation threshold",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "lockdown active",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "UAV reroute",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "clearance",
+          "event_family_id": "temporary_airspace_lockdown"
+        }
+      ],
+      "observable_dimensions": [
+        "crowd count",
+        "hazard zone",
+        "lockdown activation",
+        "uav route",
+        "clearance"
+      ],
+      "unknown_policy": "unknown unless the safe-zone population threshold transition and lockdown transition are both observed in strict temporal order",
+      "permitted_source_classes": [
+        "engine_truth",
+        "deterministic_derived",
+        "simulated_derived",
+        "visual_derived"
+      ]
+    }
+  },
+  "validation": {
+    "expected_epi_count": 70,
+    "expected_event_family_count": 32,
+    "scenario_source": "Dataset/scenarios/**/event_script.json"
+  },
+  "event_family_mapping": {
+    "path": "Dataset/semantic_rules/profiles/event_family_authority_mapping.json"
+  }
+}

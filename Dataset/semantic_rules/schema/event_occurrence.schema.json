@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aeroworld.local/schema/event_occurrence.schema.json",
+  "title": "Objective semantic event occurrence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "annotation_layer",
+    "source_layer",
+    "event_id",
+    "episode_id",
+    "event_family_id",
+    "event_type_id",
+    "rule_id",
+    "trigger_tick",
+    "detection_tick",
+    "start_tick",
+    "end_tick",
+    "bindings",
+    "participant_roles",
+    "supporting_truth_ids",
+    "supporting_transition_ids",
+    "source_refs",
+    "source_class",
+    "event_phases"
+  ],
+  "properties": {
+    "schema_name": {
+      "const": "event_occurrence"
+    },
+    "schema_version": {
+      "const": "3.0.0"
+    },
+    "annotation_layer": {
+      "const": "L2"
+    },
+    "source_layer": {
+      "const": "L1"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "episode_id": {
+      "type": "string"
+    },
+    "event_type_id": {
+      "type": "string"
+    },
+    "event_family_id": {
+      "type": "string"
+    },
+    "event_subtype": {
+      "type": "string"
+    },
+    "rule_id": {
+      "type": "string"
+    },
+    "trigger_tick": {
+      "type": "integer"
+    },
+    "detection_tick": {
+      "type": "integer"
+    },
+    "start_tick": {
+      "type": "integer"
+    },
+    "end_tick": {
+      "type": "integer"
+    },
+    "bindings": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "participant_roles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "supporting_truth_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "supporting_transition_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_class": {
+      "enum": [
+        "deterministic_derived",
+        "simulated_derived",
+        "derived_from_observed",
+        "observed_simulator_truth",
+        "visual_derived"
+      ]
+    },
+    "trigger_predicate_id": {
+      "type": "string"
+    },
+    "supporting_parameter_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "continuity_status": {
+      "const": "strict_adjacent_transition"
+    },
+    "event_level": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "event_phases": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "phase_kind",
+          "predicate_id",
+          "predicate_tuple_id",
+          "predicate_bindings",
+          "direction",
+          "tick",
+          "transition_id"
+        ],
+        "properties": {
+          "phase_kind": {
+            "enum": [
+              "onset",
+              "escalation_support",
+              "terminal"
+            ]
+          },
+          "predicate_id": {
+            "type": "string"
+          },
+          "predicate_tuple_id": {
+            "type": "string"
+          },
+          "predicate_bindings": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "direction": {
+            "enum": [
+              "rising",
+              "falling"
+            ]
+          },
+          "tick": {
+            "type": "integer"
+          },
+          "transition_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "mechanism_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "template_parameters": {
+      "type": "object"
+    }
+  }
+}

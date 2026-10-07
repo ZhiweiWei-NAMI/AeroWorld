@@ -1,0 +1,1420 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://w3id.org/aeroworld/ontology/world>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/world/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/core> ;
+    dct:title "AeroWorld Shared World Core Ontology"@en ,
+        "AeroWorld 共享世界核心本体"@zh ;
+    dct:description "Shared physical entities, spatial regions, road and airspace topology, basic facilities, and generic time-indexed entity state reused across stable domain modules. Dataset scenario-family labels are external selection metadata, not ontology levels."@en ,
+        "由稳定领域模块复用的共享物理实体、空间区域、道路与空域拓扑、基础设施以及通用带时间索引实体状态。数据集场景族标签是外部选择元数据，不是本体等级。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "world" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/world#" .
+
+#################################################################
+# Shared semantic signature vocabulary
+#################################################################
+
+world:argumentClass
+    a owl:AnnotationProperty ;
+    rdfs:label "argument class"@en ,
+        "argument class"@zh ;
+    skos:definition "Constrains the intended class of an objective predicate argument role."@en ,
+        "Constrains the intended class of an objective predicate argument role."@zh .
+
+world:participantClass
+    a owl:AnnotationProperty ;
+    rdfs:label "participant class"@en ,
+        "participant class"@zh ;
+    skos:definition "Constrains the intended class of an event participant role."@en ,
+        "Constrains the intended class of an event participant role."@zh .
+
+
+world:stateFieldCategory
+    a owl:AnnotationProperty ;
+    rdfs:label "state field category"@en ,
+        "状态字段类别"@zh ;
+    skos:definition "Names a dataset-independent category of state field represented by a datatype property; concrete source-field bindings belong in catalog evidence or audit reports."@en ,
+        "命名数据集无关的状态字段类别；具体源字段绑定应放在 catalog evidence 或审计报告中。"@zh .
+
+world:unitSymbol
+    a owl:AnnotationProperty ;
+    rdfs:label "unit symbol"@en ,
+        "单位符号"@zh ;
+    skos:definition "Records the unit symbol of a datatype state property when a physical unit is required."@en ,
+        "当数据类型状态属性需要物理单位时记录单位符号。"@zh .
+
+#################################################################
+# Shared world classes
+#################################################################
+
+world:PhysicalEntity
+    a owl:Class ;
+    rdfs:subClassOf aw:Entity ;
+    rdfs:label "physical entity"@en ,
+        "物理实体"@zh ;
+    skos:definition "An episode entity with an objective physical presence."@en ,
+        "在 episode 中具有客观物理存在的实体。"@zh .
+
+
+world:PhysicalObject
+    a owl:Class ;
+    rdfs:subClassOf world:PhysicalEntity ;
+    rdfs:label "physical object"@en ,
+        "物理对象"@zh ;
+    skos:definition "A non-agent physical entity represented in the world."@en ,
+        "世界中被表示的非主体物理实体。"@zh .
+
+
+world:InformationEntity
+    a owl:Class ;
+    rdfs:subClassOf aw:Entity ;
+    rdfs:label "information entity"@en ,
+        "信息实体"@zh ;
+    skos:definition "A non-physical information object, rule, message, task description, or digital artifact represented in the semantic world."@en ,
+        "语义世界中表示的非物理信息对象、规则、消息、任务描述或数字制品。"@zh .
+
+world:Process
+    a owl:Class ;
+    rdfs:subClassOf aw:Entity ;
+    rdfs:label "process"@en ,
+        "过程"@zh ;
+    skos:definition "A time-extended operation, communication, computation, control, service, or emergency procedure represented as an objective semantic entity."@en ,
+        "作为客观语义实体表示的跨时间运行、通信、计算、控制、服务或应急程序。"@zh .
+
+world:Resource
+    a owl:Class ;
+    rdfs:subClassOf aw:Entity ;
+    rdfs:label "resource"@en ,
+        "资源"@zh ;
+    skos:definition "A usable capacity, allocation target, or service resource that may be consumed, reserved, or saturated by a process."@en ,
+        "可被过程消耗、预留或饱和的容量、分配目标或服务资源。"@zh .
+
+world:NormativeEntity
+    a owl:Class ;
+    rdfs:subClassOf world:InformationEntity ;
+    rdfs:label "normative entity"@en ,
+        "规范实体"@zh ;
+    skos:definition "A rule-like information entity expressing permission, prohibition, obligation, right-of-way, applicability, or violation semantics."@en ,
+        "表达许可、禁止、义务、路权、适用性或违规语义的规则型信息实体。"@zh .
+
+world:Agent
+    a owl:Class ;
+    rdfs:subClassOf world:PhysicalEntity ;
+    rdfs:label "agent"@en ,
+        "主体"@zh ;
+    skos:definition "A physical entity capable of stateful movement or action."@en ,
+        "能够进行有状态运动或行动的物理实体。"@zh .
+
+
+world:MobileAgent
+    a owl:Class ;
+    rdfs:subClassOf world:Agent ;
+    rdfs:label "mobile agent"@en ,
+        "移动主体"@zh ;
+    skos:definition "An agent whose objective pose may change over simulation time."@en ,
+        "客观位姿可随仿真时间变化的主体。"@zh .
+
+
+world:AerialAgent
+    a owl:Class ;
+    rdfs:subClassOf world:MobileAgent ;
+    rdfs:label "aerial agent"@en ,
+        "空中主体"@zh ;
+    skos:definition "A mobile agent operating in airspace."@en ,
+        "在空域中运行的移动主体。"@zh .
+
+
+world:GroundAgent
+    a owl:Class ;
+    rdfs:subClassOf world:MobileAgent ;
+    rdfs:label "ground agent"@en ,
+        "地面主体"@zh ;
+    skos:definition "A mobile agent operating on ground-space topology."@en ,
+        "在地面空间拓扑上运行的移动主体。"@zh .
+
+
+world:UnmannedAircraft
+    a owl:Class ;
+    rdfs:subClassOf world:AerialAgent ;
+    rdfs:label "unmanned aircraft"@en ,
+        "无人机"@zh ;
+    skos:definition "An aerial agent represented by the uav entity category."@en ,
+        "由 uav 实体类别表示的空中主体。"@zh .
+
+
+world:GroundVehicle
+    a owl:Class ;
+    rdfs:subClassOf world:GroundAgent ;
+    rdfs:label "ground vehicle"@en ,
+        "地面车辆"@zh ;
+    skos:definition "A ground agent represented by the vehicle entity category and associated with road-lane state."@en ,
+        "由 vehicle 实体类别表示并具有关联道路车道状态的地面主体。"@zh .
+
+
+
+world:Pedestrian
+    a owl:Class ;
+    rdfs:subClassOf world:GroundAgent ;
+    rdfs:label "pedestrian"@en ,
+        "行人"@zh ;
+    skos:definition "A ground agent represented by the pedestrian entity category."@en ,
+        "由 pedestrian 实体类别表示的地面主体。"@zh .
+
+
+world:EmergencyResponder
+    a owl:Class ;
+    rdfs:subClassOf world:GroundAgent ;
+    rdfs:label "emergency responder"@en ,
+        "应急响应主体"@zh ;
+    skos:definition "A ground agent assigned an emergency-response role."@en ,
+        "被赋予应急响应角色的地面主体。"@zh .
+
+
+
+
+world:InfrastructureAsset
+    a owl:Class ;
+    rdfs:subClassOf world:PhysicalObject ;
+    rdfs:label "infrastructure asset"@en ,
+        "基础设施资产"@zh ;
+    skos:definition "A persistent physical object providing an operational service."@en ,
+        "提供运行服务的持久物理对象。"@zh .
+
+world:CyberSecurityControl
+    a owl:Class ;
+    rdfs:subClassOf world:InfrastructureAsset ;
+    rdfs:label "cyber security control"@en ,
+        "网络安全控制"@zh ;
+    skos:definition "An infrastructure control that protects digital command, communication, or service processes."@en ,
+        "保护数字指令、通信或服务过程的基础设施控制。"@zh .
+
+
+world:Facility
+    a owl:Class ;
+    rdfs:subClassOf world:InfrastructureAsset ;
+    rdfs:label "facility"@en ,
+        "设施"@zh ;
+    skos:definition "An infrastructure asset represented by a facility or ground-station entity category."@en ,
+        "由 facility 或 ground_station 实体类别表示的基础设施资产。"@zh .
+
+
+world:CommunicationStation
+    a owl:Class ;
+    rdfs:subClassOf world:Facility ;
+    rdfs:label "communication station"@en ,
+        "通信站"@zh ;
+    skos:definition "A facility supporting communication service."@en ,
+        "提供通信服务的设施。"@zh .
+
+
+world:GroundControlStation
+    a owl:Class ;
+    rdfs:subClassOf world:CommunicationStation ,
+        world:CyberSecurityControl ;
+    rdfs:label "ground control station"@en ,
+        "地面控制站"@zh ;
+    skos:definition "A communication station used to control unmanned aircraft."@en ,
+        "用于控制无人机的通信站。"@zh .
+
+
+world:RadioTower
+    a owl:Class ;
+    rdfs:subClassOf world:CommunicationStation ;
+    rdfs:label "radio tower"@en ,
+        "无线电塔"@zh ;
+    skos:definition "A communication station represented by a radio-tower asset."@en ,
+        "由 radio_tower 资产表示的通信站。"@zh .
+
+
+world:ChargingStation
+    a owl:Class ;
+    rdfs:subClassOf world:Facility ;
+    rdfs:label "charging station"@en ,
+        "充电站"@zh ;
+    skos:definition "A facility providing charging service to mobile agents."@en ,
+        "向移动主体提供充电服务的设施。"@zh .
+
+
+world:LandingSite
+    a owl:Class ;
+    rdfs:subClassOf world:Facility ;
+    rdfs:label "landing site"@en ,
+        "降落场地"@zh ;
+    skos:definition "A facility designated for aircraft landing or recovery."@en ,
+        "指定用于航空器降落或恢复的设施。"@zh .
+
+
+world:LandingPad
+    a owl:Class ;
+    rdfs:subClassOf world:LandingArea ,
+        world:LandingSite ;
+    rdfs:label "landing pad"@en ,
+        "起降坪"@zh ;
+    skos:definition "A bounded landing-site resource used by unmanned aircraft."@en ,
+        "供无人机使用的有界降落场地资源。"@zh .
+
+
+world:TrafficSignal
+    a owl:Class ;
+    rdfs:subClassOf world:InfrastructureAsset ;
+    rdfs:label "traffic signal"@en ,
+        "交通信号灯"@zh ;
+    skos:definition "An infrastructure asset controlling movements at an intersection."@en ,
+        "控制路口交通运动的基础设施资产。"@zh .
+
+
+world:PhysicalStructure
+    a owl:Class ;
+    rdfs:subClassOf world:PhysicalObject ;
+    rdfs:label "physical structure"@en ,
+        "物理结构"@zh ;
+    skos:definition "A persistent built or natural structure relevant to clearance and contact."@en ,
+        "与净空及接触关系相关的持久建成或自然结构。"@zh .
+
+
+world:BuildingStructure
+    a owl:Class ;
+    rdfs:subClassOf world:PhysicalStructure ;
+    rdfs:label "building structure"@en ,
+        "建筑结构"@zh ;
+    skos:definition "A physical structure belonging to a building."@en ,
+        "属于建筑物的物理结构。"@zh .
+
+
+world:Building
+    a owl:Class ;
+    rdfs:subClassOf world:BuildingStructure ;
+    rdfs:label "building"@en ,
+        "建筑物"@zh ;
+    skos:definition "A complete building represented in the operational world."@en ,
+        "运行世界中表示的完整建筑物。"@zh .
+
+
+world:BuildingFacade
+    a owl:Class ;
+    rdfs:subClassOf world:BuildingStructure ;
+    rdfs:label "building facade"@en ,
+        "建筑立面"@zh ;
+    skos:definition "A building surface relevant to aircraft clearance or contact."@en ,
+        "与航空器净空或接触相关的建筑表面。"@zh .
+
+
+world:SceneProp
+    a owl:Class ;
+    rdfs:subClassOf world:PhysicalObject ;
+    rdfs:label "scene prop"@en ,
+        "场景物件"@zh ;
+    skos:definition "A discrete physical object represented by the prop entity category."@en ,
+        "由 prop 实体类别表示的离散物理对象。"@zh .
+
+
+world:Barrier
+    a owl:Class ;
+    rdfs:subClassOf world:SceneProp ;
+    rdfs:label "barrier"@en ,
+        "隔离设施"@zh ;
+    skos:definition "A scene prop that physically marks or blocks access."@en ,
+        "用于物理标示或阻止通行的场景物件。"@zh .
+
+
+world:TrafficCone
+    a owl:Class ;
+    rdfs:subClassOf world:SceneProp ;
+    rdfs:label "traffic cone"@en ,
+        "交通锥"@zh ;
+    skos:definition "A scene prop used to mark temporary road constraints."@en ,
+        "用于标示临时道路约束的场景物件。"@zh .
+
+
+world:Payload
+    a owl:Class ;
+    rdfs:subClassOf world:PhysicalObject ;
+    rdfs:label "payload"@en ,
+        "载荷"@zh ;
+    skos:definition "A physical object carried by a mobile agent."@en ,
+        "由移动主体携带的物理对象。"@zh .
+
+
+world:HazardSource
+    a owl:Class ;
+    rdfs:subClassOf aw:Entity ;
+    rdfs:label "hazard source"@en ,
+        "危险源"@zh ;
+    skos:definition "An entity or region from which an operational hazard originates."@en ,
+        "运行危险的来源实体或区域。"@zh .
+
+
+world:OperationalMap
+    a owl:Class ;
+    rdfs:subClassOf aw:Entity ;
+    rdfs:label "operational map"@en ,
+        "运行地图"@zh ;
+    skos:definition "The shared map reference within which episode sites"@en ,
+        "定义 episode 场地、道路、空域及实体状态的共享地图引用。"@zh .
+
+
+world:StaticMapFeature
+    a owl:Class ;
+    rdfs:label "static map feature"@en ,
+        "静态地图要素"@zh ;
+    skos:definition "A persistent feature from an authoritative static map source, represented by source identity and geometry summary rather than copied geometry."@en ,
+        "来自权威静态地图源的持久要素，以来源身份和几何摘要表示，而不是复制完整几何。"@zh .
+
+
+world:SpatialRegion
+    a owl:Class ;
+    rdfs:subClassOf aw:Entity ;
+    rdfs:label "spatial region"@en ,
+        "空间区域"@zh ;
+    skos:definition "A bounded or logically identified portion of the operational world."@en ,
+        "运行世界中有界或由逻辑标识的空间部分。"@zh .
+
+
+
+world:Site
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialRegion ;
+    rdfs:label "site"@en ,
+        "场地"@zh ;
+    skos:definition "A named operational site shared by episode entities."@en ,
+        "episode 实体共同关联的命名运行场地。"@zh .
+
+
+world:RegionOfInterest
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialRegion ;
+    rdfs:label "region of interest"@en ,
+        "感兴趣区域"@zh ;
+    skos:definition "A named region used to scope operational entities and state."@en ,
+        "用于限定运行实体及状态范围的命名区域。"@zh .
+
+
+world:SpatialBoundary
+    a owl:Class ;
+    rdfs:subClassOf aw:Entity ;
+    rdfs:label "spatial boundary"@en ,
+        "空间边界"@zh ;
+    skos:definition "A geometric boundary delimiting a spatial region."@en ,
+        "限定空间区域的几何边界。"@zh .
+
+
+world:CaptureBoundary
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialBoundary ;
+    rdfs:label "capture boundary"@en ,
+        "采集边界"@zh ;
+    skos:definition "The objective spatial boundary associated with an episode capture region."@en ,
+        "与 episode 采集区域关联的客观空间边界。"@zh .
+
+
+world:MapBlock
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialRegion ,
+        world:StaticMapFeature ;
+    rdfs:label "map block"@en ,
+        "地图分块"@zh ;
+    skos:definition "A static block or tile-like polygon from the authoritative operational map."@en ,
+        "来自权威运行地图的静态分块或瓦片状多边形。"@zh .
+
+
+world:WaterBody
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialRegion ,
+        world:StaticMapFeature ;
+    rdfs:label "water body"@en ,
+        "水体"@zh ;
+    skos:definition "A persistent water-region feature in the operational map."@en ,
+        "运行地图中的持久水域要素。"@zh .
+
+
+world:GreenSpace
+    a owl:Class ;
+    rdfs:subClassOf world:OperationalRegion ,
+        world:StaticMapFeature ;
+    rdfs:label "green space"@en ,
+        "绿地"@zh ;
+    skos:definition "A persistent vegetation or green-area feature in the operational map."@en ,
+        "运行地图中的持久植被或绿地区域要素。"@zh .
+
+
+world:OperationalRegion
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialRegion ;
+    rdfs:label "operational region"@en ,
+        "运行区域"@zh ;
+    skos:definition "A spatial region with operational meaning for agents or facilities."@en ,
+        "对主体或设施具有运行含义的空间区域。"@zh .
+
+
+world:LandingArea
+    a owl:Class ;
+    rdfs:subClassOf world:OperationalRegion ;
+    rdfs:label "landing area"@en ,
+        "降落区域"@zh ;
+    skos:definition "An operational region in which an aircraft may land."@en ,
+        "航空器可执行降落的运行区域。"@zh .
+
+
+world:PopulatedArea
+    a owl:Class ;
+    rdfs:subClassOf world:OperationalRegion ;
+    rdfs:label "populated area"@en ,
+        "人员活动区域"@zh ;
+    skos:definition "An operational region occupied or ordinarily used by pedestrians or crowds."@en ,
+        "由行人或人群占用或通常使用的运行区域。"@zh .
+
+
+world:RoadElement
+    a owl:Class ;
+    rdfs:subClassOf world:PhysicalObject ;
+    rdfs:label "road element"@en ,
+        "道路要素"@zh ;
+    skos:definition "A physical or logical element of the shared road topology."@en ,
+        "共享道路拓扑中的物理或逻辑要素。"@zh .
+
+
+
+world:Roadway
+    a owl:Class ;
+    rdfs:subClassOf world:RoadElement ;
+    rdfs:label "roadway"@en ,
+        "道路"@zh ;
+    skos:definition "A traversable road object represented by source road geometry."@en ,
+        "由道路源几何表示的可通行道路对象。"@zh .
+
+
+world:RoadSegment
+    a owl:Class ;
+    rdfs:subClassOf world:RoadElement ;
+    rdfs:label "road segment"@en ,
+        "道路路段"@zh ;
+    skos:definition "A directed or bounded segment of a roadway."@en ,
+        "道路的有向或有界路段。"@zh .
+
+
+world:RoadLane
+    a owl:Class ;
+    rdfs:subClassOf world:RoadElement ;
+    rdfs:label "road lane"@en ,
+        "道路车道"@zh ;
+    skos:definition "A directed lane within a road segment."@en ,
+        "道路路段内的有向车道。"@zh .
+
+
+world:Intersection
+    a owl:Class ;
+    rdfs:subClassOf world:RoadElement ;
+    rdfs:label "intersection"@en ,
+        "道路交叉口"@zh ;
+    skos:definition "A road-topology region connecting potentially conflicting movements."@en ,
+        "连接潜在冲突交通运动的道路拓扑区域。"@zh .
+
+
+world:Crosswalk
+    a owl:Class ;
+    rdfs:subClassOf world:RoadElement ;
+    rdfs:label "crosswalk"@en ,
+        "人行横道"@zh ;
+    skos:definition "A road element designated for pedestrian crossing."@en ,
+        "指定供行人横穿道路的道路要素。"@zh .
+
+
+world:Sidewalk
+    a owl:Class ;
+    rdfs:subClassOf world:RoadElement ;
+    rdfs:label "sidewalk"@en ,
+        "人行道"@zh ;
+    skos:definition "A road element designated for pedestrian movement beside a roadway."@en ,
+        "道路旁指定供行人移动的道路要素。"@zh .
+
+
+world:AirspaceRegion
+    a owl:Class ;
+    rdfs:subClassOf world:OperationalRegion ;
+    rdfs:label "airspace region"@en ,
+        "空域区域"@zh ;
+    skos:definition "A bounded three-dimensional operational region."@en ,
+        "有界的三维运行区域。"@zh .
+
+
+world:ProtectedAirspace
+    a owl:Class ;
+    rdfs:subClassOf world:AirspaceRegion ;
+    rdfs:label "protected airspace"@en ,
+        "受保护空域"@zh ;
+    skos:definition "Airspace governed by an access-protection policy."@en ,
+        "受访问保护策略约束的空域。"@zh .
+
+
+world:RestrictedAirspaceRegion
+    a owl:Class ;
+    rdfs:subClassOf world:ProtectedAirspace ;
+    rdfs:label "restricted airspace region"@en ,
+        "限制空域区域"@zh ;
+    skos:definition "Protected airspace in which entry is prohibited or conditionally restricted."@en ,
+        "禁止或有条件限制进入的受保护空域。"@zh .
+
+
+world:NoFlyZone
+    a owl:Class ;
+    rdfs:subClassOf world:RestrictedAirspaceRegion ;
+    rdfs:label "no-fly zone"@en ,
+        "禁飞区"@zh ;
+    skos:definition "Restricted airspace in which flight is prohibited while active."@en ,
+        "激活期间禁止飞行的限制空域。"@zh .
+
+
+world:AirspaceCorridor
+    a owl:Class ;
+    rdfs:subClassOf world:AirspaceRegion ;
+    rdfs:label "airspace corridor"@en ,
+        "空中航路"@zh ;
+    skos:definition "A three-dimensional route volume assigned to aircraft movement."@en ,
+        "分配给航空器运动的三维航路体积。"@zh .
+
+
+world:AltitudeBand
+    a owl:Class ;
+    rdfs:subClassOf world:AirspaceRegion ;
+    rdfs:label "altitude band"@en ,
+        "高度层"@zh ;
+    skos:definition "A vertical interval assigned or permitted for aircraft operation."@en ,
+        "分配或允许航空器运行的垂直区间。"@zh .
+
+
+world:AirspaceBoundary
+    a owl:Class ;
+    rdfs:subClassOf world:SpatialBoundary ;
+    rdfs:label "airspace boundary"@en ,
+        "空域边界"@zh ;
+    skos:definition "A spatial boundary delimiting an airspace region."@en ,
+        "限定空域区域的空间边界。"@zh .
+
+
+world:WorldFrame
+    a owl:Class ;
+    rdfs:subClassOf aw:SourceRecord ;
+    rdfs:label "world frame"@en ,
+        "世界帧"@zh ;
+    skos:definition "The objective world-state record for one episode and one simulation tick."@en ,
+        "一个 episode 在一个仿真 tick 的客观世界状态记录。"@zh .
+
+
+world:EntityStateAtTick
+    a owl:Class ;
+    rdfs:subClassOf aw:SourceRecord ;
+    rdfs:label "entity state at tick"@en ,
+        "实体逐时刻状态"@zh ;
+    skos:definition "The objective state of one stable entity within one world frame."@en ,
+        "一个稳定实体在一个世界帧内的客观状态。"@zh .
+
+
+
+#################################################################
+# Shared world object relations
+#################################################################
+
+world:episodeUsesMap
+    a owl:ObjectProperty ;
+    rdfs:domain aw:Episode ;
+    rdfs:range world:OperationalMap ;
+    rdfs:label "episode uses map"@en ,
+        "episode 使用地图"@zh ;
+    skos:definition "Relates an episode to the operational map defining its world coordinates and topology."@en ,
+        "将 episode 关联到定义其世界坐标和拓扑的运行地图。"@zh .
+
+
+world:locatedAtSite
+    a owl:ObjectProperty ;
+    rdfs:domain aw:Entity ;
+    rdfs:range world:Site ;
+    rdfs:label "located at site"@en ,
+        "位于场地"@zh ;
+    skos:definition "Relates an episode entity to its declared operational site."@en ,
+        "将 episode 实体关联到其声明的运行场地。"@zh .
+
+
+world:locatedInRegionOfInterest
+    a owl:ObjectProperty ;
+    rdfs:domain aw:Entity ;
+    rdfs:range world:RegionOfInterest ;
+    rdfs:label "located in region of interest"@en ,
+        "位于感兴趣区域"@zh ;
+    skos:definition "Relates an episode entity to its declared region of interest."@en ,
+        "将 episode 实体关联到其声明的感兴趣区域。"@zh .
+
+
+world:boundedBy
+    a owl:ObjectProperty ;
+    rdfs:domain world:SpatialRegion ;
+    rdfs:range world:SpatialBoundary ;
+    rdfs:label "bounded by"@en ,
+        "由边界限定"@zh ;
+    skos:definition "Relates a spatial region to a delimiting boundary."@en ,
+        "将空间区域关联到限定其范围的边界。"@zh .
+
+
+world:overlapsRegion
+    a owl:ObjectProperty ;
+    rdfs:domain world:SpatialRegion ;
+    rdfs:range world:SpatialRegion ;
+    rdfs:label "overlaps region"@en ,
+        "与区域重叠"@zh ;
+    skos:definition "States that two spatial regions geometrically overlap."@en ,
+        "表示两个空间区域在几何上重叠。"@zh .
+
+
+world:overlapsAirspaceRegion
+    a owl:ObjectProperty ;
+    rdfs:domain world:AirspaceCorridor ;
+    rdfs:range world:AirspaceRegion ;
+    rdfs:label "overlaps airspace region"@en ,
+        "与空域区域重叠"@zh ;
+    skos:definition "Relates an airspace corridor to an overlapping airspace region."@en ,
+        "将空中航路关联到与其重叠的空域区域。"@zh .
+
+
+world:hasEntityState
+    a owl:ObjectProperty ;
+    rdfs:domain aw:Entity ;
+    rdfs:range world:EntityStateAtTick ;
+    rdfs:label "has entity state"@en ,
+        "具有实体状态"@zh ;
+    skos:definition "Relates a stable episode entity to a time-indexed objective state record."@en ,
+        "将稳定 episode 实体关联到带时间索引的客观状态记录。"@zh .
+
+
+world:worldFrameOfEpisode
+    a owl:ObjectProperty ;
+    rdfs:domain world:WorldFrame ;
+    rdfs:range aw:Episode ;
+    rdfs:label "world frame of episode"@en ,
+        "世界帧所属 episode"@zh ;
+    skos:definition "Relates a world frame to the episode whose objective state it records."@en ,
+        "将世界帧关联到其所记录客观状态所属的 episode。"@zh .
+
+
+world:worldFrameAtInstant
+    a owl:ObjectProperty ;
+    rdfs:domain world:WorldFrame ;
+    rdfs:range aw:TickInstant ;
+    rdfs:label "world frame at instant"@en ,
+        "世界帧时刻"@zh ;
+    skos:definition "Relates a world frame to its exact simulation tick instant."@en ,
+        "将世界帧关联到其精确仿真 tick 时刻。"@zh .
+
+
+world:worldFrameUsesMap
+    a owl:ObjectProperty ;
+    rdfs:domain world:WorldFrame ;
+    rdfs:range world:OperationalMap ;
+    rdfs:label "world frame uses map"@en ,
+        "世界帧使用地图"@zh ;
+    skos:definition "Relates a world frame to the operational map in which its state is expressed."@en ,
+        "将世界帧关联到表达其状态所使用的运行地图。"@zh .
+
+
+world:worldFrameAtSite
+    a owl:ObjectProperty ;
+    rdfs:domain world:WorldFrame ;
+    rdfs:range world:Site ;
+    rdfs:label "world frame at site"@en ,
+        "世界帧所在场地"@zh ;
+    skos:definition "Relates a world frame to its active operational site."@en ,
+        "将世界帧关联到其活动运行场地。"@zh .
+
+
+world:worldFrameInRegionOfInterest
+    a owl:ObjectProperty ;
+    rdfs:domain world:WorldFrame ;
+    rdfs:range world:RegionOfInterest ;
+    rdfs:label "world frame in region of interest"@en ,
+        "世界帧所在感兴趣区域"@zh ;
+    skos:definition "Relates a world frame to its active region of interest."@en ,
+        "将世界帧关联到其活动感兴趣区域。"@zh .
+
+
+world:worldFrameCaptureBoundary
+    a owl:ObjectProperty ;
+    rdfs:domain world:WorldFrame ;
+    rdfs:range world:CaptureBoundary ;
+    rdfs:label "world frame capture boundary"@en ,
+        "世界帧采集边界"@zh ;
+    skos:definition "Relates a world frame to its objective capture boundary."@en ,
+        "将世界帧关联到其客观采集边界。"@zh .
+
+
+world:frameContainsEntityState
+    a owl:ObjectProperty ;
+    rdfs:domain world:WorldFrame ;
+    rdfs:range world:EntityStateAtTick ;
+    rdfs:label "frame contains entity state"@en ,
+        "世界帧包含实体状态"@zh ;
+    skos:definition "Relates a world frame to an entity state contained in that frame."@en ,
+        "将世界帧关联到该帧包含的实体状态。"@zh .
+
+
+world:entityStateInFrame
+    a owl:ObjectProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range world:WorldFrame ;
+    rdfs:label "entity state in frame"@en ,
+        "实体状态所属世界帧"@zh ;
+    skos:definition "Relates an entity state to the world frame containing it."@en ,
+        "将实体状态关联到包含它的世界帧。"@zh .
+
+
+world:stateOfEntity
+    a owl:ObjectProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range aw:Entity ;
+    rdfs:label "state of entity"@en ,
+        "所描述实体"@zh ;
+    skos:definition "Identifies the stable entity described by a state record."@en ,
+        "标识状态记录所描述的稳定实体。"@zh .
+
+
+world:stateAtInstant
+    a owl:ObjectProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range aw:TickInstant ;
+    rdfs:label "state at instant"@en ,
+        "状态时刻"@zh ;
+    skos:definition "Relates an entity state record to its exact simulation tick instant."@en ,
+        "将实体状态记录关联到精确的仿真 tick 时刻。"@zh .
+
+
+world:stateInRegion
+    a owl:ObjectProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range world:SpatialRegion ;
+    rdfs:label "state in region"@en ,
+        "状态所在区域"@zh ;
+    skos:definition "Relates an entity state to a spatial region containing its objective position."@en ,
+        "将实体状态关联到包含其客观位置的空间区域。"@zh .
+
+
+world:stateOnRoadLane
+    a owl:ObjectProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range world:RoadLane ;
+    rdfs:label "state on road lane"@en ,
+        "状态所在车道"@zh ;
+    skos:definition "Relates an entity state to the road lane occupied at that tick."@en ,
+        "将实体状态关联到该 tick 所占用的道路车道。"@zh .
+
+
+world:stateInAirspaceCorridor
+    a owl:ObjectProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range world:AirspaceCorridor ;
+    rdfs:label "state in airspace corridor"@en ,
+        "状态所在空中航路"@zh ;
+    skos:definition "Relates an aircraft state to the airspace corridor occupied at that tick."@en ,
+        "将航空器状态关联到该 tick 所在的空中航路。"@zh .
+
+
+world:roadHasSegment
+    a owl:ObjectProperty ;
+    rdfs:domain world:Roadway ;
+    rdfs:range world:RoadSegment ;
+    rdfs:label "road has segment"@en ,
+        "道路具有路段"@zh ;
+    skos:definition "Relates a roadway to one of its constituent segments."@en ,
+        "将道路关联到其组成路段。"@zh .
+
+
+world:mapHasStaticFeature
+    a owl:ObjectProperty ;
+    rdfs:domain world:OperationalMap ;
+    rdfs:range world:StaticMapFeature ;
+    rdfs:label "map has static feature"@en ,
+        "地图具有静态要素"@zh ;
+    skos:definition "Relates an operational map to a static feature summarized from its authoritative source data."@en ,
+        "将运行地图关联到从其权威源数据摘要得到的静态要素。"@zh .
+
+
+world:staticFeatureInMap
+    a owl:ObjectProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range world:OperationalMap ;
+    rdfs:label "static feature in map"@en ,
+        "静态要素所在地图"@zh ;
+    skos:definition "Relates a static map feature to the operational map that contains it."@en ,
+        "将静态地图要素关联到包含它的运行地图。"@zh .
+
+
+
+world:segmentHasLane
+    a owl:ObjectProperty ;
+    rdfs:domain world:RoadSegment ;
+    rdfs:range world:RoadLane ;
+    rdfs:label "segment has lane"@en ,
+        "路段具有车道"@zh ;
+    skos:definition "Relates a road segment to one of its directed lanes."@en ,
+        "将道路路段关联到其有向车道。"@zh .
+
+
+
+world:laneConnectsTo
+    a owl:ObjectProperty ;
+    rdfs:domain world:RoadLane ;
+    rdfs:range world:RoadLane ;
+    rdfs:label "lane connects to"@en ,
+        "车道连接到"@zh ;
+    skos:definition "Relates a directed road lane to an immediately reachable lane."@en ,
+        "将有向道路车道关联到可直接到达的车道。"@zh .
+
+
+world:roadMeetsAtIntersection
+    a owl:ObjectProperty ;
+    rdfs:domain world:RoadSegment ;
+    rdfs:range world:Intersection ;
+    rdfs:label "road meets at intersection"@en ,
+        "路段交汇于路口"@zh ;
+    skos:definition "Relates a road segment to an intersection it enters or leaves."@en ,
+        "将道路路段关联到其进入或离开的路口。"@zh .
+
+
+world:controlsIntersection
+    a owl:ObjectProperty ;
+    rdfs:domain world:TrafficSignal ;
+    rdfs:range world:Intersection ;
+    rdfs:label "controls intersection"@en ,
+        "控制路口"@zh ;
+    skos:definition "Relates a traffic signal to the intersection it controls."@en ,
+        "将交通信号灯关联到其控制的路口。"@zh .
+
+
+world:pedestrianUsesCrosswalk
+    a owl:ObjectProperty ;
+    rdfs:domain world:Pedestrian ;
+    rdfs:range world:Crosswalk ;
+    rdfs:label "pedestrian uses crosswalk"@en ,
+        "行人使用人行横道"@zh ;
+    skos:definition "Relates a pedestrian to a crosswalk assigned to its movement."@en ,
+        "将行人关联到其运动所使用的人行横道。"@zh .
+
+
+world:assignedToCorridor
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:AirspaceCorridor ;
+    rdfs:label "assigned to corridor"@en ,
+        "分配至航路"@zh ;
+    skos:definition "Relates an aircraft to its assigned airspace corridor."@en ,
+        "将航空器关联到其指定空中航路。"@zh .
+
+
+world:assignedAltitudeBand
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:AltitudeBand ;
+    rdfs:label "assigned altitude band"@en ,
+        "指定高度层"@zh ;
+    skos:definition "Relates an aircraft to its assigned altitude band."@en ,
+        "将航空器关联到其指定高度层。"@zh .
+
+
+world:hasHomeLandingSite
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:LandingSite ;
+    rdfs:label "has home landing site"@en ,
+        "具有归航场地"@zh ;
+    skos:definition "Relates an aircraft to its home or recovery landing site."@en ,
+        "将航空器关联到其归航或恢复场地。"@zh .
+
+
+world:servedByStation
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:CommunicationStation ;
+    rdfs:label "served by station"@en ,
+        "由通信站服务"@zh ;
+    skos:definition "Relates an aircraft to a communication station serving it."@en ,
+        "将航空器关联到为其服务的通信站。"@zh .
+
+
+world:assignedChargingStation
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:ChargingStation ;
+    rdfs:label "assigned charging station"@en ,
+        "指定充电站"@zh ;
+    skos:definition "Relates an aircraft to its assigned charging station."@en ,
+        "将航空器关联到其指定充电站。"@zh .
+
+
+world:requestsUseOf
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:InfrastructureAsset ;
+    rdfs:label "requests use of"@en ,
+        "请求使用"@zh ;
+    skos:definition "Relates an aircraft to an infrastructure resource it requests."@en ,
+        "将航空器关联到其请求使用的基础设施资源。"@zh .
+
+
+world:assignedResponderTo
+    a owl:ObjectProperty ;
+    rdfs:domain world:EmergencyResponder ;
+    rdfs:range world:HazardSource ;
+    rdfs:label "assigned responder to"@en ,
+        "响应主体被指派至"@zh ;
+    skos:definition "Relates an emergency responder to the hazard or incident it is assigned to."@en ,
+        "将应急响应主体关联到其被指派处理的危险或事件。"@zh .
+
+
+world:landingOccursIn
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:LandingArea ;
+    rdfs:label "landing occurs in"@en ,
+        "降落发生于"@zh ;
+    skos:definition "Relates an aircraft to the operational region of its landing."@en ,
+        "将航空器关联到其降落所在的运行区域。"@zh .
+
+
+world:carriesPayload
+    a owl:ObjectProperty ;
+    rdfs:domain world:MobileAgent ;
+    rdfs:range world:Payload ;
+    rdfs:label "carries payload"@en ,
+        "携带载荷"@zh ;
+    skos:definition "Relates a mobile agent to a physical payload it carries."@en ,
+        "将移动主体关联到其携带的物理载荷。"@zh .
+
+
+world:controlledBy
+    a owl:ObjectProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range world:GroundControlStation ;
+    rdfs:label "controlled by"@en ,
+        "由地面控制站控制"@zh ;
+    skos:definition "Relates an aircraft to its controlling ground control station."@en ,
+        "将航空器关联到控制其运行的地面控制站。"@zh .
+
+
+#################################################################
+# Shared world datatype properties
+#################################################################
+
+world:logicalAssetIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain aw:Entity ;
+    rdfs:range xsd:string ;
+    rdfs:label "logical asset identifier"@en ,
+        "逻辑资产标识"@zh ;
+    skos:definition "The stable logical asset identifier assigned to an episode entity."@en ,
+        "分配给 episode 实体的稳定逻辑资产标识。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "entity-identifier" .
+
+world:siteIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:Site ;
+    rdfs:range xsd:string ;
+    rdfs:label "site identifier"@en ,
+        "场地标识"@zh ;
+    skos:definition "The stable site_id value used by episode artifacts."@en ,
+        "episode 制品使用的稳定 site_id 值。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "spatial-identifier" .
+
+world:regionOfInterestIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:RegionOfInterest ;
+    rdfs:range xsd:string ;
+    rdfs:label "region of interest identifier"@en ,
+        "感兴趣区域标识"@zh ;
+    skos:definition "The stable roi_id value used by episode artifacts."@en ,
+        "episode 制品使用的稳定 roi_id 值。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "spatial-identifier" .
+
+world:boundaryIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:SpatialBoundary ;
+    rdfs:range xsd:string ;
+    rdfs:label "boundary identifier"@en ,
+        "边界标识"@zh ;
+    skos:definition "The stable capture_boundary_id value used by episode truth."@en ,
+        "episode 真值使用的稳定 capture_boundary_id 值。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "spatial-identifier" .
+
+world:mapIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:OperationalMap ;
+    rdfs:range xsd:string ;
+    rdfs:label "map identifier"@en ,
+        "地图标识"@zh ;
+    skos:definition "The stable map_id value used by episode truth."@en ,
+        "episode 真值使用的稳定 map_id 值。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "map-identifier" .
+
+world:staticMapGraphIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:OperationalMap ;
+    rdfs:range xsd:string ;
+    rdfs:label "static map graph identifier"@en ,
+        "静态地图图标识"@zh ;
+    skos:definition "The stable identifier of the one-time static semantic graph for an operational map."@en ,
+        "运行地图一次性静态语义图的稳定标识。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "map-identifier" .
+
+world:staticFeatureIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range xsd:string ;
+    rdfs:label "static feature identifier"@en ,
+        "静态要素标识"@zh ;
+    skos:definition "The deterministic identifier assigned to a static map feature in the generated map graph."@en ,
+        "生成的地图图中分配给静态地图要素的确定性标识。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "map-feature-identifier" .
+
+world:sourceFeatureIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range xsd:string ;
+    rdfs:label "source feature identifier"@en ,
+        "源要素标识"@zh ;
+    skos:definition "The feature identifier retained from the authoritative source feature record when available."@en ,
+        "在可用时从权威源要素记录保留的要素标识。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "source-feature-identifier" .
+
+world:sourceFeatureLayer
+    a owl:DatatypeProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range xsd:string ;
+    rdfs:label "source feature layer"@en ,
+        "源要素图层"@zh ;
+    skos:definition "The authoritative static map layer from which the feature was read."@en ,
+        "读取该要素的权威静态地图图层。"@zh ;
+    world:unitSymbol "layer" ;
+    world:stateFieldCategory "source-feature-identifier" .
+
+world:sourceFeatureLocator
+    a owl:DatatypeProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range xsd:string ;
+    rdfs:label "source feature locator"@en ,
+        "源要素定位符"@zh ;
+    skos:definition "A deterministic locator for the authoritative source file and feature index."@en ,
+        "权威源文件和要素索引的确定性定位符。"@zh ;
+    world:unitSymbol "locator" ;
+    world:stateFieldCategory "source-feature-identifier" .
+
+world:sourceGeometryType
+    a owl:DatatypeProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range xsd:string ;
+    rdfs:label "source geometry type"@en ,
+        "源几何类型"@zh ;
+    skos:definition "The GeoJSON geometry type of the authoritative source feature."@en ,
+        "权威源要素的 GeoJSON 几何类型。"@zh ;
+    world:unitSymbol "geojson-type" ;
+    world:stateFieldCategory "source-geometry-summary" .
+
+world:sourceGeometryDigest
+    a owl:DatatypeProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range xsd:string ;
+    rdfs:label "source geometry digest"@en ,
+        "源几何摘要"@zh ;
+    skos:definition "The stable digest of the authoritative source geometry used instead of copying full geometry into graph outputs."@en ,
+        "权威源几何的稳定摘要，用于避免在图输出中复制完整几何。"@zh ;
+    world:unitSymbol "sha256" ;
+    world:stateFieldCategory "source-geometry-summary" .
+
+world:sourceGeometryBbox
+    a owl:DatatypeProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range xsd:string ;
+    rdfs:label "source geometry bounding box"@en ,
+        "源几何包围盒"@zh ;
+    skos:definition "The two-dimensional source geometry bounding box serialized as a deterministic JSON array."@en ,
+        "以确定性 JSON 数组序列化的二维源几何包围盒。"@zh ;
+    world:unitSymbol "source-coordinate-array" ;
+    world:stateFieldCategory "source-geometry-summary" .
+
+world:sourceGeometryCentroid
+    a owl:DatatypeProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range xsd:string ;
+    rdfs:label "source geometry centroid"@en ,
+        "源几何中心点"@zh ;
+    skos:definition "The two-dimensional source geometry centroid serialized as a deterministic JSON array."@en ,
+        "以确定性 JSON 数组序列化的二维源几何中心点。"@zh ;
+    world:unitSymbol "source-coordinate-array" ;
+    world:stateFieldCategory "source-geometry-summary" .
+
+world:sourcePropertiesDigest
+    a owl:DatatypeProperty ;
+    rdfs:domain world:StaticMapFeature ;
+    rdfs:range xsd:string ;
+    rdfs:label "source properties digest"@en ,
+        "源属性摘要"@zh ;
+    skos:definition "The stable digest of retained non-null source feature properties."@en ,
+        "保留的非空源要素属性的稳定摘要。"@zh ;
+    world:unitSymbol "sha256" ;
+    world:stateFieldCategory "source-feature-properties" .
+
+world:frameIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:WorldFrame ;
+    rdfs:range xsd:string ;
+    rdfs:label "frame identifier"@en ,
+        "世界帧标识"@zh ;
+    skos:definition "The stable frame_id value used by episode truth."@en ,
+        "episode 真值使用的稳定 frame_id 值。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "frame-identifier" .
+
+world:roadIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:Roadway ;
+    rdfs:range xsd:string ;
+    rdfs:label "road identifier"@en ,
+        "道路标识"@zh ;
+    skos:definition "The stable source road identifier."@en ,
+        "稳定的源道路标识。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "road-identifier" .
+
+world:roadEdgeIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:RoadSegment ;
+    rdfs:range xsd:string ;
+    rdfs:label "road edge identifier"@en ,
+        "道路边标识"@zh ;
+    skos:definition "The stable directed edge identifier used by road and SUMO truth."@en ,
+        "道路与 SUMO 真值使用的稳定有向边标识。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "road-identifier" .
+
+world:roadLaneIdentifier
+    a owl:DatatypeProperty ;
+    rdfs:domain world:RoadLane ;
+    rdfs:range xsd:string ;
+    rdfs:label "road lane identifier"@en ,
+        "道路车道标识"@zh ;
+    skos:definition "The stable directed lane identifier used by road and SUMO truth."@en ,
+        "道路与 SUMO 真值使用的稳定有向车道标识。"@zh ;
+    world:unitSymbol "identifier" ;
+    world:stateFieldCategory "road-identifier" .
+
+world:laneIndex
+    a owl:DatatypeProperty ;
+    rdfs:domain world:RoadLane ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:label "lane index"@en ,
+        "车道索引"@zh ;
+    skos:definition "The zero-based lane index within a directed road edge."@en ,
+        "有向道路边内从零开始的车道索引。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "topology-index" .
+
+world:laneWidthM
+    a owl:DatatypeProperty ;
+    rdfs:domain world:RoadLane ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "lane width in metres"@en ,
+        "车道宽度（米）"@zh ;
+    skos:definition "The physical width of a road lane in metres."@en ,
+        "道路车道的物理宽度，单位为米。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "topology-metric" .
+
+world:laneSpeedLimitMps
+    a owl:DatatypeProperty ;
+    rdfs:domain world:RoadLane ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "lane speed limit in metres per second"@en ,
+        "车道限速（米每秒）"@zh ;
+    skos:definition "The lane speed value in metres per second."@en ,
+        "车道速度值，单位为米每秒。"@zh ;
+    world:unitSymbol "m/s" ;
+    world:stateFieldCategory "topology-metric" .
+
+world:positionEastM
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "east position in metres"@en ,
+        "东向位置（米）"@zh ;
+    skos:definition "The east component of the objective ENU position in metres."@en ,
+        "客观 ENU 位置的东向分量，单位为米。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "pose-position" .
+
+world:positionNorthM
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "north position in metres"@en ,
+        "北向位置（米）"@zh ;
+    skos:definition "The north component of the objective ENU position in metres."@en ,
+        "客观 ENU 位置的北向分量，单位为米。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "pose-position" .
+
+world:positionUpM
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "up position in metres"@en ,
+        "高程位置（米）"@zh ;
+    skos:definition "The up component of the objective ENU position in metres."@en ,
+        "客观 ENU 位置的高程分量，单位为米。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "pose-position" .
+
+world:velocityEastMps
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "east velocity in metres per second"@en ,
+        "东向速度（米每秒）"@zh ;
+    skos:definition "The east component of objective ENU velocity."@en ,
+        "客观 ENU 速度的东向分量。"@zh ;
+    world:unitSymbol "m/s" ;
+    world:stateFieldCategory "pose-velocity" .
+
+world:velocityNorthMps
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "north velocity in metres per second"@en ,
+        "北向速度（米每秒）"@zh ;
+    skos:definition "The north component of objective ENU velocity."@en ,
+        "客观 ENU 速度的北向分量。"@zh ;
+    world:unitSymbol "m/s" ;
+    world:stateFieldCategory "pose-velocity" .
+
+world:velocityUpMps
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "up velocity in metres per second"@en ,
+        "高程速度（米每秒）"@zh ;
+    skos:definition "The up component of objective ENU velocity."@en ,
+        "客观 ENU 速度的高程分量。"@zh ;
+    world:unitSymbol "m/s" ;
+    world:stateFieldCategory "pose-velocity" .
+
+world:yawDeg
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "yaw in degrees"@en ,
+        "偏航角（度）"@zh ;
+    skos:definition "The objective yaw angle in degrees."@en ,
+        "客观偏航角，单位为度。"@zh ;
+    world:unitSymbol "deg" ;
+    world:stateFieldCategory "pose-orientation" .
+
+world:pitchDeg
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "pitch in degrees"@en ,
+        "俯仰角（度）"@zh ;
+    skos:definition "The objective pitch angle in degrees."@en ,
+        "客观俯仰角，单位为度。"@zh ;
+    world:unitSymbol "deg" ;
+    world:stateFieldCategory "pose-orientation" .
+
+world:rollDeg
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "roll in degrees"@en ,
+        "横滚角（度）"@zh ;
+    skos:definition "The objective roll angle in degrees."@en ,
+        "客观横滚角，单位为度。"@zh ;
+    world:unitSymbol "deg" ;
+    world:stateFieldCategory "pose-orientation" .
+
+world:speedMps
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "speed in metres per second"@en ,
+        "速度（米每秒）"@zh ;
+    skos:definition "The scalar objective speed in metres per second."@en ,
+        "客观标量速度，单位为米每秒。"@zh ;
+    world:unitSymbol "m/s" ;
+    world:stateFieldCategory "motion-state" .
+
+world:accelerationMps2
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "acceleration in metres per second squared"@en ,
+        "加速度（米每二次方秒）"@zh ;
+    skos:definition "The scalar longitudinal acceleration in metres per second squared."@en ,
+        "纵向标量加速度，单位为米每二次方秒。"@zh ;
+    world:unitSymbol "m/s^2" ;
+    world:stateFieldCategory "motion-state" .
+
+world:activityType
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:string ;
+    rdfs:label "activity type"@en ,
+        "活动类型"@zh ;
+    skos:definition "The objective activity_type assigned to an entity at a tick."@en ,
+        "在某一 tick 分配给实体的客观 activity_type。"@zh ;
+    world:unitSymbol "state-code" ;
+    world:stateFieldCategory "activity-state" .
+
+world:operationalState
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:string ;
+    rdfs:label "operational state"@en ,
+        "运行状态"@zh ;
+    skos:definition "The objective discrete state assigned to an entity at a tick."@en ,
+        "在某一 tick 分配给实体的客观离散状态。"@zh ;
+    world:unitSymbol "state-code" ;
+    world:stateFieldCategory "operational-state" .
+
+world:lanePositionM
+    a owl:DatatypeProperty ;
+    rdfs:domain world:EntityStateAtTick ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "lane position in metres"@en ,
+        "车道位置（米）"@zh ;
+    skos:definition "The longitudinal position of a vehicle state along its road lane."@en ,
+        "车辆状态沿其道路车道的纵向位置。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "road-state" .
+
+world:assignedAltitudeM
+    a owl:DatatypeProperty ;
+    rdfs:domain world:UnmannedAircraft ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "assigned altitude in metres"@en ,
+        "指定高度（米）"@zh ;
+    skos:definition "The altitude assigned to an unmanned aircraft in metres."@en ,
+        "分配给无人机的高度，单位为米。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "aircraft-assignment" .

@@ -1,0 +1,280 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/environment_hazard#> .
+
+<https://w3id.org/aeroworld/ontology/domain/environment_hazard>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/domain/environment_hazard/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ;
+    dct:title "AeroWorld Environment Hazard Ontology"@en ,
+        "AeroWorld 环境风险本体"@zh ;
+    dct:description "Weather, rain, fog, wind, visibility, lighting, temperature, and environmental hazard zones."@en ,
+        "刻画天气、降雨、雾、风、能见度、照明、温度和环境风险区域。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "dom" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/domain/environment_hazard#" .
+
+#################################################################
+# Stable domain concepts
+#################################################################
+
+dom:WeatherCondition
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "weather condition"@en ,
+        "天气条件"@zh ;
+    skos:definition "Tick-indexed environmental condition affecting operations."@en ,
+        "影响运行的时刻环境条件。"@zh .
+
+dom:RainCondition
+    a owl:Class ;
+    rdfs:subClassOf dom:WeatherCondition ;
+    rdfs:label "rain condition"@en ,
+        "降雨条件"@zh ;
+    skos:definition "Weather condition describing rain intensity or transition."@en ,
+        "描述降雨强度或变化的天气条件。"@zh .
+
+dom:FogCondition
+    a owl:Class ;
+    rdfs:subClassOf dom:WeatherCondition ;
+    rdfs:label "fog condition"@en ,
+        "雾条件"@zh ;
+    skos:definition "Weather condition describing fog onset or density."@en ,
+        "描述雾出现或浓度的天气条件。"@zh .
+
+dom:WindGust
+    a owl:Class ;
+    rdfs:subClassOf dom:WeatherCondition ;
+    rdfs:label "wind gust"@en ,
+        "阵风"@zh ;
+    skos:definition "Wind condition with speed or direction exceeding operational thresholds."@en ,
+        "风速或风向超过运行阈值的风条件。"@zh .
+
+dom:LightingCondition
+    a owl:Class ;
+    rdfs:subClassOf dom:WeatherCondition ;
+    rdfs:label "lighting condition"@en ,
+        "光照条件"@zh ;
+    skos:definition "Environmental lighting state affecting visual operation."@en ,
+        "影响视觉运行的环境光照状态。"@zh .
+
+dom:TemperatureCondition
+    a owl:Class ;
+    rdfs:subClassOf dom:WeatherCondition ;
+    rdfs:label "temperature condition"@en ,
+        "温度条件"@zh ;
+    skos:definition "Environmental temperature state affecting operation or equipment."@en ,
+        "影响运行或设备的环境温度状态。"@zh .
+
+dom:VisibilityState
+    a owl:Class ;
+    rdfs:subClassOf world:EntityStateAtTick ;
+    rdfs:label "visibility state"@en ,
+        "能见度状态"@zh ;
+    skos:definition "State describing visual range or sensor visibility quality."@en ,
+        "描述视觉距离或传感器可见质量的状态。"@zh .
+
+dom:EnvironmentalHazardZone
+    a owl:Class ;
+    rdfs:subClassOf world:HazardSource ;
+    rdfs:label "environmental hazard zone"@en ,
+        "环境风险区域"@zh ;
+    skos:definition "Spatial region affected by environmental hazard conditions."@en ,
+        "受环境风险条件影响的空间区域。"@zh .
+
+#################################################################
+# Stable domain relations
+#################################################################
+
+dom:hazardAffectsRegion
+    a owl:ObjectProperty ;
+    rdfs:domain dom:EnvironmentalHazardZone ;
+    rdfs:range world:SpatialRegion ;
+    rdfs:label "hazard affects region"@en ,
+        "风险影响区域"@zh ;
+    skos:definition "Relates an environmental hazard zone to the affected spatial region."@en ,
+        "表示环境风险区域影响的空间区域。"@zh .
+
+dom:conditionAffectsActor
+    a owl:ObjectProperty ;
+    rdfs:domain dom:WeatherCondition ;
+    rdfs:range world:MobileAgent ;
+    rdfs:label "condition affects actor"@en ,
+        "条件影响主体"@zh ;
+    skos:definition "Relates an environmental condition to an affected actor."@en ,
+        "表示环境条件影响的主体。"@zh .
+
+#################################################################
+# Stable state datatype properties
+#################################################################
+
+dom:rainIntensityMmPerHr
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:RainCondition ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "rain intensity millimeters per hour"@en ,
+        "降雨强度毫米每小时"@zh ;
+    skos:definition "Rain intensity measured in millimeters per hour."@en ,
+        "以毫米每小时表示的降雨强度。"@zh ;
+    world:unitSymbol "mm/h" ;
+    world:stateFieldCategory "weather_rain" .
+
+dom:fogDensityRatio
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:FogCondition ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "fog density ratio"@en ,
+        "雾浓度比例"@zh ;
+    skos:definition "Fog density or opacity represented as a ratio."@en ,
+        "以比例表示的雾浓度或不透明度。"@zh ;
+    world:unitSymbol "1" ;
+    world:stateFieldCategory "weather_fog" .
+
+dom:windSpeedMps
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:WindGust ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "wind speed meters per second"@en ,
+        "风速米每秒"@zh ;
+    skos:definition "Wind or gust speed in meters per second."@en ,
+        "以米每秒表示的风或阵风速度。"@zh ;
+    world:unitSymbol "m/s" ;
+    world:stateFieldCategory "weather_wind" .
+
+dom:visibilityRangeM
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:VisibilityState ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "visibility range meters"@en ,
+        "能见距离米"@zh ;
+    skos:definition "Visual range or visibility distance in meters."@en ,
+        "以米表示的视觉距离或能见距离。"@zh ;
+    world:unitSymbol "m" ;
+    world:stateFieldCategory "visibility" .
+
+dom:ambientTemperatureC
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:TemperatureCondition ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "ambient temperature Celsius"@en ,
+        "环境温度摄氏度"@zh ;
+    skos:definition "Ambient temperature measured in degrees Celsius."@en ,
+        "以摄氏度表示的环境温度。"@zh ;
+    world:unitSymbol "C" ;
+    world:stateFieldCategory "temperature" .
+
+dom:lightingLevelLux
+    a owl:DatatypeProperty ;
+    rdfs:domain dom:LightingCondition ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "lighting level lux"@en ,
+        "光照强度勒克斯"@zh ;
+    skos:definition "Environmental illumination measured in lux."@en ,
+        "以勒克斯表示的环境照度。"@zh ;
+    world:unitSymbol "lux" ;
+    world:stateFieldCategory "lighting" .
+
+#################################################################
+# Stable objective-predicate signatures
+#################################################################
+
+dom:RainActiveArgument_region
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "region" ;
+    world:argumentClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+dom:RainActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "environment.rain_active" ;
+    aw:declaresArgumentRole dom:RainActiveArgument_region ;
+    rdfs:label "rain active"@en ,
+        "降雨激活"@zh ;
+    skos:definition "Holds when rain is active in the operational region."@en ,
+        "当运行区域存在降雨时成立"@zh .
+
+dom:FogActiveArgument_region
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "region" ;
+    world:argumentClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+dom:FogActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "environment.fog_active" ;
+    aw:declaresArgumentRole dom:FogActiveArgument_region ;
+    rdfs:label "fog active"@en ,
+        "雾激活"@zh ;
+    skos:definition "Holds when fog is active in the operational region."@en ,
+        "当运行区域存在雾时成立"@zh .
+
+dom:VisibilityBelowThresholdArgument_region
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "region" ;
+    world:argumentClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+dom:VisibilityBelowThreshold
+    a aw:PredicateType ;
+    aw:predicateIdentifier "environment.visibility_below_threshold" ;
+    aw:declaresArgumentRole dom:VisibilityBelowThresholdArgument_region ;
+    rdfs:label "visibility below threshold"@en ,
+        "能见度低于阈值"@zh ;
+    skos:definition "Holds when visibility is lower than an operational threshold."@en ,
+        "当能见度低于运行阈值时成立"@zh .
+
+dom:WindSpeedAboveThresholdArgument_region
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "region" ;
+    world:argumentClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+dom:WindSpeedAboveThreshold
+    a aw:PredicateType ;
+    aw:predicateIdentifier "environment.wind_speed_above_threshold" ;
+    aw:declaresArgumentRole dom:WindSpeedAboveThresholdArgument_region ;
+    rdfs:label "wind speed above threshold"@en ,
+        "风速高于阈值"@zh ;
+    skos:definition "Holds when wind speed or gust exceeds an operational threshold."@en ,
+        "当风速或阵风超过运行阈值时成立"@zh .
+
+dom:LowIlluminationActiveArgument_region
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "region" ;
+    world:argumentClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+dom:LowIlluminationActive
+    a aw:PredicateType ;
+    aw:predicateIdentifier "environment.low_illumination_active" ;
+    aw:declaresArgumentRole dom:LowIlluminationActiveArgument_region ;
+    rdfs:label "low illumination active"@en ,
+        "低照度激活"@zh ;
+    skos:definition "Holds when measured illumination is below the governed visual-operation threshold."@en ,
+        "当测得照度低于受治理的视觉运行阈值时成立"@zh .
+
+dom:TemperatureOutsideOperatingRangeArgument_region
+    a aw:ArgumentRole ;
+    aw:argumentRoleKey "region" ;
+    world:argumentClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+dom:TemperatureOutsideOperatingRange
+    a aw:PredicateType ;
+    aw:predicateIdentifier "environment.temperature_outside_operating_range" ;
+    aw:declaresArgumentRole dom:TemperatureOutsideOperatingRangeArgument_region ;
+    rdfs:label "temperature outside operating range"@en ,
+        "温度超出运行范围"@zh ;
+    skos:definition "Holds when environmental temperature is outside the operating range."@en ,
+        "当环境温度超出运行范围时成立"@zh .

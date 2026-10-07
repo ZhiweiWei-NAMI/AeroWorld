@@ -1,0 +1,150 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/airspace_operations#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/airspace_operations#> .
+
+<https://w3id.org/aeroworld/ontology/events/airspace_operations>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/airspace_operations/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/airspace_operations> ;
+    dct:title "AeroWorld Airspace Operations Event Ontology"@en ,
+        "AeroWorld 空域运行事件本体"@zh ;
+    dct:description "Objective airspace occupancy, altitude, intrusion, and corridor-capacity event families."@en ,
+        "既有空域占用、高度偏离、侵入和航路容量事件族。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/airspace_operations#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:RestrictedAirspaceEntryEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+evt:RestrictedAirspaceEntryEventRole_restricted_region
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "restricted_region" ;
+    world:participantClass world:RestrictedAirspaceRegion ;
+    rdfs:label "restricted region"@en .
+
+evt:RestrictedAirspaceEntryEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "airspace.restricted_airspace_entry_event" ;
+    aw:declaresParticipantRole evt:RestrictedAirspaceEntryEventRole_actor ,
+        evt:RestrictedAirspaceEntryEventRole_restricted_region ;
+    rdfs:label "restricted airspace entry"@en ,
+        "进入限制空域事件"@zh ;
+    skos:definition "Objective event in which a UAV enters a restricted or no-fly airspace region."@en ,
+        "无人机进入限制或禁飞空域区域的客观事件"@zh .
+
+evt:AssignedAltitudeBandExcursionEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+evt:AssignedAltitudeBandExcursionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "airspace.assigned_altitude_band_excursion_event" ;
+    aw:declaresParticipantRole evt:AssignedAltitudeBandExcursionEventRole_actor ;
+    rdfs:label "assigned altitude band excursion"@en ,
+        "指定高度带偏离事件"@zh ;
+    skos:definition "Objective event in which a UAV altitude deviates from the assigned altitude band."@en ,
+        "无人机高度偏离指定高度带的客观事件"@zh .
+
+evt:NonCooperativeProtectedAirspaceIntrusionEventRole_intruder
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "intruder" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "intruder"@en .
+
+evt:NonCooperativeProtectedAirspaceIntrusionEventRole_protected_region
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "protected_region" ;
+    world:participantClass world:ProtectedAirspace ;
+    rdfs:label "protected region"@en .
+
+evt:NonCooperativeProtectedAirspaceIntrusionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "airspace.non_cooperative_protected_airspace_intrusion_event" ;
+    aw:declaresParticipantRole evt:NonCooperativeProtectedAirspaceIntrusionEventRole_intruder ,
+        evt:NonCooperativeProtectedAirspaceIntrusionEventRole_protected_region ;
+    rdfs:label "non-cooperative protected airspace intrusion"@en ,
+        "非合作航空器保护空域侵入事件"@zh ;
+    skos:definition "Objective event in which a non-cooperative UAV intrudes into protected airspace."@en ,
+        "非合作无人机侵入保护空域的客观事件"@zh .
+
+evt:AirspaceCorridorCapacityExceedanceEventRole_corridor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "corridor" ;
+    world:participantClass world:AirspaceCorridor ;
+    rdfs:label "corridor"@en .
+
+evt:AirspaceCorridorCapacityExceedanceEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "airspace.airspace_corridor_capacity_exceedance_event" ;
+    aw:declaresParticipantRole evt:AirspaceCorridorCapacityExceedanceEventRole_corridor ;
+    rdfs:label "airspace corridor capacity exceedance"@en ,
+        "空中航路容量超限事件"@zh ;
+    skos:definition "Objective event in which aircraft occupancy exceeds corridor capacity."@en ,
+        "航空器占用超过航路容量的客观事件"@zh .
+
+evt:AircraftTakeoffEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:AircraftTakeoffEventRole_home_pad
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "home_pad" ;
+    world:participantClass world:LandingPad ;
+    rdfs:label "home pad"@en .
+
+evt:AircraftTakeoffEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "airspace.aircraft_takeoff_event" ;
+    aw:declaresParticipantRole evt:AircraftTakeoffEventRole_aircraft ,
+        evt:AircraftTakeoffEventRole_home_pad ;
+    rdfs:label "aircraft takeoff"@en ,
+        "航空器起飞事件"@zh ;
+    skos:definition "Objective event in which an unmanned aircraft transitions from its home pad to airborne flight."@en ,
+        "无人机从归属起降坪转换为空中飞行的客观事件。"@zh .
+
+evt:AircraftLandingEventRole_aircraft
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "aircraft" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "aircraft"@en .
+
+evt:AircraftLandingEventRole_landing_zone
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "landing_zone" ;
+    world:participantClass world:LandingArea ;
+    rdfs:label "landing zone"@en .
+
+evt:AircraftLandingEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "airspace.aircraft_landing_event" ;
+    aw:declaresParticipantRole evt:AircraftLandingEventRole_aircraft ,
+        evt:AircraftLandingEventRole_landing_zone ;
+    rdfs:label "aircraft landing"@en ,
+        "航空器降落事件"@zh ;
+    skos:definition "Objective event in which an unmanned aircraft transitions from airborne flight to touchdown in its landing zone."@en ,
+        "无人机从空中飞行转换为在降落区接地的客观事件。"@zh .

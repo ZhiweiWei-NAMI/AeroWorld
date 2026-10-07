@@ -1,0 +1,287 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/communication_process#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/communication_process#> .
+
+<https://w3id.org/aeroworld/ontology/events/communication_process>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/communication_process/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/communication_process> ;
+    dct:title "AeroWorld Communication Process Event Ontology"@en ,
+        "AeroWorld 通信过程事件本体"@zh ;
+    dct:description "Objective communication-station, C2-link, degradation, loss, and jamming event families."@en ,
+        "既有通信站、C2 链路、退化、丢失和干扰事件族。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/communication_process#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:CommunicationStationFailureEventRole_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "station" ;
+    world:participantClass world:CommunicationStation ;
+    rdfs:label "station"@en .
+
+evt:CommunicationStationFailureEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.communication_station_failure_event" ;
+    aw:declaresParticipantRole evt:CommunicationStationFailureEventRole_station ;
+    rdfs:label "communication station failure"@en ,
+        "通信站故障事件"@zh ;
+    skos:definition "Objective event in which a communication station cannot provide service."@en ,
+        "通信站无法提供服务的客观事件"@zh .
+
+evt:MessageTransmissionEventRole_attempt
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "attempt" ;
+    world:participantClass dom:TransmissionAttempt ;
+    rdfs:label "attempt"@en .
+
+evt:MessageTransmissionEventRole_message
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "message" ;
+    world:participantClass dom:Message ;
+    rdfs:label "message"@en .
+
+evt:MessageTransmissionEventRole_allocation
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "allocation" ;
+    world:participantClass dom:ChannelAllocation ;
+    rdfs:label "allocation"@en .
+
+evt:MessageTransmissionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.message_transmission_event" ;
+    aw:declaresParticipantRole evt:MessageTransmissionEventRole_attempt ,
+        evt:MessageTransmissionEventRole_message ,
+        evt:MessageTransmissionEventRole_allocation ;
+    rdfs:label "message transmission"@en ,
+        "消息传输事件"@zh ;
+    skos:definition "Objective communication process event in which a message transmission attempt occurs."@en ,
+        "消息传输尝试发生的客观通信过程事件"@zh .
+
+evt:MessageRetransmissionEventRole_retransmission
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "retransmission" ;
+    world:participantClass dom:Retransmission ;
+    rdfs:label "retransmission"@en .
+
+evt:MessageRetransmissionEventRole_original_attempt
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "original_attempt" ;
+    world:participantClass dom:TransmissionAttempt ;
+    rdfs:label "original attempt"@en .
+
+evt:MessageRetransmissionEventRole_message
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "message" ;
+    world:participantClass dom:Message ;
+    rdfs:label "message"@en .
+
+evt:MessageRetransmissionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.message_retransmission_event" ;
+    aw:declaresParticipantRole evt:MessageRetransmissionEventRole_retransmission ,
+        evt:MessageRetransmissionEventRole_original_attempt ,
+        evt:MessageRetransmissionEventRole_message ;
+    rdfs:label "message retransmission"@en ,
+        "消息重传事件"@zh ;
+    skos:definition "Objective communication process event in which a message or packet is retransmitted."@en ,
+        "消息或分组被重传的客观通信过程事件"@zh .
+
+evt:CommunicationSessionStartEventRole_session
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "session" ;
+    world:participantClass dom:CommunicationSession ;
+    rdfs:label "session"@en .
+
+evt:CommunicationSessionStartEventRole_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "station" ;
+    world:participantClass world:CommunicationStation ;
+    rdfs:label "station"@en .
+
+evt:CommunicationSessionStartEventRole_data_flow
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "data_flow" ;
+    world:participantClass dom:DataFlow ;
+    rdfs:label "data flow"@en .
+
+evt:CommunicationSessionStartEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.communication_session_start_event" ;
+    aw:declaresParticipantRole evt:CommunicationSessionStartEventRole_session ,
+        evt:CommunicationSessionStartEventRole_station ,
+        evt:CommunicationSessionStartEventRole_data_flow ;
+    rdfs:label "communication session start"@en ,
+        "通信会话开始事件"@zh ;
+    skos:definition "Objective communication process event in which a communication session becomes active."@en ,
+        "通信会话变为活动状态的客观通信过程事件"@zh .
+
+evt:CommunicationSessionInterruptionEventRole_session
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "session" ;
+    world:participantClass dom:CommunicationSession ;
+    rdfs:label "session"@en .
+
+evt:CommunicationSessionInterruptionEventRole_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "station" ;
+    world:participantClass world:CommunicationStation ;
+    rdfs:label "station"@en .
+
+evt:CommunicationSessionInterruptionEventRole_data_flow
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "data_flow" ;
+    world:participantClass dom:DataFlow ;
+    rdfs:label "data flow"@en .
+
+evt:CommunicationSessionInterruptionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.communication_session_interruption_event" ;
+    aw:declaresParticipantRole evt:CommunicationSessionInterruptionEventRole_session ,
+        evt:CommunicationSessionInterruptionEventRole_station ,
+        evt:CommunicationSessionInterruptionEventRole_data_flow ;
+    rdfs:label "communication session interruption"@en ,
+        "通信会话中断事件"@zh ;
+    skos:definition "Objective communication process event in which an active communication session loses continuity."@en ,
+        "活动通信会话失去连续性的客观通信过程事件"@zh .
+
+evt:CommunicationHandoverEventRole_handover
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "handover" ;
+    world:participantClass dom:Handover ;
+    rdfs:label "handover"@en .
+
+evt:CommunicationHandoverEventRole_session
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "session" ;
+    world:participantClass dom:CommunicationSession ;
+    rdfs:label "session"@en .
+
+evt:CommunicationHandoverEventRole_source_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "source_station" ;
+    world:participantClass world:CommunicationStation ;
+    rdfs:label "source station"@en .
+
+evt:CommunicationHandoverEventRole_target_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "target_station" ;
+    world:participantClass world:CommunicationStation ;
+    rdfs:label "target station"@en .
+
+evt:CommunicationHandoverEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.communication_handover_event" ;
+    aw:declaresParticipantRole evt:CommunicationHandoverEventRole_handover ,
+        evt:CommunicationHandoverEventRole_session ,
+        evt:CommunicationHandoverEventRole_source_station ,
+        evt:CommunicationHandoverEventRole_target_station ;
+    rdfs:label "communication handover"@en ,
+        "通信切换事件"@zh ;
+    skos:definition "Objective communication process event in which a session or route is handed over to another station or channel."@en ,
+        "会话或路由切换到另一个站点或信道的客观通信过程事件"@zh .
+
+evt:ChannelAllocationChangeEventRole_allocation
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "allocation" ;
+    world:participantClass dom:ChannelAllocation ;
+    rdfs:label "allocation"@en .
+
+evt:ChannelAllocationChangeEventRole_data_flow
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "data_flow" ;
+    world:participantClass dom:DataFlow ;
+    rdfs:label "data flow"@en .
+
+evt:ChannelAllocationChangeEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.channel_allocation_change_event" ;
+    aw:declaresParticipantRole evt:ChannelAllocationChangeEventRole_allocation ,
+        evt:ChannelAllocationChangeEventRole_data_flow ;
+    rdfs:label "channel allocation change"@en ,
+        "信道分配变化事件"@zh ;
+    skos:definition "Objective communication process event in which channel allocation changes for a session or flow."@en ,
+        "会话或数据流的信道分配发生变化的客观通信过程事件"@zh .
+
+evt:BandwidthAllocationChangeEventRole_reservation
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "reservation" ;
+    world:participantClass dom:BandwidthReservation ;
+    rdfs:label "reservation"@en .
+
+evt:BandwidthAllocationChangeEventRole_data_flow
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "data_flow" ;
+    world:participantClass dom:DataFlow ;
+    rdfs:label "data flow"@en .
+
+evt:BandwidthAllocationChangeEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.bandwidth_allocation_change_event" ;
+    aw:declaresParticipantRole evt:BandwidthAllocationChangeEventRole_reservation ,
+        evt:BandwidthAllocationChangeEventRole_data_flow ;
+    rdfs:label "bandwidth allocation change"@en ,
+        "带宽分配变化事件"@zh ;
+    skos:definition "Objective communication process event in which reserved or assigned bandwidth changes."@en ,
+        "预留或分配带宽发生变化的客观通信过程事件"@zh .
+
+evt:C2LinkLossEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+evt:C2LinkLossEventRole_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "station" ;
+    world:participantClass world:CommunicationStation ;
+    rdfs:label "station"@en .
+
+evt:C2LinkLossEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.c2_link_loss_event" ;
+    aw:declaresParticipantRole evt:C2LinkLossEventRole_actor ,
+        evt:C2LinkLossEventRole_station ;
+    rdfs:label "C2 link loss"@en ,
+        "C2 链路丢失事件"@zh ;
+    skos:definition "Objective event in which a command-and-control link becomes unavailable."@en ,
+        "指挥控制链路不可用的客观事件"@zh .
+
+evt:C2LinkDegradationEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+evt:C2LinkDegradationEventRole_station
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "station" ;
+    world:participantClass world:CommunicationStation ;
+    rdfs:label "station"@en .
+
+evt:C2LinkDegradationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "communication.c2_link_degradation_event" ;
+    aw:declaresParticipantRole evt:C2LinkDegradationEventRole_actor ,
+        evt:C2LinkDegradationEventRole_station ;
+    rdfs:label "C2 link degradation"@en ,
+        "C2 链路退化事件"@zh ;
+    skos:definition "Objective event in which a command-and-control link degrades without complete loss."@en ,
+        "指挥控制链路退化但未完全丢失的客观事件"@zh .

@@ -1,0 +1,107 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/environment_hazard#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/environment_hazard#> .
+
+<https://w3id.org/aeroworld/ontology/events/environment_hazard>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/environment_hazard/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/environment_hazard> ;
+    dct:title "AeroWorld Environment Hazard Event Ontology"@en ,
+        "AeroWorld 环境风险事件本体"@zh ;
+    dct:description "Objective rain, fog, wind, lighting, and temperature event families."@en ,
+        "既有降雨、雾、风、光照和温度事件族。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/environment_hazard#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:RainTransitionEventRole_region
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "region" ;
+    world:participantClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+evt:RainTransitionEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "environment.rain_transition_event" ;
+    aw:declaresParticipantRole evt:RainTransitionEventRole_region ;
+    rdfs:label "rain transition"@en ,
+        "降雨变化事件"@zh ;
+    skos:definition "Objective event in which rain begins, intensifies, or changes gradually or suddenly."@en ,
+        "降雨开始、增强或发生渐变/突变的客观事件"@zh .
+
+evt:FogOnsetEventRole_region
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "region" ;
+    world:participantClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+evt:FogOnsetEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "environment.fog_onset_event" ;
+    aw:declaresParticipantRole evt:FogOnsetEventRole_region ;
+    rdfs:label "fog onset"@en ,
+        "雾出现事件"@zh ;
+    skos:definition "Objective event in which fog or low visibility begins."@en ,
+        "雾或低能见度出现的客观事件"@zh .
+
+evt:HighWindGustEventRole_region
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "region" ;
+    world:participantClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+evt:HighWindGustEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "environment.high_wind_gust_event" ;
+    aw:declaresParticipantRole evt:HighWindGustEventRole_region ;
+    rdfs:label "high wind gust"@en ,
+        "强风阵风事件"@zh ;
+    skos:definition "Objective event in which wind or gust exceeds operational thresholds."@en ,
+        "风或阵风超过运行阈值的客观事件"@zh .
+
+evt:LightingConditionChangeEventRole_region
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "region" ;
+    world:participantClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+evt:LightingConditionChangeEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "environment.lighting_condition_change_event" ;
+    aw:declaresParticipantRole evt:LightingConditionChangeEventRole_region ;
+    rdfs:label "lighting condition change"@en ,
+        "光照条件变化事件"@zh ;
+    skos:definition "Objective event in which lighting changes enough to affect operation or perception."@en ,
+        "光照变化足以影响运行或感知的客观事件"@zh .
+
+evt:ExtremeTemperatureEventRole_region
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "region" ;
+    world:participantClass world:OperationalRegion ;
+    rdfs:label "region"@en .
+
+evt:ExtremeTemperatureEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "environment.extreme_temperature_event" ;
+    aw:declaresParticipantRole evt:ExtremeTemperatureEventRole_region ;
+    rdfs:label "extreme temperature"@en ,
+        "极端温度事件"@zh ;
+    skos:definition "Objective event in which temperature leaves the operational range."@en ,
+        "温度离开运行范围的客观事件"@zh .

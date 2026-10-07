@@ -1,0 +1,76 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/positioning_navigation#> .
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/positioning_navigation#> .
+
+<https://w3id.org/aeroworld/ontology/events/positioning_navigation>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/events/positioning_navigation/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    owl:imports <https://w3id.org/aeroworld/ontology/world> ,
+        <https://w3id.org/aeroworld/ontology/domain/positioning_navigation> ;
+    dct:title "AeroWorld Positioning and Navigation Event Ontology"@en ,
+        "AeroWorld 定位与导航事件本体"@zh ;
+    dct:description "Objective GNSS degradation and GNSS spoofing event families."@en ,
+        "既有 GNSS 退化和 GNSS 欺骗事件族。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-30"^^xsd:date ;
+    vann:preferredNamespacePrefix "evt" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/events/positioning_navigation#" .
+
+#################################################################
+# Stable objective event types and complete participant roles
+#################################################################
+
+evt:GnssSignalDegradationEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+evt:GnssSignalDegradationEventRole_service
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "service" ;
+    world:participantClass dom:GnssService ;
+    rdfs:label "service"@en .
+
+evt:GnssSignalDegradationEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "positioning.gnss_signal_degradation_event" ;
+    aw:declaresParticipantRole evt:GnssSignalDegradationEventRole_actor ,
+        evt:GnssSignalDegradationEventRole_service ;
+    rdfs:label "GNSS signal degradation"@en ,
+        "GNSS 信号退化事件"@zh ;
+    skos:definition "Objective event in which GNSS service quality degrades."@en ,
+        "GNSS 服务质量退化的客观事件"@zh .
+
+evt:GnssSpoofingNavigationEffectEventRole_actor
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "actor" ;
+    world:participantClass world:UnmannedAircraft ;
+    rdfs:label "actor"@en .
+
+evt:GnssSpoofingNavigationEffectEventRole_signal
+    a aw:ParticipantRole ;
+    aw:participantRoleKey "signal" ;
+    world:participantClass dom:SpoofingSignal ;
+    rdfs:label "signal"@en .
+
+evt:GnssSpoofingNavigationEffectEvent
+    a aw:EventType ;
+    aw:eventTypeIdentifier "positioning.gnss_spoofing_navigation_effect_event" ;
+    aw:declaresParticipantRole evt:GnssSpoofingNavigationEffectEventRole_actor ,
+        evt:GnssSpoofingNavigationEffectEventRole_signal ;
+    rdfs:label "GNSS spoofing navigation effect"@en ,
+        "GNSS 欺骗导航影响事件"@zh ;
+    skos:definition "Objective positioning event in which spoofed positioning input affects a navigation estimate; the adversarial attack action itself belongs to digital security."@en ,
+        "欺骗定位输入影响导航估计的客观定位事件；攻击行为本身归入数字安全"@zh .
