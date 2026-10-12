@@ -1,0 +1,88 @@
+schema: aeroworld_l4_window_config
+version: 1
+group_key: L4-7_v1/seed01/grp_ambulance_response
+episode_id: L4-7_v1__seed01
+event_family: pedestrian_medical
+subject_class: vehicle
+entity_ids:
+- uav_detect_l4_7_v1
+- ped_fall_l4_7_v1
+- ambulance_fall_l4_7_v1
+predicate_ids:
+- safety.vehicle_pedestrian_conflict
+window:
+  start_tick: 365
+  fork_tick: 385
+  end_tick: 480
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/interaction/L4-7_v1/scene_setup.json
+  script: Dataset/scenarios/L4_agents/interaction/L4-7_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-7_v1__seed01/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-7_v1__seed01/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-7_v1__seed01/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-7_v1__seed01/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-7_v1__seed01/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-7_v1__seed01/event_outcomes.jsonl
+arm_id: arm_response_accelerated_arrival
+mode: intervention
+execution:
+  omit_action_ids: []
+  actions:
+  - tick: 385
+    action:
+      type: move_entity
+      action_id: arm_ambulance_approach_18mps_seed01
+      entity_id: ambulance_fall_l4_7_v1
+      waypoints_enu_m:
+      - - 6895.737
+        - 7149.788
+        - 0.0
+      - - 6889.739
+        - 7149.648
+        - 0.0
+      - - 6883.745
+        - 7149.507
+        - 0.0
+      - - 6877.733
+        - 7149.368
+        - 0.0
+      - - 6871.523
+        - 7149.4
+        - 0.0
+      - - 6865.525
+        - 7149.55
+        - 0.0
+      - - 6859.527
+        - 7149.691
+        - 0.0
+      - - 6853.529
+        - 7149.841
+        - 0.0
+      velocity_mps: 18.0
+  trigger_rewrites: []
+expected:
+  target_event: occurs
+  rationale: >-
+    The tick-385 intervention reuses all eight waypoints from the source
+    move_ambulance_to_fall action and changes only velocity_mps from 12.0 to
+    18.0. The source move dispatches first and the intervention then preempts it.
+    In the three-seed in-memory run, the 8 m condition first became true at
+    tick 408, its second consecutive true sample confirmed the gate at 409,
+    ambulance_arrived fired at 410, responder_handoff at 425, and
+    incident_documented at 455. The terminal ambulance-patient distance remained
+    the source-route value 1.399789269853992 m.
+  falsified_if: any source waypoint or the tick-385 dispatch changes, velocity_mps differs from 18.0, the two-sample 8 m gate is not confirmed before factual tick 417, or the successor nodes do not move earlier through their unchanged triggers
+script: scripts/arms/L4-7_v1/seed01/grp_ambulance_response/arm_response_accelerated_arrival.py
+output: arms/L4-7_v1/seed01/grp_ambulance_response/arm_response_accelerated_arrival
+provenance:
+  experiment_ref: design/L4-7_v1/seed01/grp_ambulance_response/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    event_script: Dataset/scenarios/L4_agents/interaction/L4-7_v1/event_script.json
+    canonical_event_trace: aw_data/render_ready_episodes_capture_filtered/L4-7_v1__seed01/event_trace.jsonl
+    canonical_trajectories: aw_data/render_ready_episodes_capture_filtered/L4-7_v1__seed01/trajectories.jsonl
+    event_family_authority: Dataset/semantic_rules/profiles/event_family_authority_mapping.json#families.pedestrian_medical
+    runtime_state_schedule: Dataset/semantic_rules/profiles/epi_runtime_state_schedules/l4_runtime_state_schedule.json
+    predicate_scope: pedestrian_medical has no authoritative predicate; config predicate_ids carries safety.vehicle_pedestrian_conflict, the only window-relevant computable predicate

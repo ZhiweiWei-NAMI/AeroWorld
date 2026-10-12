@@ -1,0 +1,268 @@
+# ARM 生成规则 —— uav_separation_conflict
+#
+# 命名约束：本文件名 uav_separation_conflict.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# ⚠ 这条族历史上有**专用 runner**，臂名与机制约束都和别的族不一样。
+#   先读下面的 ⓪ 段，再读 ④ 段。
+#
+# 冻结源（本文件只引用，不复制）：
+#   · 事件权威  Dataset/semantic_rules/profiles/event_family_authority_mapping.json#/families/uav_separation_conflict
+#   · 谓词注册  Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json#/templates/safety.aircraft_pair_below_separation
+# 本文件的每一条 mechanism 都对着 arms/ 里的真实臂核过：
+#   183 条臂 / 22 个 group_id（按 seed 计 66 个 (episode, group)）/ 9 个 profile
+#   （L1-3_v1, L1-3_v2, L4-1_v1, L4-1_v2, L4-10_v1, L4-10_v2, L4-11_v1, L4-11_v2,
+#    X4_fog_to_uav_conflict）
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: uav_separation_conflict
+
+# ─────────────────────────────────────────────────────────────
+# ⓪ 专用 runner —— 本族与"通用 runner 族"的全部差异都在这里
+# ─────────────────────────────────────────────────────────────
+generation:
+  runner: Dataset/tools/run_uav_separation_conflict_window_grounding.py
+  runner_selection: Dataset/tools/run_grounding_family_batch.py#FAMILY_CONFIG
+  # 选择理由的原文（run_grounding_family_batch.py:35-37）：
+  #   "The separation runner owns its complete objective path and has no
+  #    delta-only switch.  Passing the generic flag makes every group fail
+  #    at argparse before the simulator starts."
+  #   即：它总是自己走完整条 objective 路径，不接受 --skip-objective；
+  #   但产物布局与别的族一致（实测 183/183：delta_only=true,
+  #   trajectory_scope=intervention_delta_only, window_semantics_only=true）。
+  alternatives_source: Dataset/tools/rewrite_coupled_alternatives.py
+  alternatives_declared: [divert_vertical, hold_pair]   # FAMILY_ALTERNATIVES['uav_separation_conflict']，第 38 行
+  differences_from_generic_runner:
+    naming: >
+      不用 5 类意图命名。实测臂名只有 4 个：arm_factual / arm_divert_vertical /
+      arm_hold_pair / arm_delay（对应 intent：factual / divert / suppress / delay）。
+    no_tradeoff: >
+      没有 tradeoff 臂。FAMILY_ALTERNATIVES 只声明 ("divert_vertical","hold_pair")，
+      183 条臂里 0 条 arm_tradeoff_*。
+    move_only: >
+      机制步只允许 action_type=move_entity，且必须有 actor_id / velocity_mps / waypoints；
+      **抑制臂也一样**（runner 第 1558-1561 行："Suppression still requires an
+      actor/action declaration in this family; never infer one from the anchor event."）。
+    exact_geometry: >
+      落地动作必须与设计层几何逐坐标（1e-9）、逐速度相等；唯一例外是显式记录的
+      authored_vertical_layer_for_trigger_clearance 垂直修正（实测 183 条里 0 次触发）。
+    paired_actors: >
+      alternatives 生成器总是点名**每一个**可动耦合实体（rewrite_coupled_alternatives.py
+      docstring："Selected alternatives always name every movable coupled entity."）。
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/uav_separation_conflict
+  rule_id: event_family.uav_separation_conflict.0
+  mapping_class: A_direct
+  event_type_id: safety.aircraft_pair_conflict_event
+  trigger:
+    predicate_id: safety.aircraft_pair_below_separation
+    direction: rising
+  # 干预对象是**两架无人机**，角色名逐字取自 authority 的 trigger.event_role_sources
+  roles:
+    first_aircraft:  { kind: trigger_binding, ontology_class: UnmannedAircraft, predicate_role: first_aircraft }
+    second_aircraft: { kind: trigger_binding, ontology_class: UnmannedAircraft, predicate_role: second_aircraft }
+  support_conditions: []          # authority 里本族为空
+  terminal:                       # 快照：改定义请改源头
+    predicate_id: safety.aircraft_pair_below_separation
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [first_aircraft, second_aircraft]
+  authoritative_predicates:
+    - safety.aircraft_pair_below_separation
+    - emergency.aircraft_in_safe_hold
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  intervention_subject: [first_aircraft, second_aircraft]
+  # 证据（实测）：mapping_class=A_direct；183/183 条 manifest 都没有 *_authority 字段；
+  #   intervention_entity_ids 就是两架（如 ["uav_conflict_l4_1_v1_a","uav_conflict_l4_1_v1_b"]，
+  #   L1-3 组是 ["uav_l1_3_v1_primary","intruder_l1_3_v1"]，X4 组是 ["uav_x4_a","uav_x4_b"]）。
+  # → 间隔冲突是两机的飞行行为造成的，5 类意图全部合法（本族实际只交付了其中 4 类，见 ④）。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node
+  exclude_roles: []     # 本族**不排除终态/恢复节点**
+  # 实测恢复节点也在干预范围内：L1-3_v1/v2 grp_04_return_safe_airspace、
+  # L4-1_v1/v2 grp_04_resume_patrols、X4 grp_07_fog_conflict_recovered（共 45 条臂）
+  # anchor_event_id 由事件链给出，不在此硬编码
+
+# ─────────────────────────────────────────────────────────────
+# ④ 意图（本族交付 4 类，没有 tradeoff）
+#    键名是**意图**，不是 arm_id；臂名只在这里作为实测证据出现。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  # 4.1 基线
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    arm_ids: [arm_factual]
+    evidence:
+      arms: 66
+      ledger_flag: "factual_preserved=true"
+      # 实测 event_window_state：local_onset_observed 27 / not_observed 15 /
+      #   active_at_window_entry 12 / unknown 12（unknown 见 ⑦）
+
+  # 4.2 抑制：成对按住两架，让 pair 谓词不成立
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger
+    arm_ids: [arm_hold_pair]                       # → intent=suppress（intents.yaml: arm_hold*）
+    evidence:
+      arms: 51
+      suppression_basis: authored_trigger_and_causal_predecessor_closure
+      suppressed_event_ids_per_arm: { 1: 6, 3: 21, 4: 6, 5: 15, 6: 3 }   # 锚点 + 后继链
+      # 设计层为抑制写的 mechanism step 必须是 move_entity（velocity_mps=0.0 + 单航点），
+      # 落地的 hold 动作由 coupled_hold 注入事件执行（按住集合 ⊆ 耦合闭包）：
+      coupled_hold_injected: true
+      coupled_hold_coverage: { "按住 2 架": 39, "按住 1 架": 12 }
+      # manifest.intervention_entity_ids 是耦合闭包本身：2 个实体 45 条 / 1 个 6 条；
+      # 差集来自 L4-11 的 6 条臂——闭包含地面车 av_fault_*，但 authored 机制步只按住了无人机。
+    coupled_hold:
+      # 每架各 2 个动作：先给可见姿态，再给控制状态
+      action:
+        - step_kind: visual_state
+          visual_state: { mode: hold }
+        - step_kind: state_patch
+          state_patch: { control_state: { hold_active: true } }
+      injected_event_id_pattern: branch_coupled_hold_<arm_id>
+      injected_trigger: { type: tick, tick: fork_tick }
+
+  # 4.3 推迟
+  delay:
+    operation: delay_causal_event
+    arm_ids: [arm_delay]
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: governed_default
+        min: 20
+        max: 60
+        default: 20
+        # 生成公式仍是 clamp(window_duration_ticks // 3, 20, 60)（rewrite_coupled_alternatives.py:506）；
+        # 交付的 6 条臂落在 X4 的 50-tick 窗口上，所以实测只有 20。
+    evidence:
+      arms: 6                                       # 只在 X4/grp_02_fog_onset 与 grp_03_fog_threshold
+      delay_ticks_observed: { 20: 6 }                # 6/6 都是 20
+      repairs:
+        delay_applied_to_authored_tick_trigger: 3
+        delay_applied_after_measured_parent_dispatch: 3
+      coupled_hold_injected: false                   # ledger.coupled_hold = {injected: false, action_count: 0}
+      delay_mechanism_evidence: "authored postpone 步必须带 actor_id + action_type；6/6 记录在案"
+
+  # 4.4 绕开：垂直分层，把两机在高度上分开
+  divert:
+    operation: replace_causal_event
+    arm_ids: [arm_divert_vertical]
+    mechanism:
+      generator: move_entity
+      actor: roles.first_aircraft                   # 成对机制：每个可动耦合实体各一条 move
+      template:
+        - step_kind: move
+          actor_sequence: every_movable_coupled_entity
+          waypoints_enu_m:
+            source: generator_authored
+            mode: vertical_layer_offset
+            # 实测（arms/L4-1_v1/seed00/grp_02_converging_approach/arm_divert_vertical）：
+            #   第 1 架 [[x, y, 3.0], [x+12, y, 21.0]]     ← Δx=+12 m, Δz=+18 m
+            #   第 2 架 [[x, y, 3.0], [x−12, y, 0.0]]      ← Δx=−12 m, Δz=−8 m（z 下限 0）
+            offset_enu_m: { dx: "+12 / -12", dy: 0.0, dz: "+18 / -8", z_floor: 0.0 }
+          velocity_mps: { source: generator_authored, observed: 8.0 }
+      physics_intent: vertical_separation_layering
+    evidence:
+      arms: 60
+      actions_per_arm: { "2 条（两架都动）": 48, "1 条（该组只有一架可动）": 12 }
+      action_type: move_entity                       # 108/108 个动作
+      waypoints_per_action: 2                        # 108/108
+      velocity_mps: 8.0                              # 108/108
+      ledger_repairs: []                             # 60/60 无 repair
+
+  # 4.5 权衡 —— 本族**没有**这类臂，故意不写。
+  #
+  # tradeoff:
+  #   operation: replace_causal_event
+  #   → 交付库存里 0 条：183 条臂只有 arm_factual / arm_divert_vertical / arm_hold_pair / arm_delay。
+  #     alternatives_source 第 38 行只声明 ("divert_vertical","hold_pair")。
+  #     设计层确实还有 trade_off 候选（generator::staggered_waypoint_hover /
+  #     lateral_arc_detour / reduced_fog_transit_speed ...，见 design/episodes/*/groups/*.json），
+  #     但这个族的 runner 从没把它们落地成臂。
+  #     规则不替它编一条：要生成必须先改 alternatives_source（那是改代码，不是改规则）。
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick      # 实测 = 父代 dispatch_tick（runner 第 542 行硬校验，不等就 raise）
+  duration_ticks:
+    source: design_declared          # 实测 50 / 52 / 70 / 75 / 100 / 150
+  history_frames: 8
+  horizon_frames: 5
+  # manifest.window_end_tick 是执行/证据地平线（window_semantics_only=true），
+  # 不是观察窗口；扩展规则见 run_motion_family_delta_grounding.py:1405-1467。
+  # 实测 183 条臂：27 条 == candidate_end_tick，其余延长 11~66 tick。
+  evidence_horizon:
+    semantics: execution_and_evidence_only
+    max_tick: 900
+    extension_observed_ticks: [0, 11, 16, 21, 36, 51, 66]
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— rubric，不是结论
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # runner 的 G7_intent_comparison：factual 必须同时看到事件与谓词为真
+
+  suppress:
+    target_event: absent_in_window
+    # 实测 51 条 hold_pair：not_observed 24 / active_at_window_entry 9 /
+    #   local_onset_observed 6 / unknown 12。
+    # active_at_window_entry 的组上"窗口内不发生"不可达，判定必须看 coupled_hold
+    # 是否真的改变了 pair 状态，否则就是 DESIGN_INTENT_CONFLICT。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift: { approx: delay_ticks, tolerance_ticks: 5 }
+    # runner 原文：delayed target event tick differs from factual
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    generated_action_required: true
+    # 本族额外要求：生成动作的 actor/velocity/waypoints 必须与设计层机制步逐字段相等
+
+  # 4.5 已说明本族没有 tradeoff 臂，故此处不写 tradeoff 期望。
+
+  common:
+    intervention_must_change_engine_state: true
+    physically_valid: true
+    delta_rows_after_fork_only: true
+    no_pre_fork_delta: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "成对谓词需要两架绑定实体。L4-10/grp_05_uav_priority_capture 与 L4-11/grp_04_lane_blockage_report 只有一架可动耦合实体，36 条臂的 event_window_state=unknown（predicate_unknown_count 19/34/38）——这 36 条不能当通过，也不能当失败。"
+    - "X4 的 6 条延迟臂里，grp_02_fog_onset 的 3 条挂在雾事件上（family 仍标本族），coupled_hold 未注入且 intervention_entity_ids 达 49~56 个背景实体；只有 grp_03_fog_threshold 的 3 条是干净的两机延迟（uav_x4_a + uav_x4_b）。"
+    - "delayed 变体只覆盖 grp_02/grp_03 两组；4 个 authored event_fired_after 续接组走 ALLOWLISTED_EVENT_AFTER_DELAY_GROUPS 白名单，其余触发类型 fail-closed。"
+  not_claimed:
+    - "G10 整库发布审计（不在本规则范围内）"
+  open_questions:
+    - "TODO: 需确认——是否要把 tradeoff 类补进本族（要改 rewrite_coupled_alternatives.py 的 FAMILY_ALTERNATIVES，属于改代码）。"

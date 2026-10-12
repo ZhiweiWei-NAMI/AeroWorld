@@ -1,0 +1,268 @@
+# ARM 生成规则 —— gnss_spoofing_effect
+#
+# 命名约束：本文件名 gnss_spoofing_effect.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# ─────────────────────────────────────────────────────────────
+# 本文件的事实来源（全部在本机实测，可复跑）
+# ─────────────────────────────────────────────────────────────
+#   臂：267 条 = 39 个 (profile, seed, group) 三元组（13 组 × 3 seed）
+#       profile：L6-3_v1/v2（欺骗影响链）· X2_gnss_spoof_to_geofence_violation（欺骗→越界链）
+#     arm_id 分布：
+#       arm_factual                  39  → 意图 factual
+#       arm_no_op_suppress           39  → 意图 suppress
+#       arm_hold                     39  → 意图 suppress
+#       arm_delay_postpone           39  → 意图 delay（delay_ticks 恒为 30）
+#       arm_delay                    33  → 意图 delay（delay_ticks ∈ {20, 30, 33}）
+#       arm_avoid_*                  39  → 意图 divert（5 个变体）
+#       arm_tradeoff_*               39  → 意图 tradeoff（5 个变体）
+#
+#   证据命令：
+#     grep -rl '"event_family_id":"gnss_spoofing_effect"' \
+#       --include=branch_manifest.json arms/ | wc -l
+#     python 读 arms/L6-3_v1/seed00/grp_01_spoofing_start/*/raw/branch_event_ledger.jsonl
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: gnss_spoofing_effect
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    内容真实来源是 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里登记的是"指针 + 关键字段快照"，快照仅用于生成期自检，改定义请改源头。
+#    谓词注册表：Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/gnss_spoofing_effect
+  rule_id: event_family.gnss_spoofing_effect.0
+  mapping_class: A_direct
+  event_type_id: positioning.gnss_spoofing_navigation_effect_event
+  trigger:
+    predicate_id: positioning.gnss_spoofing_active
+    direction: rising
+  roles:
+    actor:  { kind: trigger_binding, ontology_class: UnmannedAircraft }
+    signal: { kind: trigger_binding, ontology_class: SpoofingSignal }
+  support_conditions: []          # authority 里就是空表
+  # authority 另登记两个"后果谓词"（快照，仅供自检；本规则不拿它们当触发）：
+  #   positioning.navigation_error_exceeds_tolerance
+  #   positioning.aircraft_deviates_from_planned_route
+  # terminal（快照）：positioning.gnss_spoofing_active = false，
+  #   hold_parameter = recovery_hold_samples，join_roles = [actor, signal]
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别：决定这条事件"能不能被人为改变"
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 实测回答"干预对象是谁"：**无人机（actor）**，不是欺骗信号。
+  #   267 条 manifest 的 intervention_entity_ids 只出现 uav_* 与 tower_* 两类前缀，
+  #   没有任何一条命名 SpoofingSignal —— signal 角色在事件权威里存在（触发元组要求它），
+  #   但没有任何臂去命令它：臂改变的是**受害机的导航/状态**（光学校验、拒止 GNSS、
+  #   惯性航位推算、地理围栏自主返转），tower_* 只在需要换链路定位时作为绑定端出现。
+  intervention_subject: actor
+  intervention_subject_bound: station   # 换链路定位时被一并 patch 的地面端（tower_*）
+  # 实测依据（不是推断）：
+  #   267 条 manifest 中 **0 条**含 `*_authority` 字段（无 scene_exogenous_* 声明）；
+  #   台账 operation ∈ {suppress, delay, replace} 且 status=applied 的臂共 228 条
+  #   （39 no_op_suppress + 39 hold + 39 delay_postpone + 33 delay + 39 avoid + 39 tradeoff）。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点：事件链上哪些节点能分叉
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # anchor_event_id 由事件链给出，不在此硬编码。
+  # 本族实测的链节点（39 组的 anchor_event_id）：
+  #   L6-3：spoofing_start · spoofed_route_offset · safety_route_lock · spoof_recovery
+  #   X2  ：spoofing_start · trajectory_offset · geofence_violation · safety_correction · route_recovered
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    通用骨架在 rules/intents.yaml；此处只写本族的差异。
+#    operation 只能取 4 个已注册值之一：
+#      reuse_factual_causal_event | suppress_causal_event
+#      delay_causal_event | replace_causal_event
+#
+#    键名是**意图**（factual/suppress/delay/divert/tradeoff），
+#    具体臂名由 rules/intents.yaml 的 arm_id_patterns 给出。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：arm_factual × 39，台账 operation=reuse_factual_causal_event、
+    #       factual_preserved=true、suppressed_event_ids=[]、generated_action_ids=[]
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 一致
+    # 实测：两个臂名都归到本意图 ——
+    #   arm_no_op_suppress × 39：只抑制锚点（suppressed 1~6 条），无 coupled_hold。
+    #   arm_hold × 39：抑制锚点的因果前驱闭包（suppressed 2~6 条），并注入
+    #     branch_coupled_hold_<arm> 事件。
+    #     台账：suppression_basis=authored_trigger_and_causal_predecessor_closure、
+    #           suppression_scope=whole_event_bundle_and_branch_ledger、
+    #           coupled_hold.injected=true。
+    #     注入动作实测全部是 set_runtime_state：
+    #       state_patch: {control_state: {hold_active: true}}
+    #     UAV 端另带一条 set_visual_state（mode: hold）—— 渲染层标注，
+    #     引擎状态变更由 set_runtime_state 承担。
+    coupled_hold:
+      required: true
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.actor          # UAV 悬停保持
+        actor_bound: roles.station  # 需要时同步链路另一端
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+
+  delay:
+    operation: delay_causal_event
+    # 实测两条臂名，参数来源不同，都归本意图：
+    #   arm_delay_postpone × 39：delay_ticks 恒为 30（authority=rule）。
+    #   arm_delay × 33：delay_ticks ∈ {20×21, 33×9, 30×3}（authority=scene）。
+    #   两条臂名都不派发实体动作：generated_action_ids 恒为空。
+    #   33 条 arm_delay 另带 coupled_hold；39 条 arm_delay_postpone 不带。
+    #   重定时对象是锚点自己的触发（tick / event_fired_after / entity_proximity 三种形态）。
+    mechanism: none
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: rule        # rule（arm_delay_postpone）| scene（arm_delay）
+        min: 20
+        max: 33
+        default: 30
+        by_arm_id_pattern:
+          arm_delay_postpone: { authority: rule,  value: 30 }
+          arm_delay:          { authority: scene }
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.actor
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: spoof_independent_guidance_path   # 不靠 GNSS 的航迹（视觉/光学校验）
+      physics_intent: navigate_without_gnss
+      # 诚实快照：本意图 39 条臂两种 generator 都真实存在：
+      #   21 条含 move_entity（全部落在 uav_*，带 waypoints_enu_m + velocity_mps）
+      #   18 条含 set_runtime_state（tower 12 / uav 6）
+      #     state_patch: {control_state: {hold_active: true}}
+      # 上表的 generator 取多数派（move_entity）。
+      # 注意 observed_variants 是**动作类型快照**（每项都是已注册 generator 的列表），
+      # 不是可选的 generator 值本身。
+      observed_variants:
+        - { generators: [set_runtime_state], arms: 18 }
+    # 实测：arm_avoid_* × 39，operation=replace_causal_event。5 个变体：
+    #   arm_avoid_pure_visual_waypoint_guidance(12) · arm_avoid_hard_geofence_autonomous_reversal(12)
+    #   arm_avoid_optical_crosscheck_drift_correction(6) · arm_avoid_gnss_rejection_optical_lock(6)
+    #   arm_avoid_spoof_detection_hover_standoff(3)
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: set_runtime_state
+      actor: roles.actor
+      actor_bound: roles.station
+      template:
+        - step_kind: state_patch
+          state_patch:
+            communication_state:
+              mode: alternate_link          # 蜂窝/RF 信标定位，或惯性推算降级飞行
+      physics_intent: degraded_navigation_keep_flying
+      # 诚实快照：本意图 39 条臂的 generator 分布如下（多数派 = set_runtime_state）：
+      #   21 条含 set_runtime_state（tower 12 / uav 9）
+      #    6 条含 move_entity —— 且**全部落在 tower_* 上**（见 limits.known_conflicts）
+      #   18 条**什么动作都不派发**：arm_tradeoff_geofence_boundary_loiter(12)
+      #     与 arm_tradeoff_inertial_dead_reckoning_stop(6)。台账对它们写下的
+      #     repairs 是 [{kind: stationary_hold_omits_zero_length_move, omitted_steps: 1}]
+      #     —— 执行器显式省略了零长度位移；引擎状态未被改动，按 no_effect 风险处理。
+      observed_variants:
+        - { generators: [move_entity], arms: 6 }
+        - { generators: [],            arms: 18 }
+    # 实测：arm_tradeoff_* × 39，operation=replace_causal_event。5 个变体：
+    #   arm_tradeoff_geofence_boundary_loiter(12) · arm_tradeoff_cellular_rf_beacon_guidance(12)
+    #   arm_tradeoff_inertial_dead_reckoning_stop(6) · arm_tradeoff_inertial_corridor_hold(6)
+    #   arm_tradeoff_switch_to_cellular_positioning(3)
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/*/manifest.json
+    # 实测：window_end_tick − fork_tick ∈ [50, 195]，无常数可写。
+    #       195/267 条 manifest 带 window_end_basis
+    #         {candidate_end_tick, modeled_motion[], parent_evidence_end_tick}
+    #       且 window_semantics_only=true；72/267 条是早期形态，没有该字段。
+  history_frames: 8
+  horizon_frames: 5
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+
+  suppress:
+    target_event: absent_in_window
+    # 若 factual 里该事件本就没发生，这组标 not_intervenable，而不是干预成功
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 「绕开欺骗」只能是受害机改用自己的导航源后不再满足
+    # positioning.gnss_spoofing_active 的上升沿；不能表现为欺骗信号消失。
+
+  tradeoff:
+    differs_from_factual: true
+    # tradeoff 允许定位持续劣化（事件仍发生），但状态轨迹必须与 factual 可辨
+
+  # 所有 alternative 臂共用的最低要求
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "arm_tradeoff_geofence_boundary_loiter(12) 与 arm_tradeoff_inertial_dead_reckoning_stop(6)
+       的 generated_action_ids 为空，台账 repairs=
+       [{kind: stationary_hold_omits_zero_length_move, omitted_steps: 1}]：
+       执行器显式省略了零长度位移，引擎状态未被改动 → 有被判 no_effect 的风险。
+       判定前应确认该省略是否等价于'不做干预'。"
+    - "arm_tradeoff_inertial_corridor_hold 的 6 条臂在 **地面站** tower_* 上带 move_entity
+       （velocity_mps=4.5，waypoints 为 [[6600.0,6500.0,30.0],[6620.0,6510.0,30.0]]）。
+       把固定站当移动平台是可疑的落点来源（同一形态在 jamming_gcs_intrusion 也出现）。
+       # TODO: 需确认 —— 本规则只登记事实，不替执行器改判。"
+    - "21 条 arm_avoid_* 只做位移、18 条只做运行时补丁，两者不混写；
+       规则声明单一 generator，跨 generator 的混写必须由执行器显式选择。"
+  not_claimed:
+    - G10 整库发布审计（不在本规则范围内）
+    - "SpoofingSignal 角色：本族没有任何臂可以寻址它，规则也不允许为它编造干预臂。"
+    - "X2 链的 geofence_violation 与 restricted_region_intrusion 族的边界：
+       本规则只覆盖以 spoofing_start 为根的那条链，不声称覆盖禁飞区族本身的干预语义。"

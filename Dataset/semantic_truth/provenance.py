@@ -3,11 +3,60 @@
 from __future__ import annotations
 
 import hashlib
+import io
+from contextlib import contextmanager
+
 import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+import zstandard
+
 from .model import EvalResult, SemanticCompileError
+
+
+OBJECTIVE_PLAIN_JSONL_NAMES = frozenset({
+    "evidence_observations.jsonl", "l0_predicate_state.jsonl",
+    "domain_state_observations.jsonl", "communication_state.jsonl",
+    "compute_state.jsonl", "compute_predicate_truth.jsonl", "utm_log.jsonl",
+})
+_ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
+
+
+@contextmanager
+def open_artifact_binary(path: Path):
+    """Open logical artifact bytes, decoding a standard zstd frame if present."""
+    with Path(path).open("rb") as raw:
+        if raw.peek(4)[:4] == _ZSTD_MAGIC:
+            with zstandard.ZstdDecompressor().stream_reader(
+                raw, read_across_frames=True, closefd=False
+            ) as decoder:
+                with io.BufferedReader(decoder) as stream:
+                    yield stream
+        else:
+            yield raw
+
+
+@contextmanager
+def open_artifact_text(path: Path, *, encoding: str = "utf-8"):
+    """Open a forward text reader over the artifact's logical bytes."""
+    with open_artifact_binary(path) as binary:
+        with io.TextIOWrapper(binary, encoding=encoding) as stream:
+            yield stream
+
+
+@contextmanager
+def open_objective_text(path: Path, *, artifact_name: str | None = None):
+    """Write objective JSONL with its final name's storage policy."""
+    name = Path(artifact_name).name if artifact_name is not None else Path(path).name
+    if name.endswith(".jsonl") and name not in OBJECTIVE_PLAIN_JSONL_NAMES:
+        with Path(path).open("wb") as raw:
+            with zstandard.ZstdCompressor(level=3).stream_writer(raw, closefd=False) as encoder:
+                with io.TextIOWrapper(encoder, encoding="utf-8", newline="\n") as stream:
+                    yield stream
+    else:
+        with Path(path).open("w", encoding="utf-8", newline="\n") as stream:
+            yield stream
 
 
 # Integrity metadata emitted by the semantic producers. These exact members
@@ -62,7 +111,7 @@ def digest_object(value: Any) -> str:
 
 def digest_file(path: Path) -> str:
     hasher = hashlib.sha256()
-    with path.open("rb") as handle:
+    with open_artifact_binary(path) as handle:
         while True:
             chunk = handle.read(1024 * 1024)
             if not chunk:
@@ -85,7 +134,7 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def read_jsonl(path: Path) -> Iterable[dict[str, Any]]:
-    with path.open("r", encoding="utf-8-sig") as handle:
+    with open_artifact_text(path, encoding="utf-8-sig") as handle:
         for line_number, line in enumerate(handle, start=1):
             text = line.strip()
             if not text:

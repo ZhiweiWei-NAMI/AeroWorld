@@ -13,6 +13,8 @@ for _p in (ROOT, ROOT / 'Dataset/tools', ROOT / 'Plugins/SumoImporter/Scripts'):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+from Dataset.semantic_truth.provenance import open_artifact_text
+
 TICK_HZ = 10
 FORMAL_STEP_TICKS = 5
 RUNTIME_FAMILIES = ('control_state', 'communication_state', 'navigation_state',
@@ -31,7 +33,7 @@ def load(path: Path | str) -> Any:
 
 
 def rows(path: Path | str) -> list[dict]:
-    with Path(path).open(encoding='utf-8-sig') as handle:
+    with open_artifact_text(Path(path), encoding='utf-8-sig') as handle:
         return [json.loads(line) for line in handle if line.strip()]
 
 

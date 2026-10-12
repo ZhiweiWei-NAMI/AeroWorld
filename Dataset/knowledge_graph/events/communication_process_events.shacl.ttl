@@ -1,0 +1,180 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/communication_process#> .
+@prefix shape: <https://w3id.org/aeroworld/ontology/events/communication_process/shapes#> .
+
+<https://w3id.org/aeroworld/ontology/events/communication_process/shapes>
+    a owl:Ontology ;
+    owl:imports <https://w3id.org/aeroworld/ontology/events/communication_process> ;
+    owl:versionInfo "0.3.0" .
+
+shape:StableEventTypeShape
+    a sh:NodeShape ;
+    sh:targetClass aw:EventType ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:eventTypeIdentifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:class aw:ParticipantRole ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "One event type cannot declare duplicate participant-role keys."@en ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this aw:declaresParticipantRole ?left, ?right .
+                ?left aw:participantRoleKey ?key .
+                ?right aw:participantRoleKey ?key .
+                FILTER (?left != ?right)
+            }
+        """
+    ] .
+
+shape:CompleteParticipantRoleShape
+    a sh:NodeShape ;
+    sh:targetObjectsOf aw:declaresParticipantRole ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:participantRoleKey ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:participantClass ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1
+    ] .
+
+shape:CommunicationStationFailureEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:CommunicationStationFailureEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( evt:CommunicationStationFailureEventRole_station )
+    ] .
+
+shape:MessageTransmissionEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:MessageTransmissionEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 3 ;
+        sh:maxCount 3 ;
+        sh:in ( evt:MessageTransmissionEventRole_attempt evt:MessageTransmissionEventRole_message evt:MessageTransmissionEventRole_allocation )
+    ] .
+
+shape:MessageRetransmissionEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:MessageRetransmissionEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 3 ;
+        sh:maxCount 3 ;
+        sh:in ( evt:MessageRetransmissionEventRole_retransmission evt:MessageRetransmissionEventRole_original_attempt evt:MessageRetransmissionEventRole_message )
+    ] .
+
+shape:CommunicationSessionStartEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:CommunicationSessionStartEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 3 ;
+        sh:maxCount 3 ;
+        sh:in ( evt:CommunicationSessionStartEventRole_session evt:CommunicationSessionStartEventRole_station evt:CommunicationSessionStartEventRole_data_flow )
+    ] .
+
+shape:CommunicationSessionInterruptionEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:CommunicationSessionInterruptionEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 3 ;
+        sh:maxCount 3 ;
+        sh:in ( evt:CommunicationSessionInterruptionEventRole_session evt:CommunicationSessionInterruptionEventRole_station evt:CommunicationSessionInterruptionEventRole_data_flow )
+    ] .
+
+shape:CommunicationHandoverEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:CommunicationHandoverEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 4 ;
+        sh:maxCount 4 ;
+        sh:in ( evt:CommunicationHandoverEventRole_handover evt:CommunicationHandoverEventRole_session evt:CommunicationHandoverEventRole_source_station evt:CommunicationHandoverEventRole_target_station )
+    ] .
+
+shape:ChannelAllocationChangeEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:ChannelAllocationChangeEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:ChannelAllocationChangeEventRole_allocation evt:ChannelAllocationChangeEventRole_data_flow )
+    ] .
+
+shape:BandwidthAllocationChangeEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:BandwidthAllocationChangeEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:BandwidthAllocationChangeEventRole_reservation evt:BandwidthAllocationChangeEventRole_data_flow )
+    ] .
+
+shape:C2LinkLossEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:C2LinkLossEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:C2LinkLossEventRole_actor evt:C2LinkLossEventRole_station )
+    ] .
+
+shape:C2LinkDegradationEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:C2LinkDegradationEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:C2LinkDegradationEventRole_actor evt:C2LinkDegradationEventRole_station )
+    ] .

@@ -1,0 +1,83 @@
+# ARM 生成规则 —— 空白模板
+#
+# 新事件族从这里抄。文件名必须逐字等于 event_family_id。
+# 填完后跑：python Dataset/tools/validate_arm_rules.py
+#
+# 两条最容易踩的：
+#   1. causality.class 必填，且只能是 agent_caused / exogenous
+#   2. exogenous 的族不许写 suppress / delay / divert / tradeoff 臂
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: REPLACE_ME                  # 必须等于 event_family_id
+
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/REPLACE_ME
+  rule_id: REPLACE_ME               # 形如 event_family.<family>.<n>
+  event_type_id: REPLACE_ME
+  trigger:
+    predicate_id: REPLACE_ME
+    direction: rising               # rising | falling
+    # 复合事件用 any_of: [ {predicate_id, direction, event_type_id}, ... ]
+  roles: {}                         # role -> {kind, ontology_class}
+  support_conditions: []            # [{predicate_id, value, at, join_roles}]
+
+causality:
+  class: REPLACE_ME                 # agent_caused | exogenous
+  intervenable: REPLACE_ME          # bool
+  intervention_subject: REPLACE_ME  # agent_caused 时填角色名；exogenous 填 none
+
+nodes:
+  selector: chain_node
+  exclude_roles: [terminal]
+
+arms:
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+
+  # agent_caused 的族才填下面四段；exogenous 的族整段删掉。
+  #
+  # suppress:
+  #   operation: suppress_causal_event
+  #   scope: whole_event_bundle_and_branch_ledger
+  #
+  # delay:
+  #   operation: delay_causal_event
+  #   parameters:
+  #     delay_ticks: { type: integer, authority: rule, min: 10, max: 60, default: 30 }
+  #
+  # divert:
+  #   operation: replace_causal_event
+  #   mechanism:
+  #     generator: move_entity        # move_entity | set_runtime_state
+  #     actor: roles.<role>
+  #     template: []
+  #     physics_intent: REPLACE_ME
+  #
+  # tradeoff:
+  #   operation: replace_causal_event
+  #   mechanism:
+  #     generator: set_runtime_state
+  #     actor: roles.<role>
+  #     template: []
+  #     physics_intent: REPLACE_ME
+
+window:
+  fork_tick: { source: anchor_trigger_tick }
+  duration_ticks: { source: design_declared }
+  history_frames: 8
+  horizon_frames: 5
+
+expect:
+  factual: { target_event: occurs }
+  common:
+    intervention_must_change_engine_state: true
+    physically_valid: true
+    delta_rows_after_fork_only: true
+
+limits:
+  known_conflicts: []
+  not_claimed:
+    - "G10 整库发布审计"

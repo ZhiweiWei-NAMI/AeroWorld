@@ -1,8 +1,5 @@
-from .interfaces import CaptureSidecar, MapPackage, RuntimeFrameRecord, ScenarioPackage
+"""Server-side declarative event-script interpreter package."""
 
-__all__ = [
-    "CaptureSidecar",
-    "MapPackage",
-    "RuntimeFrameRecord",
-    "ScenarioPackage",
-]
+from .event_script_interpreter import EventScriptInterpreter
+
+__all__ = ["EventScriptInterpreter"]

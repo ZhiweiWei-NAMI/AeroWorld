@@ -1,0 +1,67 @@
+"""Dedicated ARM entry for L6-5_v1 / seed02 / grp_abnormal_uav_behavior / arm_factual.
+
+窗口为 [265,395]，fork=270，采用 after_state_sample_before_actions。
+机制：no_intervention_factual_baseline。
+
+实验假设：无干预基线在窗口 [265, 270, 395] 内按实测网格运行：gcs_intrusion@240，gcs_anchor_l6_5_v1 的入侵补丁 241 生效；abnormal_uav_behavior@270，异常航段 299 完成；command_lockout@305，GCS/UAV 锁定补丁 306/310 生效，4 m/s 纠偏在 369 完成；secure_recovery@380，GCS/UAV 安全状态在 381/385 清零。正式主谓词于 385 转 false，在 385/390/395 完成三样本恢复保持。普通 landing@460 位于声明窗口之外。
+
+时间与运动模型：仿真为 10 Hz 分段线性运动，事件依赖在 5 tick 网格派发。abnormal_uav_behavior@270 的两段位移时长为 ceil(2/9×10)=3 tick 和 ceil(23.3238076/9×10)=26 tick，故异常航段在 299 完成；command_lockout 的依赖候选为 270+31=301，向上对齐到 305；25.4950976 m 的 factual 纠偏按 4 m/s 需 ceil(25.4950976/4×10)=64 tick，在 369 完成；secure_recovery 的候选为 305+71=376，向上对齐到 380。GCS/UAV 恢复补丁分别在 381/385 生效；正式谓词首个 false 样本为 385，三样本恢复保持为 385/390/395，所以共同闭窗 tick 为 395。
+
+证伪条件：若无干预运行未实测到 240/270/305/380 的事件网格、异常航段未在 299 完成、纠偏未在 369 完成、381/385 恢复补丁未生效，或正式主事件未在 395 终止，则该 factual 基线无效。
+"""
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[5]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Dataset.tools.l6_v2.arm_runtime import ArmSpec, run_arm
+
+# factual 不执行取消、省略、注入或重定时；完整机制见 SPEC。
+
+SPEC = ArmSpec(
+    profile='L6-5_v1',
+    seed='seed02',
+    anchor_event_id='abnormal_uav_behavior',
+    arm_id='arm_factual',
+    mode='factual_observation',
+    role='factual',
+    window_start_tick=265,
+    window_fork_tick=270,
+    window_end_tick=395,
+    primary_predicate='security.ground_control_station_compromised',
+    subject_entity_ids=('uav_digital_l6_5_v1',),
+    mechanism={'kind': 'no_intervention_factual_baseline',
+ 'cancel_event_ids': [],
+ 'omit_action_ids': [],
+ 'injections': []},
+    retime=None,
+    omit_action_ids=(),
+    inject_actions=(),
+    cancel_event_ids=(),
+    hypothesis='无干预基线在窗口 [265, 270, 395] 内按实测网格运行：gcs_intrusion@240，gcs_anchor_l6_5_v1 的入侵补丁 241 生效；abnormal_uav_behavior@270，异常航段 299 完成；command_lockout@305，GCS/UAV 锁定补丁 306/310 生效，4 m/s 纠偏在 369 完成；secure_recovery@380，GCS/UAV 安全状态在 381/385 清零。正式主谓词于 385 转 false，在 385/390/395 完成三样本恢复保持。普通 landing@460 位于声明窗口之外。',
+    falsified_if='若无干预运行未实测到 240/270/305/380 的事件网格、异常航段未在 299 完成、纠偏未在 369 完成、381/385 恢复补丁未生效，或正式主事件未在 395 终止，则该 factual 基线无效。',
+    window_basis='闭区间 [265,395]，fork=270，phase=after_state_sample_before_actions。窗口从异常事件前一正式采样点开始；根事件作为带来源摘要的窗前事实引用。仿真为 10 Hz 分段线性运动，事件依赖在 5 tick 网格派发。abnormal_uav_behavior@270 的两段位移时长为 ceil(2/9×10)=3 tick 和 ceil(23.3238076/9×10)=26 tick，故异常航段在 299 完成；command_lockout 的依赖候选为 270+31=301，向上对齐到 305；25.4950976 m 的 factual 纠偏按 4 m/s 需 ceil(25.4950976/4×10)=64 tick，在 369 完成；secure_recovery 的候选为 305+71=376，向上对齐到 380。GCS/UAV 恢复补丁分别在 381/385 生效；正式谓词首个 false 样本为 385，三样本恢复保持为 385/390/395，所以共同闭窗 tick 为 395。普通 landing@460 不属于 needed nodes，也不参与成功或证伪判断。',
+    window_needed_nodes=({'event_id': 'gcs_intrusion',
+  'tick': 240,
+  'entity_id': 'gcs_anchor_l6_5_v1',
+  'role': 'factual_root'},
+ {'event_id': 'abnormal_uav_behavior',
+  'tick': 270,
+  'entity_id': 'uav_digital_l6_5_v1',
+  'role': 'factual_abnormal_segment'},
+ {'event_id': 'command_lockout',
+  'tick': 305,
+  'entity_id': 'gcs_anchor_l6_5_v1',
+  'role': 'factual_lockout_response'},
+ {'event_id': 'secure_recovery',
+  'tick': 380,
+  'entity_id': 'gcs_anchor_l6_5_v1',
+  'role': 'factual_security_recovery'}),
+    window_censored=False,
+    group_suffix='',
+)
+
+if __name__ == "__main__":
+    run_arm(SPEC)

@@ -1,0 +1,155 @@
+{
+  "anchor_event": "charger_unavailable",
+  "arm_id": "arm_primary_charger_repaired_before_reroute",
+  "entity_ids": [
+    "charger_primary_l2_3_v2",
+    "uav_l2_3_v2"
+  ],
+  "episode_id": "L2-3_v2__seed00",
+  "execution": {
+    "actions": [
+      {
+        "action": {
+          "action_id": "l2_arm_primary_charger_repair",
+          "delay_ticks": 0,
+          "entity_id": "charger_primary_l2_3_v2",
+          "state_patch": {
+            "facility_state": {
+              "availability": "available",
+              "fault": false
+            }
+          },
+          "type": "set_runtime_state"
+        },
+        "tick": 400
+      },
+      {
+        "action": {
+          "action_id": "l2_arm_primary_charger_selected",
+          "delay_ticks": 0,
+          "entity_id": "uav_l2_3_v2",
+          "state_patch": {
+            "navigation_state": {
+              "primary_charger_selected": true,
+              "replan_active": false
+            }
+          },
+          "type": "set_runtime_state"
+        },
+        "tick": 400
+      },
+      {
+        "action": {
+          "action_id": "l2_arm_primary_charger_available",
+          "entity_id": "charger_primary_l2_3_v2",
+          "type": "set_visual_state",
+          "visual_state": {
+            "mode": "available"
+          }
+        },
+        "tick": 400
+      },
+      {
+        "action": {
+          "action_id": "l2_arm_primary_charger_return",
+          "activity_type": "return_to_pad",
+          "entity_id": "uav_l2_3_v2",
+          "post_activity_type": "landed",
+          "terminal_feasibility": {
+            "landing_reference_enu_m": [
+              7763.075,
+              6134.824,
+              0.0
+            ]
+          },
+          "type": "move_entity",
+          "velocity_mps": 4.0,
+          "waypoints_enu_m": [
+            [
+              7781.164,
+              6120.265,
+              10.0
+            ],
+            [
+              7763.075,
+              6134.824,
+              0.0
+            ]
+          ]
+        },
+        "tick": 405
+      },
+      {
+        "action": {
+          "action_id": "l2_arm_primary_charger_charging",
+          "entity_id": "uav_l2_3_v2",
+          "type": "set_visual_state",
+          "visual_state": {
+            "mode": "charging"
+          }
+        },
+        "tick": 475
+      },
+      {
+        "action": {
+          "action_id": "l2_arm_primary_charger_serving",
+          "entity_id": "charger_primary_l2_3_v2",
+          "type": "set_visual_state",
+          "visual_state": {
+            "mode": "serving"
+          }
+        },
+        "tick": 475
+      }
+    ],
+    "omit_action_ids": [
+      "move_uav_backup_charger",
+      "set_backup_charger_reserved",
+      "set_runtime_state_l2_3_v2_reroute_backup_charger_00",
+      "set_runtime_state_l2_3_v2_reroute_backup_charger_01"
+    ]
+  },
+  "expected": {
+    "falsified_if": "UAV 仍飞往备用充电站，或主站故障未在窗口内终止。",
+    "rationale": "检查后快速修复主站：故障先真实发生并被 UAV 检查确认，修复后 UAV 返回主站充电，不再改航备用站；设施状态决定 UAV 去哪个站。",
+    "target_event": "occurs"
+  },
+  "experiment": "design/L2-3_v2/seed00/grp_charger_unavailable__uav_inspects_charger/experiment.json",
+  "group_key": "L2-3_v2/seed00/grp_charger_unavailable__uav_inspects_charger",
+  "mode": "intervention",
+  "output": "arms/L2-3_v2/seed00/grp_charger_unavailable__uav_inspects_charger/arm_primary_charger_repaired_before_reroute",
+  "predicate_ids": [
+    "facility.charging_station_unavailable",
+    "facility.charging_queue_over_capacity"
+  ],
+  "profile": "L2-3_v2",
+  "provenance": {
+    "experiment_ref": "design/L2-3_v2/seed00/grp_charger_unavailable__uav_inspects_charger/experiment.json",
+    "parameter_sources": {
+      "factual_root": "aw_data",
+      "window_basis": "闭区间 [235,495]；240 为动作前共享检查点。观察 charger_unavailable → uav_inspects_charger 的局部过程和分支直接后果；终点保留实跑观察范围，恢复、无事件或截断按实际谓词与事件判定，不声称覆盖完整生命周期。factual 由当前引擎无干预执行，冻结 episode 仅作来源及背景引用。"
+    }
+  },
+  "schema": "aeroworld_l2_window_config",
+  "script": "scripts/arms/L2-3_v2/seed00/grp_charger_unavailable__uav_inspects_charger/arm_primary_charger_repaired_before_reroute.py",
+  "seed": "seed00",
+  "sources": {
+    "roster": "aw_data/render_ready_episodes_capture_filtered/L2-3_v2__seed00/global_entity_roster.json",
+    "scene": "Dataset/scenarios/L2_infrastructure/failure/L2-3_v2/scene_setup.json",
+    "script": "Dataset/scenarios/L2_infrastructure/failure/L2-3_v2/event_script.json",
+    "trajectories": "aw_data/render_ready_episodes_capture_filtered/L2-3_v2__seed00/trajectories.jsonl",
+    "weather": "aw_data/render_ready_episodes_capture_filtered/L2-3_v2__seed00/weather_meta.jsonl"
+  },
+  "target_families": [
+    "charger_unavailable",
+    "charging_queue_over_capacity"
+  ],
+  "version": 1,
+  "window": {
+    "end_tick": 495,
+    "fork_tick": 240,
+    "intervention_order": "source_actions_then_intervention",
+    "phase": "after_state_sample_before_actions",
+    "start_tick": 235
+  }
+}

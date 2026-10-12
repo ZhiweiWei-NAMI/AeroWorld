@@ -1,0 +1,757 @@
+schema: aeroworld.world-truth-predicate-contracts.v3
+version: 3.0.0
+scope_types: [uav, vehicle, pedestrian, facility, compute_node, scene]
+materialization: tick0_grounded_candidate_base_plus_add_set_remove_delta
+predicate_execution:
+  policy: explicit_partition_no_default
+  executable_l1_predicate_ids:
+  - airspace.aircraft_inside_restricted_airspace
+  - airspace.aircraft_inside_protected_airspace
+  - airspace.aircraft_is_non_cooperative
+  - airspace.aircraft_outside_assigned_altitude_band
+  - airspace.aircraft_occupies_airspace_corridor
+  - airspace.aircraft_moving_in_corridor
+  - airspace.aircraft_stationary_in_corridor
+  - airspace.airspace_corridor_over_capacity
+  - airspace.aircraft_airborne
+  - airspace.aircraft_at_home_pad
+  - airspace.aircraft_touchdown
+  - airspace.aircraft_in_landing_zone
+  - ground.vehicle_moving_in_lane
+  - ground.vehicle_stopped_in_lane
+  - ground.vehicle_queue_exceeds_length
+  - ground.road_segment_closed
+  - ground.pedestrian_in_crosswalk
+  - ground.traffic_signal_malfunction_active
+  - regulation.traffic_signal_applies_to_vehicle
+  - regulation.vehicle_crosses_stop_line_on_red
+  - regulation.vehicle_exceeds_posted_speed
+  - regulation.vehicle_violates_following_distance
+  - regulation.pedestrian_has_crosswalk_priority
+  - safety.aircraft_pair_below_separation
+  - safety.aircraft_near_building_structure
+  - safety.aircraft_near_ground_vehicle
+  - safety.aircraft_near_pedestrian
+  - safety.vehicle_pedestrian_conflict
+  - safety.crowd_evacuation_active
+  - facility.aircraft_battery_low
+  - facility.charging_station_unavailable
+  - facility.charging_queue_over_capacity
+  - facility.landing_pad_occupied
+  - facility.landing_pad_contention
+  - communication.link_unavailable
+  - communication.link_degraded
+  - communication.message_transmission_failed
+  - communication.channel_bandwidth_over_allocated
+  - communication.communication_session_interrupted
+  - communication.handover_in_progress
+  - communication.data_flow_latency_above_threshold
+  - communication.packet_loss_above_threshold
+  - communication.retransmission_in_progress
+  - compute.compute_node_unavailable
+  - compute.compute_task_queued
+  - compute.compute_resource_over_allocated
+  - compute.compute_task_offloaded
+  - compute.compute_task_migrating
+  - compute.compute_task_execution_failed
+  - compute.compute_task_deadline_missed
+  - positioning.gnss_quality_degraded
+  - positioning.gnss_spoofing_active
+  - positioning.navigation_error_exceeds_tolerance
+  - positioning.aircraft_deviates_from_planned_route
+  - environment.rain_active
+  - environment.fog_active
+  - environment.visibility_below_threshold
+  - environment.wind_speed_above_threshold
+  - environment.low_illumination_active
+  - environment.temperature_outside_operating_range
+  - security.ground_control_station_compromised
+  - security.communication_jamming_impact_active
+  - emergency.temporary_no_fly_zone_active
+  - emergency.emergency_isolation_active
+  - emergency.aircraft_in_return_to_home
+  - emergency.mission_aborted
+  - emergency.aircraft_in_safe_hold
+  - utm.airspace_authorization_active
+  - utm.airspace_authorization_revoked
+  - utm.flight_plan_approved
+  - utm.operational_intent_conflict
+  - utm.deconfliction_active
+  non_executable_predicates:
+    safety.forced_landing_in_populated_area:
+      reason_code: missing_populated_area_individual_authority
+      missing_authorities:
+      - {kind: ontology_role_individual, ontology_class: PopulatedArea}
+      closure_statement: No L0 producer materializes a real, typed PopulatedArea individual; pedestrian or vehicle identifiers must not be relabeled as areas.
+    security.unauthorized_command_received:
+      reason_code: missing_unauthorized_command_individual_authority
+      missing_authorities:
+      - {kind: ontology_role_individual, ontology_class: UnauthorizedCommand}
+      closure_statement: Command-source validity is state evidence only; no L0 producer materializes a typed UnauthorizedCommand individual.
+    security.security_control_unavailable:
+      reason_code: missing_cyber_security_control_individual_authority
+      missing_authorities:
+      - {kind: ontology_role_individual, ontology_class: CyberSecurityControl}
+      closure_statement: Lockout state is not a CyberSecurityControl individual, and no L0 producer materializes that required participant.
+    security.control_command_integrity_violated:
+      reason_code: missing_command_stream_individual_authority
+      missing_authorities:
+      - {kind: ontology_role_individual, ontology_class: CommandStream}
+      closure_statement: Command-integrity state is not a CommandStream individual, and no L0 producer materializes that required participant.
+    emergency.evacuation_in_progress:
+      reason_code: missing_evacuation_route_individual_authority
+      missing_authorities:
+      - {kind: ontology_role_individual, ontology_class: EvacuationRoute}
+      closure_statement: Crowd evacuation state exists, but no L0 producer materializes a real, typed EvacuationRoute participant.
+    emergency.emergency_vehicle_priority_active:
+      reason_code: missing_ambulance_priority_passage_individual_authority
+      missing_authorities:
+      - {kind: ontology_role_individual, ontology_class: AmbulancePriorityPassage}
+      - {kind: supporting_individual, ontology_class: EmergencyResponse}
+      closure_statement: Typed ambulance and right-of-way state do not materialize the required AmbulancePriorityPassage or EmergencyResponse lifecycle individual.
+    regulation.vehicle_violates_right_of_way:
+      reason_code: missing_right_of_way_state_authority
+      missing_authorities:
+      - {kind: runtime_state_field, field: vehicle_state.right_of_way_state}
+      closure_statement: SUMO materializes typed RightOfWay identities for controlled connections, but no scenario or physical producer materializes a nominal or violation state for a bound vehicle and RightOfWay tuple.
+predicates:
+  airspace.aircraft_inside_restricted_airspace:
+    tuple_type: aircraft_restricted_region
+    scope_types: [uav]
+    fields:
+    - [geometry.restricted_region_active, derived/plan_window_computer, bool]
+    - [geometry.minimum_restricted_boundary_distance_m, derived/geometric_computer, m]
+    thresholds: [boundary_margin_m]
+    evaluation: {op: all, args: [{op: truthy, field: geometry.restricted_region_active}, {op: lte, field: geometry.minimum_restricted_boundary_distance_m, threshold: boundary_margin_m}]}
+    expression: region_active AND signed_distance_to_boundary_m <= boundary_margin_m
+  airspace.aircraft_inside_protected_airspace:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [geometry.inside_protected_airspace, derived/geometric_computer, bool]
+    evaluation: {op: truthy, field: geometry.inside_protected_airspace}
+    expression: inside_protected_airspace
+  airspace.aircraft_is_non_cooperative:
+    tuple_type: aircraft
+    scope_types: [uav]
+    fields:
+    - [plan.cooperative_flag, derived/plan_window_computer, bool]
+    evaluation: {op: falsy, field: plan.cooperative_flag}
+    expression: NOT cooperative_flag
+  airspace.aircraft_outside_assigned_altitude_band:
+    tuple_type: aircraft
+    scope_types: [uav]
+    fields:
+    - [geometry.position_z_m, derived/geometric_computer, m]
+    - [geometry.assigned_altitude_m, derived/geometric_computer, m]
+    thresholds: [altitude_tolerance_m]
+    evaluation: {op: absolute_difference_gt, left: geometry.position_z_m, right: geometry.assigned_altitude_m, threshold: altitude_tolerance_m}
+    expression: abs(position_z_m - assigned_altitude_m) > altitude_tolerance_m
+  airspace.aircraft_occupies_airspace_corridor:
+    tuple_type: aircraft_corridor
+    scope_types: [uav]
+    fields:
+    - [geometry.aircraft_inside_corridor, derived/geometric_computer, bool]
+    evaluation: {op: truthy, field: geometry.aircraft_inside_corridor}
+    expression: aircraft_inside_corridor
+  airspace.aircraft_moving_in_corridor:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [geometry.aircraft_inside_corridor, derived/geometric_computer, bool]
+    - [geometry.speed_mps, derived/geometric_computer, m/s]
+    thresholds: [aircraft_stationary_speed_threshold_mps]
+    evaluation: {op: all, args: [{op: truthy, field: geometry.aircraft_inside_corridor}, {op: gt, field: geometry.speed_mps, threshold: aircraft_stationary_speed_threshold_mps}]}
+    expression: aircraft_inside_corridor AND speed_mps > aircraft_stationary_speed_threshold_mps
+  airspace.aircraft_stationary_in_corridor:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [geometry.aircraft_inside_corridor, derived/geometric_computer, bool]
+    - [geometry.speed_mps, derived/geometric_computer, m/s]
+    thresholds: [aircraft_stationary_speed_threshold_mps]
+    evaluation: {op: all, args: [{op: truthy, field: geometry.aircraft_inside_corridor}, {op: lte, field: geometry.speed_mps, threshold: aircraft_stationary_speed_threshold_mps}]}
+    expression: aircraft_inside_corridor AND speed_mps <= aircraft_stationary_speed_threshold_mps
+  airspace.airspace_corridor_over_capacity:
+    tuple_type: corridor
+    scope_types: [scene]
+    fields:
+    - [scene.maximum_corridor_occupancy_count, derived/geometric_computer, aircraft]
+    - [scene.maximum_corridor_capacity, derived/geometric_computer, aircraft]
+    evaluation: {op: gt_fields, left: scene.maximum_corridor_occupancy_count, right: scene.maximum_corridor_capacity}
+    expression: maximum_corridor_occupancy_count > maximum_corridor_capacity
+  airspace.aircraft_airborne:
+    tuple_type: aircraft
+    scope_types: [uav]
+    fields:
+    - [geometry.z_agl_m, derived/geometric_computer, m]
+    - [geometry.local_ground_reference_z_m, derived/geometric_computer, m]
+    thresholds: [airborne_threshold_m]
+    evaluation: {op: gt, field: geometry.z_agl_m, threshold: airborne_threshold_m}
+    expression: local-ground z_agl_m > airborne_threshold_m
+  airspace.aircraft_at_home_pad:
+    tuple_type: aircraft_home_pad
+    scope_types: [uav]
+    fields:
+    - [geometry.xy_distance_to_home_pad_m, derived/geometric_computer, m]
+    - [geometry.home_pad_id, derived/geometric_computer, identifier]
+    thresholds: [home_pad_radius_m]
+    evaluation: {op: lte, field: geometry.xy_distance_to_home_pad_m, threshold: home_pad_radius_m}
+    expression: xy_distance_to_home_pad_m <= home_pad_radius_m
+  airspace.aircraft_touchdown:
+    tuple_type: aircraft
+    scope_types: [uav]
+    fields:
+    - [geometry.z_agl_m, derived/geometric_computer, m]
+    - [geometry.speed_mps, derived/geometric_computer, m/s]
+    thresholds: [touchdown_threshold_m, aircraft_stationary_speed_threshold_mps]
+    evaluation: {op: all, args: [{op: lte, field: geometry.z_agl_m, threshold: touchdown_threshold_m}, {op: lte, field: geometry.speed_mps, threshold: aircraft_stationary_speed_threshold_mps}]}
+    expression: z_agl_m <= touchdown_threshold_m AND speed_mps <= aircraft_stationary_speed_threshold_mps
+  airspace.aircraft_in_landing_zone:
+    tuple_type: aircraft_landing_zone
+    scope_types: [uav]
+    fields:
+    - [geometry.xy_distance_to_assigned_landing_zone_m, derived/geometric_computer, m]
+    - [geometry.assigned_landing_zone_id, derived/geometric_computer, identifier]
+    thresholds: [landing_zone_radius_m]
+    evaluation: {op: lte, field: geometry.xy_distance_to_assigned_landing_zone_m, threshold: landing_zone_radius_m}
+    expression: xy_distance_to_assigned_landing_zone_m <= landing_zone_radius_m
+
+  ground.vehicle_moving_in_lane:
+    tuple_type: world_scope
+    scope_types: [vehicle]
+    fields:
+    - [truth.lane_id, truth/truth_frames.jsonl, identifier]
+    - [truth.speed_mps, truth/truth_frames.jsonl, m/s]
+    thresholds: [vehicle_stopped_speed_threshold_mps]
+    evaluation: {op: all, args: [{op: present, field: truth.lane_id}, {op: gt, field: truth.speed_mps, threshold: vehicle_stopped_speed_threshold_mps}]}
+    expression: lane_id is present AND speed_mps > vehicle_stopped_speed_threshold_mps
+  ground.vehicle_stopped_in_lane:
+    tuple_type: world_scope
+    scope_types: [vehicle]
+    fields:
+    - [truth.lane_id, truth/truth_frames.jsonl, identifier]
+    - [truth.speed_mps, truth/truth_frames.jsonl, m/s]
+    thresholds: [vehicle_stopped_speed_threshold_mps]
+    evaluation: {op: all, args: [{op: present, field: truth.lane_id}, {op: lte, field: truth.speed_mps, threshold: vehicle_stopped_speed_threshold_mps}]}
+    expression: lane_id is present AND speed_mps <= vehicle_stopped_speed_threshold_mps
+  ground.vehicle_queue_exceeds_length:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [domain.signal_queue.queue_vehicle_count, domain_state_supplement/domain_state_observations.jsonl, vehicle]
+    thresholds: [queue_length_threshold_vehicles]
+    evaluation: {op: gt, field: domain.signal_queue.queue_vehicle_count, threshold: queue_length_threshold_vehicles}
+    expression: queue_vehicle_count > queue_length_threshold_vehicles
+  ground.road_segment_closed:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [domain.road_closure.road_closed, domain_state_supplement/domain_state_observations.jsonl, bool]
+    evaluation: {op: truthy, field: domain.road_closure.road_closed}
+    expression: road_closed
+  ground.pedestrian_in_crosswalk:
+    tuple_type: world_scope
+    scope_types: [pedestrian]
+    fields:
+    - [truth.in_crosswalk, truth/truth_frames.jsonl, bool]
+    evaluation: {op: truthy, field: truth.in_crosswalk}
+    expression: in_crosswalk
+  ground.traffic_signal_malfunction_active:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [domain.signal_queue.controller_health, domain_state_supplement/domain_state_observations.jsonl, state-code]
+    evaluation: {op: equals, field: domain.signal_queue.controller_health, value: all_red_fault}
+    expression: controller_health = all_red_fault
+
+  regulation.traffic_signal_applies_to_vehicle:
+    tuple_type: world_scope
+    scope_types: [vehicle]
+    fields:
+    - [truth.controlling_signal_id, truth/truth_frames.jsonl, identifier]
+    evaluation: {op: present, field: truth.controlling_signal_id}
+    expression: controlling_signal_id is present
+  regulation.vehicle_crosses_stop_line_on_red:
+    tuple_type: world_scope
+    scope_types: [vehicle]
+    fields:
+    - [truth.crossed_stop_line, truth/truth_frames.jsonl, bool]
+    - [truth.controlling_signal_state, truth/truth_frames.jsonl, state-code]
+    evaluation: {op: all, args: [{op: truthy, field: truth.crossed_stop_line}, {op: equals, field: truth.controlling_signal_state, value: red}]}
+    expression: crossed_stop_line AND controlling_signal_state = red
+  regulation.vehicle_exceeds_posted_speed:
+    tuple_type: world_scope
+    scope_types: [vehicle]
+    fields:
+    - [truth.speed_mps, truth/truth_frames.jsonl, m/s]
+    - [truth.posted_speed_limit_mps, truth/truth_frames.jsonl, m/s]
+    evaluation: {op: gt_fields, left: truth.speed_mps, right: truth.posted_speed_limit_mps}
+    expression: speed_mps > posted_speed_limit_mps
+  regulation.vehicle_violates_right_of_way:
+    tuple_type: world_scope
+    scope_types: [vehicle]
+    expression: right_of_way_state = violation
+  regulation.vehicle_violates_following_distance:
+    tuple_type: world_scope
+    scope_types: [vehicle]
+    fields:
+    - [truth.following_distance_m, truth/truth_frames.jsonl#sumo_vehicle.following_distance_m, m]
+    thresholds: [following_distance_threshold_m]
+    evaluation: {op: lt, field: truth.following_distance_m, threshold: following_distance_threshold_m}
+    expression: following_distance_m < following_distance_threshold_m
+  regulation.pedestrian_has_crosswalk_priority:
+    tuple_type: world_scope
+    scope_types: [pedestrian]
+    fields:
+    - [truth.in_crosswalk, truth/truth_frames.jsonl, bool]
+    evaluation: {op: truthy, field: truth.in_crosswalk}
+    expression: in_crosswalk
+
+  safety.aircraft_pair_below_separation:
+    tuple_type: aircraft_pair
+    scope_types: [uav]
+    fields:
+    - [derived.nearest_aircraft_distance_m, derived/geometric_computer, m]
+    thresholds: [separation_margin_m]
+    evaluation: {op: lt, field: derived.nearest_aircraft_distance_m, threshold: separation_margin_m}
+    expression: nearest_aircraft_distance_m < separation_margin_m
+  safety.aircraft_near_building_structure:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [derived.nearest_building_distance_m, derived/geometric_computer, m]
+    thresholds: [safety_near_structure_m]
+    evaluation: {op: lt, field: derived.nearest_building_distance_m, threshold: safety_near_structure_m}
+    expression: nearest_building_distance_m < safety_near_structure_m
+  safety.aircraft_near_ground_vehicle:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [derived.nearest_ground_vehicle_distance_m, derived/geometric_computer, m]
+    thresholds: [safety_near_vehicle_m]
+    evaluation: {op: lt, field: derived.nearest_ground_vehicle_distance_m, threshold: safety_near_vehicle_m}
+    expression: nearest_ground_vehicle_distance_m < safety_near_vehicle_m
+  safety.aircraft_near_pedestrian:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [derived.nearest_pedestrian_distance_m, derived/geometric_computer, m]
+    thresholds: [safety_near_pedestrian_m]
+    evaluation: {op: lt, field: derived.nearest_pedestrian_distance_m, threshold: safety_near_pedestrian_m}
+    expression: nearest_pedestrian_distance_m < safety_near_pedestrian_m
+  safety.vehicle_pedestrian_conflict:
+    tuple_type: world_scope
+    scope_types: [vehicle]
+    fields:
+    - [derived.nearest_pedestrian_distance_m, derived/geometric_computer, m]
+    thresholds: [vehicle_pedestrian_conflict_m]
+    evaluation: {op: lt, field: derived.nearest_pedestrian_distance_m, threshold: vehicle_pedestrian_conflict_m}
+    expression: nearest_pedestrian_distance_m < vehicle_pedestrian_conflict_m
+  safety.crowd_evacuation_active:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [domain.crowd_evacuation.evacuation_active, domain_state_supplement/domain_state_observations.jsonl, bool]
+    evaluation: {op: truthy, field: domain.crowd_evacuation.evacuation_active}
+    expression: evacuation_active
+  safety.forced_landing_in_populated_area:
+    tuple_type: world_scope
+    scope_types: [uav]
+    expression: forced landing occurs within a real typed PopulatedArea
+
+  facility.aircraft_battery_low:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [domain.payload_energy.state_of_charge_ratio, domain_state_supplement/domain_state_observations.jsonl, ratio]
+    thresholds: [battery_low_ratio]
+    evaluation: {op: lt, field: domain.payload_energy.state_of_charge_ratio, threshold: battery_low_ratio}
+    expression: state_of_charge_ratio < battery_low_ratio
+  facility.charging_station_unavailable:
+    tuple_type: world_scope
+    scope_types: [facility]
+    fields:
+    - [domain.pad_facility.availability, domain_state_supplement/domain_state_observations.jsonl, state-code]
+    evaluation: {op: equals, field: domain.pad_facility.availability, value: unavailable}
+    expression: availability = unavailable
+  facility.charging_queue_over_capacity:
+    tuple_type: world_scope
+    scope_types: [facility]
+    fields:
+    - [domain.pad_facility.requester_count, domain_state_supplement/domain_state_observations.jsonl, aircraft]
+    - [domain.pad_facility.capacity, domain_state_supplement/domain_state_observations.jsonl, aircraft]
+    evaluation: {op: gt_fields, left: domain.pad_facility.requester_count, right: domain.pad_facility.capacity}
+    expression: requester_count > capacity
+  facility.landing_pad_occupied:
+    tuple_type: world_scope
+    scope_types: [facility]
+    fields:
+    - [domain.pad_facility.occupied, domain_state_supplement/domain_state_observations.jsonl, bool]
+    evaluation: {op: truthy, field: domain.pad_facility.occupied}
+    expression: occupied
+  facility.landing_pad_contention:
+    tuple_type: world_scope
+    scope_types: [facility]
+    fields:
+    - [domain.pad_facility.pair_contention, domain_state_supplement/domain_state_observations.jsonl, bool]
+    evaluation: {op: truthy, field: domain.pad_facility.pair_contention}
+    expression: both aircraft are simultaneous requesters for the same landing pad
+
+  communication.link_unavailable: &communication_direct
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [direct_predicate_value, compute_comm_supplement/predicate_truth.jsonl, four-value]
+    evaluation: {op: direct_truth, field: direct_predicate_value}
+    expression: compute/communication governed predicate value
+  communication.link_degraded: *communication_direct
+  communication.message_transmission_failed: *communication_direct
+  communication.channel_bandwidth_over_allocated: *communication_direct
+  communication.communication_session_interrupted: *communication_direct
+  communication.handover_in_progress: *communication_direct
+  communication.data_flow_latency_above_threshold: *communication_direct
+  communication.packet_loss_above_threshold: *communication_direct
+  communication.retransmission_in_progress: *communication_direct
+
+  compute.compute_node_unavailable: &compute_direct
+    tuple_type: world_scope
+    scope_types: [compute_node]
+    fields:
+    - [direct_predicate_value, compute_comm_supplement/predicate_truth.jsonl, four-value]
+    evaluation: {op: direct_truth, field: direct_predicate_value}
+    expression: compute/communication governed predicate value
+  compute.compute_task_queued: *compute_direct
+  compute.compute_resource_over_allocated: *compute_direct
+  compute.compute_task_offloaded: *compute_direct
+  compute.compute_task_migrating: *compute_direct
+  compute.compute_task_execution_failed: *compute_direct
+  compute.compute_task_deadline_missed: *compute_direct
+
+  positioning.gnss_quality_degraded:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [domain.gnss_navigation.quality_level, domain_state_supplement/domain_state_observations.jsonl, state-code]
+    evaluation: {op: in, field: domain.gnss_navigation.quality_level, values: [degraded, spoofing_suspect]}
+    expression: quality_level in {degraded, spoofing_suspect}
+  positioning.gnss_spoofing_active:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [domain.gnss_navigation.gnss_spoofed, domain_state_supplement/domain_state_observations.jsonl, bool]
+    evaluation: {op: truthy, field: domain.gnss_navigation.gnss_spoofed}
+    expression: the governed SpoofingSignal actively affects the aircraft
+  positioning.navigation_error_exceeds_tolerance:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [domain.gnss_navigation.position_error_m, domain_state_supplement/domain_state_observations.jsonl, m]
+    thresholds: [gnss_error_tolerance_m]
+    evaluation: {op: gt, field: domain.gnss_navigation.position_error_m, threshold: gnss_error_tolerance_m}
+    expression: position_error_m > gnss_error_tolerance_m
+  positioning.aircraft_deviates_from_planned_route:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [navigation.path_deviation, derived/control_response_state, bool]
+    evaluation: {op: truthy, field: navigation.path_deviation}
+    expression: path_deviation
+
+  environment.rain_active:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [weather.rain, truth/weather_meta.jsonl, ratio]
+    thresholds: [rain_active_threshold]
+    evaluation: {op: gt, field: weather.rain, threshold: rain_active_threshold}
+    expression: rain > rain_active_threshold
+  environment.fog_active:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [weather.fog_density, truth/weather_meta.jsonl, ratio]
+    thresholds: [fog_density_threshold]
+    evaluation: {op: gt, field: weather.fog_density, threshold: fog_density_threshold}
+    expression: fog_density > fog_density_threshold
+  environment.visibility_below_threshold:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [weather.visibility_m, truth/weather_meta.jsonl, m]
+    thresholds: [visibility_threshold_m]
+    evaluation: {op: lt, field: weather.visibility_m, threshold: visibility_threshold_m}
+    expression: visibility_m < visibility_threshold_m
+  environment.wind_speed_above_threshold:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [weather.wind_speed, truth/weather_meta.jsonl, m/s]
+    thresholds: [wind_speed_threshold_mps]
+    evaluation: {op: gt, field: weather.wind_speed, threshold: wind_speed_threshold_mps}
+    expression: wind_speed > wind_speed_threshold_mps
+  environment.low_illumination_active:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [weather.illumination_lux, truth/weather_meta.jsonl, lux]
+    thresholds: [low_illumination_threshold_lux]
+    evaluation: {op: lt, field: weather.illumination_lux, threshold: low_illumination_threshold_lux}
+    expression: illumination_lux < low_illumination_threshold_lux
+  environment.temperature_outside_operating_range:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [weather.temperature_c, truth/weather_meta.jsonl, degC]
+    thresholds: [temperature_min_c, temperature_max_c]
+    evaluation: {op: outside_range, field: weather.temperature_c, minimum: temperature_min_c, maximum: temperature_max_c}
+    expression: temperature_c < temperature_min_c OR temperature_c > temperature_max_c
+
+  security.ground_control_station_compromised:
+    tuple_type: world_scope
+    scope_types: [facility]
+    fields:
+    - [domain.security_command.auth_state, domain_state_supplement/domain_state_observations.jsonl, state-code]
+    evaluation: {op: equals, field: domain.security_command.auth_state, value: compromised}
+    expression: auth_state = compromised
+  security.unauthorized_command_received:
+    tuple_type: world_scope
+    scope_types: [uav]
+    expression: the aircraft receives a real typed UnauthorizedCommand
+  security.communication_jamming_impact_active:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [domain.security_command.jamming_indicator, domain_state_supplement/domain_state_observations.jsonl, bool]
+    evaluation: {op: truthy, field: domain.security_command.jamming_indicator}
+    expression: jamming_indicator for the exact aircraft-station link is true
+  security.security_control_unavailable:
+    tuple_type: world_scope
+    scope_types: [facility]
+    expression: a real typed CyberSecurityControl is unavailable
+  security.control_command_integrity_violated:
+    tuple_type: world_scope
+    scope_types: [uav]
+    expression: integrity is violated on a real typed CommandStream
+
+  emergency.temporary_no_fly_zone_active:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [scene.restricted_region_active, derived/runtime_region_state, bool]
+    evaluation: {op: truthy, field: scene.restricted_region_active}
+    expression: any temporary no-fly region is active
+  emergency.emergency_isolation_active:
+    tuple_type: world_scope
+    scope_types: [scene]
+    fields:
+    - [scene.emergency_isolation_active, domain_state_supplement/domain_state_observations.jsonl, bool]
+    evaluation: {op: truthy, field: scene.emergency_isolation_active}
+    expression: emergency_isolation_active
+  emergency.evacuation_in_progress:
+    tuple_type: world_scope
+    scope_types: [scene]
+    expression: evacuation progresses along a real typed EvacuationRoute
+  emergency.emergency_vehicle_priority_active:
+    tuple_type: world_scope
+    scope_types: [vehicle]
+    expression: a real typed AmbulancePriorityPassage response is active
+  emergency.aircraft_in_return_to_home:
+    tuple_type: aircraft
+    scope_types: [uav]
+    fields:
+    - [plan.rth_mode_active, derived/plan_window_computer, bool]
+    evaluation: {op: truthy, field: plan.rth_mode_active}
+    expression: rth_mode_active
+  emergency.mission_aborted:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [control.mission_abort_active, derived/control_response_state, bool]
+    evaluation: {op: truthy, field: control.mission_abort_active}
+    expression: mission_abort_active
+  emergency.aircraft_in_safe_hold:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [control.safe_hold_active, derived/control_response_state, bool]
+    evaluation: {op: truthy, field: control.safe_hold_active}
+    expression: safe_hold_active
+
+  utm.airspace_authorization_active:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [utm.authorization.status, utm_supplement/airspace_authorization_log.jsonl, state-code]
+    evaluation: {op: equals, field: utm.authorization.status, value: active}
+    expression: authorization.status = active
+  utm.airspace_authorization_revoked:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [utm.authorization.status, utm_supplement/airspace_authorization_log.jsonl, state-code]
+    evaluation: {op: equals, field: utm.authorization.status, value: revoked}
+    expression: authorization.status = revoked
+  utm.flight_plan_approved:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [utm.flight_plan.approval_status, utm_supplement/flight_plan_log.jsonl, state-code]
+    evaluation: {op: equals, field: utm.flight_plan.approval_status, value: approved}
+    expression: flight_plan.approval_status = approved
+  utm.operational_intent_conflict:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [utm.operational_intent.conflict_active, utm_supplement/operational_intent_pair_log.jsonl, bool]
+    evaluation: {op: truthy, field: utm.operational_intent.conflict_active}
+    expression: operational_intent.conflict_active
+  utm.deconfliction_active:
+    tuple_type: world_scope
+    scope_types: [uav]
+    fields:
+    - [utm.deconfliction.resolution_status, utm_supplement/deconfliction_log.jsonl, state-code]
+    evaluation: {op: equals, field: utm.deconfliction.resolution_status, value: active}
+    expression: deconfliction.resolution_status = active
+
+# The ontology role set and this executable grounding table jointly define the
+# L1 candidate relation.  Runtime code may interpret these declarations; it
+# may not introduce predicate-specific role aliases or fabricated entity IDs.
+grounding_specs:
+  airspace.aircraft_inside_restricted_airspace: {candidate_authority: {kind: domain_observation, source: predicate_contract_aircraft_region_geometry}, role_sources: {actor: {kind: record, path: values.aircraft_id}, restricted_region: {kind: record, path: values.restricted_region_id}}, field_sources: {geometry.restricted_region_active: record:values.restricted_region_active, geometry.minimum_restricted_boundary_distance_m: record:values.signed_distance_to_boundary_m}, distinct_role_sets: [], unordered_role_sets: []}
+  airspace.aircraft_inside_protected_airspace: {candidate_authority: {kind: domain_observation, source: predicate_contract_aircraft_protected_region_geometry}, role_sources: {aircraft: {kind: record, path: values.aircraft_id}, protected_region: {kind: record, path: values.protected_region_id}}, field_sources: {geometry.inside_protected_airspace: record:values.inside_protected_airspace}, distinct_role_sets: [], unordered_role_sets: []}
+  airspace.aircraft_is_non_cooperative: {candidate_authority: {kind: scope_entity, source: global_entity_roster.json#uav}, role_sources: {aircraft: {kind: scope_entity}}, field_sources: {plan.cooperative_flag: context:plan.cooperative_flag}, distinct_role_sets: [], unordered_role_sets: []}
+  airspace.aircraft_outside_assigned_altitude_band: {candidate_authority: {kind: scope_entity, source: global_entity_roster.json#uav}, role_sources: {actor: {kind: scope_entity}}, field_sources: {geometry.position_z_m: context:geometry.position_z_m, geometry.assigned_altitude_m: context:geometry.assigned_altitude_m}, distinct_role_sets: [], unordered_role_sets: []}
+  airspace.aircraft_occupies_airspace_corridor: &aircraft_corridor_grounding
+    candidate_authority: {kind: domain_observation, source: predicate_contract_aircraft_corridor_geometry}
+    role_sources: {actor: {kind: record, path: values.aircraft_id}, corridor: {kind: record, path: values.corridor_id}}
+    field_sources: {geometry.aircraft_inside_corridor: record:values.aircraft_inside_corridor}
+    distinct_role_sets: []
+    unordered_role_sets: []
+  airspace.aircraft_moving_in_corridor:
+    <<: *aircraft_corridor_grounding
+    field_sources: {geometry.aircraft_inside_corridor: record:values.aircraft_inside_corridor, geometry.speed_mps: record:values.speed_mps}
+  airspace.aircraft_stationary_in_corridor:
+    <<: *aircraft_corridor_grounding
+    field_sources: {geometry.aircraft_inside_corridor: record:values.aircraft_inside_corridor, geometry.speed_mps: record:values.speed_mps}
+  airspace.airspace_corridor_over_capacity: {candidate_authority: {kind: domain_observation, source: predicate_contract_corridor_geometry}, role_sources: {corridor: {kind: record, path: values.corridor_id}}, field_sources: {scene.maximum_corridor_occupancy_count: record:values.corridor_occupancy_count, scene.maximum_corridor_capacity: record:values.corridor_capacity}, distinct_role_sets: [], unordered_role_sets: []}
+  airspace.aircraft_airborne: {candidate_authority: {kind: scope_entity, source: global_entity_roster.json#uav}, role_sources: {aircraft: {kind: scope_entity}}, field_sources: {geometry.z_agl_m: context:geometry.z_agl_m, geometry.local_ground_reference_z_m: context:geometry.local_ground_reference_z_m}, distinct_role_sets: [], unordered_role_sets: []}
+  airspace.aircraft_at_home_pad: {candidate_authority: {kind: scope_relation, source: predicate_contract_aircraft_geometry}, role_sources: {aircraft: {kind: scope_entity}, home_pad: {kind: context, path: geometry.home_pad_id}}, field_sources: {geometry.xy_distance_to_home_pad_m: context:geometry.xy_distance_to_home_pad_m, geometry.home_pad_id: context:geometry.home_pad_id}, distinct_role_sets: [], unordered_role_sets: []}
+  airspace.aircraft_touchdown: {candidate_authority: {kind: scope_entity, source: global_entity_roster.json#uav}, role_sources: {aircraft: {kind: scope_entity}}, field_sources: {geometry.z_agl_m: context:geometry.z_agl_m, geometry.speed_mps: context:geometry.speed_mps}, distinct_role_sets: [], unordered_role_sets: []}
+  airspace.aircraft_in_landing_zone: {candidate_authority: {kind: scope_relation, source: predicate_contract_aircraft_geometry}, role_sources: {aircraft: {kind: scope_entity}, landing_zone: {kind: context, path: geometry.assigned_landing_zone_id}}, field_sources: {geometry.xy_distance_to_assigned_landing_zone_m: context:geometry.xy_distance_to_assigned_landing_zone_m, geometry.assigned_landing_zone_id: context:geometry.assigned_landing_zone_id}, distinct_role_sets: [], unordered_role_sets: []}
+
+  ground.vehicle_moving_in_lane: &vehicle_lane_grounding
+    candidate_authority: {kind: scope_relation, source: truth_frames.jsonl#sumo_vehicle}
+    role_sources: {vehicle: {kind: scope_entity}, lane: {kind: context, path: truth.lane_id}}
+    field_sources: {truth.lane_id: context:truth.lane_id, truth.speed_mps: context:truth.speed_mps}
+    distinct_role_sets: []
+    unordered_role_sets: []
+  ground.vehicle_stopped_in_lane: *vehicle_lane_grounding
+  ground.vehicle_queue_exceeds_length: {candidate_authority: {kind: domain_observation, source: signal_queue_lane_state}, role_sources: {road_element: {kind: record, path: values.queue_lane_id}}, field_sources: {domain.signal_queue.queue_vehicle_count: record:values.queue_vehicle_count}, distinct_role_sets: [], unordered_role_sets: []}
+  ground.road_segment_closed: {candidate_authority: {kind: domain_observation, source: road_segment_state}, role_sources: {road_segment: {kind: record, path: values.road_segment_id}}, field_sources: {domain.road_closure.road_closed: record:values.road_closed}, distinct_role_sets: [], unordered_role_sets: []}
+  ground.pedestrian_in_crosswalk: &pedestrian_crosswalk_grounding
+    candidate_authority: {kind: scope_relation, source: scene_setup.json#crosswalk_anchor}
+    role_sources: {pedestrian: {kind: scope_entity}, crosswalk: {kind: context, path: truth.crosswalk_id}}
+    field_sources: {truth.in_crosswalk: context:truth.in_crosswalk}
+    distinct_role_sets: []
+    unordered_role_sets: []
+  ground.traffic_signal_malfunction_active: {candidate_authority: {kind: domain_observation, source: traffic_signal_state}, role_sources: {signal: {kind: record, path: values.signal_id}}, field_sources: {domain.signal_queue.controller_health: record:values.controller_health}, distinct_role_sets: [], unordered_role_sets: []}
+
+  regulation.traffic_signal_applies_to_vehicle: {candidate_authority: {kind: scope_relation, source: truth_frames.jsonl#sumo_vehicle.controlling_signal_id}, role_sources: {signal: {kind: context, path: truth.controlling_signal_id}, vehicle: {kind: scope_entity}}, field_sources: {truth.controlling_signal_id: context:truth.controlling_signal_id}, distinct_role_sets: [], unordered_role_sets: []}
+  regulation.vehicle_crosses_stop_line_on_red: {candidate_authority: {kind: scope_relation, source: truth_frames.jsonl#sumo_vehicle.stop_line_id}, role_sources: {vehicle: {kind: scope_entity}, stop_line: {kind: context, path: truth.stop_line_id}, signal: {kind: context, path: truth.controlling_signal_id}}, field_sources: {truth.crossed_stop_line: context:truth.crossed_stop_line, truth.controlling_signal_state: context:truth.controlling_signal_state}, distinct_role_sets: [], unordered_role_sets: []}
+  regulation.vehicle_exceeds_posted_speed: {candidate_authority: {kind: scope_relation, source: truth_frames.jsonl#sumo_vehicle.speed_limit_regulation_id}, role_sources: {vehicle: {kind: scope_entity}, regulation: {kind: context, path: truth.speed_limit_regulation_id}}, field_sources: {truth.speed_mps: context:truth.speed_mps, truth.posted_speed_limit_mps: context:truth.posted_speed_limit_mps}, distinct_role_sets: [], unordered_role_sets: []}
+  regulation.vehicle_violates_following_distance: {candidate_authority: {kind: scope_relation, source: truth_frames.jsonl#sumo_vehicle.leading_vehicle_id}, role_sources: {following_vehicle: {kind: scope_entity}, leading_vehicle: {kind: context, path: truth.leading_vehicle_id}, rule: {kind: context, path: truth.following_distance_rule_id}}, field_sources: {truth.following_distance_m: context:truth.following_distance_m}, distinct_role_sets: [[following_vehicle, leading_vehicle]], unordered_role_sets: []}
+  regulation.pedestrian_has_crosswalk_priority: *pedestrian_crosswalk_grounding
+
+  safety.aircraft_pair_below_separation: {candidate_authority: {kind: domain_observation, source: predicate_contract_aircraft_pair_geometry}, role_sources: {first_aircraft: {kind: record, path: values.first_aircraft_id}, second_aircraft: {kind: record, path: values.second_aircraft_id}}, field_sources: {derived.nearest_aircraft_distance_m: record:values.pair_distance_m}, distinct_role_sets: [[first_aircraft, second_aircraft]], unordered_role_sets: [[first_aircraft, second_aircraft]]}
+  safety.aircraft_near_building_structure: {candidate_authority: {kind: domain_observation, source: predicate_contract_aircraft_structure_geometry}, role_sources: {aircraft: {kind: record, path: values.aircraft_id}, structure: {kind: record, path: values.structure_id}}, field_sources: {derived.nearest_building_distance_m: record:values.distance_m}, distinct_role_sets: [], unordered_role_sets: []}
+  safety.aircraft_near_ground_vehicle: {candidate_authority: {kind: domain_observation, source: predicate_contract_aircraft_vehicle_geometry}, role_sources: {aircraft: {kind: record, path: values.aircraft_id}, vehicle: {kind: record, path: values.vehicle_id}}, field_sources: {derived.nearest_ground_vehicle_distance_m: record:values.distance_m}, distinct_role_sets: [], unordered_role_sets: []}
+  safety.aircraft_near_pedestrian: {candidate_authority: {kind: domain_observation, source: predicate_contract_aircraft_pedestrian_geometry}, role_sources: {aircraft: {kind: record, path: values.aircraft_id}, pedestrian: {kind: record, path: values.pedestrian_id}}, field_sources: {derived.nearest_pedestrian_distance_m: record:values.distance_m}, distinct_role_sets: [], unordered_role_sets: []}
+  safety.vehicle_pedestrian_conflict: {candidate_authority: {kind: domain_observation, source: predicate_contract_vehicle_pedestrian_geometry}, role_sources: {vehicle: {kind: record, path: values.vehicle_id}, pedestrian: {kind: record, path: values.pedestrian_id}}, field_sources: {derived.nearest_pedestrian_distance_m: record:values.distance_m}, distinct_role_sets: [], unordered_role_sets: []}
+  safety.crowd_evacuation_active: {candidate_authority: {kind: domain_observation, source: crowd_evacuation}, role_sources: {crowd: {kind: record, path: values.crowd_id}}, field_sources: {domain.crowd_evacuation.evacuation_active: record:values.evacuation_active}, distinct_role_sets: [], unordered_role_sets: []}
+  facility.aircraft_battery_low: {candidate_authority: {kind: scope_entity, source: global_entity_roster.json#uav}, role_sources: {aircraft: {kind: scope_entity}}, field_sources: {domain.payload_energy.state_of_charge_ratio: context:domain.payload_energy.state_of_charge_ratio}, distinct_role_sets: [], unordered_role_sets: []}
+  facility.charging_station_unavailable: &charging_station_grounding
+    candidate_authority: {kind: scope_entity, source: global_entity_roster.json#facility}
+    role_sources: {station: {kind: scope_entity}}
+    field_sources: {domain.pad_facility.availability: context:domain.pad_facility.availability}
+    distinct_role_sets: []
+    unordered_role_sets: []
+  facility.charging_queue_over_capacity:
+    <<: *charging_station_grounding
+    field_sources: {domain.pad_facility.requester_count: context:domain.pad_facility.requester_count, domain.pad_facility.capacity: context:domain.pad_facility.capacity}
+  facility.landing_pad_occupied: &landing_pad_grounding
+    candidate_authority: {kind: scope_entity, source: global_entity_roster.json#facility}
+    role_sources: {pad: {kind: scope_entity}}
+    field_sources: {domain.pad_facility.occupied: context:domain.pad_facility.occupied}
+    distinct_role_sets: []
+    unordered_role_sets: []
+  facility.landing_pad_contention:
+    candidate_authority: {kind: domain_nested_relation, source: pad_facility:values.contention_pairs}
+    role_sources: {pad: {kind: record, path: pad_id}, first_aircraft: {kind: record, path: first_aircraft_id}, second_aircraft: {kind: record, path: second_aircraft_id}}
+    field_sources: {domain.pad_facility.pair_contention: record:pair_contention}
+    distinct_role_sets: [[first_aircraft, second_aircraft]]
+    unordered_role_sets: [[first_aircraft, second_aircraft]]
+
+  communication.link_unavailable: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {station: {kind: record_binding, path: station}, actor: {kind: record_binding, path: actor}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  communication.link_degraded: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {station: {kind: record_binding, path: station}, actor: {kind: record_binding, path: actor}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  communication.message_transmission_failed: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {attempt: {kind: record_binding, path: attempt}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  communication.channel_bandwidth_over_allocated: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {allocation: {kind: record_binding, path: allocation}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  communication.communication_session_interrupted: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {session: {kind: record_binding, path: session}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  communication.handover_in_progress: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {handover: {kind: record_binding, path: handover}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  communication.data_flow_latency_above_threshold: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {flow: {kind: record_binding, path: flow}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  communication.packet_loss_above_threshold: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {flow: {kind: record_binding, path: flow}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  communication.retransmission_in_progress: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {retransmission: {kind: record_binding, path: retransmission}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  compute.compute_node_unavailable: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {node: {kind: record_binding, path: node}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  compute.compute_task_queued: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {task: {kind: record_binding, path: task}, queue: {kind: record_binding, path: queue}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  compute.compute_resource_over_allocated: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {node: {kind: record_binding, path: node}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  compute.compute_task_offloaded: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {task: {kind: record_binding, path: task}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  compute.compute_task_migrating: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {task: {kind: record_binding, path: task}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  compute.compute_task_execution_failed: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {task: {kind: record_binding, path: task}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+  compute.compute_task_deadline_missed: {candidate_authority: {kind: direct_predicate_row, source: compute_comm_supplement/predicate_truth.jsonl}, role_sources: {task: {kind: record_binding, path: task}}, field_sources: {direct_predicate_value: record:value}, distinct_role_sets: [], unordered_role_sets: []}
+
+  positioning.gnss_quality_degraded: {candidate_authority: {kind: domain_observation, source: gnss_navigation}, role_sources: {actor: {kind: record, path: subject_id}, service: {kind: record, path: values.gnss_service_id}}, field_sources: {domain.gnss_navigation.quality_level: record:values.quality_level}, distinct_role_sets: [], unordered_role_sets: []}
+  positioning.gnss_spoofing_active: {candidate_authority: {kind: domain_observation, source: gnss_navigation}, role_sources: {actor: {kind: record, path: subject_id}, signal: {kind: record, path: values.spoofing_signal_id}}, field_sources: {domain.gnss_navigation.gnss_spoofed: record:values.gnss_spoofed}, distinct_role_sets: [], unordered_role_sets: []}
+  positioning.navigation_error_exceeds_tolerance: {candidate_authority: {kind: domain_observation, source: gnss_navigation}, role_sources: {actor: {kind: record, path: subject_id}}, field_sources: {domain.gnss_navigation.position_error_m: record:values.position_error_m}, distinct_role_sets: [], unordered_role_sets: []}
+  positioning.aircraft_deviates_from_planned_route: {candidate_authority: {kind: scope_entity, source: global_entity_roster.json#uav}, role_sources: {actor: {kind: scope_entity}}, field_sources: {navigation.path_deviation: context:navigation.path_deviation}, distinct_role_sets: [], unordered_role_sets: []}
+
+  environment.rain_active: &weather_region_grounding
+    candidate_authority: {kind: episode_operational_region, source: episode_manifest.json#capture_boundary_id}
+    role_sources: {region: {kind: manifest, path: capture_boundary_id}}
+    field_sources: {weather.rain: context:weather.rain}
+    distinct_role_sets: []
+    unordered_role_sets: []
+  environment.fog_active:
+    <<: *weather_region_grounding
+    field_sources: {weather.fog_density: context:weather.fog_density}
+  environment.visibility_below_threshold:
+    <<: *weather_region_grounding
+    field_sources: {weather.visibility_m: context:weather.visibility_m}
+  environment.wind_speed_above_threshold:
+    <<: *weather_region_grounding
+    field_sources: {weather.wind_speed: context:weather.wind_speed}
+  environment.low_illumination_active:
+    <<: *weather_region_grounding
+    field_sources: {weather.illumination_lux: context:weather.illumination_lux}
+  environment.temperature_outside_operating_range:
+    <<: *weather_region_grounding
+    field_sources: {weather.temperature_c: context:weather.temperature_c}
+
+  security.ground_control_station_compromised: {candidate_authority: {kind: domain_observation, source: security_command}, role_sources: {station: {kind: record, path: values.ground_control_station_id}}, field_sources: {domain.security_command.auth_state: record:values.auth_state}, distinct_role_sets: [], unordered_role_sets: []}
+  security.communication_jamming_impact_active: {candidate_authority: {kind: domain_observation, source: security_command}, role_sources: {actor: {kind: record, path: values.actor_id}, station: {kind: record, path: values.communication_station_id}}, field_sources: {domain.security_command.jamming_indicator: record:values.jamming_indicator}, distinct_role_sets: [], unordered_role_sets: []}
+
+  emergency.temporary_no_fly_zone_active: {candidate_authority: {kind: domain_observation, source: predicate_contract_region_runtime_state}, role_sources: {region: {kind: record, path: values.no_fly_zone_id}}, field_sources: {scene.restricted_region_active: record:values.restricted_region_active}, distinct_role_sets: [], unordered_role_sets: []}
+  emergency.emergency_isolation_active: {candidate_authority: {kind: domain_observation, source: lockdown_region_state}, role_sources: {zone: {kind: record, path: values.emergency_isolation_zone_id}}, field_sources: {scene.emergency_isolation_active: record:values.temporary_lockdown_active}, distinct_role_sets: [], unordered_role_sets: []}
+  emergency.aircraft_in_return_to_home: {candidate_authority: {kind: scope_entity, source: global_entity_roster.json#uav}, role_sources: {actor: {kind: scope_entity}}, field_sources: {plan.rth_mode_active: context:plan.rth_mode_active}, distinct_role_sets: [], unordered_role_sets: []}
+  emergency.mission_aborted: {candidate_authority: {kind: scope_entity, source: global_entity_roster.json#uav}, role_sources: {actor: {kind: scope_entity}}, field_sources: {control.mission_abort_active: context:control.mission_abort_active}, distinct_role_sets: [], unordered_role_sets: []}
+  emergency.aircraft_in_safe_hold: {candidate_authority: {kind: scope_entity, source: global_entity_roster.json#uav}, role_sources: {actor: {kind: scope_entity}}, field_sources: {control.safe_hold_active: context:control.safe_hold_active}, distinct_role_sets: [], unordered_role_sets: []}
+
+  utm.airspace_authorization_active: &utm_authorization_grounding
+    candidate_authority: {kind: utm_record, source: airspace_authorization_log.jsonl}
+    role_sources: {aircraft: {kind: record, path: uav_id}, authorization: {kind: record, path: authorization_id}, airspace: {kind: record, path: airspace_id}}
+    field_sources: {utm.authorization.status: record:status}
+    distinct_role_sets: []
+    unordered_role_sets: []
+  utm.airspace_authorization_revoked: *utm_authorization_grounding
+  utm.flight_plan_approved: {candidate_authority: {kind: utm_record, source: flight_plan_log.jsonl}, role_sources: {aircraft: {kind: record, path: uav_id}, flight_plan: {kind: record, path: plan_id}}, field_sources: {utm.flight_plan.approval_status: record:approval_status}, distinct_role_sets: [], unordered_role_sets: []}
+  utm.operational_intent_conflict: {candidate_authority: {kind: utm_record, source: operational_intent_pair_log.jsonl}, role_sources: {first_intent: {kind: record, path: first_intent_id}, second_intent: {kind: record, path: second_intent_id}}, field_sources: {utm.operational_intent.conflict_active: record:conflict_active}, distinct_role_sets: [[first_intent, second_intent]], unordered_role_sets: [[first_intent, second_intent]]}
+  utm.deconfliction_active: {candidate_authority: {kind: utm_record, source: deconfliction_log.jsonl}, role_sources: {system: {kind: record, path: system_id}, aircraft: {kind: record, path: uav_id}}, field_sources: {utm.deconfliction.resolution_status: record:resolution_status}, distinct_role_sets: [], unordered_role_sets: []}

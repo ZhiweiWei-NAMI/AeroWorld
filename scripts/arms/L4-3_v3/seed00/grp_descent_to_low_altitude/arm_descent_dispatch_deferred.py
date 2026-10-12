@@ -1,0 +1,41 @@
+"""Dedicated implementation for L4-3_v3/seed00/grp_descent_to_low_altitude/arm_descent_dispatch_deferred.
+
+Mechanism (from design/L4-3_v3/seed00/grp_descent_to_low_altitude/experiment.json): arm_descent_dispatch_deferred.
+The plan below is written for this arm alone: the literals mirror the configuration in
+interventions/L4-3_v3/seed00/grp_descent_to_low_altitude/arm_descent_dispatch_deferred.yaml and the assertion at the bottom proves they still agree."""
+from pathlib import Path
+import json
+import sys
+
+ROOT = Path(__file__).resolve().parents[5]
+sys.path.insert(0, str(ROOT))
+from Dataset.tools.l4_window import load_config
+from Dataset.tools.l4_ue_delivery import execute_config
+
+EPISODE_ID = "L4-3_v3__seed00"
+GROUP_KEY = "L4-3_v3/seed00/grp_descent_to_low_altitude"
+FORK_TICK = 260
+ANCHOR = "descent_to_low_altitude"
+WINDOW = {"end_tick": 400, "fork_tick": 260, "intervention_order": "source_actions_then_intervention", "phase": "after_state_sample_before_actions", "start_tick": 255}
+
+PLAN = {
+    "omit_action_ids": [],
+    "actions": [],
+    "trigger_rewrites": [
+        {
+            "trigger_id": "trig_after_forced_landing_fault_delay_30",
+            "delay_ticks": 15,
+            "mechanism": "fired_after_delay_shift"
+        }
+    ]
+}
+
+if __name__ == "__main__":
+    config = load_config(ROOT / "interventions" / GROUP_KEY / (Path(__file__).stem + ".yaml"))
+    assert config["episode_id"] == EPISODE_ID
+    assert config["window"] == WINDOW, (config["window"], WINDOW)
+    assert config["execution"] == PLAN, (config["execution"], PLAN)
+    result = execute_config(ROOT / "interventions" / GROUP_KEY / (Path(__file__).stem + ".yaml"), PLAN)
+    print(json.dumps({"arm": GROUP_KEY + "/" + Path(__file__).stem,
+                      "fork_tick": FORK_TICK,
+                      "window_status": result["window_status"]}, ensure_ascii=False))

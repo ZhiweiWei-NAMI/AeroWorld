@@ -1,0 +1,51 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_factual
+group_key: L4-10_v2/seed01/grp_ambulance_priority_approach
+episode_id: L4-10_v2__seed01
+event_family: l4_ambulance_priority_passage_observed
+subject_class: vehicle
+mode: factual_observation
+entity_ids:
+- ambulance_priority_l4_10_v2
+- civilian_yield_l4_10_v2
+predicate_ids:
+- l4_business.ambulance_approaching_vehicle
+- l4_business.priority_request_active
+- l4_business.priority_request_acknowledged
+- l4_business.civilian_yielding
+- l4_business.yield_clearance_satisfied
+- l4_business.ambulance_geometry_passed
+- l4_business.priority_passage_completed
+window:
+  start_tick: 210
+  fork_tick: 220
+  end_tick: 560
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/interaction/L4-10_v2/scene_setup.json
+  script: Dataset/scenarios/L4_agents/interaction/L4-10_v2/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-10_v2__seed01/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-10_v2__seed01/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-10_v2__seed01/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-10_v2__seed01/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-10_v2__seed01/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-10_v2__seed01/event_outcomes.jsonl
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites: []
+expected:
+  target_event: occurs
+  rationale: The authored approach and civilian pull-over run unchanged. priority_request_acknowledged at 230, a measured clearance from 228, the geometric pass at 274 with 9.001 m lateral separation, and priority_passage_completed only after the pass.
+  falsified_if: 'not applicable: the control arm'
+script: scripts/arms/L4-10_v2/seed01/grp_ambulance_priority_approach/arm_factual.py
+output: arms/L4-10_v2/seed01/grp_ambulance_priority_approach/arm_factual
+provenance:
+  experiment_ref: design/L4-10_v2/seed01/grp_ambulance_priority_approach/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    business_rules: Dataset/semantic_rules/profiles/l4_arm_business_semantics.json
+    runtime_state_schedule: Dataset/semantic_rules/profiles/epi_runtime_state_schedules/l4_runtime_state_schedule.json
+    window: design window (start/fork/end on the 5-tick formal grid)

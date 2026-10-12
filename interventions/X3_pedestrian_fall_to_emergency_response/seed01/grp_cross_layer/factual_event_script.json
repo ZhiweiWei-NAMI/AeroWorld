@@ -1,0 +1,1482 @@
+{
+  "$schema": "event_script_v1",
+  "scenario_id": "X3_pedestrian_fall_to_emergency_response",
+  "description": "Pedestrian fall to emergency response chain",
+  "parameters": {
+    "cross_layer": true,
+    "x3_physical_chain": {
+      "ambulance_lane_edge_id": "cg_edge_394_f_pl1",
+      "ambulance_lane_start_s_m": 72.0,
+      "ambulance_lane_arrival_s_m": 114.0,
+      "ambulance_route_sample_spacing_m": 3.0,
+      "uav_activity_sequence": [
+        "preflight_on_pad",
+        "takeoff",
+        "cruise",
+        "observation_hold",
+        "detecting"
+      ],
+      "uav_detection_radius_m": 35.0,
+      "uav_detection_required_ticks": 15,
+      "uav_detection_trigger_metric": "3d",
+      "uav_detection_parameter_source": "Dataset/semantic_rules/profiles/domain_state_supplement_profile.json",
+      "medical_detection_truth_authority": "confirmed_physical_fall_plus_nearest_uav_3d_geometry_plus_uninterrupted_dwell",
+      "authored_activity_labels_are_detection_evidence": false
+    },
+    "semantic_event_contract": {
+      "schema": "low_altitude_event_chain_contract_v1",
+      "scenario_id": "X3_pedestrian_fall_to_emergency_response",
+      "exact_counts": {
+        "uav": 3,
+        "vehicle": 3,
+        "pedestrian": 6,
+        "facility": 2,
+        "logical": 6
+      },
+      "capture_boundary": {
+        "boundary_id": "capture_boundary_x3_pedestrian_fall_to_emergency_response",
+        "geometry_source": "event_entity",
+        "anchor_entity_roles": [
+          "capture_boundary",
+          "hazard_zone",
+          "airspace_constraint"
+        ],
+        "boundary_role": "capture_boundary",
+        "z_policy": "ground_to_event_altitude",
+        "source": "event_entity_envelope",
+        "source_entity_id": "uav_x3_detect",
+        "center_enu_m": [
+          7348.54,
+          7339.76,
+          0.0
+        ],
+        "polygon_enu_m": [
+          [
+            7279.886,
+            7226.001
+          ],
+          [
+            7417.193,
+            7226.001
+          ],
+          [
+            7417.193,
+            7453.518
+          ],
+          [
+            7279.886,
+            7453.518
+          ]
+        ],
+        "uav_boundary_crossing_required": true,
+        "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+        "inspect_fov_coverage_required": true,
+        "inspect_entity_role": "U_inspect"
+      },
+      "inspect": {
+        "role": "U_inspect",
+        "altitude_code": "I10",
+        "altitude_m": 10.0,
+        "min_path_length_m": 80.0,
+        "required_presence": "episode_full_duration",
+        "motion_policy": "fixed_altitude_closed_loop",
+        "corridor_policy": "inspect_capture_corridor",
+        "fov_coverage_required": true,
+        "sensor_profile_required": true
+      },
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": []
+      },
+      "uav_boundary_crossing_required": true,
+      "inspect_fov_coverage_required": true,
+      "required_event": "fall > responder > handoff",
+      "required_intents": [
+        "traffic_or_facility_incident",
+        "recovery_or_restore"
+      ],
+      "background_semantics": {
+        "vehicle_role": "ambulance/yield chain",
+        "pedestrian_role": "fallen + bystanders",
+        "policy": "semantic_context_not_decoration"
+      },
+      "weather": "clear",
+      "determinism": {
+        "fallback": "forbidden",
+        "guessing": "forbidden",
+        "compatibility_paths": "forbidden"
+      }
+    },
+    "target_uav_count": 3,
+    "target_vehicle_count": 3,
+    "target_pedestrian_count": 6,
+    "target_facility_count": 2,
+    "target_logical_count": 6,
+    "deterministic_sumo_traffic_template": {
+      "source_policy": "explicit_episode_plan_only_v1",
+      "min_vehicle_count": 16,
+      "seed_profiles": {
+        "seed00": {
+          "name": "morning_peak",
+          "direction_bias": "inbound_to_roi",
+          "direction_weights": {
+            "inbound": 0.7,
+            "outbound": 0.2,
+            "cross": 0.1
+          }
+        },
+        "seed01": {
+          "name": "midday",
+          "direction_bias": "balanced_cross_traffic",
+          "direction_weights": {
+            "inbound": 0.34,
+            "outbound": 0.33,
+            "cross": 0.33
+          }
+        },
+        "seed02": {
+          "name": "evening_peak",
+          "direction_bias": "outbound_from_roi",
+          "direction_weights": {
+            "inbound": 0.2,
+            "outbound": 0.7,
+            "cross": 0.1
+          }
+        }
+      },
+      "semantic_vehicle_roles": [
+        "emergency_vehicle",
+        "police_vehicle",
+        "yield_vehicle",
+        "disabled_vehicle",
+        "weather_slowdown_vehicle",
+        "deterministic_background_vehicle"
+      ],
+      "route_source": "sumo_explicit_vehicle_plan"
+    },
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 18,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "uav_x3_detect": 30.0,
+      "u_inspect_x3_pedestrian_fall_to_emergency_response": 10.0,
+      "uav_observer_x3_pedestrian_fall_to_emergency_response_3": 80.0
+    },
+    "uav_lateral_bypass_used": {
+      "uav_x3_detect": false,
+      "u_inspect_x3_pedestrian_fall_to_emergency_response": false,
+      "uav_observer_x3_pedestrian_fall_to_emergency_response_3": false
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "uav_x3_detect",
+        "point_count": 8,
+        "assigned_altitude_m": 30.0,
+        "used_lateral_bypass": false
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "point_count": 11,
+        "assigned_altitude_m": 10.0,
+        "used_lateral_bypass": false
+      },
+      {
+        "entity_id": "uav_observer_x3_pedestrian_fall_to_emergency_response_3",
+        "point_count": 3,
+        "assigned_altitude_m": 80.0,
+        "used_lateral_bypass": false
+      }
+    ],
+    "uav_corridor_segment_details": [
+      {
+        "entity_id": "uav_x3_detect",
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          7316.96,
+          7242.819,
+          3.0
+        ],
+        "segment_end_enu_m": [
+          7316.96,
+          7242.819,
+          24.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_x3_detect",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7316.96,
+          7242.819,
+          24.0
+        ],
+        "segment_end_enu_m": [
+          7332.866,
+          7242.001,
+          32.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_x3_detect",
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          7332.866,
+          7242.001,
+          32.0
+        ],
+        "segment_end_enu_m": [
+          7332.866,
+          7242.001,
+          30.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_x3_detect",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7332.866,
+          7242.001,
+          30.0
+        ],
+        "segment_end_enu_m": [
+          7370.866,
+          7267.501,
+          30.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_x3_detect",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7370.866,
+          7267.501,
+          30.0
+        ],
+        "segment_end_enu_m": [
+          7370.866,
+          7267.501,
+          36.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_x3_detect",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7370.866,
+          7267.501,
+          36.0
+        ],
+        "segment_end_enu_m": [
+          7316.96,
+          7242.819,
+          36.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_x3_detect",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7316.96,
+          7242.819,
+          36.0
+        ],
+        "segment_end_enu_m": [
+          7316.96,
+          7242.819,
+          3.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          7348.54,
+          7339.76,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7280.919,
+          7227.713,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7280.919,
+          7227.713,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7348.54,
+          7228.001,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          7348.54,
+          7228.001,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7416.16,
+          7227.713,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7416.16,
+          7227.713,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7415.193,
+          7339.76,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7415.193,
+          7339.76,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7416.16,
+          7451.806,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7416.16,
+          7451.806,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7348.54,
+          7451.518,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7348.54,
+          7451.518,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7280.919,
+          7451.806,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7280.919,
+          7451.806,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7281.886,
+          7339.76,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7281.886,
+          7339.76,
+          10.0
+        ],
+        "segment_end_enu_m": [
+          7348.54,
+          7339.76,
+          10.0
+        ],
+        "assigned_altitude_m": 10.0
+      },
+      {
+        "entity_id": "uav_observer_x3_pedestrian_fall_to_emergency_response_3",
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          7267.996,
+          7431.293,
+          80.0
+        ],
+        "segment_end_enu_m": [
+          7348.54,
+          7339.76,
+          80.0
+        ],
+        "assigned_altitude_m": 80.0
+      },
+      {
+        "entity_id": "uav_observer_x3_pedestrian_fall_to_emergency_response_3",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7348.54,
+          7339.76,
+          80.0
+        ],
+        "segment_end_enu_m": [
+          7267.996,
+          7431.293,
+          80.0
+        ],
+        "assigned_altitude_m": 80.0
+      }
+    ],
+    "utm_service_plan": {
+      "schema_name": "utm_service_plan",
+      "schema_version": "1.0.0",
+      "model_id": "aeroworld_deterministic_utm_service",
+      "model_version": "1.0.0",
+      "global_uav_flow_policy": {
+        "source_contract": "uav_global_flow",
+        "intent_start_tick": 0,
+        "intent_end_tick": 900,
+        "authorization_status": "active",
+        "flight_plan_approval_status": "approved"
+      },
+      "uav_plans": [
+        {
+          "uav_id": "u_inspect_x3_pedestrian_fall_to_emergency_response",
+          "corridor_id": "utm_corridor:X3_pedestrian_fall_to_emergency_response:uav_00",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_observer_x3_pedestrian_fall_to_emergency_response_3",
+          "corridor_id": "utm_corridor:X3_pedestrian_fall_to_emergency_response:uav_01",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_x3_detect",
+          "corridor_id": "utm_corridor:X3_pedestrian_fall_to_emergency_response:uav_02",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        }
+      ]
+    },
+    "capture_boundary": {
+      "boundary_id": "capture_boundary_x3_pedestrian_fall_to_emergency_response",
+      "source": "event_entity_envelope",
+      "source_entity_id": "uav_x3_detect",
+      "center_enu_m": [
+        7348.54,
+        7339.76,
+        0.0
+      ],
+      "polygon_enu_m": [
+        [
+          7279.886,
+          7226.001
+        ],
+        [
+          7417.193,
+          7226.001
+        ],
+        [
+          7417.193,
+          7453.518
+        ],
+        [
+          7279.886,
+          7453.518
+        ]
+      ],
+      "uav_boundary_crossing_required": true,
+      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "inspect_fov_coverage_required": true,
+      "inspect_entity_role": "U_inspect"
+    },
+    "spatial_grid_assignment": {
+      "scenario_id": "X3_pedestrian_fall_to_emergency_response",
+      "event_space_class": "traffic_incident_grid",
+      "target_center_enu_m": [
+        7420.911,
+        7231.273,
+        0.0
+      ],
+      "grid_cell": {
+        "cell_id": "grid_006_005",
+        "center_enu_m": [
+          7420.843873,
+          7232.563119,
+          0.0
+        ],
+        "representative_enu_m": [
+          7420.911,
+          7231.273,
+          0.0
+        ],
+        "edge_ids": [
+          "cg_edge_206_f_pl2",
+          "cg_edge_206_f_pl3",
+          "cg_edge_206_r_pl0",
+          "cg_edge_206_r_pl1"
+        ],
+        "main_edge_count": 4,
+        "total_main_edge_length_m": 444.941238,
+        "max_speed_mps": 11.11,
+        "incident_count": 0
+      },
+      "source": "main_road_grid.traffic_incident_cell",
+      "traffic_incident_id": "",
+      "accident_class": "",
+      "exclusion_radius_m": 180.0,
+      "policy": "city_grid_main_road_event_coverage_v1",
+      "provisional_capture_center_enu_m": [
+        7118.151,
+        6415.799,
+        5.5
+      ],
+      "applied_world_origin_enu_m": [
+        7302.76,
+        7015.474,
+        0.0
+      ],
+      "actual_capture_center_enu_m": [
+        7385.232,
+        7279.371,
+        3.833
+      ],
+      "expanded_capture_center_enu_m": [
+        7348.54,
+        7339.76,
+        0.0
+      ],
+      "target_error_m": 59.886632
+    }
+  },
+  "triggers": [
+    {
+      "trigger_id": "trig_lifecycle_takeoff_uav_x3_detect",
+      "type": "tick",
+      "tick": 30
+    },
+    {
+      "trigger_id": "trig_x3_ped_approach",
+      "type": "tick",
+      "tick": 120
+    },
+    {
+      "trigger_id": "trig_pedestrian_fall",
+      "type": "tick",
+      "tick": 220
+    },
+    {
+      "trigger_id": "trig_after_pedestrian_fall_delay_30",
+      "type": "event_fired_after",
+      "event_id": "pedestrian_fall",
+      "delay_ticks": 30
+    },
+    {
+      "trigger_id": "trig_uav_detection",
+      "type": "entity_proximity",
+      "entity_a": "uav_x3_detect",
+      "entity_b": "ped_x3_fall",
+      "distance_m": 35.0,
+      "operator": "lte",
+      "metric": "3d",
+      "min_true_ticks": 15
+    },
+    {
+      "trigger_id": "trig_after_uav_detection_delay_5",
+      "type": "event_fired_after",
+      "event_id": "uav_detection",
+      "delay_ticks": 5
+    },
+    {
+      "trigger_id": "trig_ambulance_arrived",
+      "type": "entity_proximity",
+      "entity_a": "ambulance_x3",
+      "entity_b": "ped_x3_fall",
+      "distance_m": 8.0,
+      "operator": "lte",
+      "metric": "3d",
+      "min_true_ticks": 2
+    },
+    {
+      "trigger_id": "trig_after_ambulance_arrived_delay_1",
+      "type": "event_fired_after",
+      "event_id": "ambulance_arrived",
+      "delay_ticks": 1
+    },
+    {
+      "trigger_id": "trig_after_isolation_setup_delay_15",
+      "type": "event_fired_after",
+      "event_id": "isolation_setup",
+      "delay_ticks": 15
+    },
+    {
+      "trigger_id": "trig_after_responder_handoff_delay_30",
+      "type": "event_fired_after",
+      "event_id": "responder_handoff",
+      "delay_ticks": 30
+    },
+    {
+      "trigger_id": "trig_after_emergency_documented_delay_80",
+      "type": "event_fired_after",
+      "event_id": "emergency_documented",
+      "delay_ticks": 80
+    },
+    {
+      "trigger_id": "x_predecessor_uav_detection",
+      "type": "event_fired",
+      "event_id": "pedestrian_fall"
+    },
+    {
+      "trigger_id": "x_guard_uav_detection",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_uav_detection",
+        "x_predecessor_uav_detection"
+      ]
+    },
+    {
+      "trigger_id": "x_predecessor_ambulance_arrived",
+      "type": "event_fired",
+      "event_id": "ambulance_dispatch"
+    },
+    {
+      "trigger_id": "x_guard_ambulance_arrived",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_ambulance_arrived",
+        "x_predecessor_ambulance_arrived"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "event_id": "lifecycle_takeoff_uav_x3_detect",
+      "trigger_ref": "trig_lifecycle_takeoff_uav_x3_detect",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_x3_detect_takeoff_entry",
+          "entity_id": "uav_x3_detect",
+          "waypoints_enu_m": [
+            [
+              7316.96,
+              7242.819,
+              3.0
+            ],
+            [
+              7316.96,
+              7242.819,
+              24.0
+            ],
+            [
+              7332.866,
+              7242.001,
+              32.0
+            ]
+          ],
+          "velocity_mps": 5.0,
+          "activity_type": "takeoff",
+          "post_activity_type": "cruise",
+          "uav_corridor_validation": {
+            "status": "low_altitude_waypoints_preserved_and_building_clear",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7316.96,
+                7242.819,
+                3.0
+              ],
+              [
+                7316.96,
+                7242.819,
+                24.0
+              ],
+              [
+                7332.866,
+                7242.001,
+                32
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
+        }
+      ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_lifecycle_takeoff_uav_x3_detect",
+        "category": "uav_lifecycle",
+        "title": "UAV takes off from visible home pad and enters mission airspace",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_x3_detect",
+          "pad_home_uav_x3_detect"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
+        ]
+      }
+    },
+    {
+      "event_id": "x3_ped_approach",
+      "trigger_ref": "trig_x3_ped_approach",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_x3_ped_approach",
+          "entity_id": "ped_x3_fall",
+          "waypoints_enu_m": [
+            [
+              7369.981,
+              7269.914,
+              0.0
+            ],
+            [
+              7380.866,
+              7274.001,
+              0.0
+            ]
+          ],
+          "velocity_mps": 1.25,
+          "activity_type": "walking",
+          "post_activity_type": "waiting"
+        }
+      ],
+      "intent": "context",
+      "intent_stage": "00.context",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "pedestrian"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_x3_ped_approach",
+        "category": "scene_context",
+        "title": "Context pedestrian walks into the event area before the primary event",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "ped_x3_fall"
+        ],
+        "intent": "context",
+        "intent_stage": "00.context",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "pedestrian"
+        ]
+      }
+    },
+    {
+      "event_id": "pedestrian_fall",
+      "trigger_ref": "trig_pedestrian_fall",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_pedestrian_activity",
+          "action_id": "play_x3_ped_fall",
+          "entity_id": "ped_x3_fall",
+          "activity_type": "medical_incident"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_x3_pedestrian_fall_to_emergency_response_pedestrian_fall_00",
+          "entity_id": "ped_x3_fall",
+          "delay_ticks": 1,
+          "state_patch": {
+            "pedestrian_state": {
+              "posture": "fallen",
+              "health": "injured"
+            }
+          },
+          "runtime_state_schedule_profile_id": "l5_l6_x_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+        }
+      ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "01.traffic_or_facility_incident",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "pedestrian"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_pedestrian_fall",
+        "category": "pedestrian",
+        "title": "Pedestrian falls",
+        "severity": "critical",
+        "overlay": "pedestrian",
+        "target_ids": [
+          "ped_x3_fall"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "01.traffic_or_facility_incident",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "pedestrian"
+        ]
+      }
+    },
+    {
+      "event_id": "observation_approach",
+      "trigger_ref": "trig_after_pedestrian_fall_delay_30",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_x3_uav_observation_approach",
+          "entity_id": "uav_x3_detect",
+          "waypoints_enu_m": [
+            [
+              7332.866,
+              7242.001,
+              32.0
+            ],
+            [
+              7332.866,
+              7242.001,
+              30.0
+            ],
+            [
+              7370.866,
+              7267.501,
+              30.0
+            ]
+          ],
+          "velocity_mps": 5.0,
+          "activity_type": "cruise",
+          "post_activity_type": "observation_hold",
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7332.866,
+                7242.001,
+                32
+              ],
+              [
+                7370.866,
+                7267.501,
+                30
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
+        }
+      ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "02.traffic_or_facility_incident",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "mission_uav",
+        "pedestrian"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_observation_approach",
+        "category": "uav_mission",
+        "title": "UAV begins a physical observation approach after the pedestrian fall",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_x3_detect",
+          "ped_x3_fall"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "02.traffic_or_facility_incident",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "mission_uav",
+          "pedestrian"
+        ]
+      }
+    },
+    {
+      "event_id": "uav_detection",
+      "trigger_ref": "x_guard_uav_detection",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_x3_uav_detecting",
+          "entity_id": "uav_x3_detect",
+          "visual_state": {
+            "mode": "detecting"
+          }
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_x3_detection",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "intent": "uav_confirms_the_fallen_pedestrian_after_governed_3d_proximity_dwell",
+      "intent_stage": "03.uav_confirms_the_fallen_pedestrian_after_governed_3d_proximity_dwell",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "mission_uav",
+        "pedestrian"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_uav_detection",
+        "category": "uav_mission",
+        "title": "UAV confirms the fallen pedestrian after governed 3D proximity dwell",
+        "severity": "warning",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_x3_detect",
+          "ped_x3_fall"
+        ],
+        "intent": "uav_confirms_the_fallen_pedestrian_after_governed_3d_proximity_dwell",
+        "intent_stage": "03.uav_confirms_the_fallen_pedestrian_after_governed_3d_proximity_dwell",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "mission_uav",
+          "pedestrian"
+        ]
+      }
+    },
+    {
+      "event_id": "ambulance_dispatch",
+      "trigger_ref": "trig_after_uav_detection_delay_5",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_x3_ambulance_dispatch",
+          "entity_id": "ambulance_x3",
+          "waypoints_enu_m": [
+            [
+              7401.193,
+              7305.719,
+              0.0
+            ],
+            [
+              7401.0,
+              7302.725,
+              0.0
+            ],
+            [
+              7400.776,
+              7299.734,
+              0.0
+            ],
+            [
+              7400.504,
+              7296.746,
+              0.0
+            ],
+            [
+              7400.199,
+              7293.761,
+              0.0
+            ],
+            [
+              7399.843,
+              7290.783,
+              0.0
+            ],
+            [
+              7399.394,
+              7287.817,
+              0.0
+            ],
+            [
+              7398.653,
+              7284.915,
+              0.0
+            ],
+            [
+              7397.141,
+              7282.375,
+              0.0
+            ],
+            [
+              7395.046,
+              7280.242,
+              0.0
+            ],
+            [
+              7392.444,
+              7278.812,
+              0.0
+            ],
+            [
+              7389.532,
+              7278.112,
+              0.0
+            ],
+            [
+              7386.561,
+              7277.7,
+              0.0
+            ],
+            [
+              7383.579,
+              7277.377,
+              0.0
+            ],
+            [
+              7380.593,
+              7277.089,
+              0.0
+            ]
+          ],
+          "velocity_mps": 12.0
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_x3_pedestrian_fall_to_emergency_response_ambulance_dispatch_00",
+          "entity_id": "ped_x3_fall",
+          "delay_ticks": 1,
+          "state_patch": {
+            "incident_state": {
+              "dispatch_active": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l5_l6_x_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+        }
+      ],
+      "intent": "ambulance",
+      "intent_stage": "04.ambulance",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "uav_confirms_the_fallen_pedestrian_after_governed_3d_proximity_dwell",
+      "target_roles": [
+        "pedestrian",
+        "vehicle"
+      ],
+      "validation_event_type": "intentional_pedestrian_vehicle_interaction",
+      "validation_reason": "Cross-layer emergency response intentionally sends the ambulance close to the fallen pedestrian.",
+      "validation_skip_checks": [
+        "pedestrian_vehicle_dynamic_clearance"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_ambulance_dispatch",
+        "category": "vehicle",
+        "title": "Ambulance is dispatched only after physical UAV detection",
+        "severity": "warning",
+        "overlay": "vehicle",
+        "target_ids": [
+          "ambulance_x3",
+          "ped_x3_fall"
+        ],
+        "intent": "ambulance",
+        "intent_stage": "04.ambulance",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "uav_confirms_the_fallen_pedestrian_after_governed_3d_proximity_dwell",
+        "target_roles": [
+          "pedestrian",
+          "vehicle"
+        ]
+      }
+    },
+    {
+      "event_id": "ambulance_arrived",
+      "trigger_ref": "x_guard_ambulance_arrived",
+      "priority": 5,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_x3_arrival",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "intent": "ambulance",
+      "intent_stage": "05.ambulance",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "ambulance",
+      "target_roles": [
+        "pedestrian",
+        "vehicle"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_ambulance_arrived",
+        "category": "vehicle",
+        "title": "Ambulance physically reaches the fallen pedestrian",
+        "severity": "warning",
+        "overlay": "vehicle",
+        "target_ids": [
+          "ambulance_x3",
+          "ped_x3_fall"
+        ],
+        "intent": "ambulance",
+        "intent_stage": "05.ambulance",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "ambulance",
+        "target_roles": [
+          "pedestrian",
+          "vehicle"
+        ]
+      }
+    },
+    {
+      "event_id": "isolation_setup",
+      "trigger_ref": "trig_after_ambulance_arrived_delay_1",
+      "priority": 6,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_x3_police_tape",
+          "entity_id": "police_tape_x3",
+          "asset_id": "prop.incident.police_tape.v1",
+          "position_enu_m": [
+            7382.919,
+            7273.894,
+            0.0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 0.0
+          }
+        }
+      ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "06.traffic_or_facility_incident",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "ambulance",
+      "target_roles": [
+        "pedestrian",
+        "vehicle"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_isolation_setup",
+        "category": "dynamic_constraint",
+        "title": "Responder establishes the incident isolation perimeter after arrival",
+        "severity": "warning",
+        "overlay": "dynamic_constraint",
+        "target_ids": [
+          "police_tape_x3",
+          "ped_x3_fall"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "06.traffic_or_facility_incident",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "ambulance",
+        "target_roles": [
+          "pedestrian",
+          "vehicle"
+        ]
+      }
+    },
+    {
+      "event_id": "responder_handoff",
+      "trigger_ref": "trig_after_isolation_setup_delay_15",
+      "priority": 7,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_x3_handoff",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "intent": "recovery_or_restore",
+      "intent_stage": "07.recovery_or_restore",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "pedestrian",
+        "vehicle"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_responder_handoff",
+        "category": "vehicle",
+        "title": "Responder remains with the patient through the handoff dwell",
+        "severity": "info",
+        "overlay": "vehicle",
+        "target_ids": [
+          "ambulance_x3",
+          "ped_x3_fall"
+        ],
+        "intent": "recovery_or_restore",
+        "intent_stage": "07.recovery_or_restore",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "pedestrian",
+          "vehicle"
+        ]
+      }
+    },
+    {
+      "event_id": "emergency_documented",
+      "trigger_ref": "trig_after_responder_handoff_delay_30",
+      "priority": 8,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_x3_police_tape_standdown",
+          "entity_id": "police_tape_x3",
+          "visual_state": {
+            "mode": "standdown"
+          }
+        },
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_x3_response",
+          "camera_id": "demo_high_overview"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "x3_close_dispatch_after_documentation",
+          "entity_id": "ped_x3_fall",
+          "delay_ticks": 1,
+          "state_patch": {
+            "incident_state": {
+              "dispatch_active": false
+            }
+          }
+        }
+      ],
+      "intent": "recovery_or_restore",
+      "intent_stage": "08.recovery_or_restore",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "recovery_or_restore",
+      "target_roles": [
+        "mission_uav",
+        "pedestrian",
+        "vehicle"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_emergency_documented",
+        "category": "uav_mission",
+        "title": "Emergency response is documented after physical handoff",
+        "severity": "info",
+        "overlay": "uav_mission",
+        "target_ids": [
+          "uav_x3_detect",
+          "ambulance_x3",
+          "ped_x3_fall",
+          "police_tape_x3"
+        ],
+        "intent": "recovery_or_restore",
+        "intent_stage": "08.recovery_or_restore",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "recovery_or_restore",
+        "target_roles": [
+          "mission_uav",
+          "pedestrian",
+          "vehicle"
+        ]
+      }
+    },
+    {
+      "event_id": "lifecycle_landing_uav_x3_detect",
+      "trigger_ref": "trig_after_emergency_documented_delay_80",
+      "priority": 9,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_uav_x3_detect_landing_return",
+          "entity_id": "uav_x3_detect",
+          "waypoints_enu_m": [
+            [
+              7370.866,
+              7267.501,
+              30.0
+            ],
+            [
+              7370.866,
+              7267.501,
+              36.0
+            ],
+            [
+              7316.96,
+              7242.819,
+              36.0
+            ],
+            [
+              7316.96,
+              7242.819,
+              3.0
+            ]
+          ],
+          "velocity_mps": 4.0,
+          "activity_type": "return_to_pad",
+          "post_activity_type": "landed",
+          "uav_corridor_validation": {
+            "status": "low_altitude_waypoints_preserved_and_building_clear",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7370.866,
+                7267.501,
+                30.0
+              ],
+              [
+                7370.866,
+                7267.501,
+                36.0
+              ],
+              [
+                7316.96,
+                7242.819,
+                36.0
+              ],
+              [
+                7316.96,
+                7242.819,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          },
+          "terminal_feasibility": {
+            "model": "constant_speed_path_with_explicit_landing_reference_v2",
+            "dispatch_upper_bound_tick": 535,
+            "route_length_m": 98.287924,
+            "available_ticks": 355,
+            "required_speed_mps": 2.768674,
+            "max_speed_mps": 8.0,
+            "home_pose_origin_z_m": 3.0,
+            "landing_reference_enu_m": [
+              7316.96,
+              7242.819,
+              3.0
+            ],
+            "touchdown_altitude_tolerance_m": 1.5,
+            "touchdown_dwell_ticks": 5
+          }
+        }
+      ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+      "causal_predecessor_intent": "recovery_or_restore",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
+      ],
+      "log_event": {
+        "topic": "evt_X3_pedestrian_fall_to_emergency_response_lifecycle_landing_uav_x3_detect",
+        "category": "uav_lifecycle",
+        "title": "UAV returns to the visible home pad and lands after mission resolution",
+        "severity": "info",
+        "overlay": "uav_lifecycle",
+        "target_ids": [
+          "uav_x3_detect",
+          "pad_home_uav_x3_detect"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "X3_pedestrian_fall_to_emergency_response.semantic_event_chain",
+        "causal_predecessor_intent": "recovery_or_restore",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
+        ]
+      }
+    }
+  ]
+}

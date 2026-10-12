@@ -639,22 +639,22 @@ def _interpolate_vehicle(
     if prev_vehicle is not None and float(alpha) <= 1e-9:
         source = dict(prev_vehicle)
         position = _position3(source.get("truth_position_enu_m")) or (0.0, 0.0, 0.0)
-        yaw = float(source.get("truth_yaw_deg") or 0.0)
+        yaw = float(source["truth_yaw_deg"])
         velocity = _velocity_from_yaw(float(source.get("speed_mps") or 0.0), yaw)
     elif next_vehicle is not None and float(alpha) >= 1.0 - 1e-9:
         source = dict(next_vehicle)
         position = _position3(source.get("truth_position_enu_m")) or (0.0, 0.0, 0.0)
-        yaw = float(source.get("truth_yaw_deg") or 0.0)
+        yaw = float(source["truth_yaw_deg"])
         velocity = _velocity_from_yaw(float(source.get("speed_mps") or 0.0), yaw)
     elif prev_vehicle is None:
         source = dict(next_vehicle or {})
         position = _position3(source.get("truth_position_enu_m")) or (0.0, 0.0, 0.0)
-        yaw = float(source.get("truth_yaw_deg") or 0.0)
+        yaw = float(source["truth_yaw_deg"])
         velocity = _velocity_from_yaw(float(source.get("speed_mps") or 0.0), yaw)
     elif next_vehicle is None or prev_vehicle is next_vehicle:
         source = dict(prev_vehicle)
         position = _position3(source.get("truth_position_enu_m")) or (0.0, 0.0, 0.0)
-        yaw = float(source.get("truth_yaw_deg") or 0.0)
+        yaw = float(source["truth_yaw_deg"])
         velocity = _velocity_from_yaw(float(source.get("speed_mps") or 0.0), yaw)
     else:
         source = dict(prev_vehicle if alpha < 0.5 else next_vehicle)
@@ -663,7 +663,7 @@ def _interpolate_vehicle(
         position = tuple(prev_pos[i] + (next_pos[i] - prev_pos[i]) * float(alpha) for i in range(3))
         dt = max(1e-9, float(next_time_s) - float(prev_time_s))
         velocity = [(next_pos[i] - prev_pos[i]) / dt for i in range(3)]
-        yaw = _lerp_angle_deg(float(prev_vehicle.get("truth_yaw_deg") or 0.0), float(next_vehicle.get("truth_yaw_deg") or 0.0), alpha)
+        yaw = _lerp_angle_deg(float(prev_vehicle["truth_yaw_deg"]), float(next_vehicle["truth_yaw_deg"]), alpha)
         for key in ("lane_position_m", "center_lane_position_m", "speed_mps", "accel_mps2"):
             value = _interpolate_number(prev_vehicle, next_vehicle, key, alpha)
             if value is not None:

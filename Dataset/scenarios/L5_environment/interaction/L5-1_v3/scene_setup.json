@@ -1,7 +1,7 @@
 {
   "$schema": "scene_setup_v1",
   "scenario_id": "L5-1_v3",
-  "description": "Rain cascade with UAV and ground traffic slowdown",
+  "description": "Heavy rain slowdown with mission termination",
   "map_ref": {
     "map_id": "donghu_road_topo",
     "geo_reference": {
@@ -13,12 +13,12 @@
   },
   "local_bounds": {
     "center_enu_m": [
-      7099.684,
-      6409.076,
+      6450.858,
+      6714.176,
       0.0
     ],
-    "radius_m": 1539.914,
-    "source": "scene_entities_and_routes"
+    "radius_m": 430.79,
+    "source": "export_envelope_only"
   },
   "entities": [
     {
@@ -28,13 +28,13 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7054.583,
-          6319.7,
+          6400.381,
+          6712.876,
           3.0
         ],
         "resolved_position_enu_m": [
-          7054.583,
-          6319.7,
+          6400.381,
+          6712.876,
           3.0
         ],
         "rotation_deg": {
@@ -43,30 +43,183 @@
       },
       "route_waypoints_enu_m": [
         [
-          7046.0,
-          6353.0,
-          32
+          6400.381,
+          6712.876,
+          24.0
+        ],
+        [
+          6392.662,
+          6722.064,
+          24.0
+        ],
+        [
+          6436.159,
+          6758.607,
+          32.0
+        ],
+        [
+          6443.878,
+          6749.419,
+          32.0
+        ],
+        [
+          6443.878,
+          6749.419,
+          50.0
+        ],
+        [
+          6461.878,
+          6759.419,
+          50.0
+        ],
+        [
+          6469.878,
+          6767.419,
+          50.0
+        ],
+        [
+          6461.878,
+          6777.419,
+          50.0
+        ],
+        [
+          6424.998,
+          6783.701,
+          80.0
+        ],
+        [
+          6424.998,
+          6783.701,
+          5.0
+        ],
+        [
+          6424.998,
+          6783.701,
+          1.2
         ]
       ],
       "initial_state": {
-        "mode": "preflight_on_pad"
+        "mode": "preflight_on_pad",
+        "task_id": "uav_weather_l5_1_v3.task",
+        "role": "mission_uav",
+        "state_sequence": [
+          "patrol"
+        ],
+        "semantic_role": "patrol",
+        "assigned_altitude_m": 50.0,
+        "uav_corridor_role": "mission_uav"
       },
       "activation_tick": 0,
+      "ground_reference_z_m": 3.0,
+      "ground_reference_source": "home_hover_pose_origin_v1",
       "lifecycle": {
         "auto_lifecycle_applied": true,
         "home_pad_entity_id": "pad_home_uav_weather_l5_1_v3",
         "home_hover_enu_m": [
-          7054.583,
-          6319.7,
+          6400.381,
+          6712.876,
           3.0
         ],
         "mission_start_enu_m": [
-          7046.0,
-          6353.0,
-          32
+          6392.662,
+          6722.064,
+          24.0
         ],
         "requires_takeoff": true,
-        "requires_landing_or_terminal_resolution": true
+        "requires_landing_or_terminal_resolution": true,
+        "assigned_altitude_m": 50.0,
+        "waypoint_repair_applied": true
+      },
+      "uav_corridor": {
+        "assigned_altitude_m": 50.0,
+        "altitude_layers_m": [
+          30.0,
+          50.0,
+          80.0
+        ],
+        "used_lateral_bypass": false
+      },
+      "validation_tags": [
+        "uav_corridor_contract"
+      ],
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+          "context",
+          "weather_degradation",
+          "slowdown",
+          "safe_hold",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 658.675
+      },
+      "planned_route_waypoints_enu_m": [
+        [
+          6400.381,
+          6712.876,
+          24.0
+        ],
+        [
+          6392.662,
+          6722.064,
+          24.0
+        ],
+        [
+          6436.159,
+          6758.607,
+          32.0
+        ],
+        [
+          6443.878,
+          6749.419,
+          32.0
+        ],
+        [
+          6443.878,
+          6749.419,
+          50.0
+        ],
+        [
+          6461.878,
+          6759.419,
+          50.0
+        ],
+        [
+          6469.878,
+          6767.419,
+          50.0
+        ],
+        [
+          6461.878,
+          6777.419,
+          50.0
+        ],
+        [
+          6424.998,
+          6783.701,
+          80.0
+        ],
+        [
+          6424.998,
+          6783.701,
+          5.0
+        ],
+        [
+          6424.998,
+          6783.701,
+          1.2
+        ]
+      ],
+      "mission_state": {
+        "unsafe": false
+      },
+      "control_state": {
+        "rth_active": false
       }
     },
     {
@@ -75,29 +228,60 @@
       "category": "vehicle",
       "placement_mode": "lane_anchor",
       "placement": {
-        "edge_id": "cg_edge_122",
+        "edge_id": "cg_edge_430_f_pl1",
         "lane_index": 0,
-        "longitudinal_s": 176.0,
-        "lateral_offset_m": 0.0,
+        "longitudinal_s": 43.038,
+        "lateral_offset_m": -1.5,
         "lane_half_width_m": 1.9,
-        "resolved_lateral_from_center_m": 0.0,
-        "placement_semantics": "lane_center",
+        "resolved_lateral_from_center_m": -1.5,
+        "placement_semantics": "physical_vehicle_lane_center",
         "resolved_position_enu_m": [
-          7063.537,
-          6313.483,
+          6531.862,
+          6727.665,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 16.303
+          "yaw_deg": -160.496
         },
-        "source_edge_id_hint": "cg_edge_29",
-        "source_longitudinal_s_hint": 36
+        "source_edge_id_hint": "cg_edge_430_f_pl1",
+        "source_longitudinal_s_hint": 43.038,
+        "road_lane_count": 2,
+        "road_width_m": 6.0,
+        "physical_lane_center_offsets_m": [
+          -1.5,
+          1.5
+        ],
+        "selected_physical_lane_offset_m": -1.5
       },
       "route_waypoints_enu_m": [],
       "initial_state": {
-        "mode": "moving"
+        "mode": "moving",
+        "task_id": "weather_car_l5_1_v3.task",
+        "role": "semantic_vehicle",
+        "state_sequence": [
+          "moving"
+        ],
+        "semantic_role": "moving"
       },
-      "activation_tick": 0
+      "activation_tick": 901,
+      "enabled": false,
+      "spawn_policy": "event_script_only",
+      "event_actor_motion_contract": {
+        "schema": "event_actor_motion_contract_v1",
+        "policy": "offstage_then_continuous_lane_entry",
+        "semantic_event_id": "weather_onset",
+        "pre_activation_presence": "absent",
+        "stationary_preplacement_allowed": false,
+        "yaw_authority": "scene_lane_then_velocity",
+        "entry_event_id": "clear_motion_baseline",
+        "entry_tick": 4,
+        "arrival_tick": 180,
+        "route_length_m": 77.285003,
+        "entry_speed_mps": 4.649145,
+        "duration_model": "sum_segment_ceil_distance_over_speed_ticks",
+        "minimum_visible_motion_ratio_before_event": 1.0,
+        "entry_capture_boundary_clearance_m": 9.627
+      }
     },
     {
       "entity_id": "weather_ped_l5_1_v3",
@@ -105,22 +289,22 @@
       "category": "pedestrian",
       "placement_mode": "sidewalk_anchor",
       "placement": {
-        "lane_edge_id": "cg_edge_29",
-        "longitudinal_s": 40.0,
-        "offset_from_curb_m": 1.2,
+        "lane_edge_id": "cg_edge_141_f_pl0",
+        "longitudinal_s": 28.0,
+        "offset_from_curb_m": 8.0,
         "lane_half_width_m": 1.9,
-        "resolved_lateral_from_center_m": 3.1,
+        "resolved_lateral_from_center_m": -9.9,
         "placement_semantics": "sidewalk",
         "resolved_position_enu_m": [
-          7838.902,
-          7574.288,
+          6495.079,
+          6684.119,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 9.662
+          "yaw_deg": -94.783
         },
-        "source_lane_edge_id_hint": "cg_edge_29",
-        "source_longitudinal_s_hint": 40
+        "source_lane_edge_id_hint": "cg_edge_141_f_pl0",
+        "source_longitudinal_s_hint": 28.0
       },
       "route_waypoints_enu_m": [],
       "initial_state": {
@@ -128,9 +312,3790 @@
         "activity_type": "waiting",
         "animation_hint": "pedestrian_idle",
         "posture": "standing",
+        "social_state": "solo",
+        "task_id": "weather_ped_l5_1_v3.task",
+        "role": "semantic_pedestrian",
+        "state_sequence": [
+          "waiting"
+        ],
+        "semantic_role": "waiting"
+      },
+      "activation_tick": 0,
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
+    },
+    {
+      "entity_id": "pad_weather_abort_l5_1_v3",
+      "logical_asset_id": "facility.landing_pad.visible.v1",
+      "category": "facility",
+      "placement_mode": "pad_anchor",
+      "placement": {
+        "pad_instance_id": "weather_abort_l5_1_v3",
+        "approach_side": "east",
+        "position_enu_m": [
+          6424.998,
+          6783.701,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          6424.998,
+          6783.701,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -159.775
+        },
+        "road_clearance_m": 7.9,
+        "anchor_edge_id": "cg_edge_590_f_pl0",
+        "anchor_lane_s_m": 27.0,
+        "offset_from_curb_m": 6.0,
+        "resolved_lateral_from_center_m": 7.9,
+        "placement_semantics": "uav_pad"
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available",
+        "task_id": "pad_weather_abort_l5_1_v3.task",
+        "role": "semantic_facility",
+        "state_sequence": [
+          "available"
+        ],
+        "semantic_role": "available"
+      },
+      "activation_tick": 0,
+      "semantic_scope": {
+        "scope_type": "facility",
+        "scope_subtype": "landing_pad",
+        "ontology_class_id": "world:LandingPad",
+        "authority_id": "facility_scope_contract.v1",
+        "service_capacity": 1
+      },
+      "entity_kind": "facility.landing_pad",
+      "scene_occupancy": {
+        "authority": "low_altitude_scene_occupancy_authority_v1",
+        "role": "service_facility",
+        "physical": true,
+        "blocking": false,
+        "roadway_allowed": false
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
+    },
+    {
+      "entity_id": "u_inspect_l5_1_v3",
+      "logical_asset_id": "uav.inspect.quad.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          6408.737,
+          6637.182,
+          22.0
+        ],
+        "resolved_position_enu_m": [
+          6408.737,
+          6637.182,
+          22.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 45.0
+        }
+      },
+      "route_waypoints_enu_m": [
+        [
+          6408.737,
+          6637.182,
+          22.0
+        ],
+        [
+          6408.378,
+          6636.835,
+          22.0
+        ],
+        [
+          6409.097,
+          6637.53,
+          22.0
+        ],
+        [
+          6408.737,
+          6637.182,
+          22.0
+        ],
+        [
+          6450.737,
+          6631.182,
+          22.0
+        ],
+        [
+          6474.737,
+          6635.182,
+          22.0
+        ],
+        [
+          6504.737,
+          6647.182,
+          22.0
+        ],
+        [
+          6522.235,
+          6646.897,
+          22.0
+        ],
+        [
+          6522.235,
+          6647.397,
+          22.0
+        ],
+        [
+          6522.235,
+          6646.397,
+          22.0
+        ],
+        [
+          6522.235,
+          6646.897,
+          22.0
+        ],
+        [
+          6658.235,
+          6682.897,
+          22.0
+        ],
+        [
+          6662.235,
+          6688.897,
+          22.0
+        ],
+        [
+          6702.235,
+          6812.897,
+          22.0
+        ],
+        [
+          6694.235,
+          6832.897,
+          22.0
+        ],
+        [
+          6664.235,
+          6872.897,
+          22.0
+        ],
+        [
+          6644.235,
+          6868.897,
+          22.0
+        ],
+        [
+          6610.235,
+          6856.897,
+          22.0
+        ],
+        [
+          6532.879,
+          6800.624,
+          22.0
+        ],
+        [
+          6532.592,
+          6800.215,
+          22.0
+        ],
+        [
+          6533.166,
+          6801.034,
+          22.0
+        ],
+        [
+          6532.879,
+          6800.624,
+          22.0
+        ],
+        [
+          6470.879,
+          6782.624,
+          22.0
+        ],
+        [
+          6438.879,
+          6826.624,
+          22.0
+        ],
+        [
+          6434.879,
+          6840.624,
+          22.0
+        ],
+        [
+          6428.879,
+          6844.624,
+          22.0
+        ],
+        [
+          6389.535,
+          6828.79,
+          22.0
+        ],
+        [
+          6389.816,
+          6829.203,
+          22.0
+        ],
+        [
+          6389.254,
+          6828.376,
+          22.0
+        ],
+        [
+          6389.535,
+          6828.79,
+          22.0
+        ],
+        [
+          6429.535,
+          6844.79,
+          22.0
+        ],
+        [
+          6435.535,
+          6838.79,
+          22.0
+        ],
+        [
+          6455.535,
+          6772.79,
+          22.0
+        ],
+        [
+          6453.144,
+          6742.521,
+          22.0
+        ],
+        [
+          6453.589,
+          6742.747,
+          22.0
+        ],
+        [
+          6452.698,
+          6742.294,
+          22.0
+        ],
+        [
+          6453.144,
+          6742.521,
+          22.0
+        ],
+        [
+          6297.144,
+          6678.521,
+          22.0
+        ],
+        [
+          6295.144,
+          6670.521,
+          22.0
+        ],
+        [
+          6321.144,
+          6598.521,
+          22.0
+        ],
+        [
+          6323.144,
+          6596.521,
+          22.0
+        ],
+        [
+          6333.144,
+          6596.521,
+          22.0
+        ],
+        [
+          6361.144,
+          6606.521,
+          22.0
+        ],
+        [
+          6408.737,
+          6637.182,
+          22.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "inspect_racetrack",
+        "task_id": "L5-1_v3.u_inspect",
+        "role": "U_inspect",
+        "semantic_role": "long-lived UAV inspect view replacing high overview",
+        "state_sequence": [
+          "takeoff",
+          "inspect_racetrack",
+          "orbit",
+          "land"
+        ],
+        "assigned_altitude_m": 22.0,
+        "uav_corridor_role": "inspect_observer",
+        "inspect_altitude_code": "I22",
+        "min_path_length_m": 80.0,
+        "full_episode_presence": true
+      },
+      "activation_tick": 0,
+      "ground_reference_z_m": 0.0,
+      "ground_reference_source": "map_ground_reference_v1",
+      "uav_corridor_role": "inspect_observer",
+      "contract_inspect_uav": {
+        "policy": "semantic_event_contract_v1",
+        "corridor_role": "inspect_observer",
+        "corridor_policy": "inspect_capture_corridor",
+        "motion_policy": "fixed_altitude_loop_observes_capture_boundary",
+        "inspect_altitude_m": 22.0,
+        "inspect_altitude_code": "I22",
+        "sensor_fov_deg": 85.0,
+        "sensor_fov_source": "Config/LowAltitude/uav_sensor_profile.json#hfov_deg",
+        "sensor_profile": {
+          "source": "Config/LowAltitude/uav_sensor_profile.json",
+          "camera_name": "bottom_center",
+          "capture_backend": "editor_hook",
+          "width": 1280,
+          "height": 720,
+          "hfov_deg": 85.0,
+          "fixed_rotation_offset_deg": {
+            "pitch_deg": -90.0,
+            "yaw_deg": 0.0,
+            "roll_deg": 0.0
+          }
+        },
+        "min_path_length_m": 80.0,
+        "fixed_altitude_loop": true,
+        "planned_route_enu_m": [
+          [
+            6408.737,
+            6637.182,
+            22.0
+          ],
+          [
+            6408.378,
+            6636.835,
+            22.0
+          ],
+          [
+            6409.097,
+            6637.53,
+            22.0
+          ],
+          [
+            6408.737,
+            6637.182,
+            22.0
+          ],
+          [
+            6450.737,
+            6631.182,
+            22.0
+          ],
+          [
+            6474.737,
+            6635.182,
+            22.0
+          ],
+          [
+            6504.737,
+            6647.182,
+            22.0
+          ],
+          [
+            6522.235,
+            6646.897,
+            22.0
+          ],
+          [
+            6522.235,
+            6647.397,
+            22.0
+          ],
+          [
+            6522.235,
+            6646.397,
+            22.0
+          ],
+          [
+            6522.235,
+            6646.897,
+            22.0
+          ],
+          [
+            6658.235,
+            6682.897,
+            22.0
+          ],
+          [
+            6662.235,
+            6688.897,
+            22.0
+          ],
+          [
+            6702.235,
+            6812.897,
+            22.0
+          ],
+          [
+            6694.235,
+            6832.897,
+            22.0
+          ],
+          [
+            6664.235,
+            6872.897,
+            22.0
+          ],
+          [
+            6644.235,
+            6868.897,
+            22.0
+          ],
+          [
+            6610.235,
+            6856.897,
+            22.0
+          ],
+          [
+            6532.879,
+            6800.624,
+            22.0
+          ],
+          [
+            6532.592,
+            6800.215,
+            22.0
+          ],
+          [
+            6533.166,
+            6801.034,
+            22.0
+          ],
+          [
+            6532.879,
+            6800.624,
+            22.0
+          ],
+          [
+            6470.879,
+            6782.624,
+            22.0
+          ],
+          [
+            6438.879,
+            6826.624,
+            22.0
+          ],
+          [
+            6434.879,
+            6840.624,
+            22.0
+          ],
+          [
+            6428.879,
+            6844.624,
+            22.0
+          ],
+          [
+            6389.535,
+            6828.79,
+            22.0
+          ],
+          [
+            6389.816,
+            6829.203,
+            22.0
+          ],
+          [
+            6389.254,
+            6828.376,
+            22.0
+          ],
+          [
+            6389.535,
+            6828.79,
+            22.0
+          ],
+          [
+            6429.535,
+            6844.79,
+            22.0
+          ],
+          [
+            6435.535,
+            6838.79,
+            22.0
+          ],
+          [
+            6455.535,
+            6772.79,
+            22.0
+          ],
+          [
+            6453.144,
+            6742.521,
+            22.0
+          ],
+          [
+            6453.589,
+            6742.747,
+            22.0
+          ],
+          [
+            6452.698,
+            6742.294,
+            22.0
+          ],
+          [
+            6453.144,
+            6742.521,
+            22.0
+          ],
+          [
+            6297.144,
+            6678.521,
+            22.0
+          ],
+          [
+            6295.144,
+            6670.521,
+            22.0
+          ],
+          [
+            6321.144,
+            6598.521,
+            22.0
+          ],
+          [
+            6323.144,
+            6596.521,
+            22.0
+          ],
+          [
+            6333.144,
+            6596.521,
+            22.0
+          ],
+          [
+            6361.144,
+            6606.521,
+            22.0
+          ],
+          [
+            6408.737,
+            6637.182,
+            22.0
+          ]
+        ],
+        "loop_route_enu_m": [
+          [
+            6408.737,
+            6637.182,
+            22.0
+          ],
+          [
+            6408.378,
+            6636.835,
+            22.0
+          ],
+          [
+            6409.097,
+            6637.53,
+            22.0
+          ],
+          [
+            6408.737,
+            6637.182,
+            22.0
+          ],
+          [
+            6450.737,
+            6631.182,
+            22.0
+          ],
+          [
+            6474.737,
+            6635.182,
+            22.0
+          ],
+          [
+            6504.737,
+            6647.182,
+            22.0
+          ],
+          [
+            6522.235,
+            6646.897,
+            22.0
+          ],
+          [
+            6522.235,
+            6647.397,
+            22.0
+          ],
+          [
+            6522.235,
+            6646.397,
+            22.0
+          ],
+          [
+            6522.235,
+            6646.897,
+            22.0
+          ],
+          [
+            6658.235,
+            6682.897,
+            22.0
+          ],
+          [
+            6662.235,
+            6688.897,
+            22.0
+          ],
+          [
+            6702.235,
+            6812.897,
+            22.0
+          ],
+          [
+            6694.235,
+            6832.897,
+            22.0
+          ],
+          [
+            6664.235,
+            6872.897,
+            22.0
+          ],
+          [
+            6644.235,
+            6868.897,
+            22.0
+          ],
+          [
+            6610.235,
+            6856.897,
+            22.0
+          ],
+          [
+            6532.879,
+            6800.624,
+            22.0
+          ],
+          [
+            6532.592,
+            6800.215,
+            22.0
+          ],
+          [
+            6533.166,
+            6801.034,
+            22.0
+          ],
+          [
+            6532.879,
+            6800.624,
+            22.0
+          ],
+          [
+            6470.879,
+            6782.624,
+            22.0
+          ],
+          [
+            6438.879,
+            6826.624,
+            22.0
+          ],
+          [
+            6434.879,
+            6840.624,
+            22.0
+          ],
+          [
+            6428.879,
+            6844.624,
+            22.0
+          ],
+          [
+            6389.535,
+            6828.79,
+            22.0
+          ],
+          [
+            6389.816,
+            6829.203,
+            22.0
+          ],
+          [
+            6389.254,
+            6828.376,
+            22.0
+          ],
+          [
+            6389.535,
+            6828.79,
+            22.0
+          ],
+          [
+            6429.535,
+            6844.79,
+            22.0
+          ],
+          [
+            6435.535,
+            6838.79,
+            22.0
+          ],
+          [
+            6455.535,
+            6772.79,
+            22.0
+          ],
+          [
+            6453.144,
+            6742.521,
+            22.0
+          ],
+          [
+            6453.589,
+            6742.747,
+            22.0
+          ],
+          [
+            6452.698,
+            6742.294,
+            22.0
+          ],
+          [
+            6453.144,
+            6742.521,
+            22.0
+          ],
+          [
+            6297.144,
+            6678.521,
+            22.0
+          ],
+          [
+            6295.144,
+            6670.521,
+            22.0
+          ],
+          [
+            6321.144,
+            6598.521,
+            22.0
+          ],
+          [
+            6323.144,
+            6596.521,
+            22.0
+          ],
+          [
+            6333.144,
+            6596.521,
+            22.0
+          ],
+          [
+            6361.144,
+            6606.521,
+            22.0
+          ],
+          [
+            6408.737,
+            6637.182,
+            22.0
+          ]
+        ],
+        "repaired_route_enu_m": [
+          [
+            6408.737,
+            6637.182,
+            22.0
+          ],
+          [
+            6408.378,
+            6636.835,
+            22.0
+          ],
+          [
+            6409.097,
+            6637.53,
+            22.0
+          ],
+          [
+            6408.737,
+            6637.182,
+            22.0
+          ],
+          [
+            6450.737,
+            6631.182,
+            22.0
+          ],
+          [
+            6474.737,
+            6635.182,
+            22.0
+          ],
+          [
+            6504.737,
+            6647.182,
+            22.0
+          ],
+          [
+            6522.235,
+            6646.897,
+            22.0
+          ],
+          [
+            6522.235,
+            6647.397,
+            22.0
+          ],
+          [
+            6522.235,
+            6646.397,
+            22.0
+          ],
+          [
+            6522.235,
+            6646.897,
+            22.0
+          ],
+          [
+            6658.235,
+            6682.897,
+            22.0
+          ],
+          [
+            6662.235,
+            6688.897,
+            22.0
+          ],
+          [
+            6702.235,
+            6812.897,
+            22.0
+          ],
+          [
+            6694.235,
+            6832.897,
+            22.0
+          ],
+          [
+            6664.235,
+            6872.897,
+            22.0
+          ],
+          [
+            6644.235,
+            6868.897,
+            22.0
+          ],
+          [
+            6610.235,
+            6856.897,
+            22.0
+          ],
+          [
+            6532.879,
+            6800.624,
+            22.0
+          ],
+          [
+            6532.592,
+            6800.215,
+            22.0
+          ],
+          [
+            6533.166,
+            6801.034,
+            22.0
+          ],
+          [
+            6532.879,
+            6800.624,
+            22.0
+          ],
+          [
+            6470.879,
+            6782.624,
+            22.0
+          ],
+          [
+            6438.879,
+            6826.624,
+            22.0
+          ],
+          [
+            6434.879,
+            6840.624,
+            22.0
+          ],
+          [
+            6428.879,
+            6844.624,
+            22.0
+          ],
+          [
+            6389.535,
+            6828.79,
+            22.0
+          ],
+          [
+            6389.816,
+            6829.203,
+            22.0
+          ],
+          [
+            6389.254,
+            6828.376,
+            22.0
+          ],
+          [
+            6389.535,
+            6828.79,
+            22.0
+          ],
+          [
+            6429.535,
+            6844.79,
+            22.0
+          ],
+          [
+            6435.535,
+            6838.79,
+            22.0
+          ],
+          [
+            6455.535,
+            6772.79,
+            22.0
+          ],
+          [
+            6453.144,
+            6742.521,
+            22.0
+          ],
+          [
+            6453.589,
+            6742.747,
+            22.0
+          ],
+          [
+            6452.698,
+            6742.294,
+            22.0
+          ],
+          [
+            6453.144,
+            6742.521,
+            22.0
+          ],
+          [
+            6297.144,
+            6678.521,
+            22.0
+          ],
+          [
+            6295.144,
+            6670.521,
+            22.0
+          ],
+          [
+            6321.144,
+            6598.521,
+            22.0
+          ],
+          [
+            6323.144,
+            6596.521,
+            22.0
+          ],
+          [
+            6333.144,
+            6596.521,
+            22.0
+          ],
+          [
+            6361.144,
+            6606.521,
+            22.0
+          ],
+          [
+            6408.737,
+            6637.182,
+            22.0
+          ]
+        ],
+        "repaired_path_length_m": 1315.037,
+        "observed_capture_boundary_id": "capture_boundary_l5_1_v3",
+        "inspect_fov_coverage_required": true
+      },
+      "uav_corridor": {
+        "assigned_altitude_m": 22.0,
+        "altitude_layers_m": [
+          30.0,
+          50.0,
+          80.0
+        ],
+        "used_lateral_bypass": false
+      },
+      "validation_tags": [
+        "uav_corridor_contract"
+      ],
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 1315.037
+      },
+      "planned_route_waypoints_enu_m": [
+        [
+          6408.737,
+          6637.182,
+          22.0
+        ],
+        [
+          6408.378,
+          6636.835,
+          22.0
+        ],
+        [
+          6409.097,
+          6637.53,
+          22.0
+        ],
+        [
+          6408.737,
+          6637.182,
+          22.0
+        ],
+        [
+          6450.737,
+          6631.182,
+          22.0
+        ],
+        [
+          6474.737,
+          6635.182,
+          22.0
+        ],
+        [
+          6504.737,
+          6647.182,
+          22.0
+        ],
+        [
+          6522.235,
+          6646.897,
+          22.0
+        ],
+        [
+          6522.235,
+          6647.397,
+          22.0
+        ],
+        [
+          6522.235,
+          6646.397,
+          22.0
+        ],
+        [
+          6522.235,
+          6646.897,
+          22.0
+        ],
+        [
+          6658.235,
+          6682.897,
+          22.0
+        ],
+        [
+          6662.235,
+          6688.897,
+          22.0
+        ],
+        [
+          6702.235,
+          6812.897,
+          22.0
+        ],
+        [
+          6694.235,
+          6832.897,
+          22.0
+        ],
+        [
+          6664.235,
+          6872.897,
+          22.0
+        ],
+        [
+          6644.235,
+          6868.897,
+          22.0
+        ],
+        [
+          6610.235,
+          6856.897,
+          22.0
+        ],
+        [
+          6532.879,
+          6800.624,
+          22.0
+        ],
+        [
+          6532.592,
+          6800.215,
+          22.0
+        ],
+        [
+          6533.166,
+          6801.034,
+          22.0
+        ],
+        [
+          6532.879,
+          6800.624,
+          22.0
+        ],
+        [
+          6470.879,
+          6782.624,
+          22.0
+        ],
+        [
+          6438.879,
+          6826.624,
+          22.0
+        ],
+        [
+          6434.879,
+          6840.624,
+          22.0
+        ],
+        [
+          6428.879,
+          6844.624,
+          22.0
+        ],
+        [
+          6389.535,
+          6828.79,
+          22.0
+        ],
+        [
+          6389.816,
+          6829.203,
+          22.0
+        ],
+        [
+          6389.254,
+          6828.376,
+          22.0
+        ],
+        [
+          6389.535,
+          6828.79,
+          22.0
+        ],
+        [
+          6429.535,
+          6844.79,
+          22.0
+        ],
+        [
+          6435.535,
+          6838.79,
+          22.0
+        ],
+        [
+          6455.535,
+          6772.79,
+          22.0
+        ],
+        [
+          6453.144,
+          6742.521,
+          22.0
+        ],
+        [
+          6453.589,
+          6742.747,
+          22.0
+        ],
+        [
+          6452.698,
+          6742.294,
+          22.0
+        ],
+        [
+          6453.144,
+          6742.521,
+          22.0
+        ],
+        [
+          6297.144,
+          6678.521,
+          22.0
+        ],
+        [
+          6295.144,
+          6670.521,
+          22.0
+        ],
+        [
+          6321.144,
+          6598.521,
+          22.0
+        ],
+        [
+          6323.144,
+          6596.521,
+          22.0
+        ],
+        [
+          6333.144,
+          6596.521,
+          22.0
+        ],
+        [
+          6361.144,
+          6606.521,
+          22.0
+        ],
+        [
+          6408.737,
+          6637.182,
+          22.0
+        ]
+      ]
+    },
+    {
+      "entity_id": "bg_vehicle_l5_1_v3_02",
+      "logical_asset_id": "vehicle.emergency.suv.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_161_f_pl0",
+        "lane_index": 0,
+        "longitudinal_s": 0.0,
+        "lateral_offset_m": 1.5,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 1.5,
+        "placement_semantics": "physical_vehicle_lane_center",
+        "resolved_position_enu_m": [
+          6474.082,
+          6745.836,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -48.39
+        },
+        "source_edge_id_hint": "cg_edge_161_f_pl0",
+        "source_longitudinal_s_hint": 0.0,
+        "road_lane_count": 2,
+        "road_width_m": 6.0,
+        "physical_lane_center_offsets_m": [
+          -1.5,
+          1.5
+        ],
+        "selected_physical_lane_offset_m": 1.5,
+        "route_authority": "sumo_directed_lane_geometry"
+      },
+      "route_waypoints_enu_m": [
+        [
+          6474.752,
+          6745.026,
+          0.0
+        ],
+        [
+          6475.395,
+          6743.983,
+          0.0
+        ],
+        [
+          6475.906,
+          6743.081,
+          0.0
+        ],
+        [
+          6476.367,
+          6741.985,
+          0.0
+        ],
+        [
+          6476.741,
+          6741.041,
+          0.0
+        ],
+        [
+          6477.093,
+          6740.04,
+          0.0
+        ],
+        [
+          6477.422,
+          6739.092,
+          0.0
+        ],
+        [
+          6477.749,
+          6738.141,
+          0.0
+        ],
+        [
+          6478.074,
+          6737.198,
+          0.0
+        ],
+        [
+          6478.4,
+          6736.25,
+          0.0
+        ],
+        [
+          6478.725,
+          6735.307,
+          0.0
+        ],
+        [
+          6479.053,
+          6734.369,
+          0.0
+        ],
+        [
+          6479.382,
+          6733.421,
+          0.0
+        ],
+        [
+          6479.709,
+          6732.473,
+          0.0
+        ],
+        [
+          6480.035,
+          6731.525,
+          0.0
+        ],
+        [
+          6480.36,
+          6730.579,
+          0.0
+        ],
+        [
+          6480.685,
+          6729.636,
+          0.0
+        ],
+        [
+          6481.013,
+          6728.698,
+          0.0
+        ],
+        [
+          6481.342,
+          6727.753,
+          0.0
+        ],
+        [
+          6481.67,
+          6726.8,
+          0.0
+        ],
+        [
+          6481.995,
+          6725.857,
+          0.0
+        ],
+        [
+          6482.323,
+          6724.919,
+          0.0
+        ],
+        [
+          6482.653,
+          6723.972,
+          0.0
+        ],
+        [
+          6482.98,
+          6723.02,
+          0.0
+        ],
+        [
+          6483.304,
+          6722.076,
+          0.0
+        ],
+        [
+          6483.63,
+          6721.129,
+          0.0
+        ],
+        [
+          6483.97,
+          6720.253,
+          0.0
+        ],
+        [
+          6484.369,
+          6719.588,
+          0.0
+        ],
+        [
+          6484.859,
+          6718.663,
+          0.0
+        ],
+        [
+          6484.994,
+          6718.321,
+          0.0
+        ],
+        [
+          6480.77,
+          6709.35,
+          0.0
+        ],
+        [
+          6479.819,
+          6709.042,
+          0.0
+        ],
+        [
+          6478.901,
+          6708.644,
+          0.0
+        ],
+        [
+          6477.987,
+          6708.24,
+          0.0
+        ],
+        [
+          6477.061,
+          6707.862,
+          0.0
+        ],
+        [
+          6476.134,
+          6707.486,
+          0.0
+        ],
+        [
+          6475.207,
+          6707.112,
+          0.0
+        ],
+        [
+          6474.28,
+          6706.738,
+          0.0
+        ],
+        [
+          6473.353,
+          6706.363,
+          0.0
+        ],
+        [
+          6472.426,
+          6705.987,
+          0.0
+        ],
+        [
+          6471.497,
+          6705.617,
+          0.0
+        ],
+        [
+          6470.568,
+          6705.247,
+          0.0
+        ],
+        [
+          6469.641,
+          6704.872,
+          0.0
+        ],
+        [
+          6468.714,
+          6704.496,
+          0.0
+        ],
+        [
+          6467.787,
+          6704.122,
+          0.0
+        ],
+        [
+          6466.86,
+          6703.748,
+          0.0
+        ],
+        [
+          6465.933,
+          6703.373,
+          0.0
+        ],
+        [
+          6465.006,
+          6702.997,
+          0.0
+        ],
+        [
+          6464.077,
+          6702.627,
+          0.0
+        ],
+        [
+          6463.148,
+          6702.257,
+          0.0
+        ],
+        [
+          6462.221,
+          6701.882,
+          0.0
+        ],
+        [
+          6461.294,
+          6701.506,
+          0.0
+        ],
+        [
+          6460.367,
+          6701.132,
+          0.0
+        ],
+        [
+          6459.439,
+          6700.758,
+          0.0
+        ],
+        [
+          6458.512,
+          6700.382,
+          0.0
+        ],
+        [
+          6457.586,
+          6700.007,
+          0.0
+        ],
+        [
+          6456.657,
+          6699.637,
+          0.0
+        ],
+        [
+          6455.728,
+          6699.267,
+          0.0
+        ],
+        [
+          6454.801,
+          6698.892,
+          0.0
+        ],
+        [
+          6453.874,
+          6698.516,
+          0.0
+        ],
+        [
+          6452.946,
+          6698.142,
+          0.0
+        ],
+        [
+          6452.019,
+          6697.768,
+          0.0
+        ],
+        [
+          6451.092,
+          6697.392,
+          0.0
+        ],
+        [
+          6450.166,
+          6697.017,
+          0.0
+        ],
+        [
+          6449.237,
+          6696.647,
+          0.0
+        ],
+        [
+          6448.308,
+          6696.277,
+          0.0
+        ],
+        [
+          6447.381,
+          6695.902,
+          0.0
+        ],
+        [
+          6446.454,
+          6695.526,
+          0.0
+        ],
+        [
+          6445.526,
+          6695.152,
+          0.0
+        ],
+        [
+          6444.599,
+          6694.778,
+          0.0
+        ],
+        [
+          6443.672,
+          6694.402,
+          0.0
+        ],
+        [
+          6442.745,
+          6694.027,
+          0.0
+        ],
+        [
+          6441.816,
+          6693.656,
+          0.0
+        ],
+        [
+          6440.887,
+          6693.287,
+          0.0
+        ],
+        [
+          6439.96,
+          6692.912,
+          0.0
+        ],
+        [
+          6439.034,
+          6692.536,
+          0.0
+        ],
+        [
+          6438.106,
+          6692.162,
+          0.0
+        ],
+        [
+          6437.179,
+          6691.788,
+          0.0
+        ],
+        [
+          6436.252,
+          6691.412,
+          0.0
+        ],
+        [
+          6435.325,
+          6691.037,
+          0.0
+        ],
+        [
+          6434.396,
+          6690.666,
+          0.0
+        ],
+        [
+          6433.467,
+          6690.297,
+          0.0
+        ],
+        [
+          6432.54,
+          6689.922,
+          0.0
+        ],
+        [
+          6431.613,
+          6689.546,
+          0.0
+        ],
+        [
+          6430.686,
+          6689.172,
+          0.0
+        ],
+        [
+          6429.759,
+          6688.798,
+          0.0
+        ],
+        [
+          6428.832,
+          6688.422,
+          0.0
+        ],
+        [
+          6427.905,
+          6688.046,
+          0.0
+        ],
+        [
+          6426.976,
+          6687.676,
+          0.0
+        ],
+        [
+          6426.047,
+          6687.307,
+          0.0
+        ],
+        [
+          6425.12,
+          6686.931,
+          0.0
+        ],
+        [
+          6424.193,
+          6686.556,
+          0.0
+        ],
+        [
+          6423.266,
+          6686.182,
+          0.0
+        ],
+        [
+          6422.339,
+          6685.807,
+          0.0
+        ],
+        [
+          6421.412,
+          6685.432,
+          0.0
+        ],
+        [
+          6420.485,
+          6685.056,
+          0.0
+        ],
+        [
+          6419.556,
+          6684.686,
+          0.0
+        ],
+        [
+          6418.627,
+          6684.316,
+          0.0
+        ],
+        [
+          6417.7,
+          6683.941,
+          0.0
+        ],
+        [
+          6416.773,
+          6683.566,
+          0.0
+        ],
+        [
+          6415.857,
+          6683.165,
+          0.0
+        ],
+        [
+          6415.12,
+          6682.84,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "traffic_slow",
+        "task_id": "L5-1_v3.vehicle_background.02",
+        "role": "semantic_background_vehicle",
+        "semantic_role": "slow/queued",
+        "state_sequence": [
+          "traffic_slow",
+          "traffic_slow"
+        ],
+        "background_role": "semantic_context"
+      },
+      "activation_tick": 0,
+      "background_vehicle": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "slow/queued",
+        "contract_scenario_id": "L5-1_v3",
+        "physical_lane_lateral_m": 0.0
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "vehicle",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 24.0,
+        "speed_mps": 6.0,
+        "route_duration_ticks": 900,
+        "loop_policy": "single_pass_route_waypoints",
+        "route_source": "sumo_net_directed_lane_geometry",
+        "planned_path_length_m": 110.035,
+        "physical_lane_lateral_m": 0.0
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 110.438
+      }
+    },
+    {
+      "entity_id": "bg_vehicle_l5_1_v3_03",
+      "logical_asset_id": "vehicle.service.box.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_358_f_pl0",
+        "lane_index": 0,
+        "longitudinal_s": 13.0,
+        "lateral_offset_m": 0.0,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 0.0,
+        "placement_semantics": "physical_vehicle_lane_center",
+        "resolved_position_enu_m": [
+          6468.714,
+          6704.496,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -157.857
+        },
+        "source_edge_id_hint": "cg_edge_358_f_pl0",
+        "source_longitudinal_s_hint": 13.0,
+        "road_lane_count": 1,
+        "road_width_m": 3.0,
+        "physical_lane_center_offsets_m": [
+          0.0
+        ],
+        "selected_physical_lane_offset_m": 0.0,
+        "route_authority": "sumo_directed_lane_geometry"
+      },
+      "route_waypoints_enu_m": [
+        [
+          6467.787,
+          6704.122,
+          0.0
+        ],
+        [
+          6466.86,
+          6703.748,
+          0.0
+        ],
+        [
+          6465.933,
+          6703.373,
+          0.0
+        ],
+        [
+          6465.006,
+          6702.997,
+          0.0
+        ],
+        [
+          6464.077,
+          6702.627,
+          0.0
+        ],
+        [
+          6463.148,
+          6702.257,
+          0.0
+        ],
+        [
+          6462.221,
+          6701.882,
+          0.0
+        ],
+        [
+          6461.294,
+          6701.506,
+          0.0
+        ],
+        [
+          6460.367,
+          6701.132,
+          0.0
+        ],
+        [
+          6459.439,
+          6700.758,
+          0.0
+        ],
+        [
+          6458.512,
+          6700.382,
+          0.0
+        ],
+        [
+          6457.586,
+          6700.007,
+          0.0
+        ],
+        [
+          6456.657,
+          6699.637,
+          0.0
+        ],
+        [
+          6455.728,
+          6699.267,
+          0.0
+        ],
+        [
+          6454.801,
+          6698.892,
+          0.0
+        ],
+        [
+          6453.874,
+          6698.516,
+          0.0
+        ],
+        [
+          6452.946,
+          6698.142,
+          0.0
+        ],
+        [
+          6452.019,
+          6697.768,
+          0.0
+        ],
+        [
+          6451.092,
+          6697.392,
+          0.0
+        ],
+        [
+          6450.166,
+          6697.017,
+          0.0
+        ],
+        [
+          6449.237,
+          6696.647,
+          0.0
+        ],
+        [
+          6448.308,
+          6696.277,
+          0.0
+        ],
+        [
+          6447.381,
+          6695.902,
+          0.0
+        ],
+        [
+          6446.454,
+          6695.526,
+          0.0
+        ],
+        [
+          6445.526,
+          6695.152,
+          0.0
+        ],
+        [
+          6444.599,
+          6694.778,
+          0.0
+        ],
+        [
+          6443.672,
+          6694.402,
+          0.0
+        ],
+        [
+          6442.745,
+          6694.027,
+          0.0
+        ],
+        [
+          6441.816,
+          6693.656,
+          0.0
+        ],
+        [
+          6440.887,
+          6693.287,
+          0.0
+        ],
+        [
+          6439.96,
+          6692.912,
+          0.0
+        ],
+        [
+          6439.034,
+          6692.536,
+          0.0
+        ],
+        [
+          6438.106,
+          6692.162,
+          0.0
+        ],
+        [
+          6437.179,
+          6691.788,
+          0.0
+        ],
+        [
+          6436.252,
+          6691.412,
+          0.0
+        ],
+        [
+          6435.325,
+          6691.037,
+          0.0
+        ],
+        [
+          6434.396,
+          6690.666,
+          0.0
+        ],
+        [
+          6433.467,
+          6690.297,
+          0.0
+        ],
+        [
+          6432.54,
+          6689.922,
+          0.0
+        ],
+        [
+          6431.613,
+          6689.546,
+          0.0
+        ],
+        [
+          6430.686,
+          6689.172,
+          0.0
+        ],
+        [
+          6429.759,
+          6688.798,
+          0.0
+        ],
+        [
+          6428.832,
+          6688.422,
+          0.0
+        ],
+        [
+          6427.905,
+          6688.046,
+          0.0
+        ],
+        [
+          6426.976,
+          6687.676,
+          0.0
+        ],
+        [
+          6426.047,
+          6687.307,
+          0.0
+        ],
+        [
+          6425.12,
+          6686.931,
+          0.0
+        ],
+        [
+          6424.193,
+          6686.556,
+          0.0
+        ],
+        [
+          6423.266,
+          6686.182,
+          0.0
+        ],
+        [
+          6422.339,
+          6685.807,
+          0.0
+        ],
+        [
+          6421.412,
+          6685.432,
+          0.0
+        ],
+        [
+          6420.485,
+          6685.056,
+          0.0
+        ],
+        [
+          6419.556,
+          6684.686,
+          0.0
+        ],
+        [
+          6418.627,
+          6684.316,
+          0.0
+        ],
+        [
+          6417.7,
+          6683.941,
+          0.0
+        ],
+        [
+          6416.773,
+          6683.566,
+          0.0
+        ],
+        [
+          6415.857,
+          6683.165,
+          0.0
+        ],
+        [
+          6415.12,
+          6682.84,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "traffic_slow",
+        "task_id": "L5-1_v3.vehicle_background.03",
+        "role": "semantic_background_vehicle",
+        "semantic_role": "slow/queued",
+        "state_sequence": [
+          "traffic_slow",
+          "traffic_slow"
+        ],
+        "background_role": "semantic_context"
+      },
+      "activation_tick": 0,
+      "background_vehicle": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "slow/queued",
+        "contract_scenario_id": "L5-1_v3",
+        "physical_lane_lateral_m": 0.0
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "vehicle",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 24.0,
+        "speed_mps": 6.0,
+        "route_duration_ticks": 900,
+        "loop_policy": "single_pass_route_waypoints",
+        "route_source": "sumo_net_directed_lane_geometry",
+        "planned_path_length_m": 57.805,
+        "physical_lane_lateral_m": 0.0
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 57.805
+      }
+    },
+    {
+      "entity_id": "bg_vehicle_l5_1_v3_04",
+      "logical_asset_id": "vehicle.ground.boxcar.v1",
+      "category": "vehicle",
+      "placement_mode": "lane_anchor",
+      "placement": {
+        "edge_id": "cg_edge_358_f_pl0",
+        "lane_index": 0,
+        "longitudinal_s": 2.0,
+        "lateral_offset_m": 0.0,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": 0.0,
+        "placement_semantics": "physical_vehicle_lane_center",
+        "resolved_position_enu_m": [
+          6478.901,
+          6708.644,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -156.194
+        },
+        "source_edge_id_hint": "cg_edge_358_f_pl0",
+        "source_longitudinal_s_hint": 2.0,
+        "road_lane_count": 1,
+        "road_width_m": 3.0,
+        "physical_lane_center_offsets_m": [
+          0.0
+        ],
+        "selected_physical_lane_offset_m": 0.0,
+        "route_authority": "sumo_directed_lane_geometry"
+      },
+      "route_waypoints_enu_m": [
+        [
+          6477.987,
+          6708.24,
+          0.0
+        ],
+        [
+          6477.061,
+          6707.862,
+          0.0
+        ],
+        [
+          6476.134,
+          6707.486,
+          0.0
+        ],
+        [
+          6475.207,
+          6707.112,
+          0.0
+        ],
+        [
+          6474.28,
+          6706.738,
+          0.0
+        ],
+        [
+          6473.353,
+          6706.363,
+          0.0
+        ],
+        [
+          6472.426,
+          6705.987,
+          0.0
+        ],
+        [
+          6471.497,
+          6705.617,
+          0.0
+        ],
+        [
+          6470.568,
+          6705.247,
+          0.0
+        ],
+        [
+          6469.641,
+          6704.872,
+          0.0
+        ],
+        [
+          6468.714,
+          6704.496,
+          0.0
+        ],
+        [
+          6467.787,
+          6704.122,
+          0.0
+        ],
+        [
+          6466.86,
+          6703.748,
+          0.0
+        ],
+        [
+          6465.933,
+          6703.373,
+          0.0
+        ],
+        [
+          6465.006,
+          6702.997,
+          0.0
+        ],
+        [
+          6464.077,
+          6702.627,
+          0.0
+        ],
+        [
+          6463.148,
+          6702.257,
+          0.0
+        ],
+        [
+          6462.221,
+          6701.882,
+          0.0
+        ],
+        [
+          6461.294,
+          6701.506,
+          0.0
+        ],
+        [
+          6460.367,
+          6701.132,
+          0.0
+        ],
+        [
+          6459.439,
+          6700.758,
+          0.0
+        ],
+        [
+          6458.512,
+          6700.382,
+          0.0
+        ],
+        [
+          6457.586,
+          6700.007,
+          0.0
+        ],
+        [
+          6456.657,
+          6699.637,
+          0.0
+        ],
+        [
+          6455.728,
+          6699.267,
+          0.0
+        ],
+        [
+          6454.801,
+          6698.892,
+          0.0
+        ],
+        [
+          6453.874,
+          6698.516,
+          0.0
+        ],
+        [
+          6452.946,
+          6698.142,
+          0.0
+        ],
+        [
+          6452.019,
+          6697.768,
+          0.0
+        ],
+        [
+          6451.092,
+          6697.392,
+          0.0
+        ],
+        [
+          6450.166,
+          6697.017,
+          0.0
+        ],
+        [
+          6449.237,
+          6696.647,
+          0.0
+        ],
+        [
+          6448.308,
+          6696.277,
+          0.0
+        ],
+        [
+          6447.381,
+          6695.902,
+          0.0
+        ],
+        [
+          6446.454,
+          6695.526,
+          0.0
+        ],
+        [
+          6445.526,
+          6695.152,
+          0.0
+        ],
+        [
+          6444.599,
+          6694.778,
+          0.0
+        ],
+        [
+          6443.672,
+          6694.402,
+          0.0
+        ],
+        [
+          6442.745,
+          6694.027,
+          0.0
+        ],
+        [
+          6441.816,
+          6693.656,
+          0.0
+        ],
+        [
+          6440.887,
+          6693.287,
+          0.0
+        ],
+        [
+          6439.96,
+          6692.912,
+          0.0
+        ],
+        [
+          6439.034,
+          6692.536,
+          0.0
+        ],
+        [
+          6438.106,
+          6692.162,
+          0.0
+        ],
+        [
+          6437.179,
+          6691.788,
+          0.0
+        ],
+        [
+          6436.252,
+          6691.412,
+          0.0
+        ],
+        [
+          6435.325,
+          6691.037,
+          0.0
+        ],
+        [
+          6434.396,
+          6690.666,
+          0.0
+        ],
+        [
+          6433.467,
+          6690.297,
+          0.0
+        ],
+        [
+          6432.54,
+          6689.922,
+          0.0
+        ],
+        [
+          6431.613,
+          6689.546,
+          0.0
+        ],
+        [
+          6430.686,
+          6689.172,
+          0.0
+        ],
+        [
+          6429.759,
+          6688.798,
+          0.0
+        ],
+        [
+          6428.832,
+          6688.422,
+          0.0
+        ],
+        [
+          6427.905,
+          6688.046,
+          0.0
+        ],
+        [
+          6426.976,
+          6687.676,
+          0.0
+        ],
+        [
+          6426.047,
+          6687.307,
+          0.0
+        ],
+        [
+          6425.12,
+          6686.931,
+          0.0
+        ],
+        [
+          6424.193,
+          6686.556,
+          0.0
+        ],
+        [
+          6423.266,
+          6686.182,
+          0.0
+        ],
+        [
+          6422.339,
+          6685.807,
+          0.0
+        ],
+        [
+          6421.412,
+          6685.432,
+          0.0
+        ],
+        [
+          6420.485,
+          6685.056,
+          0.0
+        ],
+        [
+          6419.556,
+          6684.686,
+          0.0
+        ],
+        [
+          6418.627,
+          6684.316,
+          0.0
+        ],
+        [
+          6417.7,
+          6683.941,
+          0.0
+        ],
+        [
+          6416.773,
+          6683.566,
+          0.0
+        ],
+        [
+          6415.857,
+          6683.165,
+          0.0
+        ],
+        [
+          6415.12,
+          6682.84,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "traffic_slow",
+        "task_id": "L5-1_v3.vehicle_background.04",
+        "role": "semantic_background_vehicle",
+        "semantic_role": "slow/queued",
+        "state_sequence": [
+          "traffic_slow",
+          "traffic_slow"
+        ],
+        "background_role": "semantic_context"
+      },
+      "activation_tick": 0,
+      "background_vehicle": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "slow/queued",
+        "contract_scenario_id": "L5-1_v3",
+        "physical_lane_lateral_m": 0.0
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "vehicle",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 24.0,
+        "speed_mps": 6.0,
+        "route_duration_ticks": 900,
+        "loop_policy": "single_pass_route_waypoints",
+        "route_source": "sumo_net_directed_lane_geometry",
+        "planned_path_length_m": 68.805,
+        "physical_lane_lateral_m": 0.0
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 68.805
+      }
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_02",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_726_f_pl0",
+        "longitudinal_s": 61.0,
+        "offset_from_curb_m": 4.8,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": -6.7,
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "allow_green": true,
+        "resolved_position_enu_m": [
+          6456.884,
+          6737.267,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 20.395
+        },
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "route_waypoints_enu_m": [
+        [
+          6449.425,
+          6734.444,
+          0.0
+        ],
+        [
+          6441.962,
+          6731.626,
+          0.0
+        ],
+        [
+          6434.478,
+          6728.798,
+          0.0
+        ],
+        [
+          6427.931,
+          6726.322,
+          0.0
+        ],
+        [
+          6420.412,
+          6723.478,
+          0.0
+        ],
+        [
+          6412.962,
+          6720.672,
+          0.0
+        ],
+        [
+          6405.479,
+          6717.841,
+          0.0
+        ],
+        [
+          6412.962,
+          6720.672,
+          0.0
+        ],
+        [
+          6419.475,
+          6723.129,
+          0.0
+        ],
+        [
+          6426.996,
+          6725.967,
+          0.0
+        ],
+        [
+          6434.478,
+          6728.798,
+          0.0
+        ],
+        [
+          6441.962,
+          6731.626,
+          0.0
+        ],
+        [
+          6448.51,
+          6734.101,
+          0.0
+        ],
+        [
+          6455.992,
+          6736.932,
+          0.0
+        ],
+        [
+          6463.434,
+          6739.735,
+          0.0
+        ],
+        [
+          6455.992,
+          6736.932,
+          0.0
+        ],
+        [
+          6448.51,
+          6734.101,
+          0.0
+        ],
+        [
+          6441.962,
+          6731.626,
+          0.0
+        ],
+        [
+          6434.478,
+          6728.798,
+          0.0
+        ],
+        [
+          6426.996,
+          6725.967,
+          0.0
+        ],
+        [
+          6419.475,
+          6723.129,
+          0.0
+        ],
+        [
+          6412.962,
+          6720.672,
+          0.0
+        ],
+        [
+          6405.479,
+          6717.841,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "walking",
+        "task_id": "L5-1_v3.pedestrian_background.02",
+        "role": "semantic_background_pedestrian",
+        "semantic_role": "sheltering and crossing delay",
+        "state_sequence": [
+          "walking",
+          "walking"
+        ],
+        "background_role": "semantic_context",
+        "activity_type": "walking",
+        "animation_hint": "pedestrian_walk",
+        "posture": "standing",
         "social_state": "solo"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "background_pedestrian": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "sheltering and crossing delay",
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "pedestrian",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 9.0,
+        "speed_mps": 1.25,
+        "route_duration_ticks": 900,
+        "loop_policy": "single_pass_route_waypoints",
+        "route_source": "traffic_bundle_sidewalk",
+        "planned_path_length_m": 178.858
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 178.858
+      }
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_03",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_726_f_pl0",
+        "longitudinal_s": 61.0,
+        "offset_from_curb_m": 6.2,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": -8.1,
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "allow_green": true,
+        "resolved_position_enu_m": [
+          6457.372,
+          6735.955,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 20.395
+        },
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "route_waypoints_enu_m": [
+        [
+          6449.918,
+          6733.133,
+          0.0
+        ],
+        [
+          6442.459,
+          6730.317,
+          0.0
+        ],
+        [
+          6434.975,
+          6727.489,
+          0.0
+        ],
+        [
+          6428.428,
+          6725.013,
+          0.0
+        ],
+        [
+          6420.901,
+          6722.166,
+          0.0
+        ],
+        [
+          6413.459,
+          6719.363,
+          0.0
+        ],
+        [
+          6405.976,
+          6716.532,
+          0.0
+        ],
+        [
+          6413.459,
+          6719.363,
+          0.0
+        ],
+        [
+          6419.964,
+          6721.817,
+          0.0
+        ],
+        [
+          6427.493,
+          6724.658,
+          0.0
+        ],
+        [
+          6434.975,
+          6727.489,
+          0.0
+        ],
+        [
+          6442.459,
+          6730.317,
+          0.0
+        ],
+        [
+          6449.007,
+          6732.792,
+          0.0
+        ],
+        [
+          6456.489,
+          6735.623,
+          0.0
+        ],
+        [
+          6463.922,
+          6738.423,
+          0.0
+        ],
+        [
+          6456.489,
+          6735.623,
+          0.0
+        ],
+        [
+          6449.007,
+          6732.792,
+          0.0
+        ],
+        [
+          6442.459,
+          6730.317,
+          0.0
+        ],
+        [
+          6434.975,
+          6727.489,
+          0.0
+        ],
+        [
+          6427.493,
+          6724.658,
+          0.0
+        ],
+        [
+          6419.964,
+          6721.817,
+          0.0
+        ],
+        [
+          6413.459,
+          6719.363,
+          0.0
+        ],
+        [
+          6405.976,
+          6716.532,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "walking",
+        "task_id": "L5-1_v3.pedestrian_background.03",
+        "role": "semantic_background_pedestrian",
+        "semantic_role": "sheltering and crossing delay",
+        "state_sequence": [
+          "walking",
+          "walking"
+        ],
+        "background_role": "semantic_context",
+        "activity_type": "walking",
+        "animation_hint": "pedestrian_walk",
+        "posture": "standing",
+        "social_state": "solo"
+      },
+      "activation_tick": 0,
+      "background_pedestrian": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "sheltering and crossing delay",
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "pedestrian",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 9.0,
+        "speed_mps": 1.25,
+        "route_duration_ticks": 900,
+        "loop_policy": "single_pass_route_waypoints",
+        "route_source": "traffic_bundle_sidewalk",
+        "planned_path_length_m": 178.83
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 178.83
+      }
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_04",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_726_f_pl0",
+        "longitudinal_s": 61.0,
+        "offset_from_curb_m": 3.6,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": -5.5,
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "allow_green": true,
+        "resolved_position_enu_m": [
+          6456.466,
+          6738.392,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 20.395
+        },
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "route_waypoints_enu_m": [
+        [
+          6449.003,
+          6735.567,
+          0.0
+        ],
+        [
+          6441.536,
+          6732.747,
+          0.0
+        ],
+        [
+          6434.052,
+          6729.919,
+          0.0
+        ],
+        [
+          6427.505,
+          6727.443,
+          0.0
+        ],
+        [
+          6419.992,
+          6724.602,
+          0.0
+        ],
+        [
+          6412.536,
+          6721.793,
+          0.0
+        ],
+        [
+          6405.053,
+          6718.962,
+          0.0
+        ],
+        [
+          6412.536,
+          6721.793,
+          0.0
+        ],
+        [
+          6419.055,
+          6724.253,
+          0.0
+        ],
+        [
+          6426.57,
+          6727.088,
+          0.0
+        ],
+        [
+          6434.052,
+          6729.919,
+          0.0
+        ],
+        [
+          6441.536,
+          6732.747,
+          0.0
+        ],
+        [
+          6448.084,
+          6735.222,
+          0.0
+        ],
+        [
+          6455.566,
+          6738.053,
+          0.0
+        ],
+        [
+          6463.016,
+          6740.86,
+          0.0
+        ],
+        [
+          6455.566,
+          6738.053,
+          0.0
+        ],
+        [
+          6448.084,
+          6735.222,
+          0.0
+        ],
+        [
+          6441.536,
+          6732.747,
+          0.0
+        ],
+        [
+          6434.052,
+          6729.919,
+          0.0
+        ],
+        [
+          6426.57,
+          6727.088,
+          0.0
+        ],
+        [
+          6419.055,
+          6724.253,
+          0.0
+        ],
+        [
+          6412.536,
+          6721.793,
+          0.0
+        ],
+        [
+          6405.053,
+          6718.962,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "walking",
+        "task_id": "L5-1_v3.pedestrian_background.04",
+        "role": "semantic_background_pedestrian",
+        "semantic_role": "sheltering and crossing delay",
+        "state_sequence": [
+          "walking",
+          "walking"
+        ],
+        "background_role": "semantic_context",
+        "activity_type": "walking",
+        "animation_hint": "pedestrian_walk",
+        "posture": "standing",
+        "social_state": "solo"
+      },
+      "activation_tick": 0,
+      "background_pedestrian": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "sheltering and crossing delay",
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "pedestrian",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 9.0,
+        "speed_mps": 1.25,
+        "route_duration_ticks": 900,
+        "loop_policy": "single_pass_route_waypoints",
+        "route_source": "traffic_bundle_sidewalk",
+        "planned_path_length_m": 178.885
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 178.885
+      }
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_05",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_726_f_pl0",
+        "longitudinal_s": 61.0,
+        "offset_from_curb_m": 2.4,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": -4.3,
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "allow_green": true,
+        "resolved_position_enu_m": [
+          6456.048,
+          6739.517,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 20.395
+        },
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "route_waypoints_enu_m": [
+        [
+          6448.581,
+          6736.69,
+          0.0
+        ],
+        [
+          6441.11,
+          6733.869,
+          0.0
+        ],
+        [
+          6433.626,
+          6731.041,
+          0.0
+        ],
+        [
+          6427.079,
+          6728.565,
+          0.0
+        ],
+        [
+          6419.573,
+          6725.726,
+          0.0
+        ],
+        [
+          6412.11,
+          6722.915,
+          0.0
+        ],
+        [
+          6404.627,
+          6720.084,
+          0.0
+        ],
+        [
+          6412.11,
+          6722.915,
+          0.0
+        ],
+        [
+          6418.636,
+          6725.377,
+          0.0
+        ],
+        [
+          6426.144,
+          6728.21,
+          0.0
+        ],
+        [
+          6433.626,
+          6731.041,
+          0.0
+        ],
+        [
+          6441.11,
+          6733.869,
+          0.0
+        ],
+        [
+          6447.658,
+          6736.344,
+          0.0
+        ],
+        [
+          6455.14,
+          6739.175,
+          0.0
+        ],
+        [
+          6462.598,
+          6741.985,
+          0.0
+        ],
+        [
+          6455.14,
+          6739.175,
+          0.0
+        ],
+        [
+          6447.658,
+          6736.344,
+          0.0
+        ],
+        [
+          6441.11,
+          6733.869,
+          0.0
+        ],
+        [
+          6433.626,
+          6731.041,
+          0.0
+        ],
+        [
+          6426.144,
+          6728.21,
+          0.0
+        ],
+        [
+          6418.636,
+          6725.377,
+          0.0
+        ],
+        [
+          6412.11,
+          6722.915,
+          0.0
+        ],
+        [
+          6404.627,
+          6720.084,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "walking",
+        "task_id": "L5-1_v3.pedestrian_background.05",
+        "role": "semantic_background_pedestrian",
+        "semantic_role": "sheltering and crossing delay",
+        "state_sequence": [
+          "walking",
+          "walking"
+        ],
+        "background_role": "semantic_context",
+        "activity_type": "walking",
+        "animation_hint": "pedestrian_walk",
+        "posture": "standing",
+        "social_state": "solo"
+      },
+      "activation_tick": 0,
+      "background_pedestrian": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "sheltering and crossing delay",
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "pedestrian",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 9.0,
+        "speed_mps": 1.25,
+        "route_duration_ticks": 900,
+        "loop_policy": "single_pass_route_waypoints",
+        "route_source": "traffic_bundle_sidewalk",
+        "planned_path_length_m": 178.911
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 178.911
+      }
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_06",
+      "logical_asset_id": "pedestrian.cityops.basic.v1",
+      "category": "pedestrian",
+      "placement_mode": "sidewalk_anchor",
+      "placement": {
+        "lane_edge_id": "cg_edge_726_f_pl0",
+        "longitudinal_s": 61.0,
+        "offset_from_curb_m": 1.2,
+        "lane_half_width_m": 1.9,
+        "resolved_lateral_from_center_m": -3.1,
+        "placement_semantics": "semantic_event_background_pedestrian",
+        "allow_green": true,
+        "resolved_position_enu_m": [
+          6455.629,
+          6740.641,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 20.395
+        },
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "route_waypoints_enu_m": [
+        [
+          6448.158,
+          6737.813,
+          0.0
+        ],
+        [
+          6440.684,
+          6734.991,
+          0.0
+        ],
+        [
+          6433.2,
+          6732.163,
+          0.0
+        ],
+        [
+          6426.653,
+          6729.687,
+          0.0
+        ],
+        [
+          6419.153,
+          6726.851,
+          0.0
+        ],
+        [
+          6411.684,
+          6724.037,
+          0.0
+        ],
+        [
+          6404.201,
+          6721.206,
+          0.0
+        ],
+        [
+          6411.684,
+          6724.037,
+          0.0
+        ],
+        [
+          6418.216,
+          6726.502,
+          0.0
+        ],
+        [
+          6425.718,
+          6729.332,
+          0.0
+        ],
+        [
+          6433.2,
+          6732.163,
+          0.0
+        ],
+        [
+          6440.684,
+          6734.991,
+          0.0
+        ],
+        [
+          6447.232,
+          6737.466,
+          0.0
+        ],
+        [
+          6454.714,
+          6740.297,
+          0.0
+        ],
+        [
+          6462.179,
+          6743.109,
+          0.0
+        ],
+        [
+          6454.714,
+          6740.297,
+          0.0
+        ],
+        [
+          6447.232,
+          6737.466,
+          0.0
+        ],
+        [
+          6440.684,
+          6734.991,
+          0.0
+        ],
+        [
+          6433.2,
+          6732.163,
+          0.0
+        ],
+        [
+          6425.718,
+          6729.332,
+          0.0
+        ],
+        [
+          6418.216,
+          6726.502,
+          0.0
+        ],
+        [
+          6411.684,
+          6724.037,
+          0.0
+        ],
+        [
+          6404.201,
+          6721.206,
+          0.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "walking",
+        "task_id": "L5-1_v3.pedestrian_background.06",
+        "role": "semantic_background_pedestrian",
+        "semantic_role": "sheltering and crossing delay",
+        "state_sequence": [
+          "walking",
+          "walking"
+        ],
+        "background_role": "semantic_context",
+        "activity_type": "walking",
+        "animation_hint": "pedestrian_walk",
+        "posture": "standing",
+        "social_state": "solo"
+      },
+      "activation_tick": 0,
+      "background_pedestrian": {
+        "policy": "semantic_event_contract_v1",
+        "semantic_role": "sheltering and crossing delay",
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "ground_flow_contract": {
+        "policy": "continuous_capture_ground_flow_v1",
+        "actor_kind": "pedestrian",
+        "required": true,
+        "min_visible_motion_ratio": 0.85,
+        "min_xy_span_m": 9.0,
+        "speed_mps": 1.25,
+        "route_duration_ticks": 900,
+        "loop_policy": "single_pass_route_waypoints",
+        "route_source": "traffic_bundle_sidewalk",
+        "planned_path_length_m": 178.932
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 178.932
+      }
+    },
+    {
+      "entity_id": "contract_facility_l5_1_v3_02",
+      "logical_asset_id": "facility.charger.cityops.v1",
+      "category": "facility",
+      "placement_mode": "service_facility_anchor",
+      "placement": {
+        "position_enu_m": [
+          6476.059,
+          6672.524,
+          0.0
+        ],
+        "resolved_position_enu_m": [
+          6476.059,
+          6672.524,
+          0.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": 45.0
+        },
+        "anchor_edge_id": "cg_edge_358_f_pl0",
+        "anchor_lane_s_m": 18.0,
+        "offset_from_curb_m": 30.5,
+        "resolved_lateral_from_center_m": 32.4,
+        "placement_semantics": "service_facility",
+        "road_clearance_m": 8.001,
+        "scene_occupancy_authority": "low_altitude_scene_occupancy_authority_v1"
+      },
+      "route_waypoints_enu_m": [],
+      "initial_state": {
+        "mode": "available",
+        "task_id": "L5-1_v3.facility_context.02",
+        "role": "semantic_facility",
+        "semantic_role": "visible facility context required by low-altitude event-chain contract",
+        "state_sequence": [
+          "available"
+        ]
+      },
+      "activation_tick": 0,
+      "semantic_scope": {
+        "scope_type": "facility",
+        "scope_subtype": "charging_station",
+        "ontology_class_id": "world:ChargingStation",
+        "authority_id": "facility_scope_contract.v1",
+        "service_capacity": 1
+      },
+      "entity_kind": "facility.charger",
+      "scene_occupancy": {
+        "authority": "low_altitude_scene_occupancy_authority_v1",
+        "role": "service_facility",
+        "physical": true,
+        "blocking": false,
+        "roadway_allowed": false,
+        "intentional_road_blocking": false
+      },
+      "contract_facility": {
+        "policy": "semantic_event_contract_v1",
+        "contract_scenario_id": "L5-1_v3"
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
+    },
+    {
+      "entity_id": "uav_observer_l5_1_v3_3",
+      "logical_asset_id": "uav.airsim.cv_pawn.v1",
+      "category": "uav",
+      "placement_mode": "world_pose",
+      "placement": {
+        "position_enu_m": [
+          6535.561,
+          6659.602,
+          80.0
+        ],
+        "resolved_position_enu_m": [
+          6535.561,
+          6659.602,
+          80.0
+        ],
+        "rotation_deg": {
+          "yaw_deg": -158.011
+        }
+      },
+      "route_waypoints_enu_m": [
+        [
+          6535.561,
+          6659.602,
+          80.0
+        ],
+        [
+          6527.494,
+          6650.718,
+          80.0
+        ],
+        [
+          6452.724,
+          6718.606,
+          80.0
+        ],
+        [
+          6460.791,
+          6727.49,
+          80.0
+        ]
+      ],
+      "initial_state": {
+        "mode": "corridor_observer",
+        "task_id": "uav_observer_l5_1_v3_3.task",
+        "role": "mission_uav",
+        "state_sequence": [
+          "corridor_observer"
+        ],
+        "semantic_role": "corridor_observer",
+        "assigned_altitude_m": 80.0,
+        "uav_corridor_role": "observer"
+      },
+      "activation_tick": 0,
+      "ground_reference_z_m": 0.0,
+      "ground_reference_source": "map_ground_reference_v1",
+      "uav_corridor_role": "observer",
+      "observer_lifecycle": {
+        "presence": "episode_full_duration",
+        "terminal_behavior": "airborne_hold_inside_runtime_boundary",
+        "maximum_terminal_boundary_distance_m": 18.0,
+        "capture_boundary_id": "capture_boundary_l5_1_v3"
+      },
+      "boundary_crossing_injected": {
+        "policy": "semantic_event_contract_v1",
+        "capture_boundary_id": "capture_boundary_l5_1_v3",
+        "reason": "observer_crosses_boundary_then_holds_inside_runtime_crop"
+      },
+      "uav_corridor": {
+        "assigned_altitude_m": 80.0,
+        "altitude_layers_m": [
+          30.0,
+          50.0,
+          80.0
+        ],
+        "used_lateral_bypass": true
+      },
+      "validation_tags": [
+        "uav_corridor_contract"
+      ],
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "kinematic_path",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "min_displacement_m": 0.5,
+        "planned_displacement_m": 124.992
+      },
+      "planned_route_waypoints_enu_m": [
+        [
+          6535.561,
+          6659.602,
+          80.0
+        ],
+        [
+          6527.494,
+          6650.718,
+          80.0
+        ],
+        [
+          6452.724,
+          6718.606,
+          80.0
+        ],
+        [
+          6460.791,
+          6727.49,
+          80.0
+        ]
+      ]
     },
     {
       "entity_id": "pad_home_uav_weather_l5_1_v3",
@@ -141,26 +4106,464 @@
         "pad_instance_id": "home_uav_weather_l5_1_v3",
         "approach_side": "departure",
         "position_enu_m": [
-          7054.583,
-          6319.7,
+          6400.381,
+          6712.876,
           0.0
         ],
         "resolved_position_enu_m": [
-          7054.583,
-          6319.7,
+          6400.381,
+          6712.876,
           0.0
         ],
         "rotation_deg": {
-          "yaw_deg": 14.985
-        }
+          "yaw_deg": 17.526
+        },
+        "road_clearance_m": 10.169
       },
       "route_waypoints_enu_m": [],
       "initial_state": {
-        "mode": "available"
+        "mode": "available",
+        "task_id": "pad_home_uav_weather_l5_1_v3.task",
+        "role": "semantic_facility",
+        "state_sequence": [
+          "available"
+        ],
+        "semantic_role": "available"
       },
-      "activation_tick": 0
+      "activation_tick": 0,
+      "semantic_scope": {
+        "scope_type": "facility",
+        "scope_subtype": "landing_pad",
+        "ontology_class_id": "world:LandingPad",
+        "authority_id": "facility_scope_contract.v1",
+        "service_capacity": 1
+      },
+      "entity_kind": "facility.landing_pad",
+      "scene_occupancy": {
+        "authority": "low_altitude_scene_occupancy_authority_v1",
+        "role": "service_facility",
+        "physical": true,
+        "blocking": false,
+        "roadway_allowed": false
+      },
+      "motion_contract": {
+        "schema": "semantic_motion_contract_v1",
+        "required": true,
+        "motion_kind": "state_animation",
+        "semantic_link_required": true,
+        "linked_intents": [
+          "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace"
+        ],
+        "min_displacement_m": 0.0,
+        "planned_displacement_m": 0.0
+      }
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_00",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          6400.381,
+          6712.876,
+          13.5
+        ],
+        "resolved_position_enu_m": [
+          6400.381,
+          6712.876,
+          13.5
+        ],
+        "extent_m": [
+          10.5,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          21.0,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": 0.0,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          21.0,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_weather_l5_1_v3",
+        "segment_start_enu_m": [
+          6400.381,
+          6712.876,
+          3.0
+        ],
+        "segment_end_enu_m": [
+          6400.381,
+          6712.876,
+          24.0
+        ],
+        "altitude_layer_m": 13.5
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": false
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_01",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          6396.522,
+          6717.47,
+          24.0
+        ],
+        "resolved_position_enu_m": [
+          6396.522,
+          6717.47,
+          24.0
+        ],
+        "extent_m": [
+          6.0,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          12.0,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": 130.034,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          12.0,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_weather_l5_1_v3",
+        "segment_start_enu_m": [
+          6400.381,
+          6712.876,
+          24.0
+        ],
+        "segment_end_enu_m": [
+          6392.662,
+          6722.064,
+          24.0
+        ],
+        "altitude_layer_m": 24.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": false
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_02",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          6414.41,
+          6740.336,
+          28.0
+        ],
+        "resolved_position_enu_m": [
+          6414.41,
+          6740.336,
+          28.0
+        ],
+        "extent_m": [
+          28.685,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          57.371,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": 40.035,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          57.371,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_weather_l5_1_v3",
+        "segment_start_enu_m": [
+          6392.662,
+          6722.064,
+          24.0
+        ],
+        "segment_end_enu_m": [
+          6436.159,
+          6758.607,
+          32.0
+        ],
+        "altitude_layer_m": 28.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": false
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_03",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          6440.019,
+          6754.013,
+          32.0
+        ],
+        "resolved_position_enu_m": [
+          6440.019,
+          6754.013,
+          32.0
+        ],
+        "extent_m": [
+          6.0,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          12.0,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": -49.966,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          12.0,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_weather_l5_1_v3",
+        "segment_start_enu_m": [
+          6436.159,
+          6758.607,
+          32.0
+        ],
+        "segment_end_enu_m": [
+          6443.878,
+          6749.419,
+          32.0
+        ],
+        "altitude_layer_m": 32.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": false
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_04",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          6443.878,
+          6749.419,
+          41.0
+        ],
+        "resolved_position_enu_m": [
+          6443.878,
+          6749.419,
+          41.0
+        ],
+        "extent_m": [
+          9.0,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          18.0,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": 0.0,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          18.0,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_weather_l5_1_v3",
+        "segment_start_enu_m": [
+          6443.878,
+          6749.419,
+          32.0
+        ],
+        "segment_end_enu_m": [
+          6443.878,
+          6749.419,
+          50.0
+        ],
+        "altitude_layer_m": 41.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": false
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_05",
+      "logical_asset_id": "semantic.uav_corridor.segment.v1",
+      "category": "airspace_corridor",
+      "placement_mode": "box_volume",
+      "placement": {
+        "center_enu_m": [
+          6452.878,
+          6754.419,
+          50.0
+        ],
+        "resolved_position_enu_m": [
+          6452.878,
+          6754.419,
+          50.0
+        ],
+        "extent_m": [
+          10.296,
+          4.0,
+          4.0
+        ],
+        "size_m": [
+          20.591,
+          8.0,
+          8.0
+        ],
+        "rotation_deg": {
+          "pitch_deg": 0.0,
+          "yaw_deg": 29.055,
+          "roll_deg": 0.0
+        },
+        "scale_xyz": [
+          20.591,
+          8.0,
+          8.0
+        ],
+        "source_uav_entity_id": "uav_weather_l5_1_v3",
+        "segment_start_enu_m": [
+          6443.878,
+          6749.419,
+          50.0
+        ],
+        "segment_end_enu_m": [
+          6461.878,
+          6759.419,
+          50.0
+        ],
+        "altitude_layer_m": 50.0
+      },
+      "initial_state": {
+        "mode": "semantic_corridor",
+        "semantic_class": "uav_corridor",
+        "custom_stencil_only": false
+      },
+      "query_tags": [
+        "UAVCorridor",
+        "HighAltitudeCorridor",
+        "event_semantic"
+      ],
+      "activation_tick": 0,
+      "enabled": true
     }
   ],
+  "simulation_plans": {
+    "charging_service_plan": {
+      "schema_name": "charging_service_plan",
+      "schema_version": "1.0.0",
+      "model_id": "aeroworld_deterministic_charging_service",
+      "model_version": "1.0.0",
+      "facilities": [
+        {
+          "facility_id": "contract_facility_l5_1_v3_02",
+          "capacity": 1,
+          "availability_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "available"
+            }
+          ],
+          "requests": [
+            {
+              "uav_id": "u_inspect_l5_1_v3",
+              "arrival_tick": 620,
+              "departure_tick": 780
+            },
+            {
+              "uav_id": "uav_observer_l5_1_v3_3",
+              "arrival_tick": 790,
+              "departure_tick": 900
+            }
+          ]
+        }
+      ]
+    }
+  },
   "spawn_sequencing": [
     {
       "entity_id": "uav_weather_l5_1_v3",
@@ -168,14 +4571,86 @@
     },
     {
       "entity_id": "weather_car_l5_1_v3",
-      "tick": 0
+      "tick": 901
     },
     {
       "entity_id": "weather_ped_l5_1_v3",
       "tick": 0
     },
     {
+      "entity_id": "pad_weather_abort_l5_1_v3",
+      "tick": 0
+    },
+    {
+      "entity_id": "u_inspect_l5_1_v3",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_vehicle_l5_1_v3_02",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_vehicle_l5_1_v3_03",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_vehicle_l5_1_v3_04",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_02",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_03",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_04",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_05",
+      "tick": 0
+    },
+    {
+      "entity_id": "bg_ped_l5_1_v3_06",
+      "tick": 0
+    },
+    {
+      "entity_id": "contract_facility_l5_1_v3_02",
+      "tick": 0
+    },
+    {
+      "entity_id": "uav_observer_l5_1_v3_3",
+      "tick": 0
+    },
+    {
       "entity_id": "pad_home_uav_weather_l5_1_v3",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_00",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_01",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_02",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_03",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_04",
+      "tick": 0
+    },
+    {
+      "entity_id": "corridor_l5_1_v3_uav_weather_l5_1_v3_05",
       "tick": 0
     }
   ],
@@ -187,6 +4662,7 @@
         "profile": "rain",
         "overrides": {
           "rain": 0.55,
+          "wetness": 0.65,
           "visibility_m": 2200.0
         }
       }
@@ -198,8 +4674,8 @@
       "placement_mode": "world_pose",
       "placement": {
         "position_enu_m": [
-          7099.684,
-          6409.076,
+          6450.858,
+          6714.176,
           180.0
         ],
         "rotation_deg": {
@@ -234,8 +4710,166 @@
       "description": "Asset ID must match Config/LowAltitude/asset_catalog.json"
     },
     {
+      "rule": "semantic_event_contract",
+      "contract": {
+        "schema": "low_altitude_event_chain_contract_v1",
+        "scenario_id": "L5-1_v3",
+        "exact_counts": {
+          "uav": 3,
+          "vehicle": 4,
+          "pedestrian": 6,
+          "facility": 2,
+          "logical": 6
+        },
+        "capture_boundary": {
+          "boundary_id": "capture_boundary_l5_1_v3",
+          "geometry_source": "event_entity",
+          "anchor_entity_roles": [
+            "capture_boundary",
+            "hazard_zone",
+            "airspace_constraint"
+          ],
+          "boundary_role": "capture_boundary",
+          "z_policy": "ground_to_event_altitude",
+          "source": "event_entity_envelope",
+          "source_entity_id": "uav_weather_l5_1_v3",
+          "center_enu_m": [
+            6460.791,
+            6727.49,
+            0.0
+          ],
+          "polygon_enu_m": [
+            [
+              6399.347,
+              6646.897
+            ],
+            [
+              6522.235,
+              6646.897
+            ],
+            [
+              6522.235,
+              6808.083
+            ],
+            [
+              6399.347,
+              6808.083
+            ]
+          ],
+          "geometry_authority": "formal_release_roi_exact_v1",
+          "uav_boundary_crossing_required": true,
+          "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+          "inspect_fov_coverage_required": true,
+          "inspect_entity_role": "U_inspect"
+        },
+        "inspect": {
+          "role": "U_inspect",
+          "altitude_code": "I22",
+          "altitude_m": 22.0,
+          "min_path_length_m": 80.0,
+          "required_presence": "episode_full_duration",
+          "motion_policy": "fixed_altitude_closed_loop",
+          "corridor_policy": "inspect_capture_corridor",
+          "fov_coverage_required": true,
+          "sensor_profile_required": true
+        },
+        "pad_boundary_policy": {
+          "default": "outside_allowed",
+          "inside_required_for": []
+        },
+        "uav_boundary_crossing_required": true,
+        "inspect_fov_coverage_required": true,
+        "required_event": "heavy rain > safe land",
+        "required_intents": [
+          "weather_degradation",
+          "landing_or_terminal_resolution"
+        ],
+        "background_semantics": {
+          "vehicle_role": "slow/queued",
+          "pedestrian_role": "sheltering and crossing delay",
+          "policy": "semantic_context_not_decoration"
+        },
+        "weather": "rain",
+        "determinism": {
+          "fallback": "forbidden",
+          "guessing": "forbidden",
+          "compatibility_paths": "forbidden"
+        }
+      },
+      "description": "Episode must match the low-altitude semantic event-chain contract exactly after generation"
+    },
+    {
+      "rule": "uav_corridor_contract",
+      "target_uav_count": 3,
+      "corridor_segment_count": 57,
+      "materialized_corridor_scene_count": 6,
+      "allow_building_impact": false,
+      "description": "UAV waypoints are repaired for building clearance; corridor scene entities are capped by the exact episode logical-sidecar contract"
+    },
+    {
+      "rule": "uav_boundary_crossing_required",
+      "boundary_id": "capture_boundary_l5_1_v3",
+      "description": "Mission/observer UAV routes must pass through the semantic capture boundary; pads may remain outside unless the pad policy says otherwise"
+    },
+    {
       "rule": "environment_trigger_kind",
       "description": "Rain/fog/wind use weather_state; light and temperature use tick simulation"
+    },
+    {
+      "rule": "spatial_grid_assignment",
+      "policy": "city_grid_main_road_event_coverage_v1",
+      "event_space_class": "traffic_incident_grid",
+      "target_center_enu_m": [
+        6460.791,
+        6727.49,
+        0.0
+      ],
+      "actual_capture_center_enu_m": [
+        6468.791,
+        6720.032,
+        17.695
+      ],
+      "target_error_m": 10.937173,
+      "description": "Episode location is assigned from the city main-road spatial grid; traffic incidents bind to SUMO incident anchors while nontraffic EPI avoid incident grids"
+    },
+    {
+      "rule": "release_spatial_authority",
+      "policy": "formal_release_roi_exact_v1",
+      "source_root": "aw_data/render_ready_episodes_capture_filtered",
+      "roi_contract_center_enu_m": [
+        6460.791,
+        6727.49,
+        0.0
+      ],
+      "actual_assignment_center_enu_m": [
+        6468.791,
+        6720.032,
+        17.695
+      ],
+      "assignment_outside_roi_m": 0.0,
+      "attempts": [
+        {
+          "attempt": 1,
+          "target_assignment_center_enu_m": [
+            6460.791,
+            6727.49,
+            0.0
+          ],
+          "actual_assignment_center_enu_m": [
+            6468.791,
+            6720.032,
+            17.695
+          ],
+          "roi_contract_center_enu_m": [
+            6460.791,
+            6727.49,
+            0.0
+          ],
+          "assignment_outside_roi_m": 0.0,
+          "polygon_matches_roi_contract": true
+        }
+      ],
+      "description": "Targeted truth regeneration uses the explicit ROI contract and does not reassign a spatial grid cell"
     }
   ]
 }

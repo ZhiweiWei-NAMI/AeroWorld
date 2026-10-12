@@ -7,6 +7,7 @@ partial rebuild would leave partitions and model indices on different contracts.
 
 from __future__ import annotations
 
+from Dataset.semantic_truth.provenance import open_artifact_binary
 import json
 from pathlib import Path
 from typing import Any
@@ -228,7 +229,7 @@ def read_json(path: Path) -> Any:
 
 
 def iter_jsonl(path: Path):
-    with path.open("rb") as stream:
+    with open_artifact_binary(path) as stream:
         for line_no, line in enumerate(stream, 1):
             if line.strip():
                 yield line_no, orjson.loads(line)

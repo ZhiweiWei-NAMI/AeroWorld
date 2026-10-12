@@ -1,0 +1,243 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/utm#> .
+@prefix shape: <https://w3id.org/aeroworld/ontology/domain/utm/shapes#> .
+
+<https://w3id.org/aeroworld/ontology/domain/utm/shapes>
+    a owl:Ontology ;
+    owl:imports <https://w3id.org/aeroworld/ontology/domain/utm> ;
+    owl:versionInfo "0.3.0" .
+
+shape:PredicateSignatureShape
+    a sh:NodeShape ;
+    sh:targetClass aw:PredicateType ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:predicateIdentifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:class aw:ArgumentRole ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "One predicate cannot declare duplicate argument-role keys."@en ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this aw:declaresArgumentRole ?left, ?right .
+                ?left aw:argumentRoleKey ?key .
+                ?right aw:argumentRoleKey ?key .
+                FILTER (?left != ?right)
+            }
+        """
+    ] .
+
+shape:ArgumentRoleShape
+    a sh:NodeShape ;
+    sh:targetObjectsOf aw:declaresArgumentRole ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:argumentRoleKey ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:argumentClass ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1
+    ] .
+
+shape:DomainClassShape
+    a sh:NodeShape ;
+    sh:targetSubjectsOf rdfs:subClassOf ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] .
+
+shape:DomainRelationShape
+    a sh:NodeShape ;
+    sh:targetClass owl:ObjectProperty ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] .
+
+shape:StateDatatypePropertyShape
+    a sh:NodeShape ;
+    sh:targetSubjectsOf world:stateFieldCategory ;
+    sh:property [
+        sh:path rdf:type ;
+        sh:hasValue owl:DatatypeProperty
+    ] ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path world:unitSymbol ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:stateFieldCategory ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+shape:hasOperationalIntentExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:hasOperationalIntent ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue world:UnmannedAircraft
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:OperationalIntent
+    ] .
+
+shape:operatesUnderExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:operatesUnder ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue world:UnmannedAircraft
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:UTMSystem
+    ] .
+
+shape:authorizesAirspaceExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:authorizesAirspace ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:AirspaceAuthorization
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:OperationalRegion
+    ] .
+
+shape:AirspaceAuthorizationActiveExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:AirspaceAuthorizationActive ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 3 ;
+        sh:maxCount 3 ;
+        sh:in ( dom:AirspaceAuthorizationActiveArgument_aircraft dom:AirspaceAuthorizationActiveArgument_authorization dom:AirspaceAuthorizationActiveArgument_airspace )
+    ] .
+
+shape:AirspaceAuthorizationRevokedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:AirspaceAuthorizationRevoked ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 3 ;
+        sh:maxCount 3 ;
+        sh:in ( dom:AirspaceAuthorizationRevokedArgument_aircraft dom:AirspaceAuthorizationRevokedArgument_authorization dom:AirspaceAuthorizationRevokedArgument_airspace )
+    ] .
+
+shape:FlightPlanApprovedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:FlightPlanApproved ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:FlightPlanApprovedArgument_aircraft dom:FlightPlanApprovedArgument_flight_plan )
+    ] .
+
+shape:OperationalIntentConflictExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:OperationalIntentConflict ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:OperationalIntentConflictArgument_first_intent dom:OperationalIntentConflictArgument_second_intent )
+    ] .
+
+shape:DeconflictionActiveExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:DeconflictionActive ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:DeconflictionActiveArgument_system dom:DeconflictionActiveArgument_aircraft )
+    ] .

@@ -1,0 +1,59 @@
+schema: aeroworld_arm_config
+version: 4
+arm_id: arm_prevent_altitude_excursion
+group_key: L1-2_v1/seed00/grp_prevent_altitude_excursion
+episode_id: L1-2_v1__seed00
+event_family: altitude_excursion
+mode: intervention
+entity_ids:
+- uav_l1_2_v1_primary
+predicate_ids:
+- airspace.aircraft_outside_assigned_altitude_band
+window:
+  start_tick: 215
+  fork_tick: 220
+  end_tick: 350
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L1_airspace/interaction/L1-2_v1/scene_setup.json
+  script: Dataset/scenarios/L1_airspace/interaction/L1-2_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L1-2_v1__seed00/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L1-2_v1__seed00/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L1-2_v1__seed00/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L1-2_v1__seed00/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L1-2_v1__seed00/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L1-2_v1__seed00/event_outcomes.jsonl
+execution:
+  omit_action_ids:
+  - move_boundary_approach
+  actions:
+  - tick: 220
+    action:
+      type: move_entity
+      action_id: arm_prevent_altitude_excursion
+      entity_id: uav_l1_2_v1_primary
+      velocity_mps: 8.0
+      waypoints_enu_m:
+      - - 7891.047
+        - 6559.637
+        - 30.0
+      - - 7891.047
+        - 6559.637
+        - 30.0
+      - - 7906.047
+        - 6567.637
+        - 30.0
+      - - 7910.047
+        - 6569.637
+        - 30.0
+expected:
+  target_event: absent_in_window
+  rationale: 改写接近段垂直剖面，使本机在越过高度带之前就保持指派高度。
+  falsified_if: 分支实测与该声明不符
+script: scripts/arms/L1-2_v1/seed00/grp_prevent_altitude_excursion/arm_prevent_altitude_excursion.py
+output: arms/L1-2_v1/seed00/grp_prevent_altitude_excursion/arm_prevent_altitude_excursion
+provenance:
+  experiment_ref: design/L1-2_v1/seed00/grp_prevent_altitude_excursion/experiment.json
+  parameter_sources:
+    factual_root: aw_data

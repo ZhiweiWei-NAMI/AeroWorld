@@ -1,0 +1,271 @@
+# ARM 生成规则 —— signal_malfunction
+#
+# 命名约束：本文件名 signal_malfunction.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 本族实测规模：105 条臂 / 6 个 group × profile L2-5_v1 × 3 seed（seed00..02）。
+#   每组每 seed 6 条臂，唯独 grp_04_police_arrival 只有 5 条（无 arm_delay）→ 18×5 + 15 = 105。
+# 真实臂覆盖 4 类意图：factual / suppress / delay / divert（**没有** tradeoff，见 arms 段注释）。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: signal_malfunction
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    真实来源 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里只登记“指针 + 关键字段快照”，快照仅用于生成期自检，改定义请改源头。
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/signal_malfunction
+  rule_id: event_family.signal_malfunction.0    # 与臂 objective/manifest.json 的 rule_id 逐字一致
+  mapping_class: B_composite                    # 复合：故障状态是权威，排队/停车是下游观测
+  event_type_id: ground.traffic_signal_malfunction_event
+  trigger:
+    predicate_id: ground.traffic_signal_malfunction_active
+    direction: rising                           # 故障态上升沿点名受影响的那个信号灯
+  roles:
+    signal:
+      kind: trigger_binding
+      ontology_class: TrafficSignal
+      predicate_role: signal
+      background_allowed: false
+  support_conditions: []                        # registry 里本族 support_conditions 为空
+  terminal:
+    predicate_id: ground.traffic_signal_malfunction_active
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [signal]
+  authoritative_predicates:                     # 快照；权威在 registry
+    - ground.traffic_signal_malfunction_active
+    - ground.vehicle_queue_exceeds_length
+    - ground.vehicle_stopped_in_lane
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  intervention_subject: signal          # 事件权威 trigger_binding 的角色名（TrafficSignal）
+  # 判定证据（本会话实测，非推断）：
+  #   1) registry 里 mapping_class = B_composite。**B_composite 不是外生判据**：全库 6 个
+  #      B_composite 族里 5 个都有真实干预臂（本族 105 条即其一）；
+  #   2) 105/105 条臂的 raw/branch_manifest.json **没有** *_authority 字段。
+  #      全库 7,662 条臂扫描结果：只有 rain_fog_environment 带 rain_fog_authority =
+  #      scene_exogenous_weather_transition → 本族不是场景权威外生；
+  #   3) 105/105 条臂台账 status=applied，repairs 只出现
+  #      {delay_applied_to_authored_tick_trigger} × 18 与
+  #      {delay_applied_to_authored_event_relative_trigger} × 15，
+  #      没有任何 design_intent_conflict_exogenous_* 记录；
+  #   4) 6 个 group 上真实生成了 suppress / delay / replace 三类干预臂。
+  # 实测干预实体（105 条臂 intervention_entity_ids 的并集，按组分布）：
+  #   civilian_car_l2_5_a / civilian_car_l2_5_b   民用车辆（链上的可动参与方）
+  #   police_unit_l2_5_v1                          警车（police_arrival 之后出现）
+  #   traffic_signal_l2_5_v1                       信号灯本体（ground facility）
+  # 关键澄清：触发角色 signal 只是**命名**事件的那个设施；真实臂干预的是
+  #   “锚点事件 authored action 的 actor” + 耦合伙伴，两者都要能取到实体。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # 实测锚点（raw/branch_manifest.json 的 group_id 与 fork_tick，三个 seed 一致）：
+  #   grp_00_civilian_car_a_fault_entry (fork 145)
+  #   grp_01_civilian_car_b_fault_entry (fork 170)
+  #   grp_02_signal_all_red_fault       (fork 210)
+  #   grp_03_traffic_confusion          (fork 240)
+  #   grp_04_police_arrival             (fork 340)   ← 该组没有 arm_delay（5 条/seed，少 1 条）
+  #   grp_05_manual_flow_restore        (fork 370)
+  # anchor_event_id 由事件链给出，不在此硬编码。
+
+# ─────────────────────────────────────────────────────────────
+# ④ 4 类真实意图（本族没有 tradeoff 的真实臂，见段末注释）
+#    operation 只能取已注册 4 值之一；键名是**意图**不是 arm_id。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：arm_factual × 18，台账 operation=reuse_factual_causal_event、
+    #       factual_preserved=true、suppressed_event_ids=[]、generated_action_ids=[]
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 逐字一致
+    suppression_basis: authored_trigger_and_causal_predecessor_closure
+    # 实测两种形态（36 条 suppress 臂，二者 suppressed_event_ids 完全相同）：
+    variants:
+      - arm_id_pattern: arm_no_op_suppress   # arm_kind: no_op_hold  × 18
+        coupled_hold_injected: false         # 只有台账闭包，不注入延续事件
+      - arm_id_pattern: arm_hold_pair        # arm_kind: hold_pair    × 18
+        coupled_hold_injected: true          # 闭包 + branch_coupled_hold_* 延续事件
+    coupled_hold:
+      applies_when: arm_kind == hold_pair
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.signal        # 被干预主体先行，耦合伙伴随后（实测见下）
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+      # 实测 coupled_hold.entity_ids（按组，每组 3 条）：
+      #   grp_00/01/02: ('civilian_car_l2_5_a',) / ('civilian_car_l2_5_b',) / ('traffic_signal_l2_5_v1',)
+      #   grp_03      : ('civilian_car_l2_5_a','civilian_car_l2_5_b','police_unit_l2_5_v1')
+      #   grp_04      : ('police_unit_l2_5_v1',)
+      #   grp_05      : ('civilian_car_l2_5_a','civilian_car_l2_5_b','police_unit_l2_5_v1','traffic_signal_l2_5_v1')
+      # action_count 恒为 2（执行器每个耦合实体落 1 个 state_patch + 1 个渲染层标注）。
+    suppressed_event_ids_observed:       # 快照；6 组的并集
+      - civilian_car_a_fault_entry
+      - civilian_car_b_fault_entry
+      - signal_all_red_fault
+      - traffic_confusion
+      - police_arrival
+      - manual_flow_restore
+      - signal_response_actors_leave
+    # 抑制的实现形态（实测 raw/event_script.json）：把锚点及其因果后代的 authored tick
+    # 触发整体改写到 tick 901（> 集长 900），事件自然不触发；
+    # 36 条 suppress 臂的 original_anchor_trigger.type 实测两种各半：
+    # tick × 18、event_fired_after × 18。
+
+  delay:
+    operation: delay_causal_event
+    mechanism: none                    # 只重定时触发，不派发新动作
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: governed_default    # rule | governed_default | scene
+        min: 20
+        max: 39
+        default: 30
+        # 实测（33 条 delay 臂，全部 0 条 generated_action_ids）：
+        #   arm_delay          × 15: 39 / 30 / 20（每组一个值，组内 3 条相同）
+        #   arm_delay_postpone × 18: 恒 30
+        # 重定时对象是**锚点自己的触发**，不是实体动作：
+        #   33/33 条带 delay_mechanism_evidence，其中 match_count=0 / unmatched=true，
+        #   即没有绑到任何 authored 动作。
+    repairs_observed:
+      - delay_applied_to_authored_tick_trigger             # × 18
+      - delay_applied_to_authored_event_relative_trigger   # × 15
+    coupled_hold:
+      # 实测：delay 臂同样注入 branch_coupled_hold_*（15 条 arm_delay 全部带 coupled_hold）
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.signal
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: set_runtime_state      # ← 实测：动作 type 是 set_runtime_state
+      actor: anchor_authored_action_actor
+      actor_role_binding: roles.signal  # 触发角色只命名事件，不决定动作落在谁身上
+      template:
+        - step_kind: state_patch
+          state_patch:
+            control_state:
+              hold_active: true
+      physics_intent: hold_in_place_all_red_yield
+    # 实测：arm_avoid_all_red_four_way_yield × 18（arm_kind: avoid），
+    #   operation=replace_causal_event、generated_action_ids=["motion_grounded_0_sumo"]。
+    #   注意 action_id 里带 "motion"，但 raw/event_script.json 里该动作的 **type 是
+    #   set_runtime_state**，state_patch={"control_state":{"hold_active":true}}：
+    #   action_id 命名不可当作 generator 依据，必须读动作 type。
+    #   被替换掉的是锚点事件原本的 authored 动作集，例如 grp_00 的
+    #   [spawn_entity, move_entity]（民用车辆入场），替换后只留下这一条 state_patch。
+
+  # ── tradeoff 故意不写：本族没有落到 arms/ 的真实 tradeoff 臂 ──────────
+  # 证据（本会话扫描 105 条臂的 arm_id 全量）：
+  #   arm_factual / arm_no_op_suppress / arm_hold_pair / arm_delay /
+  #   arm_delay_postpone / arm_avoid_all_red_four_way_yield
+  # 没有任何 arm_tradeoff_* 或 arm_slow（rules/intents.yaml 的 tradeoff 前缀）。
+  # 5 类意图里本族只被生成了 4 类；凭空补一个 tradeoff 会写出没有臂支撑的机制。
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+    # 实测：fork_tick 与台账 original_anchor_trigger.tick 一致（见上 6 组 fork 值）。
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/L2-5_v1__seed*/manifest.json
+    # 实测：window_end_tick − fork_tick ∈ [50, 170]，无常数可写；
+    #       全部 105 条 manifest 带 window_end_basis
+    #       {candidate_end_tick, modeled_motion[], parent_evidence_end_tick}
+    #       且 window_semantics_only=true（窗口只用于语义判定，不是物理终点）。
+    #       生成器必须以 manifest 的实测 window_end_tick 为准，不能用 design end 反推。
+  history_frames: 8                 # Dataset/world_model/arm_rssm.py: HISTORY_FRAMES = 8
+  horizon_frames: 5                 # Dataset/world_model/arm_rssm.py: FUTURE_HORIZON = 5
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测：18/18 条 arm_factual 的 objective/window_semantics.json event_observed=true
+
+  suppress:
+    target_event: absent_in_window
+    # 实测：arm_no_op_suppress / arm_hold_pair 各 18 条，其中 9 条 event_observed=false、
+    #       9 条 true —— 后 9 条是 fork 已在链下游（150/240/340/370）的组，
+    #       锚点已经不是本窗口的“首次成立”。判定前必须先看 factual 的 rising_tick，
+    #       否则会把 not_intervenable 误判成干预失败。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5             # 采集步长 5 tick
+    # 实测：fork=210 的一组里，factual rising_tick=215；arm_delay → 235；
+    #       arm_delay_postpone → 245（delay_ticks=30）。位移确实发生。
+    #       ⚠ 但生成器要用**触发 tick 位移**判定，不要只看 rising_tick：
+    #       33/33 条 delay 臂的 rising_tick 集合是 {215, 235, 245}，
+    #       而锚点 authored 触发被推迟的幅度由台账 delay_ticks 记录。
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 实测：arm_avoid_all_red_four_way_yield 18 条里只有 3 条 event_observed=false，
+    #       其余 15 条事件**仍然发生**。本族 divert 的真实语义是
+    #       “就地停住让行”，不是“移除故障事件”，判定必须允许目标事件仍在窗口内成立，
+    #       只要求状态轨迹与 factual 可辨（见 limits）。
+
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+    # 实测：105/105 条 manifest delta_only=true、
+    #       trajectory_scope=intervention_delta_only、
+    #       artifact_scope=parent_reference_plus_local_delta。
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "suppress / delay 作用于 script_scheduled 的 authored tick 触发（L2-5_v1 的
+       failure_tick=260 系列，实测触发 tick 142/170/210/210+30/…）。抑制范围是台账
+       因果前驱闭包；若场景把同一事件改成状态触发，闭包范围必须重算，不能沿用本快照"
+    - "divert 臂替换的是锚点 authored 动作集，动作 type 实测为 set_runtime_state；
+       但 action_id 名叫 motion_grounded_0_sumo。任何按 action_id 猜 generator 的实现
+       都会写错 —— 必须以动作 type 为准"
+    - "本族的‘设施故障’是事件脚本 authored 的（event_script.json: signal_all_red_fault →
+       set_visual_state/set_runtime_state facility_state.fault=true）。它可由智能体干预
+       （真实臂已生成 4 类），但**不能**据此宣称信号灯是自主智能体"
+  not_claimed:
+    - "tradeoff —— 本族无真实臂（原因见 arms 段注释）"
+    - "ground.vehicle_queue_exceeds_length / ground.vehicle_stopped_in_lane 的独立可干预性
+       —— 它们是下游观测谓词，本族不作为锚点"
+    - "G10 整库发布审计（不在本规则范围内）"

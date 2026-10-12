@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w3id.org/aeroworld/schema/epi_stage_acceptance_contract.schema.json",
+  "title": "AeroWorld EPI Stage Acceptance Contract",
+  "type": "object",
+  "required": [
+    "schema_name",
+    "schema_version",
+    "profile_id",
+    "source_contract",
+    "stage_authority_mapping",
+    "stage_key_format",
+    "evidence_type_catalog",
+    "stages",
+    "validation"
+  ],
+  "properties": {
+    "schema_name": {"const": "epi_stage_acceptance_contract"},
+    "schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "profile_id": {"type": "string", "minLength": 1},
+    "source_contract": {"const": "Dataset/semantic_rules/profiles/epi_objective_semantic_contract.json"},
+    "stage_authority_mapping": {
+      "type": "object",
+      "required": ["path", "digest"],
+      "properties": {
+        "path": {"const": "Dataset/semantic_rules/profiles/epi_stage_authority_mapping.json"},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "stage_key_format": {"const": "{epi_id}::{stage_index}"},
+    "evidence_type_catalog": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/evidenceType"}
+    },
+    "stages": {
+      "type": "object",
+      "minProperties": 262,
+      "maxProperties": 262,
+      "patternProperties": {
+        "^[A-Za-z0-9_-]+::[0-9]+$": {"$ref": "#/$defs/stageAcceptance"}
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "expected_epi_count",
+        "expected_stage_count",
+        "expected_executable_stage_count",
+        "expected_not_applicable_stage_count",
+        "requires_exact_source_stage_match",
+        "runtime_keyword_matching_permitted"
+      ],
+      "properties": {
+        "expected_epi_count": {"const": 70},
+        "expected_stage_count": {"const": 262},
+        "expected_executable_stage_count": {"type": "integer", "minimum": 1},
+        "expected_not_applicable_stage_count": {"type": "integer", "minimum": 1},
+        "requires_exact_source_stage_match": {"const": true},
+        "runtime_keyword_matching_permitted": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "evidenceType": {
+      "enum": [
+        "predicate_truth_before",
+        "predicate_truth_after",
+        "strict_adjacent_transition",
+        "numeric_state_before",
+        "numeric_state_after",
+        "terminal_numeric_state",
+        "source_observation",
+        "source_refs",
+        "tuple_binding_continuity",
+        "participant_identity",
+        "geometry_state",
+        "dwell_window",
+        "event_occurrence_record",
+        "event_outcome_record",
+        "declared_not_applicable"
+      ]
+    },
+    "temporalOrder": {
+      "type": "object",
+      "required": ["mode", "previous_stage_key", "same_episode", "strictly_later"],
+      "properties": {
+        "mode": {"enum": ["chain_root", "strictly_after_previous_stage"]},
+        "previous_stage_key": {"type": ["string", "null"]},
+        "same_episode": {"const": true},
+        "strictly_later": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "predicateTransitionClause": {
+      "type": "object",
+      "required": ["acceptance_kind", "predicate_id", "direction", "api_availability"],
+      "properties": {
+        "acceptance_kind": {"const": "predicate_transition"},
+        "predicate_id": {"$ref": "#/$defs/canonicalTemplateId"},
+        "direction": {"enum": ["rising", "falling"]},
+        "api_availability": {"const": "available"},
+        "gap_reason": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "eventOccurrenceClause": {
+      "type": "object",
+      "required": [
+        "acceptance_kind",
+        "event_family_id",
+        "event_type_id",
+        "occurrence_status",
+        "trigger_predicate_id",
+        "direction",
+        "api_availability"
+      ],
+      "properties": {
+        "acceptance_kind": {"const": "event_occurrence"},
+        "event_family_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "event_type_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"},
+        "event_subtype": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "occurrence_status": {"const": "occurred"},
+        "trigger_predicate_id": {"$ref": "#/$defs/canonicalTemplateId"},
+        "direction": {"enum": ["rising", "falling"]},
+        "api_availability": {"const": "available"},
+        "gap_reason": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "eventOutcomeClause": {
+      "type": "object",
+      "required": [
+        "acceptance_kind",
+        "event_type_id",
+        "terminal_status",
+        "required_terminal_predicate_ids",
+        "api_availability"
+      ],
+      "properties": {
+        "acceptance_kind": {"const": "event_outcome"},
+        "event_type_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"},
+        "terminal_status": {"enum": ["succeeded", "failed", "recovered"]},
+        "required_terminal_predicate_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/canonicalTemplateId"}
+        },
+        "api_availability": {"const": "available"},
+        "gap_reason": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "canonicalTemplateId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+    },
+    "acceptanceClause": {
+      "oneOf": [
+        {"$ref": "#/$defs/predicateTransitionClause"},
+        {"$ref": "#/$defs/eventOccurrenceClause"},
+        {"$ref": "#/$defs/eventOutcomeClause"}
+      ]
+    },
+    "stageAcceptance": {
+      "type": "object",
+      "required": [
+        "key",
+        "epi_id",
+        "stage_index",
+        "stage_goal",
+        "event_family_id",
+        "implementation_status",
+        "clause_policy",
+        "acceptance_clauses",
+        "required_evidence_types",
+        "temporal_order"
+      ],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[A-Za-z0-9_-]+::[0-9]+$"},
+        "epi_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"},
+        "stage_index": {"type": "integer", "minimum": 0},
+        "stage_goal": {"type": "string", "minLength": 1},
+        "event_family_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "alternative_event_family_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"const": "restricted_region_intrusion"}
+        },
+        "implementation_status": {"enum": ["executable", "not_applicable"]},
+        "event_phase": {"enum": ["onset", "escalation_support", "terminal"]},
+        "clause_policy": {"enum": ["single", "all_of", "any_of", "not_applicable"]},
+        "minimum_distinct_binding_sets": {"type": "integer", "minimum": 1},
+        "binding_projection_from_previous": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+          "additionalProperties": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
+        },
+        "required_state_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+          }
+        },
+        "acceptance_clauses": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/acceptanceClause"}
+        },
+        "required_evidence_types": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/evidenceType"}
+        },
+        "temporal_order": {"$ref": "#/$defs/temporalOrder"},
+        "not_applicable_reason": {"type": "string", "minLength": 1},
+        "closure_statement": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"implementation_status": {"const": "executable"}},
+            "required": ["implementation_status"]
+          },
+          "then": {
+            "properties": {
+              "clause_policy": {"enum": ["single", "all_of", "any_of"]},
+              "acceptance_clauses": {"minItems": 1},
+              "required_evidence_types": {"minItems": 2}
+            }
+          },
+          "else": {
+            "required": ["not_applicable_reason", "closure_statement"],
+            "properties": {
+              "implementation_status": {"const": "not_applicable"},
+              "clause_policy": {"const": "not_applicable"},
+              "acceptance_clauses": {"maxItems": 0},
+              "required_evidence_types": {"const": ["declared_not_applicable"]}
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

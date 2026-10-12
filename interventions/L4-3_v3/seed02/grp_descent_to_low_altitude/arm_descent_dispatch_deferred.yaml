@@ -1,0 +1,55 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_descent_dispatch_deferred
+group_key: L4-3_v3/seed02/grp_descent_to_low_altitude
+episode_id: L4-3_v3__seed02
+event_family: forced_landing
+mode: intervention
+entity_ids:
+- uav_forced_landing_l4_3_v3
+- ped_landing_l4_3_v3_a
+- ped_landing_l4_3_v3_b
+predicate_ids:
+- airspace.aircraft_touchdown
+- airspace.aircraft_in_landing_zone
+- emergency.mission_aborted
+window:
+  start_tick: 255
+  fork_tick: 260
+  end_tick: 400
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/failure/L4-3_v3/scene_setup.json
+  script: Dataset/scenarios/L4_agents/failure/L4-3_v3/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/weather_meta.jsonl
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-3_v3__seed02/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-3_v3__seed02/event_outcomes.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/global_entity_roster.json
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites:
+  - trigger_id: trig_after_forced_landing_fault_delay_30
+    delay_ticks: 15
+    mechanism: fired_after_delay_shift
+expected:
+  target_event: occurs
+  rationale: trigger_rewrites 对 descent_to_low_altitude 的源触发 trig_after_forced_landing_fault_delay_30
+    （event_fired_after(forced_landing_fault,+30)）叠加增量 +15，使总延迟为 45 tick；实测 base=230，故 descent_to_low_altitude
+    于 275 触发。260~275 的动作前状态样本保持 30m 巡航末点；按当前离散执行模型，crowd_proximity_response 于 325、touchdown
+    于 380 触发，touchdown terminal/evidence/after-evidence 分别为 389/390/395，窗口 400 内完整覆盖。其余动作、状态保持源值。
+  falsified_if: descent_to_low_altitude 的 dispatch tick 不等于 275，或窗口内出现 275 之前的下降移动。
+script: scripts/arms/L4-3_v3/seed02/grp_descent_to_low_altitude/arm_descent_dispatch_deferred.py
+output: arms/L4-3_v3/seed02/grp_descent_to_low_altitude/arm_descent_dispatch_deferred
+provenance:
+  experiment_ref: design/L4-3_v3/seed02/grp_descent_to_low_altitude/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    event_script: Dataset/scenarios/L4_agents/failure/L4-3_v3/event_script.json
+    anchor: l4_chain_truth fragment(L4-3_v3, seed02).fork_event_id = descent_to_low_altitude
+    trace: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/event_trace.jsonl
+    note: 'trigger: trig_after_forced_landing_fault_delay_30（base forced_landing_fault@230 实测）'
+subject_class: uav

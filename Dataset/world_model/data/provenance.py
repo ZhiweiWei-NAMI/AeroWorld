@@ -107,23 +107,43 @@ def split_group(episode_id: str, split_table: Mapping[str, str]) -> str:
     return split_table[ident.original_key]
 
 
-#: Versioned split-table authority (coordinator gap 3 / review F6).  The
-#: table lives beside the code under configs, keyed by ORIGINAL scenario/seed; the
-#: window builder and the scaler-fit entry resolve every episode (including
-#: decorated copies/overlays/branches) through it and refuse unknown sources
-#: instead of inventing an assignment.  Callers may pass an explicit table
-#: (tests); otherwise the versioned config is loaded once and cached.
-_SPLIT_TABLE_PATH = (Path(__file__).resolve().parents[1] / "configs/split-table.json")
-_SPLIT_TABLE_CACHE: dict[str, str] | None = None
+# Whole scenarios (all versions and seeds of e.g. L4-3) belong to exactly one split,
+# so held-out windows never share a scenario layout with TRAIN.
+SOURCE_SPLITS = {
+    'L1-1_v1__seed00': 'TRAIN',
+    'L1-1_v1__seed01': 'TRAIN',
+    'L1-4_v1__seed00': 'TRAIN',
+    'L2-2_v1__seed00': 'TRAIN',
+    'L2-2_v2__seed00': 'TRAIN',
+    'L2-2_v1__seed01': 'TRAIN',
+    'L3-3_v1__seed00': 'TRAIN',
+    'L3-3_v1__seed01': 'TRAIN',
+    'L4-1_v1__seed00': 'TRAIN',
+    'L4-5_v1__seed00': 'TRAIN',
+    'L4-8_v1__seed00': 'TRAIN',
+    'L4-2_v1__seed00': 'TRAIN',
+    'L4-4_v1__seed00': 'TRAIN',
+    'L4-6_v1__seed00': 'TRAIN',
+    'L5-2_v1__seed00': 'TRAIN',
+    'L5-3_v1__seed00': 'TRAIN',
+    'L6-3_v1__seed00': 'TRAIN',
+    'L6-3_v1__seed01': 'TRAIN',
+    'L1-2_v1__seed01': 'VALID',
+    'L2-3_v2__seed00': 'VALID',
+    'L4-3_v1__seed00': 'VALID',
+    'L4-7_v1__seed00': 'VALID',
+    'L5-4_v1__seed00': 'VALID',
+    'L6-5_v1__seed00': 'VALID',
+    'L1-3_v1__seed00': 'TEST',
+    'L2-1_v2__seed00': 'TEST',
+    'L4-10_v1__seed00': 'TEST',
+    'L4-11_v1__seed00': 'TEST',
+    'L5-5_v1__seed00': 'TEST',
+}
 
 
-def load_split_table(*, reload: bool = False) -> dict[str, str]:
-    """Original scenario/seed -> split group, from the versioned config."""
-    global _SPLIT_TABLE_CACHE
-    if _SPLIT_TABLE_CACHE is None or reload:
-        doc = json.loads(_SPLIT_TABLE_PATH.read_text(encoding="utf-8"))
-        _SPLIT_TABLE_CACHE = {k: v["group"] for k, v in doc["table"].items()}
-    return _SPLIT_TABLE_CACHE
+def load_split_table() -> dict[str, str]:
+    return dict(SOURCE_SPLITS)
 
 
 def resolve_source_split(episode_id: str,
@@ -140,36 +160,6 @@ TRANSPORTED_Q_FAMILY = "transported_q"
 # produced from TRUE future values with TRAIN-frozen Gaussian noise added.
 # No code in this repository re-derives that mechanism; it is recorded as
 # lineage and used only to keep it out of prediction inputs.
-TRANSPORTED_Q_MECHANISM = {
-    "source_family": TRANSPORTED_Q_FAMILY,
-    "producer": "historical P01 diagnostic export (pre-v4 lineage; produced outside this package)",
-    "mechanism": "TRUE future values + TRAIN-frozen Gaussian noise (parent supplement declaration)",
-    "role": "oracle diagnostic only",
-    "admissible_as_prediction_input": False,
-    "input_rejection": "reject_transported_inputs() raises on any input-branch record from this family",
-}
-
-
-def reject_transported_inputs(input_records: Iterable[Mapping[str, Any]]) -> None:
-    """Raise if any input-branch record carries the transported_q family.
-
-    Diagnostic-side storage of transported_q records is legitimate; only
-    their use as prediction input is forbidden.  Detection uses the record's
-    declared source family (``source_family`` or provenance
-    ``producer_mechanism.source_family``), never a guessed name match on ids.
-    """
-    for rec in input_records:
-        if _record_source_family(rec) == TRANSPORTED_Q_FAMILY:
-            raise SplitGroupError(
-                f"transported_q record '{rec.get('id')}' cannot be a prediction input: "
-                "historical oracle diagnostic (TRUE future + TRAIN-frozen noise)")
-
-
-def is_oracle_diagnostic_family(source_family: str) -> bool:
-    """True for families admissible only as oracle diagnostics."""
-    return source_family == TRANSPORTED_Q_FAMILY
-
-
 def content_available_at(rec: Mapping[str, Any], *, cutoff: int) -> bool:
     """Per-field-policy content gate (v2, native-review D2).
 
@@ -290,29 +280,6 @@ def capture_binding_record(episode_id: str, *, frame_tick: int,
     return doc
 
 
-def available_time_document(*, rule: str, tick: int | None = None,
-                            note: str | None = None) -> dict[str, Any]:
-    """Explicit available_time provenance; unknown stays unknown.
-
-    - ``capture_bound``: content became available at a capture tick of the
-      same run (established for pilot rgb/lidar observations);
-    - ``hindsight_truth``: truth-side record (frames/edges/events) whose
-      content tick is definitive but which is NOT admissible as input after
-      the cutoff purely by tick - the window builder enforces this;
-    - ``archive_only``: full event_script/scene_setup, future fault/weather
-      schedules, terminal/hidden control, semantic episode names - part of
-      the archive view of an episode, addressed but never model-visible
-      unless known at the cutoff (point 2 of the six-point supplement);
-    - ``unknown``: rule not established; ``tick`` must be None and the note
-      must say why.  Never fabricate a tick for this rule.
-    """
-    if rule == "unknown":
-        if tick is not None:
-            raise SplitGroupError("available_time 'unknown' must not carry a tick")
-        return {"rule": "unknown", "tick": None, "note": note or "not established"}
-    return {"rule": rule, "tick": tick, "note": note}
-
-
 # ---------------- point 1: package vs per-dimension revisions -------------
 
 class ProvenanceError(ValueError):
@@ -392,65 +359,6 @@ def revision_summary(revision_doc: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-# ------------- point 2: archive view vs model-visible view ----------------
-
-MODEL_VISIBLE_AT_CUTOFF_RULES = {
-    # rule name -> admissible as prediction input when ...
-    "capture_bound": "content tick <= cutoff AND same-run capture binding holds",
-    "hindsight_truth": "NEVER as input beyond its content tick <= cutoff",
-    "archive_only": "only when the plan content is known at the cutoff (known-plan experiment label required)",
-}
-
-
-def model_visible_view(records: Iterable[Mapping[str, Any]], *, cutoff: int) -> list[Mapping[str, Any]]:
-    """Filter records down to the model-visible view at ``cutoff``.
-
-    Archive-only content (full event_script/scene_setup, future fault and
-    weather schedules, terminal/hidden control, semantic episode names) is
-    excluded unless its record carries provenance ``available_time.rule``
-    ``capture_bound``/``hindsight_truth`` with tick <= cutoff.  Records with
-    an unknown availability rule are excluded and counted, never guessed in.
-    """
-    visible: list[Mapping[str, Any]] = []
-    excluded_archive_only = 0
-    excluded_unknown = 0
-    for rec in records:
-        tick = rec.get("tick")
-        prov = rec.get("provenance") or {}
-        avail = prov.get("available_time") or {}
-        rule = avail.get("rule")
-        if rule == "archive_only":
-            ok = False
-            excluded_archive_only += 1
-        elif rule is None:
-            # undeclared rule: plain tick-prefix admissibility; transported_q
-            # is always refused as a prediction input
-            tick_ok = tick is None or (isinstance(tick, int) and tick <= cutoff)
-            ok = tick_ok and _record_source_family(rec) != TRANSPORTED_Q_FAMILY
-            if not ok and tick_ok:
-                excluded_archive_only += 1
-        elif not content_available_at(rec, cutoff=cutoff):
-            # capture_bound / hindsight_truth / unknown rule: the shared
-            # per-field gate requires BOTH the record tick and the declared
-            # available tick to be <= cutoff (native 095638 followup, repair 1).
-            # hindsight_truth is never input beyond its own tick; unknown
-            # rules are never guessed in.
-            if rule in ("capture_bound", "hindsight_truth"):
-                excluded_archive_only += 1
-            else:
-                excluded_unknown += 1
-            ok = False
-        else:
-            ok = True
-        if ok:
-            visible.append(rec)
-    model_visible_view.last_exclusion_counts = {
-        "archive_only": excluded_archive_only,
-        "unknown_rule": excluded_unknown,
-    }
-    return visible
-
-
 # ---------------------- point 5: L/P definition ids -----------------------
 
 L_DEFINITION_LEGACY_Q = "L/p01-legacy-q-bounded-observation"
@@ -487,75 +395,3 @@ def timely_L(cases: Iterable[Mapping[str, Any]], *, cutoff: int) -> dict[str, An
         "pending_or_censored": pending,
         "L": (sum(values) / len(values)) if values else None,
     }
-
-
-# ---------------- v2: typed / model-visible view over the archive ----------
-
-#: Field-family prefixes visible to the model in the typed view.  Everything
-#: else - above all the verbatim ``archive.*`` families - is stripped, so the
-#: lossless archive and the model-visible view are separated by construction,
-#: not by convention.
-TYPED_VIEW_FAMILY_PREFIXES = (
-    "identity.", "pose.", "motion.", "annotations.", "roster.",
-    "relation.", "event.", "observation.",
-)
-
-
-def model_visible_typed_view(records: Iterable[Mapping[str, Any]], *,
-                             cutoff: int) -> dict[str, Any]:
-    """Typed, model-visible view of canonical records at ``cutoff`` (v2).
-
-    Two independent walls sit between the model and the raw source:
-
-    1. record level - the same availability policy as
-       :func:`model_visible_view` (archive_only and unknown rules excluded,
-       transported_q excluded) plus two strict additions: hindsight-only
-       records (``available_time.rule == "hindsight_truth"``) are excluded
-       outright, and any record whose own tick exceeds the cutoff is excluded
-       even if its provenance claims otherwise;
-    2. field level - every family outside ``TYPED_VIEW_FAMILY_PREFIXES``
-       (verbatim archive payloads, future schedules, semantic names) is
-       stripped; a record left with no visible field is dropped and counted.
-
-    Full source content stays available only in the archive, never here.
-    """
-    visible: list[dict[str, Any]] = []
-    counts = {"archive_only": 0, "unknown_rule": 0, "hindsight_truth": 0,
-              "future_tick": 0, "archive_fields_only": 0}
-    for rec in records:
-        tick = rec.get("tick")
-        prov = rec.get("provenance") or {}
-        avail = prov.get("available_time") or {}
-        rule = avail.get("rule")
-        if rule == "archive_only":
-            counts["archive_only"] += 1
-            continue
-        if rule == "hindsight_truth":
-            counts["hindsight_truth"] += 1
-            continue
-        if rule is not None and rule != "capture_bound":
-            # any undeclared/unknown rule: never guessed in
-            counts["unknown_rule"] += 1
-            continue
-        if _record_source_family(rec) == TRANSPORTED_Q_FAMILY:
-            counts["archive_only"] += 1
-            continue
-        if isinstance(tick, int) and tick > cutoff:
-            counts["future_tick"] += 1
-            continue
-        # per-field available_time/content cutoff: a record whose payload only
-        # became available after the cutoff (late capture, hindsight truth,
-        # unknown rule) is excluded regardless of its own tick
-        if not content_available_at(rec, cutoff=cutoff):
-            counts["archive_only"] += 1
-            continue
-        fields = {name: value for name, value in (rec.get("fields") or {}).items()
-                  if name.startswith(TYPED_VIEW_FAMILY_PREFIXES)}
-        if not fields:
-            counts["archive_fields_only"] += 1
-            continue
-        out = dict(rec)
-        out["fields"] = fields
-        out.pop("_validated_paths", None)
-        visible.append(out)
-    return {"records": visible, "exclusion_counts": counts}

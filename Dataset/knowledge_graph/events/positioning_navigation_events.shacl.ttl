@@ -1,0 +1,100 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/positioning_navigation#> .
+@prefix shape: <https://w3id.org/aeroworld/ontology/events/positioning_navigation/shapes#> .
+
+<https://w3id.org/aeroworld/ontology/events/positioning_navigation/shapes>
+    a owl:Ontology ;
+    owl:imports <https://w3id.org/aeroworld/ontology/events/positioning_navigation> ;
+    owl:versionInfo "0.3.0" .
+
+shape:StableEventTypeShape
+    a sh:NodeShape ;
+    sh:targetClass aw:EventType ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:eventTypeIdentifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:class aw:ParticipantRole ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "One event type cannot declare duplicate participant-role keys."@en ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this aw:declaresParticipantRole ?left, ?right .
+                ?left aw:participantRoleKey ?key .
+                ?right aw:participantRoleKey ?key .
+                FILTER (?left != ?right)
+            }
+        """
+    ] .
+
+shape:CompleteParticipantRoleShape
+    a sh:NodeShape ;
+    sh:targetObjectsOf aw:declaresParticipantRole ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:participantRoleKey ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:participantClass ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1
+    ] .
+
+shape:GnssSignalDegradationEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:GnssSignalDegradationEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:GnssSignalDegradationEventRole_actor evt:GnssSignalDegradationEventRole_service )
+    ] .
+
+shape:GnssSpoofingNavigationEffectEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:GnssSpoofingNavigationEffectEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:GnssSpoofingNavigationEffectEventRole_actor evt:GnssSpoofingNavigationEffectEventRole_signal )
+    ] .

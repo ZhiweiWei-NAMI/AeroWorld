@@ -1,0 +1,157 @@
+{
+ "rule": "support R_{f,c,h}: position = 1.2 x max per-axis speed of category c x horizon + 0.5 m; latency/cpu = observed field range (residual cannot exceed it)",
+ "max_axis_speed_mps": {
+  "pedestrian": 1.99,
+  "uav": 16.0,
+  "vehicle": 12.0
+ },
+ "field_range": {
+  "latency_ms": [
+   20.700000000000003,
+   220.0
+  ],
+  "cpu_utilization_pct": [
+   33.95,
+   100.0
+  ]
+ },
+ "support": {
+  "position": {
+   "uav": {
+    "5": 10.1,
+    "10": 19.7,
+    "20": 38.9,
+    "30": 58.1,
+    "50": 96.5
+   },
+   "vehicle": {
+    "5": 7.7,
+    "10": 14.9,
+    "20": 29.3,
+    "30": 43.7,
+    "50": 72.5
+   },
+   "pedestrian": {
+    "5": 1.69,
+    "10": 2.89,
+    "20": 5.28,
+    "30": 7.66,
+    "50": 12.44
+   }
+  },
+  "latency_ms": {
+   "*": {
+    "5": 199.3,
+    "10": 199.3,
+    "20": 199.3,
+    "30": 199.3,
+    "50": 199.3
+   }
+  },
+  "cpu_utilization_pct": {
+   "*": {
+    "5": 66.05,
+    "10": 66.05,
+    "20": 66.05,
+    "30": 66.05,
+    "50": 66.05
+   }
+  }
+ },
+ "event_types_by_category": {
+  "facility": [
+   "airspace.aircraft_landing_event",
+   "airspace.aircraft_takeoff_event",
+   "airspace.restricted_airspace_entry_event",
+   "communication.c2_link_degradation_event",
+   "communication.c2_link_loss_event",
+   "communication.communication_handover_event",
+   "facility.charging_queue_overload_event",
+   "facility.charging_station_unavailability_event",
+   "facility.landing_pad_contention_event",
+   "security.communication_jamming_impact_event",
+   "security.ground_control_station_compromise_event"
+  ],
+  "uav": [
+   "airspace.aircraft_landing_event",
+   "airspace.aircraft_takeoff_event",
+   "airspace.assigned_altitude_band_excursion_event",
+   "airspace.restricted_airspace_entry_event",
+   "communication.c2_link_degradation_event",
+   "communication.c2_link_loss_event",
+   "communication.communication_handover_event",
+   "communication.message_retransmission_event",
+   "compute.compute_resource_saturation_event",
+   "compute.compute_task_execution_failure_event",
+   "facility.landing_pad_contention_event",
+   "positioning.gnss_signal_degradation_event",
+   "positioning.gnss_spoofing_navigation_effect_event",
+   "safety.aircraft_ground_vehicle_conflict_event",
+   "safety.aircraft_pair_conflict_event",
+   "safety.aircraft_pedestrian_near_miss_event",
+   "safety.aircraft_structure_near_miss_event",
+   "security.communication_jamming_impact_event"
+  ],
+  "airspace_corridor": [
+   "airspace.airspace_corridor_capacity_exceedance_event"
+  ],
+  "vehicle": [
+   "safety.aircraft_ground_vehicle_conflict_event",
+   "safety.pedestrian_vehicle_conflict_event"
+  ],
+  "pedestrian": [
+   "safety.aircraft_pedestrian_near_miss_event",
+   "safety.pedestrian_vehicle_conflict_event"
+  ],
+  "facade_anchor": [
+   "safety.aircraft_structure_near_miss_event"
+  ]
+ },
+ "event_counts": {
+  "communication.message_retransmission_event": 22675,
+  "compute.compute_resource_saturation_event": 1278,
+  "airspace.aircraft_takeoff_event": 213,
+  "compute.compute_task_execution_failure_event": 2108,
+  "airspace.restricted_airspace_entry_event": 39,
+  "airspace.airspace_corridor_capacity_exceedance_event": 238,
+  "airspace.assigned_altitude_band_excursion_event": 429,
+  "airspace.aircraft_landing_event": 231,
+  "safety.aircraft_pair_conflict_event": 33,
+  "communication.communication_handover_event": 280,
+  "communication.c2_link_loss_event": 87,
+  "positioning.gnss_signal_degradation_event": 15,
+  "safety.aircraft_structure_near_miss_event": 12,
+  "facility.charging_station_unavailability_event": 12,
+  "facility.charging_queue_overload_event": 6,
+  "facility.landing_pad_contention_event": 9,
+  "ground.traffic_signal_malfunction_event": 3,
+  "ground.road_segment_closure_event": 9,
+  "emergency.crowd_evacuation_event": 18,
+  "safety.pedestrian_vehicle_conflict_event": 18,
+  "communication.c2_link_degradation_event": 91,
+  "safety.aircraft_pedestrian_near_miss_event": 96,
+  "safety.aircraft_ground_vehicle_conflict_event": 6,
+  "environment.rain_transition_event": 12,
+  "environment.fog_onset_event": 9,
+  "environment.lighting_condition_change_event": 3,
+  "environment.extreme_temperature_event": 3,
+  "positioning.gnss_spoofing_navigation_effect_event": 9,
+  "security.communication_jamming_impact_event": 12,
+  "security.ground_control_station_compromise_event": 6
+ },
+ "scheduled_categories": [
+  "airspace",
+  "digital_layer",
+  "dynamic_constraint",
+  "environment",
+  "infrastructure",
+  "infrastructure_layer",
+  "pedestrian",
+  "scene_context",
+  "uav_lifecycle",
+  "uav_mission",
+  "unspecified",
+  "vehicle",
+  "weather"
+ ]
+}

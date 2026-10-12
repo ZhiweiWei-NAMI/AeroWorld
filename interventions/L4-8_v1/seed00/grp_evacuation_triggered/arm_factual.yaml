@@ -1,0 +1,50 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_factual
+group_key: L4-8_v1/seed00/grp_evacuation_triggered
+episode_id: L4-8_v1__seed00
+event_family: crowd_evacuation
+subject_class: pedestrian
+mode: factual_observation
+entity_ids:
+- ped_evac_l4_8_v1_00
+- ped_evac_l4_8_v1_01
+- ped_evac_l4_8_v1_02
+- ped_evac_l4_8_v1_03
+- ped_evac_l4_8_v1_04
+- ped_evac_l4_8_v1_05
+- ped_evac_l4_8_v1_06
+- ped_evac_l4_8_v1_07
+predicate_ids:
+- safety.crowd_evacuation_active
+window:
+  start_tick: 210
+  fork_tick: 220
+  end_tick: 640
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/interaction/L4-8_v1/scene_setup.json
+  script: Dataset/scenarios/L4_agents/interaction/L4-8_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-8_v1__seed00/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-8_v1__seed00/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-8_v1__seed00/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-8_v1__seed00/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-8_v1__seed00/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-8_v1__seed00/event_outcomes.jsonl
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites: []
+expected:
+  target_event: occurs
+  rationale: 疏散动作与激活补丁在 tick 220 派发，evacuation_active 从 raw tick 221 生效，首个 true 正式样本为 225。八名行人沿源路径移动 36.0..40.8 m，全部到达末点且零速为 514。crowd_safe_zone_reached 在 515 派发，激活状态从 516 清除，首个 false 正式样本为 520；连续三个正式样本满足恢复条件后，于 530 确认。
+  falsified_if: 派发、状态生效或正式采样时刻与本臂 raw/actions、raw/states 和 objective 记录不符，或行人没有实际到达并停稳却被确认完成。
+script: scripts/arms/L4-8_v1/seed00/grp_evacuation_triggered/arm_factual.py
+output: arms/L4-8_v1/seed00/grp_evacuation_triggered/arm_factual
+provenance:
+  experiment_ref: design/L4-8_v1/seed00/grp_evacuation_triggered/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    anchor: l4_chain_truth fragment(L4-8_v1, seed00).fork_event_id = evacuation_triggered
+    trace: aw_data/render_ready_episodes_capture_filtered/L4-8_v1__seed00/event_trace.jsonl

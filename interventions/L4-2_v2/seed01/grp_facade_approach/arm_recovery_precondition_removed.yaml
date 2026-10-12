@@ -1,0 +1,52 @@
+schema: "aeroworld_l4_window_config"
+version: 1
+arm_id: "arm_recovery_precondition_removed"
+group_key: "L4-2_v2/seed01/grp_facade_approach"
+episode_id: "L4-2_v2__seed01"
+event_family: "structure_near_miss"
+subject_class: "uav"
+mode: "intervention"
+entity_ids:
+  - "uav_facade_l4_2_v2"
+  - "facade_anchor_l4_2_v2"
+predicate_ids:
+  - "safety.aircraft_near_building_structure"
+  - "airspace.aircraft_airborne"
+window:
+  start_tick: 230
+  fork_tick: 250
+  end_tick: 500
+  phase: "after_state_sample_before_actions"
+  intervention_order: "source_actions_then_intervention"
+sources:
+  scene: "Dataset/scenarios/L4_agents/collision/L4-2_v2/scene_setup.json"
+  script: "Dataset/scenarios/L4_agents/collision/L4-2_v2/event_script.json"
+  trajectories: "aw_data/render_ready_episodes_capture_filtered/L4-2_v2__seed01/trajectories.jsonl"
+  weather: "aw_data/render_ready_episodes_capture_filtered/L4-2_v2__seed01/weather_meta.jsonl"
+  roster: "aw_data/render_ready_episodes_capture_filtered/L4-2_v2__seed01/global_entity_roster.json"
+  event_realization: "aw_data/render_ready_episodes_capture_filtered/L4-2_v2__seed01/event_realization.jsonl"
+  predicate_transitions: "aw_data/objective_semantic_truth/L4-2_v2__seed01/predicate_transitions.jsonl"
+  event_outcomes: "aw_data/objective_semantic_truth/L4-2_v2__seed01/event_outcomes.jsonl"
+execution:
+  omit_action_ids:
+    - "set_runtime_state_l4_2_v2_facade_recovery_00"
+  actions: []
+  trigger_rewrites:
+    - trigger_id: "trig_facade_proximity"
+      mechanism: "min_true_ticks_shift"
+      delay_ticks: 15
+    - trigger_id: "trig_after_facade_proximity_delay_30"
+      mechanism: "fired_after_delay_shift"
+      delay_ticks: 15
+expected:
+  target_event: "occurs"
+  rationale: "延迟响应并省略恢复状态补丁：facade_proximity 410→425（+15），其后恢复节点额外延迟15，因此 facade_recovery 440→470（总+30）。近建筑 onset 仍为400；正式最后 true 425→435，恢复确认 440→450。原“onset 顺延”预期未获实测支持，实际变化是响应及风险解除延后。"
+  falsified_if: "facade_proximity 仍在 factual tick（410）dispatch，或 recovery 的 control_state 补丁在窗内出现，或 facade_recovery 的 motion 从未 dispatch。"
+script: "scripts/arms/L4-2_v2/seed01/grp_facade_approach/arm_recovery_precondition_removed.py"
+output: "arms/L4-2_v2/seed01/grp_facade_approach/arm_recovery_precondition_removed"
+provenance:
+  experiment_ref: "design/L4-2_v2/seed01/grp_facade_approach/experiment.json"
+  parameter_sources:
+    factual_root: "aw_data"
+    omitted_action_ids: "set_runtime_state_l4_2_v2_facade_recovery_00（facade_recovery 内 control_state 补丁）于 Dataset/scenarios/L4_agents/collision/L4-2_v2/event_script.json"
+    trigger_rewrites: "min_true_ticks_shift +15 于 trig_facade_proximity；fired_after_delay_shift +15 于 trig_after_facade_proximity_delay_30（design rewrites.scheduling）"

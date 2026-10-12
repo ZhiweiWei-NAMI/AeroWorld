@@ -1,0 +1,46 @@
+schema: "aeroworld_l4_window_config"
+version: 1
+arm_id: "arm_resolution_dispatch_delayed"
+group_key: "L4-1_v1/seed01/grp_converging_approach"
+episode_id: "L4-1_v1__seed01"
+event_family: "uav_separation_conflict"
+subject_class: "uav"
+mode: "intervention"
+entity_ids:
+  - "uav_conflict_l4_1_v1_a"
+  - "uav_conflict_l4_1_v1_b"
+predicate_ids:
+  - "safety.aircraft_pair_below_separation"
+window:
+  start_tick: 230
+  fork_tick: 240
+  end_tick: 640
+  phase: "after_state_sample_before_actions"
+  intervention_order: "source_actions_then_intervention"
+sources:
+  scene: "Dataset/scenarios/L4_agents/collision/L4-1_v1/scene_setup.json"
+  script: "Dataset/scenarios/L4_agents/collision/L4-1_v1/event_script.json"
+  trajectories: "aw_data/render_ready_episodes_capture_filtered/L4-1_v1__seed01/trajectories.jsonl"
+  weather: "aw_data/render_ready_episodes_capture_filtered/L4-1_v1__seed01/weather_meta.jsonl"
+  roster: "aw_data/render_ready_episodes_capture_filtered/L4-1_v1__seed01/global_entity_roster.json"
+  event_realization: "aw_data/render_ready_episodes_capture_filtered/L4-1_v1__seed01/event_realization.jsonl"
+  predicate_transitions: "aw_data/objective_semantic_truth/L4-1_v1__seed01/predicate_transitions.jsonl"
+  event_outcomes: "aw_data/objective_semantic_truth/L4-1_v1__seed01/event_outcomes.jsonl"
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites:
+    - trigger_id: "trig_uav_conflict_resolution"
+      mechanism: "min_true_ticks_shift"
+      delay_ticks: 30
+expected:
+  target_event: "occurs"
+  rationale: "factual 中两机进入阈值内后持续保持到 ≈425 才分离，min_true_ticks 2→32（引擎语义 base+delay，仅向更晚推迟）后连续满足 ≥32 tick 在 ≈415 前后成立，resolution 整体推迟约 +30 tick；resume 依 event_fired_after+30 相应顺延。"
+  falsified_if: "uav_conflict_resolution 未在窗内发生，或其 dispatch 不晚于 factual 的 385，或 resume_patrols 未相应推迟。"
+script: "scripts/arms/L4-1_v1/seed01/grp_converging_approach/arm_resolution_dispatch_delayed.py"
+output: "arms/L4-1_v1/seed01/grp_converging_approach/arm_resolution_dispatch_delayed"
+provenance:
+  experiment_ref: "design/L4-1_v1/seed01/grp_converging_approach/experiment.json"
+  parameter_sources:
+    factual_root: "aw_data"
+    trigger_rewrite: "design parameter_sources.min_true_ticks_shift_delay_ticks = 30，作用于 trig_uav_conflict_resolution（entity_proximity，factual min_true_ticks=2）"

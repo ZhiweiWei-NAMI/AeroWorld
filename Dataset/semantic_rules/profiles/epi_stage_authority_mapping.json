@@ -1,0 +1,887 @@
+{
+  "schema_name": "epi_stage_authority_mapping",
+  "schema_version": "2.0.0",
+  "profile_id": "aeroworld_epi_stage_authority_mapping_v1",
+  "description": "Explicit stage-to-authoritative-evidence decisions. Runtime code must never infer a binding from stage_goal text, and unmapped executable-family stages are build errors.",
+  "not_applicable_stages": {
+    "L1-1_v1::1": {
+      "reason": "The authored boundary-approach subphase is the last safe sample before the canonical restricted-region rising edge; the current frozen predicate vocabulary has no separate pre-entry approach transition.",
+      "closure_statement": "Add a reviewed pre-entry boundary-distance predicate before making this narrative approach subphase executable; keep the intrusion event bound to the exact rising edge."
+    },
+    "L1-1_v2::1": {
+      "reason": "The authored boundary-approach subphase is the last safe sample before the canonical restricted-region rising edge; the current frozen predicate vocabulary has no separate pre-entry approach transition.",
+      "closure_statement": "Add a reviewed pre-entry boundary-distance predicate before making this narrative approach subphase executable; keep the intrusion event bound to the exact rising edge."
+    },
+    "L1-2_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L1-3_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L1-3_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L1-4_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L1-4_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-1_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-1_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-2_v1::1": {
+      "reason": "The governed multipath error is 4.5 m, below the frozen 8.0 m navigation-error tolerance, so this subphase has no objective rising transition.",
+      "closure_statement": "Calibrate a separately reviewed GNSS error model from sensor or simulator measurements before changing the governed error envelope."
+    },
+    "L2-2_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-2_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-3_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-3_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-3_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-3_v2::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-4_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-4_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-4_v1::3": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-4_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-5_v1::1": {
+      "reason": "The formal SUMO truth contains at most four simultaneously stopped vehicles on any one lane during the all-red interval, below the frozen queue threshold of more than five vehicles; the prior seed00 transition came from incorrectly summing unrelated stopped vehicles across lanes.",
+      "closure_statement": "Regenerate the physical SUMO traffic plan with at least six same-lane queued vehicles during the all-red interval before making this subphase executable."
+    },
+    "L2-5_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L2-5_v1::3": {
+      "reason": "No authoritative same-lane queue can fall below the frozen threshold because the formal SUMO truth never establishes the required queue of more than five vehicles.",
+      "closure_statement": "After regenerating a physically valid same-lane queue, retain the existing frozen falling-edge binding to represent manual-flow restoration."
+    },
+    "L3-1_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L3-1_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L3-1_v1::3": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L3-3_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L3-3_v1::3": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L3-3_v1::4": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L3-3_v1::5": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L3-3_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L3-3_v2::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-11_v2::2": {
+      "reason": "The scenario manages a ground-vehicle safe-stop hazard and never activates a temporary no-fly region; binding this stage to an airspace lockdown would change its semantics.",
+      "closure_statement": "Add the reviewed AV minimum-risk-manoeuvre and managed-hazard predicates described by the C_non_executable family before making this stage executable."
+    },
+    "L4-1_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-1_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-1_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-2_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-2_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-4_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-4_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-4_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-4_v2::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-5_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-5_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-5_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-5_v3::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-6_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-6_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-6_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-6_v2::2": {
+      "reason": "The authoritative vehicle-pedestrian distance remains 4.700 m through tick 900, below the frozen 5.0 m conflict threshold, so no safe-clearance falling transition exists.",
+      "closure_statement": "Regenerate the physical SUMO/pedestrian recovery trajectory so the actors separate beyond 5.0 m inside the formal horizon."
+    },
+    "L4-8_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-8_v1::3": {
+      "reason": "The crowd occurrence is grounded only to a Crowd individual, while the safe-hold transition is grounded to an aircraft; no authoritative crowd-to-aircraft control relation joins those tuples.",
+      "closure_statement": "Materialize and review an exact crowd-hazard-to-aircraft-control relation before accepting the aircraft safe-hold transition as this crowd-event stage."
+    },
+    "L4-9_v1::0": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-9_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-9_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-9_v2::0": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-9_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L4-9_v2::2": {
+      "reason": "The two authoritative vehicle trajectories remain only 3.603 m apart at tick 900 and the structured right-of-way state has no physical restoration transition.",
+      "closure_statement": "Regenerate the intersection response so the vehicles clear the conflict area and the engine emits a nominal right-of-way state before tick 900."
+    },
+    "L5-1_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-1_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-1_v1::3": {
+      "reason": "Recovered weather retains rain=0.2 through tick 900, which remains true under the frozen rain_active_threshold=0.0, so no falling transition exists.",
+      "closure_statement": "Emit zero precipitation after recovery or introduce a separately approved rain-intensity event contract; do not reinterpret nonzero drizzle as no rain."
+    },
+    "L5-1_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-1_v2::2": {
+      "reason": "Recovered weather retains rain=0.2 through tick 900, which remains true under the frozen rain_active_threshold=0.0, so no falling transition exists.",
+      "closure_statement": "Emit zero precipitation after recovery or introduce a separately approved rain-intensity event contract; do not reinterpret nonzero drizzle as no rain."
+    },
+    "L5-1_v3::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-1_v3::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-2_v1::1": {
+      "reason": "The minimum observed visibility is 260 m, above the frozen 250 m low-visibility threshold, so the requested rising transition is objectively absent.",
+      "closure_statement": "Calibrate the fog visibility profile below 250 m from the simulator configuration or approve a different visibility contract before execution."
+    },
+    "L5-2_v1::2": {
+      "reason": "Fog-driven visual-navigation degradation does not alter the authoritative GNSS quality state; treating it as GNSS degradation would conflate independent sensors.",
+      "closure_statement": "Add a reviewed visual-navigation or perception-quality predicate with a direct L0 source."
+    },
+    "L5-2_v1::3": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-2_v2::1": {
+      "reason": "Fog-driven visual-navigation failure does not alter the authoritative GNSS quality state; treating it as GNSS degradation would conflate independent sensors.",
+      "closure_statement": "Add a reviewed visual-navigation or perception-quality predicate with a direct L0 source."
+    },
+    "L5-2_v2::2": {
+      "reason": "No authoritative GNSS degradation occurred in this visual-fog scenario, so a GNSS recovery falling transition cannot exist.",
+      "closure_statement": "Represent visual recovery with an approved visual-navigation predicate rather than a GNSS terminal transition."
+    },
+    "L5-4_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-4_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-4_v1::3": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-5_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L5-5_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L6-1_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L6-2_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L6-2_v1::2": {
+      "reason": "The link-degradation occurrence is grounded to actor and station, while handover_in_progress is grounded only to a Handover process; the L1 graph does not materialize the handover-to-session/station relation needed for an exact join.",
+      "closure_statement": "Materialize authoritative Handover process relations to the affected communication session and source/target stations before enabling this stage."
+    },
+    "L6-2_v1::3": {
+      "reason": "The handover terminal transition cannot follow an executable handover stage until the Handover process is explicitly related to the affected link actors and stations.",
+      "closure_statement": "Enable this falling-edge stage only after the preceding handover process has an exact, reviewed relation to the affected communication session and stations."
+    },
+    "L6-2_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L6-3_v1::1": {
+      "reason": "The governed spoofing-active and navigation-error predicates rise in the same authoritative sample after spoofing_start, so they cannot prove two strictly ordered stages.",
+      "closure_statement": "Introduce a physically measured, later navigation-error transition before making this stage executable; no frozen predicate transition currently satisfies the strict stage order."
+    },
+    "L6-3_v2::2": {
+      "reason": "The runtime schedule exposes navigation_state.visual_relocalization=true, but the frozen predicate vocabulary has no relocalization transition for this stage.",
+      "closure_statement": "Add a separately reviewed relocalization predicate and L0 state contract; no frozen predicate transition currently represents this subphase."
+    },
+    "L6-4_v1::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L6-4_v1::2": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L6-4_v2::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "L6-5_v1::2": {
+      "reason": "The frozen planned-route predicate is sourced from a geofence-alert state, while this subphase is an abnormal-command path with no route-reference L0 error record.",
+      "closure_statement": "Add a reviewed route-reference cross-track-error L0 source and update the existing predicate contract without using the authored event label."
+    },
+    "X2_gnss_spoof_to_geofence_violation::1": {
+      "reason": "Spoofing and navigation error rise in the same authoritative sample, so they cannot satisfy the frozen strictly-increasing stage-chain contract as separate stages.",
+      "closure_statement": "Increase physical sampling fidelity or introduce a reviewed delayed sensor-error mechanism before representing this as a separate ordered subphase."
+    },
+    "X3_pedestrian_fall_to_emergency_response::3": {
+      "reason": "The isolation action spawns a ground police cordon, not a temporary no-fly region, so the airspace-lockdown predicate is semantically inapplicable.",
+      "closure_statement": "Add a reviewed ground emergency-isolation predicate and physical cordon state contract before executing this stage."
+    },
+    "X4_fog_to_uav_conflict::1": {
+      "reason": "Observed visibility is 700 m after fog onset, above the frozen 250 m low-visibility threshold, so no visibility-loss transition exists.",
+      "closure_statement": "Calibrate a denser fog profile from the simulation optics before claiming thresholded visibility loss."
+    },
+    "X4_fog_to_uav_conflict::2": {
+      "reason": "The scenario records visual route uncertainty but no GNSS quality degradation; the two sensing mechanisms are not authoritative equivalents.",
+      "closure_statement": "Add a reviewed visual-navigation uncertainty predicate and mechanism source before representing this ordered subphase."
+    },
+    "X4_fog_to_uav_conflict::4": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "X5_comm_failure_to_pad_contention::1": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    },
+    "X5_comm_failure_to_pad_contention::3": {
+      "reason": "This narrative subphase has no one-to-one frozen predicate transition in the 79-predicate vocabulary.",
+      "closure_statement": "Add a separately reviewed authoritative predicate and L0 state contract before making this subphase executable."
+    }
+  },
+  "event_occurrence_bindings": [
+    {
+      "event_family_id": "uav_takeoff",
+      "event_type_id": "airspace.aircraft_takeoff_event",
+      "trigger_predicate_id": "airspace.aircraft_airborne",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L1-1_v1::0",
+        "L1-1_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "uav_landing",
+      "event_type_id": "airspace.aircraft_landing_event",
+      "trigger_predicate_id": "airspace.aircraft_touchdown",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L1-1_v1::4",
+        "L1-1_v2::4",
+        "L1-2_v1::3",
+        "L1-3_v1::3",
+        "L1-4_v2::2",
+        "L2-1_v1::3",
+        "L2-4_v2::3",
+        "L4-3_v1::3",
+        "L4-3_v2::2",
+        "L4-3_v3::2",
+        "L4-8_v2::2",
+        "L5-1_v3::3",
+        "L5-2_v1::4",
+        "L5-3_v2::3",
+        "L5-5_v1::3",
+        "L6-1_v1::3",
+        "L6-1_v2::2",
+        "X1_rain_to_c2loss_to_forced_landing::4"
+      ]
+    },
+    {
+      "event_family_id": "restricted_region_intrusion",
+      "event_type_id": "airspace.restricted_airspace_entry_event",
+      "trigger_predicate_id": "airspace.aircraft_inside_restricted_airspace",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L3-2_v1::1",
+        "X2_gnss_spoof_to_geofence_violation::2",
+        "L1-1_v1::2",
+        "L1-1_v2::2",
+        "L3-2_v2::1"
+      ]
+    },
+    {
+      "event_family_id": "altitude_excursion",
+      "event_type_id": "airspace.assigned_altitude_band_excursion_event",
+      "trigger_predicate_id": "airspace.aircraft_outside_assigned_altitude_band",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L1-2_v1::0"
+      ]
+    },
+    {
+      "event_family_id": "uav_separation_conflict",
+      "event_type_id": "safety.aircraft_pair_conflict_event",
+      "trigger_predicate_id": "safety.aircraft_pair_below_separation",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L1-3_v1::0",
+        "L1-3_v2::0",
+        "L4-1_v1::0",
+        "L4-1_v2::0",
+        "X4_fog_to_uav_conflict::3"
+      ]
+    },
+    {
+      "event_family_id": "corridor_congestion",
+      "event_type_id": "airspace.airspace_corridor_capacity_exceedance_event",
+      "trigger_predicate_id": "airspace.airspace_corridor_over_capacity",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L1-4_v1::0",
+        "L1-4_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "c2_degradation_loss",
+      "event_type_id": "communication.c2_link_degradation_event",
+      "trigger_predicate_id": "communication.link_degraded",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L6-2_v1::0",
+        "L6-2_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "c2_degradation_loss",
+      "event_type_id": "communication.c2_link_loss_event",
+      "trigger_predicate_id": "communication.link_unavailable",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L2-1_v1::0",
+        "L2-1_v2::0",
+        "L6-1_v1::0",
+        "L6-1_v2::0",
+        "X1_rain_to_c2loss_to_forced_landing::1",
+        "X5_comm_failure_to_pad_contention::0"
+      ]
+    },
+    {
+      "event_family_id": "gnss_signal_degradation",
+      "event_type_id": "positioning.gnss_signal_degradation_event",
+      "trigger_predicate_id": "positioning.gnss_quality_degraded",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L2-2_v1::0",
+        "L2-2_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "gnss_spoofing_effect",
+      "event_type_id": "positioning.gnss_spoofing_navigation_effect_event",
+      "trigger_predicate_id": "positioning.gnss_spoofing_active",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L6-3_v1::0",
+        "L6-3_v2::0",
+        "X2_gnss_spoof_to_geofence_violation::0"
+      ]
+    },
+    {
+      "event_family_id": "charger_unavailable",
+      "event_type_id": "facility.charging_station_unavailability_event",
+      "trigger_predicate_id": "facility.charging_station_unavailable",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L2-3_v1::0",
+        "L2-3_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "pad_contention",
+      "event_type_id": "facility.landing_pad_contention_event",
+      "trigger_predicate_id": "facility.landing_pad_contention",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L2-4_v1::0",
+        "L2-4_v2::0",
+        "X5_comm_failure_to_pad_contention::2"
+      ]
+    },
+    {
+      "event_family_id": "signal_malfunction",
+      "event_type_id": "ground.traffic_signal_malfunction_event",
+      "trigger_predicate_id": "ground.traffic_signal_malfunction_active",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L2-5_v1::0"
+      ]
+    },
+    {
+      "event_family_id": "road_closure",
+      "event_type_id": "ground.road_segment_closure_event",
+      "trigger_predicate_id": "ground.road_segment_closed",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L3-1_v1::0"
+      ]
+    },
+    {
+      "event_family_id": "crowd_evacuation",
+      "event_type_id": "emergency.crowd_evacuation_event",
+      "trigger_predicate_id": "safety.crowd_evacuation_active",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L3-3_v1::0",
+        "L3-3_v2::0",
+        "L4-3_v1::2",
+        "L4-8_v1::0",
+        "L4-8_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "structure_near_miss",
+      "event_type_id": "safety.aircraft_structure_near_miss_event",
+      "trigger_predicate_id": "safety.aircraft_near_building_structure",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L4-2_v1::0",
+        "L4-2_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "uav_vehicle_conflict",
+      "event_type_id": "safety.aircraft_ground_vehicle_conflict_event",
+      "trigger_predicate_id": "safety.aircraft_near_ground_vehicle",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L4-4_v1::0",
+        "L4-4_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "uav_pedestrian_near_miss",
+      "event_type_id": "safety.aircraft_pedestrian_near_miss_event",
+      "trigger_predicate_id": "safety.aircraft_near_pedestrian",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L4-5_v1::0",
+        "L4-5_v2::0",
+        "L4-5_v3::0"
+      ]
+    },
+    {
+      "event_family_id": "vehicle_pedestrian_conflict",
+      "event_type_id": "safety.pedestrian_vehicle_conflict_event",
+      "trigger_predicate_id": "safety.vehicle_pedestrian_conflict",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L4-6_v1::0",
+        "L4-6_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "rain_fog_environment",
+      "event_type_id": "environment.rain_transition_event",
+      "trigger_predicate_id": "environment.rain_active",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L5-1_v1::0",
+        "L5-1_v2::0",
+        "L5-1_v3::0",
+        "X1_rain_to_c2loss_to_forced_landing::0"
+      ]
+    },
+    {
+      "event_family_id": "rain_fog_environment",
+      "event_type_id": "environment.fog_onset_event",
+      "trigger_predicate_id": "environment.fog_active",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L5-2_v1::0",
+        "L5-2_v2::0",
+        "X4_fog_to_uav_conflict::0"
+      ]
+    },
+    {
+      "event_family_id": "rain_fog_environment",
+      "event_type_id": "environment.lighting_condition_change_event",
+      "trigger_predicate_id": "environment.low_illumination_active",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L5-4_v1::0"
+      ]
+    },
+    {
+      "event_family_id": "high_temp_battery_derating",
+      "event_type_id": "environment.extreme_temperature_event",
+      "trigger_predicate_id": "environment.temperature_outside_operating_range",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L5-5_v1::0"
+      ]
+    },
+    {
+      "event_family_id": "jamming_gcs_intrusion",
+      "event_type_id": "security.communication_jamming_impact_event",
+      "trigger_predicate_id": "security.communication_jamming_impact_active",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L6-4_v1::0",
+        "L6-4_v2::0"
+      ]
+    },
+    {
+      "event_family_id": "jamming_gcs_intrusion",
+      "event_type_id": "security.ground_control_station_compromise_event",
+      "trigger_predicate_id": "security.ground_control_station_compromised",
+      "direction": "rising",
+      "event_phase": "onset",
+      "stage_keys": [
+        "L6-5_v1::0",
+        "L6-5_v2::0"
+      ]
+    }
+  ],
+  "predicate_transition_bindings": [
+    {
+      "event_family_id": "restricted_region_intrusion",
+      "predicate_id": "airspace.aircraft_inside_restricted_airspace",
+      "direction": "falling",
+      "stage_keys": [
+        "L1-1_v1::3",
+        "L1-1_v2::3",
+        "L3-2_v1::3"
+      ]
+    },
+    {
+      "event_family_id": "altitude_excursion",
+      "predicate_id": "airspace.aircraft_outside_assigned_altitude_band",
+      "direction": "falling",
+      "stage_keys": [
+        "L1-2_v1::2"
+      ]
+    },
+    {
+      "event_family_id": "uav_separation_conflict",
+      "predicate_id": "safety.aircraft_pair_below_separation",
+      "direction": "falling",
+      "stage_keys": [
+        "L1-3_v1::2",
+        "L1-3_v2::2",
+        "L4-1_v1::3",
+        "L4-1_v2::2"
+      ]
+    },
+    {
+      "event_family_id": "corridor_congestion",
+      "predicate_id": "airspace.airspace_corridor_over_capacity",
+      "direction": "falling",
+      "stage_keys": [
+        "L1-4_v1::2"
+      ]
+    },
+    {
+      "event_family_id": "c2_degradation_loss",
+      "predicate_id": "communication.link_unavailable",
+      "direction": "falling",
+      "stage_keys": [
+        "L2-1_v1::2",
+        "L2-1_v2::2"
+      ]
+    },
+    {
+      "event_family_id": "c2_degradation_loss",
+      "predicate_id": "communication.link_degraded",
+      "direction": "falling",
+      "stage_keys": [
+        "L6-2_v2::2"
+      ]
+    },
+    {
+      "event_family_id": "c2_degradation_loss",
+      "predicate_id": "emergency.aircraft_in_return_to_home",
+      "direction": "rising",
+      "binding_projection_from_previous": {
+        "actor": "actor"
+      },
+      "stage_keys": [
+        "L6-1_v1::1",
+        "L6-1_v2::1"
+      ]
+    },
+    {
+      "event_family_id": "c2_degradation_loss",
+      "predicate_id": "emergency.aircraft_in_safe_hold",
+      "direction": "rising",
+      "binding_projection_from_previous": {
+        "actor": "actor"
+      },
+      "stage_keys": [
+        "X1_rain_to_c2loss_to_forced_landing::2"
+      ]
+    },
+    {
+      "event_family_id": "gnss_signal_degradation",
+      "predicate_id": "positioning.gnss_quality_degraded",
+      "direction": "falling",
+      "stage_keys": [
+        "L2-2_v1::3",
+        "L2-2_v2::2"
+      ]
+    },
+    {
+      "event_family_id": "gnss_spoofing_effect",
+      "predicate_id": "positioning.aircraft_deviates_from_planned_route",
+      "direction": "rising",
+      "binding_projection_from_previous": {
+        "actor": "actor"
+      },
+      "stage_keys": [
+        "L6-3_v1::2"
+      ]
+    },
+    {
+      "event_family_id": "gnss_spoofing_effect",
+      "predicate_id": "positioning.aircraft_deviates_from_planned_route",
+      "direction": "rising",
+      "binding_projection_from_previous": {
+        "actor": "actor"
+      },
+      "stage_keys": [
+        "L6-3_v2::1"
+      ]
+    },
+    {
+      "event_family_id": "gnss_spoofing_effect",
+      "predicate_id": "positioning.gnss_spoofing_active",
+      "direction": "falling",
+      "binding_projection_from_previous": {
+        "actor": "actor"
+      },
+      "stage_keys": [
+        "L6-3_v1::3",
+        "L6-3_v2::3"
+      ]
+    },
+    {
+      "event_family_id": "gnss_spoofing_effect",
+      "predicate_id": "positioning.gnss_spoofing_active",
+      "direction": "falling",
+      "stage_keys": [
+        "X2_gnss_spoof_to_geofence_violation::3"
+      ]
+    },
+    {
+      "event_family_id": "pad_contention",
+      "predicate_id": "facility.landing_pad_contention",
+      "direction": "falling",
+      "stage_keys": [
+        "L2-4_v2::2"
+      ]
+    },
+    {
+      "event_family_id": "crowd_evacuation",
+      "predicate_id": "safety.crowd_evacuation_active",
+      "direction": "falling",
+      "stage_keys": [
+        "L3-3_v1::6",
+        "L3-3_v2::3",
+        "L4-8_v1::2",
+        "L4-8_v2::1",
+        "X6_crowd_evacuation_to_airspace_lockdown::0"
+      ]
+    },
+    {
+      "event_family_id": "structure_near_miss",
+      "predicate_id": "safety.aircraft_near_building_structure",
+      "direction": "falling",
+      "stage_keys": [
+        "L4-2_v1::2",
+        "L4-2_v2::2"
+      ]
+    },
+    {
+      "event_family_id": "uav_pedestrian_near_miss",
+      "predicate_id": "safety.aircraft_near_pedestrian",
+      "direction": "falling",
+      "stage_keys": [
+        "L4-5_v1::3",
+        "L4-5_v2::2",
+        "L4-5_v3::2"
+      ]
+    },
+    {
+      "event_family_id": "vehicle_pedestrian_conflict",
+      "predicate_id": "safety.vehicle_pedestrian_conflict",
+      "direction": "falling",
+      "stage_keys": [
+        "L4-6_v1::3"
+      ]
+    },
+    {
+      "event_family_id": "jamming_gcs_intrusion",
+      "predicate_id": "security.communication_jamming_impact_active",
+      "direction": "falling",
+      "stage_keys": [
+        "L6-4_v1::3",
+        "L6-4_v2::2"
+      ]
+    },
+    {
+      "event_family_id": "jamming_gcs_intrusion",
+      "predicate_id": "security.ground_control_station_compromised",
+      "direction": "falling",
+      "stage_keys": [
+        "L6-5_v2::2"
+      ]
+    }
+  ],
+  "validation": {
+    "expected_epi_count": 70,
+    "expected_stage_count": 262,
+    "runtime_keyword_matching_permitted": false,
+    "duplicate_stage_binding_permitted": false
+  }
+}

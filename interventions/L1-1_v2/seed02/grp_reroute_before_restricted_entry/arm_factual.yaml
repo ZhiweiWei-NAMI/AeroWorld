@@ -1,0 +1,39 @@
+schema: aeroworld_arm_config
+version: 4
+arm_id: arm_factual
+group_key: L1-1_v2/seed02/grp_reroute_before_restricted_entry
+episode_id: L1-1_v2__seed02
+event_family: restricted_region_intrusion
+mode: factual_observation
+entity_ids:
+- uav_l1_1_v2_primary
+predicate_ids:
+- airspace.aircraft_inside_restricted_airspace
+window:
+  start_tick: 215
+  fork_tick: 220
+  end_tick: 330
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L1_airspace/interaction/L1-1_v2/scene_setup.json
+  script: Dataset/scenarios/L1_airspace/interaction/L1-1_v2/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L1-1_v2__seed02/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L1-1_v2__seed02/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L1-1_v2__seed02/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L1-1_v2__seed02/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L1-1_v2__seed02/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L1-1_v2__seed02/event_outcomes.jsonl
+execution:
+  omit_action_ids: []
+  actions: []
+expected:
+  target_event: observe
+  rationale: 记录声明事实源中的所选事件及恢复，不预设干预效果。
+  falsified_if: 分支实测与该声明不符
+script: scripts/arms/L1-1_v2/seed02/grp_reroute_before_restricted_entry/arm_factual.py
+output: arms/L1-1_v2/seed02/grp_reroute_before_restricted_entry/arm_factual
+provenance:
+  experiment_ref: design/L1-1_v2/seed02/grp_reroute_before_restricted_entry/experiment.json
+  parameter_sources:
+    factual_root: aw_data

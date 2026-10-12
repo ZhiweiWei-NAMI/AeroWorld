@@ -1,0 +1,148 @@
+version: 1
+description: "Executable competency questions for the AeroWorld core ontology acceptance miniature ABox."
+questions:
+  - id: stable_entity_identity
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK {
+        ex:episode_one a core:Episode ;
+          core:episodeIdentifier "episode-miniature" .
+        ex:entity_alpha a core:Entity ;
+          core:inEpisode ex:episode_one ;
+          core:entityIdentifier "scene-entity-alpha" .
+        ex:entity_beta a core:Entity ;
+          core:inEpisode ex:episode_one ;
+          core:entityIdentifier "scene-entity-beta" .
+      }
+  - id: four_valued_objective_evaluation
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK {
+        ex:assert_false a core:ObjectivePredicateAssertion ;
+          core:hasTruthValue core:FalseValue .
+        ex:assert_true a core:ObjectivePredicateAssertion ;
+          core:hasTruthValue core:TrueValue .
+        ex:assert_unknown a core:ObjectivePredicateAssertion ;
+          core:hasTruthValue core:UnknownValue .
+        ex:assert_secondary_out_of_scope a core:ObjectivePredicateAssertion ;
+          core:hasTruthValue core:OutOfScopeValue .
+      }
+  - id: predicate_argument_bindings
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK {
+        ex:assert_true core:hasArgumentBinding ex:arg_binding_subject, ex:arg_binding_object .
+        ex:arg_binding_subject a core:PredicateArgumentBinding ;
+          core:bindsArgumentRole ex:arg_subject ;
+          core:bindsEntity ex:entity_alpha .
+        ex:arg_binding_object a core:PredicateArgumentBinding ;
+          core:bindsArgumentRole ex:arg_object ;
+          core:bindsEntity ex:entity_beta .
+      }
+  - id: rise_and_fall_transitions
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK {
+        ex:rise_transition a core:RisingTransition ;
+          core:fromAssertion ex:assert_false ;
+          core:toAssertion ex:assert_true ;
+          core:fromTruthValue core:FalseValue ;
+          core:toTruthValue core:TrueValue ;
+          core:atInstant ex:tick_20 .
+        ex:fall_transition a core:FallingTransition ;
+          core:fromAssertion ex:assert_true ;
+          core:toAssertion ex:assert_false_late ;
+          core:fromTruthValue core:TrueValue ;
+          core:toTruthValue core:FalseValue ;
+          core:atInstant ex:tick_40 .
+      }
+  - id: authoritative_tick_predecessors
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK {
+        ex:tick_20 a core:TickInstant ;
+          core:inEpisode ex:episode_one ;
+          core:previousAuthoritativeInstant ex:tick_19 .
+        ex:tick_40 a core:TickInstant ;
+          core:inEpisode ex:episode_one ;
+          core:previousAuthoritativeInstant ex:tick_39 .
+      }
+  - id: event_occurrence_participants
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK {
+        ex:event_one a core:EventOccurrence ;
+          core:hasParticipantBinding ex:participant_actor_one, ex:participant_target_one .
+        ex:participant_actor_one core:bindsParticipantRole ex:participant_actor ;
+          core:bindsEntity ex:entity_alpha .
+        ex:participant_target_one core:bindsParticipantRole ex:participant_target ;
+          core:bindsEntity ex:entity_beta .
+      }
+  - id: provenance_and_derivation_rule
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK {
+        ex:event_one core:derivedFromSource ex:source_frame_20 ;
+          core:generatedByRule ex:rule_transition_to_event ;
+          core:initiatedByTransition ex:rise_transition .
+        ex:source_frame_20 a core:SourceRecord ;
+          core:sourceLocator "miniature/frame/20" .
+        ex:rule_transition_to_event a core:DerivationRule ;
+          core:ruleVersion "0.3.0" .
+      }
+  - id: event_termination_boundary
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+      ASK {
+        ex:event_terminated core:terminatedByTransition ex:fall_transition ;
+          core:occursDuring ex:interval_event_terminated .
+        ex:interval_event_terminated core:endTick "39"^^xsd:nonNegativeInteger .
+        ex:fall_transition core:atInstant ex:tick_40 .
+        ex:tick_40 core:tickValue "40"^^xsd:nonNegativeInteger .
+      }
+  - id: direct_causality_positive
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK { ex:event_one core:directlyCauses ex:event_two . }
+  - id: transitive_causality_positive
+    type: ask
+    expected: true
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK { ex:event_one core:causallyPrecedes ex:event_three . }
+  - id: direct_causality_not_transitive
+    type: ask
+    expected: false
+    query: |
+      PREFIX core: <{{CORE}}>
+      PREFIX ex: <http://example.org/aeroworld/core-acceptance/>
+      ASK { ex:event_one core:directlyCauses ex:event_three . }

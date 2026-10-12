@@ -1,0 +1,98 @@
+{
+  "arm_id": "arm_exterior_corridor_assignment",
+  "entity_ids": [
+    "bg_ped_l3_2_v2_01",
+    "bg_ped_l3_2_v2_02",
+    "bg_vehicle_l3_2_v2_01",
+    "bg_vehicle_l3_2_v2_02",
+    "contract_facility_l3_2_v2_02",
+    "corridor_l3_2_v2_uav_l3_2_v2_00",
+    "corridor_l3_2_v2_uav_l3_2_v2_01",
+    "corridor_l3_2_v2_uav_l3_2_v2_02",
+    "corridor_l3_2_v2_uav_l3_2_v2_03",
+    "corridor_l3_2_v2_uav_l3_2_v2_04",
+    "pad_home_uav_l3_2_v2",
+    "temporary_nfz_l3_2_v2",
+    "u_inspect_l3_2_v2",
+    "uav_l3_2_v2",
+    "uav_observer_l3_2_v2_3"
+  ],
+  "event_family": "corridor_congestion",
+  "falsified_if": "按组对照实测谓词、目标事件时间和状态；没有预期差异则记录负结果。",
+  "fork_event_id": "corridor_occupancy_diversion",
+  "group_suffix": "repaired",
+  "hypothesis": "巡查机改走场景已有外侧航段，减少目标走廊同时占用；区域仍按原脚本激活，保留其侵入后果作对照。",
+  "inject_actions": [
+    {
+      "action_id": "assign_exterior_inspection_corridor",
+      "activity_type": "airborne",
+      "entity_id": "u_inspect_l3_2_v2",
+      "post_activity_type": "airborne",
+      "tick": 275,
+      "type": "move_entity",
+      "velocity_mps": 4.916660905819111,
+      "waypoints_enu_m": [
+        [
+          6733.032,
+          6345.132,
+          28.0
+        ],
+        [
+          6751.032,
+          6357.132,
+          28.0
+        ],
+        [
+          6769.032,
+          6345.132,
+          28.0
+        ]
+      ]
+    }
+  ],
+  "mechanism": {
+    "actions": [
+      {
+        "action_id": "assign_exterior_inspection_corridor",
+        "activity_type": "airborne",
+        "entity_id": "u_inspect_l3_2_v2",
+        "post_activity_type": "airborne",
+        "tick": 275,
+        "type": "move_entity",
+        "velocity_mps": 4.916660905819111,
+        "waypoints_enu_m": [
+          [
+            6733.032,
+            6345.132,
+            28.0
+          ],
+          [
+            6751.032,
+            6357.132,
+            28.0
+          ],
+          [
+            6769.032,
+            6345.132,
+            28.0
+          ]
+        ]
+      }
+    ],
+    "kind": "corridor_occupancy_assignment"
+  },
+  "mode": "intervention",
+  "omit_action_ids": [],
+  "primary_predicate": "airspace.airspace_corridor_over_capacity",
+  "profile": "L3-2_v2",
+  "retime": null,
+  "role": "corridor_occupancy_assignment",
+  "seed": "seed01",
+  "state_overrides": [],
+  "sumo_intervention": null,
+  "target_event_id": "objective_event:33b63ffd941968cd64dcbb61",
+  "window_basis": "共享分叉保持；跨起点事件携带真实前置生命周期。目标动作完成与正式恢复保持决定终点，其他未恢复事件显式截断。",
+  "window_end_tick": 540,
+  "window_fork_tick": 275,
+  "window_start_tick": 270
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aeroworld.local/schema/l4_business_event_outcome.schema.json",
+  "title": "L4 local business event outcome",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name", "schema_version", "episode_id", "event_id", "event_family_id",
+    "outcome_id", "terminal_tick", "status", "lifecycle_status",
+    "terminal_predicate_id", "supporting_truth_ids", "terminal_hold_samples", "interpretation"
+  ],
+  "properties": {
+    "schema_name": {"const": "l4_business_event_outcome"},
+    "schema_version": {"const": "1.0.0"},
+    "episode_id": {"type": "string", "minLength": 1},
+    "event_id": {"type": "string", "minLength": 1},
+    "event_family_id": {"type": "string", "minLength": 1},
+    "outcome_id": {"type": "string", "minLength": 1},
+    "terminal_tick": {"type": ["integer", "null"], "minimum": 0},
+    "status": {"enum": ["pending", "succeeded"]},
+    "lifecycle_status": {"enum": ["response_not_confirmed_in_window", "observed_response_confirmed"]},
+    "terminal_predicate_id": {"type": "string", "minLength": 1},
+    "supporting_truth_ids": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "terminal_hold_samples": {"type": "integer", "minimum": 1},
+    "interpretation": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "pending"}}, "required": ["status"]},
+      "then": {"properties": {
+        "terminal_tick": {"const": null},
+        "lifecycle_status": {"const": "response_not_confirmed_in_window"},
+        "supporting_truth_ids": {"maxItems": 0}
+      }}
+    },
+    {
+      "if": {"properties": {"status": {"const": "succeeded"}}, "required": ["status"]},
+      "then": {"properties": {
+        "terminal_tick": {"type": "integer", "minimum": 0},
+        "lifecycle_status": {"const": "observed_response_confirmed"},
+        "supporting_truth_ids": {"minItems": 1}
+      }}
+    }
+  ]
+}

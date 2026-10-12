@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aeroworld.local/schema/event_chain_relation.schema.json",
+  "title": "Authored script event-chain predecessor relation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "episode_id",
+    "epi_id",
+    "causal_chain_id",
+    "relation_id",
+    "relation_type",
+    "declared_predecessor_intent",
+    "source_endpoint",
+    "target_endpoint",
+    "source_resolution",
+    "runtime_alignment",
+    "validation_status",
+    "runtime_strict_edge_eligible",
+    "provenance",
+    "record_digest"
+  ],
+  "properties": {
+    "schema_name": {"const": "event_chain_relation"},
+    "schema_version": {"const": "2.0.0"},
+    "episode_id": {"$ref": "#/$defs/nonEmptyString"},
+    "epi_id": {"$ref": "#/$defs/nonEmptyString"},
+    "causal_chain_id": {"$ref": "#/$defs/nonEmptyString"},
+    "relation_id": {"type": "string", "pattern": "^script_chain_relation:[0-9a-f]{24}$"},
+    "relation_type": {
+      "enum": ["script_declared_causal", "script_declared_context"]
+    },
+    "declared_predecessor_intent": {"$ref": "#/$defs/nonEmptyString"},
+    "source_endpoint": {"$ref": "#/$defs/sourceEndpoint"},
+    "target_endpoint": {"$ref": "#/$defs/scriptEventEndpoint"},
+    "source_resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "status",
+        "cardinality",
+        "scheduling_dependency_event_id"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "explicit_event_trigger",
+            "unique_prior_intent",
+            "latest_prior_stage_unique",
+            "intent_stage_set",
+            "context_anchor",
+            "source_declaration_missing"
+          ]
+        },
+        "status": {
+          "enum": [
+            "resolved_unique",
+            "resolved_context",
+            "resolved_declared_set",
+            "requires_cardinality_declaration",
+            "source_declaration_missing"
+          ]
+        },
+        "cardinality": {
+          "enum": ["single", "all_of", "unspecified", "context"]
+        },
+        "scheduling_dependency_event_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/nonEmptyString"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "runtime_alignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_dispatch_ticks",
+        "target_dispatch_tick",
+        "delta_ticks_min",
+        "delta_ticks_max",
+        "policy",
+        "status",
+        "declaration_consistent",
+        "source_realization_refs",
+        "target_realization_ref"
+      ],
+      "properties": {
+        "source_dispatch_ticks": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/formalTick"}
+        },
+        "target_dispatch_tick": {
+          "oneOf": [{"$ref": "#/$defs/formalTick"}, {"type": "null"}]
+        },
+        "delta_ticks_min": {
+          "oneOf": [
+            {"type": "integer", "minimum": -900, "maximum": 900},
+            {"type": "null"}
+          ]
+        },
+        "delta_ticks_max": {
+          "oneOf": [
+            {"type": "integer", "minimum": -900, "maximum": 900},
+            {"type": "null"}
+          ]
+        },
+        "policy": {
+          "enum": [
+            "strict_before",
+            "same_tick_required",
+            "any_anchor_at_or_before_target",
+            "all_candidates_strictly_prior"
+          ]
+        },
+        "status": {
+          "enum": [
+            "aligned_strict",
+            "all_candidates_strictly_prior",
+            "co_triggered",
+            "inverted",
+            "context_present",
+            "context_missing",
+            "source_declaration_missing",
+            "source_not_fired",
+            "target_not_fired"
+          ]
+        },
+        "declaration_consistent": {"type": "boolean"},
+        "source_realization_refs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "target_realization_ref": {
+          "oneOf": [
+            {"$ref": "#/$defs/nonEmptyString"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "validation_status": {
+      "enum": [
+        "runtime_pass",
+        "runtime_pass_context",
+        "runtime_pass_co_triggered",
+        "runtime_pass_declared_set",
+        "runtime_fail_source_resolution",
+        "runtime_fail_source_not_fired",
+        "runtime_fail_target_not_fired",
+        "runtime_fail_inverted",
+        "runtime_fail_context_missing",
+        "runtime_fail_co_triggered_not_allowed",
+        "runtime_fail_declaration_mismatch"
+      ]
+    },
+    "runtime_strict_edge_eligible": {"type": "boolean"},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_script_ref",
+        "event_script_digest",
+        "event_trace_digest",
+        "event_realization_digest"
+      ],
+      "properties": {
+        "event_script_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "event_script_digest": {"$ref": "#/$defs/digest"},
+        "event_trace_digest": {"$ref": "#/$defs/digest"},
+        "event_realization_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "record_digest": {"$ref": "#/$defs/digest"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"relation_type": {"const": "script_declared_context"}},
+        "required": ["relation_type"]
+      },
+      "then": {
+        "properties": {
+          "runtime_alignment": {
+            "properties": {
+              "policy": {"const": "any_anchor_at_or_before_target"}
+            }
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "source_endpoint": {"$ref": "#/$defs/contextEndpoint"},
+              "source_resolution": {
+                "properties": {
+                  "method": {"const": "context_anchor"},
+                  "status": {"const": "resolved_context"},
+                  "cardinality": {"const": "context"}
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "source_endpoint": {"type": "object", "maxProperties": 0},
+              "source_resolution": {
+                "properties": {
+                  "method": {"const": "source_declaration_missing"},
+                  "status": {"const": "source_declaration_missing"},
+                  "cardinality": {"const": "context"}
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "formalTick": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 900,
+      "multipleOf": 5
+    },
+    "scriptEventEndpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "event_id", "intent", "intent_stage", "candidate_event_ids"],
+      "properties": {
+        "kind": {"const": "script_event"},
+        "event_id": {"$ref": "#/$defs/nonEmptyString"},
+        "intent": {"$ref": "#/$defs/nonEmptyString"},
+        "intent_stage": {"type": "string", "pattern": "^[0-9]+\\..+$"},
+        "candidate_event_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        }
+      }
+    },
+    "stageSetEndpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "intent", "intent_stage", "candidate_event_ids"],
+      "properties": {
+        "kind": {"const": "intent_stage_set"},
+        "intent": {"$ref": "#/$defs/nonEmptyString"},
+        "intent_stage": {"type": "string", "pattern": "^[0-9]+\\..+$"},
+        "candidate_event_ids": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        }
+      }
+    },
+    "contextEndpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "intent", "candidate_event_ids", "candidate_intent_stages"],
+      "properties": {
+        "kind": {"const": "context_anchor"},
+        "intent": {"const": "context"},
+        "candidate_event_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "candidate_intent_stages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "pattern": "^[0-9]+\\..+$"}
+        }
+      }
+    },
+    "sourceEndpoint": {
+      "oneOf": [
+        {"type": "object", "maxProperties": 0},
+        {"$ref": "#/$defs/scriptEventEndpoint"},
+        {"$ref": "#/$defs/stageSetEndpoint"},
+        {"$ref": "#/$defs/contextEndpoint"}
+      ]
+    }
+  }
+}

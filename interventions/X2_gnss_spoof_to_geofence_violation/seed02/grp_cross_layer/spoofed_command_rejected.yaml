@@ -1,0 +1,147 @@
+{
+  "profile": "X2_gnss_spoof_to_geofence_violation",
+  "seed": "seed02",
+  "episode_id": "X2_gnss_spoof_to_geofence_violation__seed02",
+  "group": "X2_gnss_spoof_to_geofence_violation/seed02/grp_cross_layer",
+  "arm_id": "spoofed_command_rejected",
+  "mode": "intervention",
+  "window": {
+    "start_tick": 220,
+    "fork_tick": 230,
+    "end_tick": 415,
+    "phase": "after_state_sample_before_actions"
+  },
+  "sources": {
+    "scene": "interventions/X2_gnss_spoof_to_geofence_violation/seed02/grp_cross_layer/scene_setup.json",
+    "original_scene": "Dataset/scenarios/X_cross_layer/X2_gnss_spoof_to_geofence_violation/scene_setup.json",
+    "script": "Dataset/scenarios/X_cross_layer/X2_gnss_spoof_to_geofence_violation/event_script.json",
+    "canonical": "aw_data/render_ready_episodes_capture_filtered/X2_gnss_spoof_to_geofence_violation__seed02",
+    "predicate_script": "interventions/X2_gnss_spoof_to_geofence_violation/seed02/grp_cross_layer/factual_event_script.json"
+  },
+  "removed_event_ids": [],
+  "intervention_actions": [
+    {
+      "event_id": "safety_correction",
+      "trigger_ref": "trig_after_geofence_violation_delay_30",
+      "action": {
+        "type": "set_runtime_state",
+        "action_id": "set_runtime_state_x2_gnss_spoof_to_geofence_violation_safety_correction_00",
+        "entity_id": "uav_x2_spoofed",
+        "delay_ticks": 1,
+        "state_patch": {
+          "navigation_state": {
+            "gnss_spoofed": false,
+            "visual_relocalization": true,
+            "operational_state": "relocalizing"
+          }
+        },
+        "runtime_state_schedule_profile_id": "l5_l6_x_runtime_state_schedule",
+        "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+      }
+    },
+    {
+      "event_id": "route_recovered",
+      "trigger_ref": "trig_after_safety_correction_delay_38",
+      "action": {
+        "type": "set_visual_state",
+        "action_id": "set_x2_nav_restored",
+        "entity_id": "uav_x2_spoofed",
+        "visual_state": {
+          "mode": "geofence_alert"
+        }
+      }
+    },
+    {
+      "event_id": "route_recovered",
+      "trigger_ref": "trig_after_safety_correction_delay_38",
+      "action": {
+        "type": "set_runtime_state",
+        "action_id": "set_runtime_state_x2_gnss_spoof_to_geofence_violation_route_recovered_00",
+        "entity_id": "uav_x2_spoofed",
+        "delay_ticks": 5,
+        "state_patch": {
+          "navigation_state": {
+            "visual_relocalization": false,
+            "mission_recovered": false,
+            "route_uncertain": false,
+            "route_recovered": true,
+            "operational_state": "geofence_alert"
+          }
+        },
+        "runtime_state_schedule_profile_id": "l5_l6_x_runtime_state_schedule",
+        "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+      }
+    }
+  ],
+  "definition": {
+    "entrypoint": "scripts/arms/X2_gnss_spoof_to_geofence_violation/seed02/grp_cross_layer/spoofed_command_rejected.py",
+    "research_question": "欺骗持续时，执行端拒绝污染指令能否阻断越界？",
+    "window_basis": "沿用同 seed factual 的共同窗口与任务航段；不注入定时恢复或提前着陆。",
+    "parameter_model": {
+      "parameter_changes": false,
+      "motion_model": "不改源速度或谓词阈值；分段运动沿用当前引擎。",
+      "state_visibility": "先采样后动作；runtime 补丁按声明 delay_ticks 生效。",
+      "recovery_model": "正式步长 5，recovery_hold_samples=3。",
+      "scope": "窗口推导来自源动作实际完成及状态保持；分支运行后重新验证。"
+    },
+    "branch_changes": {
+      "removed_event_ids": [],
+      "added_event_ids": [],
+      "removed_action_ids": [
+        "move_x2_spoof_offset"
+      ],
+      "added_action_ids": [],
+      "replaced_action_ids": [
+        "set_runtime_state_x2_gnss_spoof_to_geofence_violation_route_recovered_00",
+        "set_runtime_state_x2_gnss_spoof_to_geofence_violation_safety_correction_00",
+        "set_x2_nav_restored"
+      ],
+      "changed_event_ids": [
+        "route_recovered",
+        "safety_correction",
+        "trajectory_offset"
+      ],
+      "changed_trigger_ids": []
+    }
+  },
+  "gates": {
+    "x_guard_geofence_violation": {
+      "trigger_id": "x_guard_geofence_violation",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_geofence_violation",
+        "x_predecessor_geofence_violation"
+      ]
+    }
+  },
+  "scope": {
+    "simulated_entity_ids": [
+      "uav_x2_spoofed",
+      "nfz_x2_geofence",
+      "u_inspect_x2_gnss_spoof_to_geofence_violation",
+      "bg_ped_x2_gnss_spoof_to_geofence_violation_01",
+      "bg_ped_x2_gnss_spoof_to_geofence_violation_02",
+      "bg_ped_x2_gnss_spoof_to_geofence_violation_03",
+      "bg_ped_x2_gnss_spoof_to_geofence_violation_04",
+      "contract_facility_x2_gnss_spoof_to_geofence_violation_02",
+      "uav_observer_x2_gnss_spoof_to_geofence_violation_3",
+      "pad_home_uav_x2_spoofed",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_00",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_01",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_02",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_03",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_04",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_05",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_06"
+    ],
+    "canonical_only_scene_entity_ids": [
+      "bg_vehicle_x2_gnss_spoof_to_geofence_violation_01",
+      "bg_vehicle_x2_gnss_spoof_to_geofence_violation_02",
+      "bg_vehicle_x2_gnss_spoof_to_geofence_violation_03"
+    ],
+    "background_policy": "Every canonical truth-frame entity outside the engine roster is retained unchanged. Background vehicles are not simulated or replaced.",
+    "interaction_limit": "Scripted participants, geometry triggers and runtime state are recomputed; no feedback from immutable background traffic is claimed."
+  },
+  "hypothesis": "欺骗与定位可信度下降保留；只拒绝污染移动，原任务航段继续，是否越界由正式几何谓词判断。不要求窗口内导航恢复或返航。"
+}

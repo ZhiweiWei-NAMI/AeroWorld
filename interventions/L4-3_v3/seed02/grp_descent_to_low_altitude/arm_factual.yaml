@@ -1,0 +1,51 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_factual
+group_key: L4-3_v3/seed02/grp_descent_to_low_altitude
+episode_id: L4-3_v3__seed02
+event_family: forced_landing
+mode: factual_observation
+entity_ids:
+- uav_forced_landing_l4_3_v3
+- ped_landing_l4_3_v3_a
+- ped_landing_l4_3_v3_b
+predicate_ids:
+- airspace.aircraft_touchdown
+- airspace.aircraft_in_landing_zone
+- emergency.mission_aborted
+window:
+  start_tick: 255
+  fork_tick: 260
+  end_tick: 400
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/failure/L4-3_v3/scene_setup.json
+  script: Dataset/scenarios/L4_agents/failure/L4-3_v3/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/weather_meta.jsonl
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-3_v3__seed02/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-3_v3__seed02/event_outcomes.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/global_entity_roster.json
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites: []
+expected:
+  target_event: occurs
+  rationale: 锚点 descent_to_low_altitude@260 照常触发（trace 实测 fire=260，三 seed 一致）。forced_landing_fault@230
+    补丁、move_uav_forced_descent、crowd_proximity_response@310 与 touchdown@365 全部保持源值：窗口内 UAV 下降至低空保持并按源值完成
+    touchdown （factual 轨迹实测窗口内最低 z=0.8m@373，airspace.aircraft_touchdown 370→375 true）。expected 只作假设，以本臂引擎重跑为准。
+  falsified_if: descent_to_low_altitude 的 dispatch 不在 260，或 UAV 无下降净位移，或 touchdown 未触发。
+script: scripts/arms/L4-3_v3/seed02/grp_descent_to_low_altitude/arm_factual.py
+output: arms/L4-3_v3/seed02/grp_descent_to_low_altitude/arm_factual
+provenance:
+  experiment_ref: design/L4-3_v3/seed02/grp_descent_to_low_altitude/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    event_script: Dataset/scenarios/L4_agents/failure/L4-3_v3/event_script.json
+    anchor: l4_chain_truth fragment(L4-3_v3, seed02).fork_event_id = descent_to_low_altitude
+    trace: aw_data/render_ready_episodes_capture_filtered/L4-3_v3__seed02/event_trace.jsonl
+    note: 'trace: aw_data/.../event_trace.jsonl（fire 230/260/310/365 逐 seed 实测一致）'
+subject_class: uav

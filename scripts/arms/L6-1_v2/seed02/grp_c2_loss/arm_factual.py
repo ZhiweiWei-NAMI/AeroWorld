@@ -1,0 +1,51 @@
+'Dedicated ARM entry for L6-1_v2 / seed02 / grp_c2_loss / arm_factual.\n\nWindow: [235, 340], shared fork 240, after_state_sample_before_actions.\nMechanism: factual_baseline_no_mechanism.\nExpected process: 无干预运行中，c2_loss 在 240 派发，链路不可用自 241 生效；rth_engaged 在 275 派发。返航单段朝实际 home pad 飞行，但 c2_recovered@325 将运动截断为原地悬停；未抵达 home，更未着陆。c2_recovered 在 325 派发，通信不可用和 rth_active 于 330 清除，C2 事件于 340 完成恢复保持。\nWindow basis: 闭区间 [235,340] 覆盖失联响应、实际返航与链路恢复保持，不进入 landing@405。返航段长 50.281000 m，7 m/s、10 Hz 下完整航段需 72 tick，理论到达 347；实际 325 被恢复动作截断，326 首次静止，距 home 水平 15.363639 m。恢复运行状态的 delay_ticks=5，330 生效；动作说明与 delay_ticks=5 一致，状态在派发后 5 tick 生效。后续着陆保留原速度和 home36→home3，从当时实际位置接入，不把窗外着陆算作本窗结果。\nFalsification: 本臂是当前脚本和当前引擎的 factual 观测。若上述时序或状态未由实跑复现，组内对照失效。\n'
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[5]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Dataset.tools.l6_v2.arm_runtime import ArmSpec, run_arm
+
+SPEC = ArmSpec(
+    profile="L6-1_v2",
+    seed="seed02",
+    anchor_event_id="c2_loss",
+    arm_id="arm_factual",
+    mode="factual_observation",
+    role="factual",
+    window_start_tick=235,
+    window_fork_tick=240,
+    window_end_tick=340,
+    primary_predicate="communication.link_unavailable",
+    subject_entity_ids=('tower_l6_1_v2', 'uav_digital_l6_1_v2'),
+    mechanism={'kind': 'factual_baseline_no_mechanism',
+               'cancel_event_ids': [],
+               'omit_action_ids': [],
+               'injections': []},
+    retime=None,
+    omit_action_ids=(),
+    inject_actions=(),
+    cancel_event_ids=(),
+    hypothesis=(
+        ('无干预运行中，c2_loss 在 240 派发，链路不可用自 241 生效；rth_engaged 在 275 派发。返航单段朝实际 home pad 飞行，但 c2_recovered@325 将运动截断为原地悬停；未抵达 home，更未着陆。c2_recovered 在 325 派发，通信不可用和 rth_active 于 330 清除，C2 事件于 340 完成恢复保持。')
+    ),
+    falsified_if=(
+        '本臂是当前脚本和当前引擎的 factual 观测。若上述时序或状态未由实跑复现，组内对照失效。'
+    ),
+    window_basis=(
+        ('闭区间 [235,340] 覆盖失联响应、实际返航与链路恢复保持，不进入 landing@405。返航段长 50.281000 m，7 m/s、10 Hz 下完整航段需 72 tick，理论到达 347；实际 325 被恢复动作截断，326 首次静止，距 home 水平 15.363639 m。恢复运行状态的 delay_ticks=5，330 生效；动作说明与 delay_ticks=5 一致，状态在派发后 5 tick 生效。后续着陆保留原速度和 home36→home3，从当时实际位置接入，不把窗外着陆算作本窗结果。')
+    ),
+    window_needed_nodes=({'event_id': 'c2_loss', 'tick': 240, 'role': 'authored_anchor'},
+                         {'event_id': 'rth_engaged', 'tick': 275, 'role': 'authored_direct_response'},
+                         {'event_id': 'c2_recovered', 'tick': 325, 'role': 'authored_recovery'},
+                         {'predicate_id': 'communication.link_unavailable',
+                          'tick': 340,
+                          'role': 'recovery_hold_terminal'}),
+    window_censored=False,
+    group_suffix="",
+)
+
+if __name__ == "__main__":
+    run_arm(SPEC)

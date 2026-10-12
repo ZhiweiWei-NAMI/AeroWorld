@@ -1,0 +1,210 @@
+# ARM 生成规则 —— road_closure
+#
+# 命名约束：本文件名 road_closure.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 本族实测规模：60 条臂 / 4 个 group × 3 seed（episode L3-1_v1__seed00..02）。
+# 真实臂只有 3 类意图：factual / suppress / delay（见 arms 段）。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: road_closure
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    真实来源 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里只登记“指针 + 关键字段快照”，快照仅用于生成期自检，改定义请改源头。
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/road_closure
+  rule_id: event_family.road_closure.0
+  mapping_class: A_direct                # 单谓词直连，非复合
+  event_type_id: ground.road_segment_closure_event
+  trigger:
+    predicate_id: ground.road_segment_closed
+    direction: rising
+  roles:
+    road_segment:
+      kind: trigger_binding
+      ontology_class: RoadSegment
+      predicate_role: road_segment
+      background_allowed: false
+  support_conditions: []
+  terminal:
+    predicate_id: ground.road_segment_closed
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [road_segment]
+  authoritative_predicates:            # 快照；权威在 registry
+    - ground.road_segment_closed
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  intervention_subject: ground_vehicle
+  # 判定证据（本会话实测，非推断）：
+  #   1) registry 里 mapping_class = A_direct；
+  #   2) 60/60 条臂的 raw/branch_manifest.json **没有** *_authority 字段
+  #      （全库 7,662 条臂里只有 rain_fog_environment 带 rain_fog_authority =
+  #       scene_exogenous_weather_transition）→ 不是场景权威外生。
+  # 干预实体（60 条臂 intervention_entity_ids 的并集，按出现次数）：
+  #   blocked_car_l3_1             地面车辆 vehicle.ground.boxcar.v1
+  #   uav_roadwork_inspector_l3_1  巡检无人机
+  #   barrier_l3_1_0{1,2,3} / cone_l3_1_0{1..5} / fence_l3_1_0{1,2}
+  #                                施工区道具 prop.roadwork.*
+  # 关键澄清：road_segment（本体 RoadSegment）只是触发谓词的角色绑定，
+  # **不是**干预实体。本族没有任何针对道路本体的 move / set_runtime_state 动作；
+  # 干预一律落在可动参与方（车、无人机、施工道具）上。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # 实测锚点（design/episodes/L3-1_v1__seed*/groups/*/group_manifest.json）：
+  #   roadwork_vehicle_entry(fork 25) / roadwork_barriers_spawn(220)
+  #   / vehicle_detour(280) / uav_inspection_report(330)
+  # anchor_event_id 由事件链给出，不在此硬编码。
+
+# ─────────────────────────────────────────────────────────────
+# ④ 3 类真实意图（本族没有 divert / tradeoff 的真实臂，见段末注释）
+#    operation 只能取已注册 4 值之一；键名是**意图**不是 arm_id。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 逐字一致
+    suppression_basis: authored_trigger_and_causal_predecessor_closure
+    # 实测两种形态（arm_id 前缀 → 意图 见 rules/intents.yaml）：
+    variants:
+      - arm_id_pattern: arm_no_op_suppress   # arm_kind: no_op_hold
+        coupled_hold_injected: false         # 只有台账闭包，不注入延续事件
+      - arm_id_pattern: arm_hold_pair        # arm_kind: hold_pair
+        coupled_hold_injected: true          # 闭包 + branch_coupled_hold_* 延续事件
+    coupled_hold:
+      applies_when: arm_kind == hold_pair
+      actor_scope: coupled_movable_entities  # 实测 blocked_car / 施工道具 / 巡检 UAV
+      steps:
+        - step_kind: state_patch
+          generator: set_runtime_state
+          state_patch:
+            control_state:
+              hold_active: true
+      # 实测（arms/L3-1_v1/seed00/grp_00_roadwork_vehicle_entry/arm_hold_pair/raw/event_script.json
+      #       与 arms/L3-1_v1/seed00/grp_02_roadwork_barriers_spawn/arm_hold_pair/raw/event_script.json）：
+      #   每个耦合实体产出 2 个动作，均落到 control_state.hold_active；
+      #   UAV 额外先落一个视觉保持（执行器 _explicit_hold_action → set_visual_state mode=hold）。
+    observed_suppressed_event_ids:       # 快照；随组不同而不同
+      - roadwork_vehicle_entry
+      - lane_closure_active
+      - roadwork_barriers_spawn
+      - vehicle_detour
+      - uav_inspection_report
+      - roadwork_vehicle_leaves
+      - lifecycle_landing_uav_roadwork_inspector_l3_1
+
+  delay:
+    operation: delay_causal_event
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: governed_default      # rule | governed_default | scene
+        min: 20
+        max: 60
+        default: 30
+        # 实测两个来源（60 条臂）：
+        #   arm_delay          : design_window//3 夹到 [20,60]
+        #                        → 50 / 20 / 24 / 34（L3-1_v1 四组，window 150/50/72/102）
+        #   arm_delay_postpone : 权威 +30 tick
+        # 实测台账 repairs.kind：delay_applied_to_authored_tick_trigger
+        #                      / delay_applied_to_authored_event_relative_trigger
+    coupled_hold:
+      # 实测：delay 臂同样注入 branch_coupled_hold_*（与 hold_pair 同一机制）
+      actor_scope: coupled_movable_entities
+      steps:
+        - step_kind: state_patch
+          generator: set_runtime_state
+          state_patch:
+            control_state:
+              hold_active: true
+
+  # ── divert / tradeoff 故意不写：本族没有落到 arms/ 的真实臂 ───────────
+  # 设计层确实声明过（design/episodes/L3-1_v1__seed*/groups/*/）：
+  #   arm_avoid_early_perimeter_reroute.json
+  #     generator::early_perimeter_reroute → sumo_command{action: early_perimeter_reroute,
+  #                                                        target_speed_mps: 6.0}
+  #   arm_tradeoff_contraflow_single_lane_metering.json
+  #     generator::contraflow_single_lane_metering → sumo_command{action: contraflow_metering,
+  #                                                               target_speed_mps: 2.0}
+  # 但执行器 Dataset/tools/run_motion_family_delta_grounding.py::_sumo_from_step 只认
+  #   sumo_command.command 或命令名 ∈ {stop/hold/.../slow_down/creep}，
+  # 这两步既无 waypoints_enu_m 也无可识别 command → 实测报错：
+  #   MotionGroundingError: unsupported sumo_command missing without authored waypoints
+  # 且 Dataset/tools/rewrite_coupled_alternatives.py:43 的
+  #   FAMILY_ALTERNATIVES["road_closure"] = ("hold_pair", "delay")
+  # 只产出 hold_pair + delay → arms/ 里自然没有 divert / tradeoff。
+  # 结论：在 sumo_command 被登记为合法 generator（rules/README.md §5 禁止规则自造
+  # generator）之前，本族不生成 divert / tradeoff。
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/*/groups/*/group_manifest.json
+  history_frames: 8
+  horizon_frames: 5
+  # 实测快照：design window_duration_ticks = 150 / 50 / 72 / 102；
+  #           design fork_tick = 25 / 220 / 280 / 330。
+  # 臂 manifest 的 window_end_tick（270..480）是**实测**窗口端点，会超过 design end，
+  # 生成器必须以 manifest 实测值为准，不能用 design end 反推。
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+
+  suppress:
+    target_event: absent_in_window
+    # 若 factual 里该事件本就没发生，这组标 not_intervenable，而不是干预成功
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "suppress / delay 作用于 script_scheduled 的 tick 触发（原始 trigger type=tick，
+       实测 tick 21 与 220）；抑制范围是台账因果前驱闭包。若场景把同一事件改成状态触发，
+       闭包范围会变，必须重算而不能沿用本快照"
+    - "施工道具（prop.roadwork.*）被算作可动耦合实体并落 hold 动作；若某组的道具改为
+       纯静态布景（无 lifecycle），coupled_hold 的动作数会变，需以实测台账为准"
+  not_claimed:
+    - "divert / tradeoff —— 本族无真实臂（原因见 arms 段注释）"
+    - "道路本体 RoadSegment 的可干预性 —— 本族不生成针对 road_segment 的动作"
+    - "G10 整库发布审计（不在本规则范围内）"

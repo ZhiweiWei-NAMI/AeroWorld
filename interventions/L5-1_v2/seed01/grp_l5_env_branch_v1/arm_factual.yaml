@@ -1,0 +1,85 @@
+schema: aeroworld_l5_candidate_arm_config
+version: 1
+status: candidate_pending_owner_revalidation
+arm_id: arm_factual
+group_key: L5-1_v2/seed01/grp_l5_env_branch_v1
+episode_id: L5-1_v2__seed01
+seed: 1
+mode: factual_observation
+primary_entity_id: uav_weather_l5_1_v2
+entity_ids:
+- uav_weather_l5_1_v2
+semantic_pedestrian_ids: []
+operational_region_id: capture_boundary_l5_1_v2
+event_families:
+- altitude_excursion
+- rain_fog_environment
+- uav_landing
+- uav_takeoff
+blocked_event_families:
+- event_family_id: c2_degradation_loss
+  status: blocked
+  reason: 缺少 CommunicationStation 绑定和权威 C2 link 观测；slowdown_active 不等于 link_degraded。
+  missing:
+  - aw_data/objective_semantic_truth/L5-1_v2__seed01/predicate_truth.jsonl
+  - compute_comm_supplement/compute_comm_observations.jsonl#station/actor/link state
+predicate_ids:
+- environment.rain_active
+- environment.fog_active
+- environment.visibility_below_threshold
+- environment.wind_speed_above_threshold
+- environment.low_illumination_active
+- environment.temperature_outside_operating_range
+- airspace.aircraft_outside_assigned_altitude_band
+- airspace.aircraft_airborne
+- airspace.aircraft_at_home_pad
+- airspace.aircraft_touchdown
+- airspace.aircraft_in_landing_zone
+runtime_state_families:
+- control_state
+- mission_state
+- navigation_state
+- sensor_state
+- energy_state
+- battery_state
+- payload_state
+- communication_state
+- positioning_state
+window:
+  start_tick: 170
+  fork_tick: 175
+  end_tick: 775
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: design/L5-1_v2/seed01/grp_l5_env_branch_v1/arm_factual.scene.json
+  script: design/L5-1_v2/seed01/grp_l5_env_branch_v1/arm_factual.script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L5-1_v2__seed01/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L5-1_v2__seed01/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L5-1_v2__seed01/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L5-1_v2__seed01/event_realization.jsonl
+  event_trace: aw_data/render_ready_episodes_capture_filtered/L5-1_v2__seed01/event_trace.jsonl
+  episode_manifest: aw_data/render_ready_episodes_capture_filtered/L5-1_v2__seed01/episode_manifest.json
+  scenario_plan: aw_data/render_ready_episodes_capture_filtered/L5-1_v2__seed01/scenario_plan.json
+  event_occurrences: aw_data/objective_semantic_truth/L5-1_v2__seed01/event_occurrences.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L5-1_v2__seed01/event_outcomes.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L5-1_v2__seed01/predicate_transitions.jsonl
+  semantic_manifest: aw_data/objective_semantic_truth/L5-1_v2__seed01/manifest.json
+  runtime_schedule: Dataset/semantic_rules/profiles/epi_runtime_state_schedules/l5_l6_x_runtime_state_schedule.json
+execution:
+  omit_action_ids: []
+  actions: []
+expected:
+  target_event: 天气及其实际运动后果；不预先指定恢复 tick
+  rationale: 任务巡航由同组 factual 的独立时钟调度；只延迟天气剖面，保留条件响应与真实运动。
+  falsified_if: 任务航段也被整体平移，或状态声明与真实运动矛盾。
+script: scripts/arms/L5-1_v2/seed01/grp_l5_env_branch_v1/arm_factual.py
+output: arms/L5-1_v2/seed01/grp_l5_env_branch_v1/arm_factual
+provenance:
+  experiment_ref: design/L5-1_v2/seed01/grp_l5_env_branch_v1/arm_factual.experiment.json
+  parameter_sources:
+    factual_root: 同组当前 authored scene/script 经 L5 引擎实跑；canonical 仅作为范围外背景与 roster
+      来源，不冒充修正前历史轨迹。
+    thresholds: Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json#parameter_governance
+    branch_definition: scripts/arms/L5-1_v2/seed01/grp_l5_env_branch_v1/arm_factual.py
+    runtime_schedule: Dataset/semantic_rules/profiles/epi_runtime_state_schedules/l5_l6_x_runtime_state_schedule.json

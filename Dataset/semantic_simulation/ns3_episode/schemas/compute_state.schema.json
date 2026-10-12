@@ -1,0 +1,409 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aeroworld:p01:ns3:v1:compute_state",
+  "title": "compute_state",
+  "type": "object",
+  "properties": {
+    "episode_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producer_version": {
+      "const": "p01.ns3.v1"
+    },
+    "source_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "config_ref": {
+      "const": "run_config.json"
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "life_epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "units": {
+      "type": "object",
+      "required": [
+        "time"
+      ],
+      "properties": {
+        "time": {
+          "const": "ns"
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "dimensions": {
+      "type": "object",
+      "required": [
+        "time"
+      ],
+      "properties": {
+        "time": {
+          "const": "time"
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "time_support": {
+      "type": "object",
+      "required": [
+        "start_ns",
+        "end_ns",
+        "end_exclusive"
+      ],
+      "properties": {
+        "start_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_exclusive": {
+          "type": "boolean"
+        },
+        "anchor": {
+          "const": "packet_expiry_ns"
+        },
+        "ttl_ns": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "time_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "executor_node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "arrived_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completed_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "aborted_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "deadline_missed_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "queue_depth": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "reason",
+        "unit",
+        "dimension"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "KNOWN",
+            "UNKNOWN"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "KNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "running_count": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "reason",
+        "unit",
+        "dimension"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "KNOWN",
+            "UNKNOWN"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "KNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "wait_mean_ms": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "reason",
+        "unit",
+        "dimension"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "KNOWN",
+            "UNKNOWN"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "KNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "cpu_hz": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "memory_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "deadline_met_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "deadline_unknown_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "deadline_out_of_scope_count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "episode_id",
+    "producer_version",
+    "source_ref",
+    "config_ref",
+    "owner",
+    "life_epoch",
+    "status",
+    "reason",
+    "units",
+    "dimensions",
+    "time_support",
+    "time_ns",
+    "executor_node_id",
+    "arrived_count",
+    "completed_count",
+    "aborted_count",
+    "deadline_missed_count",
+    "queue_depth",
+    "running_count",
+    "wait_mean_ms",
+    "cpu_hz",
+    "memory_bytes",
+    "deadline_met_count",
+    "deadline_unknown_count",
+    "deadline_out_of_scope_count"
+  ],
+  "additionalProperties": true
+}

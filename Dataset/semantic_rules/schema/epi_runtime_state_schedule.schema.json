@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "epi_runtime_state_schedule.schema.json",
+  "title": "AeroWorld EPI runtime-state schedule profile",
+  "type": "object",
+  "required": [
+    "schema_name",
+    "schema_version",
+    "profile_id",
+    "scenarios"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_name": {
+      "const": "epi_runtime_state_schedule"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scenario"
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "required": [
+        "scenario_id",
+        "initial_entity_states",
+        "event_state_transitions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "initial_entity_states": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/runtimeStatePatch"
+          }
+        },
+        "event_state_transitions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/transition"
+            }
+          }
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "description": "A transition appends a set_runtime_state action to the referenced event. After the event's authored actions execute, the state_patch is queued with delay_ticks; delay_ticks 0 means it becomes effective on the next tick.",
+      "required": [
+        "entity_id",
+        "state_patch"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "entity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delay_ticks": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "state_patch": {
+          "$ref": "#/$defs/runtimeStatePatch"
+        }
+      }
+    },
+    "runtimeStatePatch": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "control_state": {
+          "$ref": "#/$defs/cleanObject"
+        },
+        "mission_state": {
+          "$ref": "#/$defs/cleanObject"
+        },
+        "navigation_state": {
+          "$ref": "#/$defs/cleanObject"
+        },
+        "security_state": {
+          "$ref": "#/$defs/cleanObject"
+        },
+        "sensor_state": {
+          "$ref": "#/$defs/cleanObject"
+        },
+        "facility_state": {
+          "$ref": "#/$defs/cleanObject"
+        },
+        "communication_state": {
+          "$ref": "#/$defs/cleanObject"
+        },
+        "incident_state": {
+          "$ref": "#/$defs/cleanObject"
+        },
+        "vehicle_state": {
+          "$ref": "#/$defs/cleanObject"
+        },
+        "pedestrian_state": {
+          "$ref": "#/$defs/cleanObject"
+        }
+      }
+    },
+    "cleanObject": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "not": {
+          "enum": [
+            "event_id",
+            "source_event_id",
+            "event_realization",
+            "event_trace",
+            "scenario_plan",
+            "semantic_role",
+            "task_id",
+            "predicate_id",
+            "predicate",
+            "event_type_id",
+            "expected_event",
+            "dynamic_label",
+            "dynamic_labels",
+            "active_event_ids"
+          ]
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/cleanValue"
+      }
+    },
+    "cleanValue": {
+      "not": {
+        "enum": [
+          "event_id",
+          "source_event_id",
+          "event_realization",
+          "event_trace",
+          "scenario_plan",
+          "semantic_role",
+          "task_id",
+          "predicate_id",
+          "predicate",
+          "event_type_id",
+          "expected_event",
+          "dynamic_label",
+          "dynamic_labels",
+          "active_event_ids"
+        ]
+      },
+      "anyOf": [
+        {
+          "type": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cleanValue"
+          }
+        },
+        {
+          "$ref": "#/$defs/cleanObject"
+        }
+      ]
+    }
+  }
+}

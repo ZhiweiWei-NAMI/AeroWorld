@@ -1,0 +1,88 @@
+# ARM 生成规则 —— rain_fog_environment
+#
+# 这条族是 **exogenous（环境外生）** 的范例：
+# 天气是场景脚本设定的，不是哪个智能体"做"出来的。
+# 因此本族**只有 factual 臂**，任何干预臂都会被生成器拒绝（rules/README.md §6 铁律 3）。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: rain_fog_environment
+
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/rain_fog_environment
+  rule_id: event_family.rain_fog_environment.0
+  mapping_class: B_composite          # 复合事件：rain / fog / lighting 三选一触发
+  event_type_ids:
+    - environment.rain_transition_event
+    - environment.fog_onset_event
+    - environment.lighting_condition_change_event
+  trigger:
+    any_of:
+      - { predicate_id: environment.rain_active,  direction: rising, event_type_id: environment.rain_transition_event }
+      - { predicate_id: environment.fog_active,   direction: rising, event_type_id: environment.fog_onset_event }
+      - { predicate_id: environment.low_illumination_active, direction: rising, event_type_id: environment.lighting_condition_change_event }
+  roles:
+    region: { kind: trigger_binding, ontology_class: OperationalRegion }
+
+# ─────────────────────────────────────────────────────────────
+# 关键差异：外生
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: exogenous
+  intervenable: false
+  # 证据（生成器当时写下的原话，已实测确认存在）：
+  #   raw/branch_manifest.json → rain_fog_authority.authority_class
+  #     = "scene_exogenous_weather_transition"
+  authority_class: scene_exogenous_weather_transition
+  intervention_subject: none          # 没有可干预的智能体
+
+nodes:
+  selector: chain_node
+  exclude_roles: [terminal]
+
+# ─────────────────────────────────────────────────────────────
+# 只有 factual。写其它意图 → 生成器报错。
+# ─────────────────────────────────────────────────────────────
+arms:
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+
+  # 下面这些**故意注释掉**，作为"不要写"的示范：
+  #
+  # no_op_suppress:
+  #   operation: suppress_causal_event
+  #   → 会撞 DESIGN_INTENT_CONFLICT：尝试抑制一个场景权威的天气转移。
+  #     即使物理证据完整，也永远不能判 PASS。
+  #
+  # delay_postpone:
+  #   operation: delay_causal_event
+  #   → 同上。天气起始时刻由脚本决定，不由智能体推迟。
+
+window:
+  fork_tick:
+    source: anchor_trigger_tick
+  duration_ticks:
+    source: design_declared
+  history_frames: 8
+  horizon_frames: 5
+
+expect:
+  factual:
+    target_event: occurs
+    # 本族唯一的判定：确认天气转移确实按脚本发生了
+    must_match_script_schedule: true
+  common:
+    physically_valid: true
+    delta_rows_after_fork_only: true
+
+limits:
+  known_conflicts:
+    - "任何 suppress / delay / avoid / tradeoff 臂都是 DESIGN_INTENT_CONFLICT，本族不生成"
+  not_claimed:
+    - "G10 整库发布审计"
+  note: >
+    本族在历史上曾产出 627 条臂，其中 339 条是 B 根目录型布局（文件直接放臂根，
+    没有 raw/）。原因是"没有干预实体 → 没有实体轨迹增量 → raw/objective 的二分不成立"。
+    现已归一为统一布局，该差异改由本文件的 causality.class 表达。

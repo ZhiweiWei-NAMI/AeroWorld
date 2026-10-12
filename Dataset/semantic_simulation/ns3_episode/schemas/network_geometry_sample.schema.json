@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "P01 R2 live link geometry snapshot",
+  "type": "object",
+  "required": [
+    "episode_id",
+    "time_ns",
+    "observed_until_ns",
+    "flow_id",
+    "link_id",
+    "src_node_id",
+    "dst_node_id",
+    "owner",
+    "life_epoch",
+    "receiver_owner",
+    "receiver_life_epoch",
+    "tx_enu_m",
+    "rx_enu_m",
+    "geometric_state",
+    "building_ids",
+    "status",
+    "reason",
+    "config_ref",
+    "source_ref",
+    "units",
+    "dimensions"
+  ],
+  "properties": {
+    "time_ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "2Hz observation boundary, ns"
+    },
+    "observed_until_ns": {
+      "type": "integer",
+      "minimum": -1,
+      "description": "t-1ns snapshot; -1 is initial configured pose, not negative simulated event"
+    },
+    "status": {
+      "enum": [
+        "KNOWN",
+        "OUT_OF_SCOPE"
+      ]
+    },
+    "geometric_state": {
+      "enum": [
+        "LOS",
+        "NLOS"
+      ]
+    },
+    "tx_enu_m": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    },
+    "rx_enu_m": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    },
+    "distance_m": {
+      "type": "number",
+      "minimum": 0
+    },
+    "path_loss_exponent": {
+      "type": "number"
+    },
+    "reference_loss_db": {
+      "type": "number"
+    },
+    "building_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$comment": "Observed live ns-3 waypoint geometry and assumed building extrusion. Inactive owner epochs remain diagnostic OUT_OF_SCOPE. No shadowing, material or AGL measurement implied. Offline schema documentation, not runtime validation."
+}

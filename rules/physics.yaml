@@ -1,0 +1,105 @@
+# 物理包线 —— 给校验层用，**不是给生成器用**
+#
+# 生成器只声明"想做什么"（rules/families/*.yaml 的 mechanism）；
+# 做出来是否物理成立，由本文件和它驱动的校验器判定。
+# 规则不能豁免这里任何一条。
+
+schema: aeroworld_physics_envelope
+version: 1
+
+# ─────────────────────────────────────────────────────────────
+# 通用运动约束（对每条轨迹逐 tick 检查）
+# ─────────────────────────────────────────────────────────────
+motion:
+
+  position_continuity:
+    description: 相邻 tick 的位移不得超过 v_max × Δt——不许瞬移
+    formula: "|p(t+1) - p(t)| <= v_max * tick_seconds * (1 + tolerance)"
+    tolerance: 0.15
+    verdict_if_violated: physically_invalid
+
+  speed_limit:
+    description: 速度不得超过平台包线
+    formula: "|v(t)| <= v_max * (1 + tolerance)"
+    tolerance: 0.10
+    verdict_if_violated: physically_invalid
+
+  acceleration_limit:
+    description: 加速度不得超过包线
+    formula: "|v(t+1) - v(t)| / tick_seconds <= a_max * (1 + tolerance)"
+    tolerance: 0.20
+    verdict_if_violated: physically_invalid
+
+  yaw_consistency:
+    description: 朝向变化率必须与速度自洽（转弯半径合理）
+    formula: "yaw_rate * speed <= a_lateral_max"
+    tolerance: 0.25
+    verdict_if_violated: physically_invalid
+
+  altitude_floor:
+    description: 不得低于地面；地面车辆与行人不得离地
+    rule: "UAV z >= ground_z + 0.5 ; vehicle/pedestrian z == ground_z"
+    verdict_if_violated: physically_invalid
+
+# ─────────────────────────────────────────────────────────────
+# 平台包线：优先取场景声明，缺省才用全局值
+# ─────────────────────────────────────────────────────────────
+platform_envelope:
+  authority_order: [scene_declared, family_rule, global_default]
+  global_default:
+    uav:       { v_max_mps: 20.0, a_max_mps2: 4.0, a_lateral_max_mps2: 2.0 }
+    vehicle:   { v_max_mps: 16.7, a_max_mps2: 3.0, a_lateral_max_mps2: 2.0 }
+    pedestrian: { v_max_mps: 2.0,  a_max_mps2: 1.5, a_lateral_max_mps2: 1.0 }
+  tick_seconds: 0.1        # 5 simulator ticks = 0.5 s；单 tick 0.1 s
+  note: >
+    全局默认值仅用于场景未声明时；一旦场景声明了包线，以场景为准。
+    生成器不得写入本段——本段是校验层的输入。
+
+# ─────────────────────────────────────────────────────────────
+# 几何约束
+# ─────────────────────────────────────────────────────────────
+geometry:
+
+  structure_penetration:
+    description: 实体不得穿入建筑体积
+    source: aw_data/semantic_static_maps/ 与场景 scene_setup.json
+    exempt_when: 该臂的 mechanism 显式声明 collision_intent
+    verdict_if_violated: physically_invalid
+
+  nfz_penetration:
+    description: 无人机不得穿入禁飞区
+    source: 场景声明的 restricted regions
+    exempt_when: 事件本身即"闯入受限空域"（如 restricted_region_intrusion 族）
+    verdict_if_violated: physically_invalid
+
+  corridor_compliance:
+    description: 航路飞行应保持在航路边界内
+    source: aw_data/semantic_static_maps/donghu_road_topo 与场景航路
+    severity: warning        # 越界给 warning，不判死
+    verdict_if_violated: warning
+
+# ─────────────────────────────────────────────────────────────
+# 实体守恒
+# ─────────────────────────────────────────────────────────────
+entity_conservation:
+
+  no_spontaneous_spawn:
+    description: 实体不得凭空出现
+    exempt_when: 生命周期事件在 raw/entity_lifecycle_delta.jsonl 里显式声明
+    verdict_if_violated: physically_invalid
+
+  no_spontaneous_vanish:
+    description: 实体不得凭空消失（除非降落完成 / 离开场景）
+    exempt_when: 同上
+    verdict_if_violated: physically_invalid
+
+# ─────────────────────────────────────────────────────────────
+# 判定输出（校验器写入 review/，不写回 arms/）
+# ─────────────────────────────────────────────────────────────
+verdict_vocabulary:
+  physically_invalid: 物理不可能，直接出局
+  no_effect:          干预没有改变引擎状态（空操作）
+  ineffective:        干预执行了，但结果与 factual 无差异
+  not_intervenable:   factual 里事件本就没发生，这组不可干预
+  insufficient_evidence: 证据缺失，无法判定（不当作通过）
+  valid:              通过全部检查

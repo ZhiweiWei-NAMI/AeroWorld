@@ -1,0 +1,264 @@
+# ARM 生成规则 —— pad_contention
+#
+# 命名约束：本文件名 pad_contention.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 本文件只写"怎么干预"。事件与谓词的**定义**在下列冻结源里，本文件只引用：
+#   · 事件权威  Dataset/semantic_rules/profiles/event_family_authority_mapping.json#/families/pad_contention
+#   · 谓词注册  Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json#/templates/facility.landing_pad_contention
+#   · 执行器    Dataset/tools/run_motion_family_delta_grounding.py（本族走通用 runner）
+#   · 设计层    design/episodes/*/groups/*/arm_*.json（mechanism_steps 的 authored 来源）
+#
+# 本文件的每一条 mechanism 都对着 arms/ 里的真实臂核过（台账 + 分支脚本 + manifest）：
+#   210 条臂 / 12 个 group_id × 3 seed = 36 个 (episode, group) / 3 个 profile
+#   （L2-4_v1, L2-4_v2, X5_comm_failure_to_pad_contention）
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: pad_contention
+
+# ─────────────────────────────────────────────────────────────
+# ⓪ 生成路径（族间差异必须是数据，不是代码分支）
+# ─────────────────────────────────────────────────────────────
+generation:
+  runner: Dataset/tools/run_motion_family_delta_grounding.py
+  alternatives_source: Dataset/tools/rewrite_coupled_alternatives.py
+  arm_layout: raw/branch_manifest.json + raw/branch_event_ledger.jsonl + objective/*
+  # 210/210 条臂实测：delta_only=true, trajectory_scope=intervention_delta_only,
+  # artifact_scope=parent_reference_plus_local_delta, window_semantics_only=true
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/pad_contention
+  rule_id: event_family.pad_contention.0
+  mapping_class: A_direct
+  event_type_id: facility.landing_pad_contention_event
+  trigger:
+    predicate_id: facility.landing_pad_contention
+    direction: rising
+  # 角色名逐字取自 authority 的 trigger.event_role_sources（不要照抄别的族）
+  roles:
+    pad:             { kind: trigger_binding, ontology_class: LandingPad,        predicate_role: pad }
+    first_aircraft:  { kind: trigger_binding, ontology_class: UnmannedAircraft,  predicate_role: first_aircraft }
+    second_aircraft: { kind: trigger_binding, ontology_class: UnmannedAircraft,  predicate_role: second_aircraft }
+  support_conditions: []          # authority 里本族为空
+  # 下面两项是"指针 + 快照"，只用于生成期自检；改定义请改源头
+  terminal:
+    predicate_id: facility.landing_pad_contention
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [first_aircraft, pad, second_aircraft]
+  authoritative_predicates:
+    - facility.landing_pad_contention
+    - facility.landing_pad_occupied
+    - utm.deconfliction_active
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 干预对象是"坪 + 两架无人机"三者，不是一个智能体
+  intervention_subject: [pad, first_aircraft, second_aircraft]
+  # 证据（实测）：mapping_class=A_direct；210/210 条 manifest 都没有任何 *_authority 字段；
+  #   intervention_entity_ids 形如 ["pad_shared_l2_4_v1","uav_divert_l2_4_v1","uav_priority_l2_4_v1"]
+  #   或 ["pad_x5_primary","uav_x5_priority","uav_x5_second"]
+  # → 抢占是智能体行为造成的，5 类意图全部合法。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node
+  exclude_roles: []     # 本族**不排除终态/恢复节点**
+  # 实测：交付的 12 个节点全部有臂，且包含恢复节点 X5/grp_07_station_recovered（21 条臂）
+  # anchor_event_id 由事件链给出，不在此硬编码
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    operation 只能取 4 个已注册值之一；键名是**意图**，不是 arm_id。
+#    臂名 ↔ 意图的对应关系见 rules/intents.yaml 的 arm_id_patterns。
+#    §4.4 的 mechanism 一律按**落地值**声明（设计层与落地不一致的地方在 note 里点明）。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  # 4.1 基线
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    arm_ids: [arm_factual]
+    evidence: { arms: 36, ledger_flag: "factual_preserved=true" }
+
+  # 4.2 抑制：整条后继链一起消掉
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 逐字一致
+    arm_ids: [arm_hold, arm_no_op_suppress]       # 两者都 → intent=suppress
+    evidence:
+      arms: 72                                   # arm_hold 36（arm_kind=hold）+ arm_no_op_suppress 36（arm_kind=no_op_hold）
+      suppression_basis: authored_trigger_and_causal_predecessor_closure
+      suppressed_event_ids_per_arm: { 3: 18, 4: 18, 5: 18, 6: 6, 7: 6, 8: 6 }   # 锚点 + 后继链
+      # 两者的唯一差别是"有没有把耦合实体按住"：
+      coupled_hold_injected: { arm_hold: true, arm_no_op_suppress: false }
+    coupled_hold:                                # 仅 arm_hold / arm_delay 注入
+      # 实测按住 2~4 个实体（36 条 arm_hold）：
+      #   {pad,uav} 3 个 24 条 · {pad,uav} 2 个 3 条 · {pad,tower,uav} 4 个 3 条
+      #   {pad} 2 个 3 条 · {tower,uav} 3 个 3 条
+      entity_roles: [pad, first_aircraft, second_aircraft]
+      # 实测动作是逐实体的：无人机拿 set_visual_state(hold) + set_runtime_state；
+      # 坪/设施拿 set_runtime_state（run_motion_family_delta_grounding.py:612-638）
+      action:
+        - step_kind: visual_state                # 只对 uav 实体
+          visual_state: { mode: hold }
+        - step_kind: state_patch                 # 所有被按住实体
+          state_patch: { control_state: { hold_active: true } }
+      # 注入方式：在 fork_tick 插一条 tick 触发的 continuation 事件
+      #   event_id = branch_coupled_hold_<arm_id>（arm_coupled_entities.py:356-402）
+
+  # 4.3 推迟
+  delay:
+    operation: delay_causal_event
+    arm_ids: [arm_delay, arm_delay_postpone]
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: governed_default            # 由生成侧算出/设计层给定，不是场景声明
+        min: 20
+        max: 50
+        default: 30
+    evidence:
+      arms: 66                                 # arm_delay 33 + arm_delay_postpone 33
+      delay_ticks_observed: { 20: 18, 21: 6, 30: 33, 33: 3, 50: 6 }
+      # arm_delay          ← clamp(window_duration_ticks // 3, 20, 60)  (rewrite_coupled_alternatives.py:506)
+      # arm_delay_postpone ← 设计层 authored 30                         (design/episodes/**/arm_delay_postpone.json)
+      repairs:                                 # 触发改写，ledger.repairs 实测
+        delay_applied_to_authored_event_relative_trigger: 33
+        delay_applied_after_measured_parent_dispatch: 18
+        delay_applied_to_authored_tick_trigger: 15
+      coupled_hold_injected: { arm_delay: true, arm_delay_postpone: false }
+
+  # 4.4 绕开：改空间/分配，使抢占不成立
+  divert:
+    operation: replace_causal_event
+    arm_ids:
+      - arm_avoid_grant_priority_landing_clearance
+      - arm_avoid_optical_vertipad_beacon_arbitration
+      - arm_avoid_autonomous_mesh_ad_hoc_interconnect
+    mechanism:
+      generator: set_runtime_state
+      actor: roles.pad            # 主目标（6/18）；其余落在支持设施/无人机上，见 evidence.targets
+      template:
+        - step_kind: state_patch
+          state_patch:
+            control_state: { hold_active: true }
+      physics_intent: relinquish_pad_assignment
+    evidence:
+      arms: 18
+      actions_per_arm: 1
+      action_type: set_runtime_state               # 18/18
+      targets: { pad_x5_primary: 6, tower_x5_comm: 6, pad_x5_backup: 3, uav_x5_priority: 3 }
+      ledger_repairs: []                           # 18/18 无 repair
+    note: >
+      本族 divert 落地的是 set_runtime_state + control_state.hold_active=true。
+      设计层写的是 {assigned_landing_actor, queue_length} / {mesh_interconnect_active, ...}
+      / {pad_deconfliction_mode, ...}；这些字段不在执行器的
+      RUNTIME_STATE_CONSUMED_FIELDS / RUNTIME_FIELD_ALIASES 里，落地时走
+      run_motion_family_delta_grounding.py:736-759 的回退分支被压成 control_state.hold_active。
+      规则按**落地值**声明；要保留设计语义必须先给执行器加字段别名（改代码，不是改规则）。
+
+  # 4.5 权衡：不消除抢占，改代价结构（错开下降 / 场外等待）
+  tradeoff:
+    operation: replace_causal_event
+    arm_ids:
+      - arm_tradeoff_staggered_descent_separation_buffer
+      - arm_tradeoff_precautionary_vertipad_holding_pattern
+      - arm_tradeoff_precautionary_open_field_divert
+    mechanism:
+      generator: move_entity
+      actor: roles.second_aircraft     # 12/18；其余 6/18 落在 tower_x5_comm / pad_x5_backup
+      template:
+        - step_kind: move
+          waypoints_enu_m: { source: generator_authored, mode: holding_or_alternate_pad }
+          velocity_mps: { source: generator_authored }
+      physics_intent: hold_outside_pad
+    evidence:
+      arms: 18
+      actions_per_arm: 1
+      action_type: move_entity                       # 18/18
+      observed_geometry: "1~3 waypoints；velocity 2.0 / 3.0 / 6.0 m/s"
+      targets: { uav_x5_second: 12, tower_x5_comm: 6, pad_x5_backup: 3 }
+      ledger_repairs:
+        single_waypoint_destination_validated_from_parent_pose: 15   # 单航点落点按父代姿态校验
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick      # 用锚点事件的实际触发 tick；实测 = 父代 dispatch_tick
+  duration_ticks:
+    source: design_declared          # 实测 50 / 63 / 85 / 100 / 150
+  history_frames: 8
+  horizon_frames: 5
+  # manifest.window_end_tick **不是**观察窗口，是执行/证据地平线（window_semantics_only=true）：
+  #   max(candidate_end_tick, 建模运动终点, 父证据终点+最大 authored delay, fork+25)
+  #   + authored action delay horizon + EVIDENCE_MARGIN_TICKS(5) + 1，上限 900
+  #   见 run_motion_family_delta_grounding.py:1405-1467。
+  #   实测 210 条臂里 48 条 window_end_tick == candidate_end_tick，其余延长 11~270 tick。
+  evidence_horizon:
+    semantics: execution_and_evidence_only
+    max_tick: 900
+    extension_observed_ticks: [0, 11, 12, 14, 37, 40, 50, 122, 149, 156, 170, 196, 202, 235, 241, 270]
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测 objective/window_semantics.json：event_window_state ∈
+    #   {active_at_window_entry 18, not_observed 18}
+
+  suppress:
+    target_event: absent_in_window
+    # 关键前提：fork 时谓词还没为真。实测 36/72 条抑制臂是 active_at_window_entry
+    # （fork_tick 就是 first_true_tick，父代状态已为真），此时"窗口内不发生"不可达——
+    # 判定应看 coupled_hold 是否真的改变了引擎状态，否则记 DESIGN_INTENT_CONFLICT。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift: { approx: delay_ticks, tolerance_ticks: 5 }
+    # 实测 delay_ticks ∈ [20, 50]，且 ledger.repairs 记录了触发是怎么被改写的
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    generated_action_required: true    # replace 臂没有生成动作 → replacement_action_not_generated
+
+  tradeoff:
+    differs_from_factual: true
+    generated_action_required: true
+    # tradeoff 允许事件仍在窗口内成立，但状态轨迹必须与 factual 可辨
+
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+    no_pre_fork_delta: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "fork 时谓词已为真（active_at_window_entry）的 group 上，suppress 臂无法把事件变成 absent_in_window；只能判'hold 是否改变了引擎状态'，实测这类占抑制臂的 36/72。"
+    - "divert 的设计层语义（委派落地权 / 网状直连 / 光信标仲裁）在落地动作里只剩 control_state.hold_active=true；规则不假装它保留了原语义。"
+  not_claimed:
+    - "G10 整库发布审计（不在本规则范围内）"
+  open_questions:
+    - "TODO: 需确认——divert 的 actor 在 pad / tower / pad_backup / 无人机之间漂移，是否应限定为 roles.pad 才是设计意图。"

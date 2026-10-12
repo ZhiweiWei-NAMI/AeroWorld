@@ -23,19 +23,22 @@ import json
 # Data classes — 场景描述
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class WaypointSpec:
     """路径点"""
+
     pos_enu_m: list[float]  # [x, y, z]
-    hold_ticks: int = 0     # 在此点停留的帧数
+    hold_ticks: int = 0  # 在此点停留的帧数
 
 
 @dataclass
 class EntitySpec:
     """初始实体定义"""
+
     entity_id: str
-    asset_id: str                     # 引用 asset_catalog.json
-    initial_pos_enu: list[float]      # [x, y, z]
+    asset_id: str  # 引用 asset_catalog.json
+    initial_pos_enu: list[float]  # [x, y, z]
     initial_rotation_deg: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     movement_waypoints: list[WaypointSpec] = field(default_factory=list)
     visual_state: Optional[dict] = None  # {mode: "idle", lights_on: true, ...}
@@ -53,6 +56,7 @@ class TriggerSpec:
       - "event_fired": 需要 event_ref (指向另一个 event 的 event_id)
       - "composite": 需要 composite_operator ("AND"/"OR"), composite_children (trigger_ids 列表)
     """
+
     type: str
     tick: Optional[int] = None
     # weather_state
@@ -73,13 +77,14 @@ class TriggerSpec:
     event_ref: Optional[str] = None
     delay_ticks: int = 0
     # composite
-    composite_operator: Optional[str] = None   # "AND" | "OR"
+    composite_operator: Optional[str] = None  # "AND" | "OR"
     composite_children: Optional[list[str]] = None  # trigger_id 列表
 
 
 @dataclass
 class ActionSpec:
     """动作描述。params 直接映射到 event_script_v1 action dict 的非 type 字段。"""
+
     type: str
     params: dict = field(default_factory=dict)
 
@@ -92,6 +97,7 @@ class EventStepSpec:
     每个步骤 = trigger + actions + 可选的 emit_events。
     编译器将 trigger 映射为 trigger_ref，将 on_fire_emit 映射为事件链传播。
     """
+
     event_id: str
     trigger: TriggerSpec
     actions: list[ActionSpec] = field(default_factory=list)
@@ -103,16 +109,28 @@ class EventStepSpec:
     log_topic: str = ""
     log_category: str = ""
     log_title: str = ""
-    log_severity: str = "info"      # info | warning | critical
+    log_severity: str = "info"  # info | warning | critical
     log_overlay: str = ""
     log_target_ids: list[str] = field(default_factory=list)
+    intent: str = ""
+    intent_stage: str = ""
+    causal_chain_id: str = ""
+    causal_predecessor_intent: str = ""
+    causal_predecessor_event_ids: list[str] = field(default_factory=list)
+    causal_predecessor_mode: str = ""
+    causal_temporal_policy: str = ""
+    target_roles: list[str] = field(default_factory=list)
+    validation_event_type: str = ""
+    validation_reason: str = ""
+    validation_skip_checks: list[str] = field(default_factory=list)
 
 
 @dataclass
 class ScenarioSpec:
     """一个场景的完整声明式描述。"""
+
     scenario_id: str
-    category: str              # 如 "agent_interaction.uav_pedestrian"
+    category: str  # 如 "agent_interaction.uav_pedestrian"
     description: str
     duration_ticks: int = 900
     entities: list[EntitySpec] = field(default_factory=list)
@@ -124,12 +142,13 @@ class ScenarioSpec:
 # 编译器
 # ---------------------------------------------------------------------------
 
+
 class SpecCompiler:
     """将 ScenarioSpec 编译为 event_script_v1 JSON dict。"""
 
     def compile(self, spec: ScenarioSpec) -> dict:
         self._spec = spec
-        self._trigger_map: dict[str, str] = {}   # event_id -> trigger_id
+        self._trigger_map: dict[str, str] = {}  # event_id -> trigger_id
         self._compiled_triggers: list[dict] = []
         self._used_trigger_ids: set[str] = set()
 
@@ -224,7 +243,9 @@ class SpecCompiler:
         elif ts.type == "composite":
             base["operator"] = ts.composite_operator
             # children: 先存原始引用（event_id 或 trigger_id），compile_triggers 第二遍解析
-            base["children"] = list(ts.composite_children) if ts.composite_children else []
+            base["children"] = (
+                list(ts.composite_children) if ts.composite_children else []
+            )
 
         return base
 
@@ -238,10 +259,7 @@ class SpecCompiler:
 
     def _trigger_signature(self, td: dict) -> str:
         """计算 trigger 的去重签名。排除 trigger_id 本身。"""
-        items = sorted(
-            (k, str(v)) for k, v in td.items()
-            if k != "trigger_id"
-        )
+        items = sorted((k, str(v)) for k, v in td.items() if k != "trigger_id")
         return json.dumps(items, sort_keys=True)
 
     # ---- events ----
@@ -249,7 +267,48 @@ class SpecCompiler:
     def _compile_events(self) -> list[dict]:
         """编译事件列表。"""
         events = []
+        prior_event_ids: set[str] = set()
         for i, step in enumerate(self._spec.event_chain):
+            declared_ids = list(step.causal_predecessor_event_ids)
+            mode = step.causal_predecessor_mode
+            if bool(declared_ids) != bool(mode):
+                raise ValueError(
+                    f"event {step.event_id}: causal_predecessor_event_ids and "
+                    "causal_predecessor_mode must be declared together"
+                )
+            if mode and mode != "all_of":
+                raise ValueError(
+                    f"event {step.event_id}: causal_predecessor_mode must be " "all_of"
+                )
+            if len(declared_ids) != len(set(declared_ids)) or any(
+                not isinstance(event_id, str) or not event_id.strip()
+                for event_id in declared_ids
+            ):
+                raise ValueError(
+                    f"event {step.event_id}: causal_predecessor_event_ids must "
+                    "contain unique non-empty strings"
+                )
+            missing_prior_ids = set(declared_ids) - prior_event_ids
+            if missing_prior_ids:
+                raise ValueError(
+                    f"event {step.event_id}: causal predecessor IDs must reference "
+                    f"earlier events: {sorted(missing_prior_ids)}"
+                )
+            if declared_ids and not step.causal_predecessor_intent:
+                raise ValueError(
+                    f"event {step.event_id}: a predecessor set requires "
+                    "causal_predecessor_intent"
+                )
+            if step.causal_temporal_policy not in {"", "same_tick_required"}:
+                raise ValueError(
+                    f"event {step.event_id}: unsupported causal_temporal_policy "
+                    f"{step.causal_temporal_policy!r}"
+                )
+            if step.causal_temporal_policy and not step.causal_predecessor_intent:
+                raise ValueError(
+                    f"event {step.event_id}: causal_temporal_policy requires "
+                    "causal_predecessor_intent"
+                )
             trigger_id = self._trigger_map.get(step.event_id, f"trig_{step.event_id}")
 
             # 构建 require_conditions: 将 event_id 引用转换为 trigger_id
@@ -274,6 +333,24 @@ class SpecCompiler:
                 event["require_conditions"] = require_conds
             if step.on_fire_emit:
                 event["on_fire"] = {"emit_events": list(step.on_fire_emit)}
+            if step.intent:
+                event["intent"] = step.intent
+            if step.intent_stage:
+                event["intent_stage"] = step.intent_stage
+            if step.causal_chain_id:
+                event["causal_chain_id"] = step.causal_chain_id
+            event["causal_predecessor_intent"] = step.causal_predecessor_intent
+            if declared_ids:
+                event["causal_predecessor_event_ids"] = declared_ids
+                event["causal_predecessor_mode"] = mode
+            if step.causal_temporal_policy:
+                event["causal_temporal_policy"] = step.causal_temporal_policy
+            if step.target_roles:
+                event["target_roles"] = list(step.target_roles)
+            if step.validation_event_type:
+                event["validation_event_type"] = step.validation_event_type
+                event["validation_reason"] = step.validation_reason
+                event["validation_skip_checks"] = list(step.validation_skip_checks)
             if step.log_topic:
                 event["log_event"] = {
                     "topic": step.log_topic,
@@ -283,13 +360,28 @@ class SpecCompiler:
                     "overlay": step.log_overlay,
                     "target_ids": list(step.log_target_ids),
                 }
+                if step.intent:
+                    event["log_event"]["intent"] = step.intent
+                if step.intent_stage:
+                    event["log_event"]["intent_stage"] = step.intent_stage
+                if step.causal_chain_id:
+                    event["log_event"]["causal_chain_id"] = step.causal_chain_id
+                if step.causal_predecessor_intent:
+                    event["log_event"]["causal_predecessor_intent"] = (
+                        step.causal_predecessor_intent
+                    )
+                if step.target_roles:
+                    event["log_event"]["target_roles"] = list(step.target_roles)
 
             events.append(event)
+            prior_event_ids.add(step.event_id)
 
         return events
 
     def _action_spec_to_dict(self, a: ActionSpec) -> dict:
         """将 ActionSpec 转换为 event_script_v1 action dict。"""
+        if "type" in a.params and a.params["type"] != a.type:
+            raise ValueError("action params must not override the declared action type")
         result = {"type": a.type}
         result.update(a.params)
         return result
@@ -309,8 +401,11 @@ class SpecCompiler:
             events = self._replace_in_events(events, ref, param_value)
         return events
 
-    def _replace_in_events(self, events: list[dict], ref: str, value: Any) -> list[dict]:
+    def _replace_in_events(
+        self, events: list[dict], ref: str, value: Any
+    ) -> list[dict]:
         """在 events 结构中递归替换 $param 引用。"""
+
         # Replace only exact string values, never substrings inside larger strings.
         def _replace(obj: Any) -> Any:
             if isinstance(obj, dict):
@@ -328,11 +423,14 @@ class SpecCompiler:
 # 便捷工厂函数
 # ---------------------------------------------------------------------------
 
+
 def make_tick_trigger(tick: int) -> TriggerSpec:
     return TriggerSpec(type="tick", tick=tick)
 
-def make_weather_trigger(parameter: str, operator: str, value: float,
-                         sustain_ticks: int = 0) -> TriggerSpec:
+
+def make_weather_trigger(
+    parameter: str, operator: str, value: float, sustain_ticks: int = 0
+) -> TriggerSpec:
     return TriggerSpec(
         type="weather_state",
         weather_parameter=parameter,
@@ -341,11 +439,17 @@ def make_weather_trigger(parameter: str, operator: str, value: float,
         sustain_ticks=sustain_ticks,
     )
 
-def make_proximity_trigger(entity_a: str, entity_b: str, distance_m: float,
-                           operator: str = "lte", min_true_ticks: int = 1,
-                           metric: str = "xy",
-                           horizontal_distance_m: float | None = None,
-                           vertical_distance_m: float | None = None) -> TriggerSpec:
+
+def make_proximity_trigger(
+    entity_a: str,
+    entity_b: str,
+    distance_m: float,
+    operator: str = "lte",
+    min_true_ticks: int = 1,
+    metric: str = "xy",
+    horizontal_distance_m: float | None = None,
+    vertical_distance_m: float | None = None,
+) -> TriggerSpec:
     return TriggerSpec(
         type="entity_proximity",
         entity_a=entity_a,
@@ -358,11 +462,16 @@ def make_proximity_trigger(entity_a: str, entity_b: str, distance_m: float,
         vertical_distance_m=vertical_distance_m,
     )
 
+
 def make_event_fired_trigger(event_ref: str) -> TriggerSpec:
     return TriggerSpec(type="event_fired", event_ref=event_ref)
 
+
 def make_event_fired_after_trigger(event_ref: str, delay_ticks: int) -> TriggerSpec:
-    return TriggerSpec(type="event_fired_after", event_ref=event_ref, delay_ticks=delay_ticks)
+    return TriggerSpec(
+        type="event_fired_after", event_ref=event_ref, delay_ticks=delay_ticks
+    )
+
 
 def make_composite_trigger(operator: str, children: list[str]) -> TriggerSpec:
     return TriggerSpec(

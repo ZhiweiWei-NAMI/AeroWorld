@@ -1,0 +1,243 @@
+# ARM 生成规则 —— high_temp_battery_derating
+#
+# 命名约束：本文件名 high_temp_battery_derating.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 本族实测规模：60 条臂 / 3 个 group × 3 seed（episode L5-5_v1__seed00..02）。
+# 5 类意图**全部**有真实臂：factual 9 / suppress 9 / delay 15 / divert 9 / tradeoff 18。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: high_temp_battery_derating
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/high_temp_battery_derating
+  rule_id: event_family.high_temp_battery_derating.0
+  mapping_class: B_composite          # 注意：这里指"事件复合"，**不是**场景权威（见 causality）
+  event_type_id: environment.extreme_temperature_event
+  trigger:
+    predicate_id: environment.temperature_outside_operating_range
+    direction: rising
+  roles:
+    region:
+      kind: trigger_binding
+      ontology_class: OperationalRegion
+      predicate_role: region
+      background_allowed: false
+  support_conditions: []
+  terminal:
+    predicate_id: environment.temperature_outside_operating_range
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [region]
+  authoritative_predicates:            # 快照；权威在 registry
+    - environment.temperature_outside_operating_range
+    - facility.aircraft_battery_low
+    - emergency.mission_aborted
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别 —— 本族是 agent_caused，判定过程与证据如下
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  intervention_subject: aircraft
+  # 判定证据（本会话实测，非推断）：
+  #   1) mapping_class = B_composite **不能**推出 exogenous：它只描述"事件由多个谓词/下游事实
+  #      复合而成"。全库 6 个 B_composite 族里 5 个有真实干预臂
+  #      （如 uav_pedestrian_near_miss 702 条 avoid/hold/tradeoff）。
+  #   2) 本族 60/60 条臂的 raw/branch_manifest.json **没有** *_authority 字段；
+  #      全库 7,662 条臂里只有 rain_fog_environment 带
+  #      rain_fog_authority = scene_exogenous_weather_transition。→ 不是场景权威外生。
+  #   3) 60/60 条臂的 intervention_entity_ids = ["uav_weather_l5_5_v1"]。
+  #      干预对象是**无人机**，不是环境温度：机制全部作用在 UAV 的
+  #      control_state（散热/降额/保持）与航路上（保守巡航 / 加速下降）。
+  #   4) review/index.jsonl 里本族 60 条臂的 intent = factual / divert / delay /
+  #      suppress / tradeoff，全部 branch_role = action_alternative。
+  # 诚实边界（写进 limits）：触发谓词读的是场景天气通道 weather.temperature_c
+  # （weather_meta.jsonl），因此"温度越界"的时刻本身带 script 溯源；本族可干预的是
+  # 降额后果与无人机自身的散热/航路决策，而不是天气脚本。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node
+  exclude_roles: [terminal]
+  # 实测锚点（design/episodes/L5-5_v1__seed*/groups/*/group_manifest.json）：
+  #   range_shortened(fork 270) / charger_decision(305) / thermal_abort(390)
+  # anchor_event_id 由事件链给出，不在此硬编码。
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图 —— mechanism 全部照抄真实臂，不凭空写
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger
+    suppression_basis: authored_trigger_and_causal_predecessor_closure
+    variants:
+      - arm_id_pattern: arm_no_op_suppress   # arm_kind: no_op_hold
+        coupled_hold_injected: false         # 实测：本族 suppress 臂不注入延续事件
+    observed_suppressed_event_ids:       # 快照；随组不同而不同
+      - range_shortened
+      - charger_decision
+      - thermal_abort
+      - thermal_charging_service
+      - lifecycle_landing_uav_weather_l5_5_v1
+
+  delay:
+    operation: delay_causal_event
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: governed_default      # rule | governed_default | scene
+        min: 20
+        max: 35
+        default: 30
+        # 实测两个来源（15 条 delay 臂）：
+        #   arm_delay          : design_window//3 夹到 [20,60] → 20 (grp_01 window 55)
+        #                                                      35 (grp_02 window 105)
+        #   arm_delay_postpone : 权威 +30 tick（9/9 条）
+        # 实测台账 repairs.kind：delay_applied_to_authored_event_relative_trigger
+        #   （锚点 trigger 是 event_fired_after 型，如
+        #     trig_after_high_temperature_process_delay_30 / trig_after_range_shortened_delay_32）
+    coupled_hold:
+      # 实测：arm_delay 注入 branch_coupled_hold_*，UAV 落到 control_state.hold_active
+      #       （同时另有一个 set_visual_state{mode: hold}，由 _explicit_hold_action 产出；
+      #        实测 arms/L5-5_v1/seed00/grp_01_range_shortened/arm_delay/raw/event_script.json）
+      actor_scope: roles.aircraft
+      steps:
+        - step_kind: state_patch
+          generator: set_runtime_state
+          state_patch:
+            control_state:
+              hold_active: true
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: set_runtime_state
+      actor: roles.aircraft
+      template:
+        - step_kind: state_patch
+          state_patch:
+            control_state:
+              slowdown_active: true        # design 的 thermal_throttling_engaged 经
+                                           # RUNTIME_FIELD_ALIASES 映射到这个字段
+        - step_kind: move
+          generator: move_entity
+          velocity_mps: 3.8
+          waypoints_enu_m:
+            source: scene
+            mode: thermal_conservative_cruise   # 沿授权航路的保守巡航（32 m → 30 m）
+      physics_intent: shed_thermal_load_and_cruise_conservative
+      # 实测 arm_avoid_derate_compute_payload_power（9/9 条）生成 2 个动作：
+      #   motion_grounded_0_runtime = set_runtime_state{control_state.slowdown_active: true}
+      #   motion_grounded_1_move    = move_entity 3.8 m/s
+      # design 的 state_configuration 另有 3 个字段
+      #   (auxiliary_compute_power_limit_pct / edge_ai_fps_cap /
+      #    thermal_dissipation_target_celsius) 不在 runtime_state_contract 的
+      #   已消费字段表里 → 执行器判 unsupported 丢弃，规则不把它们写成机制。
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.aircraft
+      template:
+        - step_kind: move
+          velocity_mps: 6.5
+          waypoints_enu_m:
+            source: scene
+            mode: accelerated_descent_to_home_pad   # 实测 32 m → 15 m → 3 m
+        - step_kind: state_patch
+          generator: set_runtime_state
+          state_patch:
+            control_state:
+              hold_active: true
+      physics_intent: early_termination_with_thermal_relief
+      # 实测 arm_tradeoff_accelerate_descent_early_termination（9/9 条）生成 2 个动作：
+      #   motion_grounded_0_move    = move_entity 6.5 m/s 加速下降回 home pad
+      #   motion_grounded_1_runtime = set_runtime_state{control_state.hold_active: true}
+      # design 的 early_termination_schedule 三个字段
+      #   (expedited_mission_termination / early_termination_delta_ticks / descent_rate_mps)
+      #   全部未登记 → patch 为空 → 执行器回退 {control_state:{hold_active:true}}（实测）。
+    variants:
+      - arm_id_pattern: arm_slow            # arm_kind: slow，9/9 条
+        measured_mechanism: move_entity 4.0 m/s，航点 = 父位姿 + (4.0, 0.0, 0.0) m
+      - arm_id_pattern: arm_tradeoff_*      # arm_kind: trade_off，9/9 条
+        measured_mechanism: move_entity 6.5 m/s + set_runtime_state hold_active（见上）
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick
+  duration_ticks:
+    source: design_declared
+  history_frames: 8
+  horizon_frames: 5
+  # 实测快照：design window_duration_ticks = 55 / 105 / 150；
+  #           design fork_tick = 270 / 305 / 390。
+  # 臂 manifest 的 window_end_tick（332..547）是**实测**窗口端点，会超过 design end（325/410/540），
+  # 生成器必须以 manifest 实测值为准。
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+
+  suppress:
+    target_event: absent_in_window
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+
+  tradeoff:
+    differs_from_factual: true
+    # tradeoff 允许事件仍发生，但状态轨迹必须与 factual 可辨
+    # （design change_mode = E_A_to_E_B）
+
+  common:
+    intervention_must_change_engine_state: true
+    physically_valid: true
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "arm_delay 在 grp_03_thermal_abort 缺一组：实测 6 条（grp_01 3 + grp_02 3），
+       而 factual/no_op_suppress/delay_postpone/avoid/slow/tradeoff 各 9 条。规则不补这一组。"
+    - "触发谓词来自场景天气通道 weather.temperature_c；分支里温度通道会随分支真相重算
+       （台账记 weather_delta_rows）。若未来把该通道钉成只读场景权威，
+       本族的 suppress/delay 会退化为 DESIGN_INTENT_CONFLICT，需重判 causality。"
+  not_claimed:
+    - "天气脚本本身的可干预性 —— 本族干预的是 UAV 的散热与航路决策"
+    - "design 里未登记进 runtime_state_contract 的降额字段
+      （auxiliary_compute_power_limit_pct / edge_ai_fps_cap /
+        thermal_dissipation_target_celsius / expedited_mission_termination /
+        early_termination_delta_ticks / descent_rate_mps）—— 执行器会丢弃，规则不声明"
+    - "G10 整库发布审计（不在本规则范围内）"

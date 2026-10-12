@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dataset_id": {
+      "const": "aeroworld_70_scenarios_3_seeds"
+    },
+    "episode_count": {
+      "const": 210
+    },
+    "episodes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "episode_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "scenario_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "seed": {
+            "enum": [
+              0,
+              1,
+              2
+            ]
+          }
+        },
+        "required": [
+          "episode_id",
+          "scenario_id",
+          "seed"
+        ],
+        "type": "object"
+      },
+      "maxItems": 210,
+      "minItems": 210,
+      "type": "array"
+    },
+    "manifest_id": {
+      "const": "aeroworld_210_episode_stable_module_selection"
+    },
+    "module_policy": {
+      "const": "unified_stable_domain_modules"
+    },
+    "ontology_version": {
+      "const": "0.3.0"
+    },
+    "profile_count": {
+      "const": 70
+    },
+    "scenario_profiles": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "episode_ids": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "scenario_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "seeds": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "const": 0
+              },
+              {
+                "const": 1
+              },
+              {
+                "const": 2
+              }
+            ],
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "seeds",
+          "episode_ids"
+        ],
+        "type": "object"
+      },
+      "maxItems": 70,
+      "minItems": 70,
+      "type": "array"
+    },
+    "schema_name": {
+      "const": "semantic_ontology_selection_manifest"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "selected_modules": {
+      "maxItems": 12,
+      "minItems": 12,
+      "prefixItems": [
+        {
+          "const": "airspace_operations"
+        },
+        {
+          "const": "ground_mobility"
+        },
+        {
+          "const": "mobility_regulation"
+        },
+        {
+          "const": "agent_interaction_safety"
+        },
+        {
+          "const": "facility_energy_service"
+        },
+        {
+          "const": "communication_process"
+        },
+        {
+          "const": "computation_process"
+        },
+        {
+          "const": "positioning_navigation"
+        },
+        {
+          "const": "environment_hazard"
+        },
+        {
+          "const": "digital_security"
+        },
+        {
+          "const": "operational_constraint_emergency"
+        },
+        {
+          "const": "utm"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_name",
+    "schema_version",
+    "manifest_id",
+    "dataset_id",
+    "ontology_version",
+    "module_policy",
+    "selected_modules",
+    "profile_count",
+    "episode_count",
+    "scenario_profiles",
+    "episodes"
+  ],
+  "title": "AeroWorld unified ontology selection manifest",
+  "type": "object"
+}

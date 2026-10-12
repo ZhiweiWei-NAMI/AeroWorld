@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aeroworld.local/schema/event_chain_manifest.schema.json",
+  "title": "Authored script event-chain episode manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "episode_id",
+    "epi_id",
+    "causal_chain_id",
+    "node_count",
+    "relation_count",
+    "root_count",
+    "roots",
+    "runtime_audit",
+    "summary",
+    "input_provenance",
+    "runtime_validation_status",
+    "manifest_digest"
+  ],
+  "properties": {
+    "schema_name": {"const": "event_chain_manifest"},
+    "schema_version": {"const": "2.0.0"},
+    "episode_id": {"$ref": "#/$defs/nonEmptyString"},
+    "epi_id": {"$ref": "#/$defs/nonEmptyString"},
+    "causal_chain_id": {"$ref": "#/$defs/nonEmptyString"},
+    "node_count": {"type": "integer", "minimum": 1},
+    "relation_count": {"type": "integer", "minimum": 0},
+    "root_count": {"type": "integer", "minimum": 1},
+    "roots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/root"}
+    },
+    "runtime_audit": {"$ref": "#/$defs/runtimeAudit"},
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_resolution_counts",
+        "runtime_alignment_counts",
+        "validation_status_counts",
+        "runtime_strict_edge_eligible_count",
+        "script_scheduled_root_count",
+        "exogenous_root_count"
+      ],
+      "properties": {
+        "source_resolution_counts": {"$ref": "#/$defs/countMap"},
+        "runtime_alignment_counts": {"$ref": "#/$defs/countMap"},
+        "validation_status_counts": {"$ref": "#/$defs/countMap"},
+        "runtime_strict_edge_eligible_count": {"type": "integer", "minimum": 0},
+        "script_scheduled_root_count": {"type": "integer", "minimum": 0},
+        "exogenous_root_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "input_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_script_ref",
+        "event_script_digest",
+        "event_script_digest_authority",
+        "source_manifest_event_script_digest",
+        "event_trace_ref",
+        "event_trace_digest",
+        "event_realization_ref",
+        "event_realization_digest"
+      ],
+      "properties": {
+        "event_script_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "event_script_digest": {"$ref": "#/$defs/digest"},
+        "event_script_digest_authority": {
+          "enum": ["consumed_snapshot_unsealed", "source_manifest_seal_verified"]
+        },
+        "source_manifest_event_script_digest": {
+          "oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]
+        },
+        "event_trace_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "event_trace_digest": {"$ref": "#/$defs/digest"},
+        "event_realization_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "event_realization_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "runtime_validation_status": {"enum": ["PASS", "FAIL"]},
+    "manifest_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "formalTick": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 900,
+      "multipleOf": 5
+    },
+    "nullableFormalTick": {
+      "oneOf": [{"$ref": "#/$defs/formalTick"}, {"type": "null"}]
+    },
+    "countMap": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "root": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "event_id",
+        "intent",
+        "intent_stage",
+        "candidate_event_ids",
+        "dispatch_tick",
+        "runtime_status",
+        "realization_ref"
+      ],
+      "properties": {
+        "kind": {"const": "script_event"},
+        "event_id": {"$ref": "#/$defs/nonEmptyString"},
+        "intent": {"$ref": "#/$defs/nonEmptyString"},
+        "intent_stage": {"type": "string", "pattern": "^[0-9]+\\..+$"},
+        "candidate_event_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "dispatch_tick": {"$ref": "#/$defs/nullableFormalTick"},
+        "runtime_status": {"enum": ["fired", "runtime_invalid"]},
+        "realization_ref": {
+          "oneOf": [{"$ref": "#/$defs/nonEmptyString"}, {"type": "null"}]
+        },
+        "scheduling_provenance": {"$ref": "#/$defs/schedulingProvenance"}
+      }
+    },
+    "schedulingProvenance": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {"kind": {"const": "none_declared"}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "trigger_type",
+            "trigger_ref",
+            "declared_predecessor_intent",
+            "schedule_anchor"
+          ],
+          "properties": {
+            "kind": {"const": "script_scheduled"},
+            "trigger_type": {"const": "tick"},
+            "trigger_ref": {"$ref": "#/$defs/nonEmptyString"},
+            "declared_predecessor_intent": {"$ref": "#/$defs/nonEmptyString"},
+            "schedule_anchor": {"enum": ["present", "missing"]}
+          }
+        }
+      ]
+    },
+    "mismatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "source", "field", "expected", "actual"],
+      "properties": {
+        "event_id": {"$ref": "#/$defs/nonEmptyString"},
+        "source": {"$ref": "#/$defs/nonEmptyString"},
+        "field": {"$ref": "#/$defs/nonEmptyString"},
+        "expected": {},
+        "actual": {}
+      }
+    },
+    "runtimeAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "declared_event_count",
+        "active_trace_row_count",
+        "realization_row_count",
+        "missing_trace_event_ids",
+        "missing_realization_event_ids",
+        "duplicate_trace_event_ids",
+        "duplicate_realization_event_ids",
+        "extra_trace_event_ids",
+        "extra_realization_event_ids",
+        "unidentified_trace_row_indexes",
+        "unidentified_realization_row_indexes",
+        "declaration_mismatches",
+        "action_failure_count",
+        "status"
+      ],
+      "properties": {
+        "declared_event_count": {"type": "integer", "minimum": 1},
+        "active_trace_row_count": {"type": "integer", "minimum": 0},
+        "realization_row_count": {"type": "integer", "minimum": 0},
+        "missing_trace_event_ids": {"$ref": "#/$defs/stringArray"},
+        "missing_realization_event_ids": {"$ref": "#/$defs/stringArray"},
+        "duplicate_trace_event_ids": {"$ref": "#/$defs/countMap"},
+        "duplicate_realization_event_ids": {"$ref": "#/$defs/countMap"},
+        "extra_trace_event_ids": {"$ref": "#/$defs/stringArray"},
+        "extra_realization_event_ids": {"$ref": "#/$defs/stringArray"},
+        "unidentified_trace_row_indexes": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 0}
+        },
+        "unidentified_realization_row_indexes": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 0}
+        },
+        "declaration_mismatches": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/mismatch"}
+        },
+        "action_failure_count": {"type": "integer", "minimum": 0},
+        "status": {"enum": ["PASS", "FAIL"]}
+      }
+    },
+    "stringArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/nonEmptyString"}
+    }
+  }
+}

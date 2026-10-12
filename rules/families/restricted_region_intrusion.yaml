@@ -1,0 +1,262 @@
+# ARM 生成规则 —— restricted_region_intrusion
+#
+# 命名约束：本文件名 restricted_region_intrusion.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# ─────────────────────────────────────────────────────────────
+# 本文件的事实来源（全部在本机实测，可复跑）
+# ─────────────────────────────────────────────────────────────
+#   臂：558 条 = 84 个 (profile, seed, group) 三元组（28 组 × 3 seed）
+#       profile：L1-1_v1/v2 · L3-2_v1/v2 · L3-3_v1/v2
+#     arm_id 分布：
+#       arm_factual                 84   → 意图 factual
+#       arm_no_op_suppress          84   → 意图 suppress
+#       arm_hold                    84   → 意图 suppress
+#       arm_delay_postpone          54   → 意图 delay
+#       arm_divert_lateral          84   → 意图 divert
+#       arm_avoid_*                  84   → 意图 divert（5 个变体）
+#       arm_tradeoff_*               84   → 意图 tradeoff（5 个变体）
+#     延迟臂只有 54 条：每条事件链只有首个节点（approach_boundary /
+#     temporary_nfz_declared / hazmat_ped_a_approach …）带 delay 臂，
+#     下游节点没有 arm_delay_postpone。这是设计事实，不是缺数据。
+#
+#   证据命令（任选一条即可复核）：
+#     grep -rl '"event_family_id":"restricted_region_intrusion"' \
+#       --include=branch_manifest.json arms/ | wc -l
+#     python 读 arms/L1-1_v1/seed00/grp_01_approach_boundary/*/raw/branch_event_ledger.jsonl
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: restricted_region_intrusion
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    内容真实来源是 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里登记的是"指针 + 关键字段快照"，快照仅用于生成期自检，改定义请改源头。
+#    谓词注册表：Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/restricted_region_intrusion
+  rule_id: event_family.restricted_region_intrusion.0
+  mapping_class: A_direct
+  event_type_id: airspace.restricted_airspace_entry_event
+  trigger:
+    predicate_id: airspace.aircraft_inside_restricted_airspace
+    direction: rising
+  roles:
+    actor:             { kind: trigger_binding, ontology_class: UnmannedAircraft }
+    restricted_region: { kind: trigger_binding, ontology_class: RestrictedAirspaceRegion }
+  support_conditions: []          # authority 里就是空表：本族是直接触发，无前置条件
+  # terminal（快照，仅供自检）：airspace.aircraft_inside_restricted_airspace = false，
+  #   hold_parameter = recovery_hold_samples，join_roles = [actor, restricted_region]
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别：决定这条事件"能不能被人为改变"
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  intervention_subject: actor          # authority 的 actor 角色 = UnmannedAircraft
+  # 实测依据（不是推断）：
+  #   558 条臂的 raw/branch_manifest.json 里 `intervention_entity_ids` 命名的全是
+  #   引擎实体，且 330 组臂的 arm_hold / arm_delay / arm_divert 都在台账里写下了
+  #   operation=suppress/delay/replace 且 status=applied。
+  #   全族 558 条 manifest 中 **0 条**含 `*_authority` 字段 —— 即没有任何
+  #   scene_exogenous_* 声明。参照 rain_fog_environment：那一族的 1254 条臂全部带
+  #   `rain_fog_authority.authority_class = scene_exogenous_weather_transition`。
+  #
+  # 被干预实体随 profile 变化（链节点不同）：
+  #   L1-1_*  禁飞区边界链   → uav_*（actor）
+  #   L3-2_*  临时禁飞区链   → uav_*（actor）＋临时禁飞区标记（coupled）
+  #   L3-3_*  危化/医疗警戒链 → pedestrian_* / hazmat_vehicle_* / ambulance_*（该 profile 的 actor 不是无人机）
+  # 规则层面只声明"干预对象 = actor 角色"，具体实体 id 由事件链给出，不在此硬编码。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点：事件链上哪些节点能分叉
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # anchor_event_id 由事件链给出，不在此硬编码。
+  # 本族实测的链节点（84 组的 anchor_event_id）：
+  #   approach_boundary · boundary_conflict · return_safe_airspace
+  #   temporary_nfz_declared · uav_approaches_temporary_nfz · nfz_proximity_alert · temporary_nfz_cleared
+  #   hazmat_ped_a_approach · hazmat_ped_b_approach · hazmat_leak · pedestrian_evacuation
+  #   ambulance_dispatch · uav_external_monitor · hazmat_resolved
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    通用骨架在 rules/intents.yaml；此处只写本族的差异。
+#    operation 只能取 4 个已注册值之一：
+#      reuse_factual_causal_event | suppress_causal_event
+#      delay_causal_event | replace_causal_event
+#
+#    键名是**意图**（factual/suppress/delay/divert/tradeoff），
+#    具体臂名由 rules/intents.yaml 的 arm_id_patterns 给出。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：arm_factual × 84，台账 operation=reuse_factual_causal_event、
+    #       factual_preserved=true、suppressed_event_ids=[]、generated_action_ids=[]
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 一致
+    # 实测：两个臂名都归到本意图，操作完全相同、力度不同 ——
+    #   arm_no_op_suppress × 84：只抑制锚点自己，不注入任何动作。
+    #     台账：operation=suppress_causal_event，suppressed_event_ids 1~12 条，
+    #           suppression_scope=whole_event_bundle_and_branch_ledger，
+    #           无 coupled_hold。
+    #   arm_hold × 84：抑制锚点的因果前驱闭包（2~13 条事件），**并注入**
+    #     fork-tick 的 branch_coupled_hold_<arm> 事件，使被耦合的实体真的停住。
+    #     台账：suppression_basis=authored_trigger_and_causal_predecessor_closure、
+    #           coupled_hold.injected=true、coupled_hold.entity_ids 见 manifest
+    #           的 intervention_entity_ids。
+    #     注入动作的类型实测为 set_runtime_state
+    #       state_patch: {control_state: {hold_active: true}}
+    #     UAV / pedestrian 还会多带一条 set_visual_state（hover / stopped）——
+    #     那是渲染层标注，引擎状态变更由上面那条 set_runtime_state 承担。
+    coupled_hold:
+      required: true                          # arm_hold 的语义要求
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.actor                    # 先写被干预主体，耦合伙伴随后
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+
+  delay:
+    operation: delay_causal_event
+    # 实测：arm_delay_postpone × 54 —— 全部 54 条 delay_ticks 都是 30，
+    #       台账另带 original_anchor_trigger（tick / entity_proximity /
+    #       event_fired_after / composite 四种触发形态）。
+    # 重定时对象是**锚点自己的触发**，不是实体动作：54 条臂里 0 条有
+    #       generated_action_ids；36 条带 delay_mechanism_evidence，其中 24 条
+    #       match_count=0 / unmatched=true（延迟本身不派发动作），另 12 条指向
+    #       事件原样动作（source=authored_source_event_action）。
+    mechanism: none                           # 只重定时触发，不派发新动作
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: rule        # rule | governed_default | scene
+        min: 30
+        max: 30
+        default: 30
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.actor
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: lateral_standoff_path     # 从场景解析"横向让开"的落点
+      physics_intent: leave_restricted_volume
+    # 实测：arm_divert_lateral × 84（每个组都有）＋ arm_avoid_* × 84，共 168 条。
+    #   generated_action_ids 全部是位移动作，事件脚本里的动作 type 实测 100% 为
+    #   move_entity（带 waypoints_enu_m + velocity_mps），**没有一条 set_runtime_state**。
+    # avoid 臂的 6 个变体（各自 6~24 条）：
+    #   arm_avoid_lateral_standoff_buffer_east(24) · arm_avoid_vertical_climb_above_ceiling(18)
+    #   arm_avoid_pedestrian_perimeter_buffer_detour(18) · arm_avoid_climb_above_thermal_plume(18)
+    #   arm_avoid_expedited_priority_corridor(6)
+    # 被移动的实体随链节点变化（实测）：uav / pedestrian / hazmat_vehicle / ambulance /
+    #   临时禁飞区标记 —— 所以 actor 写角色名，不写实体 id。
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.actor
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: bounded_offset_path      # 降速/绕行/外扩停驻，事件仍可能发生
+      physics_intent: bounded_offset_keep_clear
+    # 实测：arm_tradeoff_* × 84，operation=replace_causal_event，
+    #   generated_action_ids 全部为位移动作；事件脚本里的动作 type 实测为
+    #   move_entity（84/84），其中 24 条另带一条 set_visual_state（渲染层标注）。
+    # 5 个变体：arm_tradeoff_hover_outside_declared_boundary(24) ·
+    #   arm_tradeoff_lateral_corridor_offset(18) · arm_tradeoff_emergency_180_turnaround_rth(18) ·
+    #   arm_tradeoff_cautious_slow_egress(18) · arm_tradeoff_staged_perimeter_standoff(6)
+    # 注意：本族的 tradeoff 是**有界位移**，不是状态补丁 —— 与 uav_takeoff 的
+    #   tradeoff 用 set_runtime_state 不同。照抄别的族会写错 generator。
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+    # 实测：fork_tick 与台账 original_anchor_trigger.tick 一致（tick 型触发）；
+    #       entity_proximity / event_fired_after / composite 型触发取首次成立 tick。
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/*/manifest.json
+    # 实测：window_end_tick − fork_tick ∈ [50, 241]，无常数可写。
+    #       396/558 条 manifest 另带 window_end_basis：
+    #         {candidate_end_tick, modeled_motion[], parent_evidence_end_tick}
+    #       且 window_semantics_only=true（窗口只用于语义判定，不是物理终点）。
+    #       162/558 条是早期形态，没有 window_end_basis 字段。
+  history_frames: 8
+  horizon_frames: 5
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+
+  suppress:
+    target_event: absent_in_window
+    # 若 factual 里该事件本就没发生，这组标 not_intervenable，而不是干预成功
+    # arm_no_op_suppress 只抑制锚点、无注入动作 → 必须查
+    #   intervention_must_change_engine_state，否则判 no_effect。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+
+  tradeoff:
+    differs_from_factual: true
+    # tradeoff 允许事件仍然发生，但状态轨迹必须与 factual 可辨
+
+  # 所有 alternative 臂共用的最低要求
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "arm_no_op_suppress 不注入任何动作：若抑制后引擎状态与 factual 无差异，
+       该臂会被判 no_effect（不是失败，是这一臂本来就只做触发层抑制）。"
+    - "162/558 条 manifest 缺 window_end_basis，窗口端点只能退回 design_declared；
+       不得据此推断 window_semantics_only 之外的含义。"
+  physics_exemptions:
+    # 引用 rules/physics.yaml，不是豁免它：
+    - "geometry.nfz_penetration 的 exempt_when 明确点名本族（事件本身即『闯入受限空域』），
+       但 exempt 只针对闯入本身；排障用的 move_entity 仍受 position_continuity /
+       speed_limit / altitude_floor 约束。"
+  not_claimed:
+    - G10 整库发布审计（不在本规则范围内）
+    - "restricted_region 角色（RestrictedAirspaceRegion）不是干预对象，本族没有、也不该有
+       直接移动禁飞区边界的臂。"

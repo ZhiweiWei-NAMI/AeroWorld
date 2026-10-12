@@ -1,0 +1,216 @@
+# ARM 生成规则 —— structure_near_miss
+#
+# 命名约束：本文件名 structure_near_miss.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 写定本规则时的机器实测基线（全部来自当前工作树）：
+#   arms/ 里 event_family_id == structure_near_miss 的臂   108 条 / 18 个 group
+#   design/episodes/*/groups/*/group_manifest.json         18 个族内 group
+#   raw/branch_manifest.json 带 *_authority 字段的臂        0 条 → agent_caused
+#   （本族臂全部来自 L4-2_* 立面巡检剖面，每个 group 只有 6~7 条臂，是四族里最小的）
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: structure_near_miss
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/structure_near_miss
+  rule_id: event_family.structure_near_miss.0
+  mapping_class: A_direct
+  event_type_id: safety.aircraft_structure_near_miss_event
+  trigger:
+    predicate_id: safety.aircraft_near_building_structure
+    direction: rising
+  roles:
+    aircraft:  { kind: trigger_binding, ontology_class: UnmannedAircraft }
+    structure: { kind: trigger_binding, ontology_class: BuildingStructure }
+  support_conditions:
+    - predicate_id: airspace.aircraft_airborne
+      value: "true"
+      at: after
+      hold_samples: 2
+      join_roles: [aircraft]
+  terminal:
+    predicate_id: safety.aircraft_near_building_structure
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [aircraft, structure]
+  # 复查用（同族权威谓词，已在 registry 注册）：emergency.aircraft_in_safe_hold
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 这条族的干预对象是飞行器本身（侧向让开、降速、保持间距），建筑是被接近的静态几何
+  intervention_subject: aircraft
+  # 判定证据（本会话实测）：
+  #   · 108 条臂的 raw/branch_manifest.json 无任何 *_authority 字段
+  #     （全库唯一带该字段的族是 rain_fog_environment，627 条，值为 scene_exogenous_*）
+  #   · 108 条 branch_event_ledger.jsonl 的 status 全为 applied，repairs 全为空，
+  #     没有 design_intent_conflict_* / *_exogenous_* 记录
+  #   · 权威侧的语义是"飞行器执行规避机动"，是智能体响应，不是环境自变
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node
+  exclude_roles: [terminal]
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    臂名映射（rules/intents.yaml 的 arm_id_patterns + 本族实测计数）：
+#      suppress ← arm_no_op_suppress(18) / arm_hold(12)
+#      delay    ← arm_delay_postpone(6)
+#      divert   ← arm_avoid_lateral_standoff_offset(18) / arm_divert_lateral(18)
+#      tradeoff ← arm_tradeoff_reduced_speed_sensor_zoom(18)
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：18 条 factual 台账 operation=reuse_factual_causal_event、factual_preserved=true、
+    #   generated_action_ids=[]
+    #   （例：L4-2_v1/seed00/grp_01_facade_approach/arm_factual 的原文动作是
+    #     move_entity 接近立面，window_end_basis.modeled_motion 记 23.81 m / 38 tick / 7.0 mps）
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger
+    # 实测：30 条 suppress 臂（arm_no_op_hold 18 + arm_hold 12）的台账带
+    #   suppression_scope=whole_event_bundle_and_branch_ledger；
+    #   被抑制 bundle 规模实测 1:18 / 3:6 / 4:6
+    #   （例：grp_01_facade_approach/arm_hold 抑制
+    #     [facade_approach, facade_proximity, facade_recovery, lifecycle_landing_uav_facade_l4_2_v1]，
+    #     而同一组的 arm_no_op_suppress 只抑制锚点 facade_approach 但同样声明 whole bundle 范围）
+    #   arm_hold 变体额外带 coupled_hold（注入耦合保持事件，实测 action_count=2）
+    #   抑制本身不产生 generated_action_ids
+
+  delay:
+    operation: delay_causal_event
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: rule
+        min: 10
+        max: 60
+        default: 30
+    # 实测：只有 6 条 delay 臂（全部 arm_delay_postpone），delay_ticks 全部为 30，
+    #   repairs 为空（原始触发就是 tick 型，直接改写 tick），
+    #   delay_mechanism_evidence 也为空（design 机制步没有匹配到动作）
+    #   注意：组内 delay 臂稀少（18 组里只有 6 组有），生成器不要按"每组必有 delay"假设
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.aircraft
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: lateral_standoff_offset    # 从场景解析"离立面侧向让开"的航路
+      physics_intent: standoff_from_structure
+    # 实测：arm_avoid_lateral_standoff_offset 18/18 与 arm_divert_lateral 18/18
+    #   都物化为 motion_grounded_move_0 / motion_grounded_0_move
+    #   （event_realization.jsonl → action_type=move_entity，actor 全是 UAV）；
+    #   design generator_id：generator::lateral_standoff_offset（action_types=["move_entity"]，
+    #   velocity_mps=5.0，例：[[6289.465,6528.648,31.0],[6292.465,6543.648,18.0]] 侧移 25 m）
+    #   36 条 divert 臂没有任何一条产生 runtime 动作
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.aircraft
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: reduced_speed_conservative_standoff   # 降速 + 保守间距，事件可仍发生
+      physics_intent: reduced_speed_conservative_standoff
+    # 实测：arm_tradeoff_reduced_speed_sensor_zoom 18/18 物化为 motion_grounded_move_0
+    #   （event_realization.jsonl → action_type=move_entity，velocity_mps=3.0，
+    #    design generator_id=generator::reduced_speed_sensor_zoom，
+    #    description="Reduce airspeed to 3 m/s with camera zoom, maintaining conservative standoff"）。
+    # TODO: 需确认 —— design 机制步声明 action_types=["move_entity","set_runtime_state"]，
+    #   但该步没有 state_patch / runtime_state / state_configuration 载荷（本族 design 机制步
+    #   完全没有这三个 key），所以物化台账里只有 move、没有 runtime 动作。
+    #   本段因此只声明 move_entity；若要把"相机变焦/降速状态"写成真实 runtime patch，
+    #   需要先在 design 机制步里补上 state payload。
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick
+  duration_ticks:
+    source: design_declared
+  history_frames: 8
+  horizon_frames: 5
+  # 实测补充：物化窗口会被干预运动延长（window_end_basis.modeled_motion[].required_end_tick），
+  #   本族实测窗口长度 50~195 tick。延长规则由 window_end_basis 承载，本段不重复声明。
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— rubric，不是结论
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测：18 条 factual 臂里 12 条窗口内 observed、6 条 not_observed。
+    #   not_observed 的组必须判 not_intervenable。
+    #   例：L4-2_v1/seed00/grp_01_facade_approach/arm_factual 首次为真 tick=270、窗口内 6/11 行为真。
+
+  suppress:
+    target_event: absent_in_window
+    # 实测：arm_no_op_hold 18/18 not_observed；arm_hold 12 条里 6 条 observed、6 条 not_observed
+    #   （hold 变体的耦合保持会让部分组重新触发，不能默认判成功）
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+    # 实测：本族没有"factual 与 delay 都观测到首次为真"的可配对组（0 组），
+    #   所以这条期望在本族暂无实测支持，只能按 intents.yaml 的通用骨架声明。
+    #   判定网格为 5 tick（capture_grid_step=5）。
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 实测：arm_avoid_lateral_standoff_offset 18/18 not_observed；
+    #   但 arm_divert_lateral 只有 3/18 not_observed、15/18 仍 observed —— 同为 divert 意图，
+    #   两种臂名在本族的结果差异很大，判定必须逐臂做，不许按意图一刀切。
+
+  tradeoff:
+    differs_from_factual: true
+    # 实测：arm_tradeoff_reduced_speed_sensor_zoom 18/18 not_observed，
+    #   但轨迹差异仍需与 factual 对照（见 rules/prompts/arm_audit.md ②）
+
+  common:
+    intervention_must_change_engine_state: true
+    physically_valid: true
+    delta_rows_after_fork_only: true
+    # 结构穿透由 rules/physics.yaml 的 geometry.structure_penetration 独立校验，
+    # 本规则不能豁免
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 诚实边界
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "组内臂不齐：18 个 group 里只有 6 组有 delay 臂、12 组有 arm_hold，
+       生成器不得按'5 类臂齐全'假设本族每个 group"
+    - "tradeoff 的 design 机制步声明了 set_runtime_state 但没有 state payload，
+       物化台账只有 move_entity；规则按实际物化结果声明"
+  not_claimed:
+    - G10 整库发布审计（不在本规则范围内）

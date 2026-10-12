@@ -3,9 +3,852 @@
   "scenario_id": "L1-3_v1",
   "description": "Noncooperative intruder in operational airspace",
   "parameters": {
+    "allow_building_impact": false,
     "approach_tick": 220,
+    "capture_boundary": {
+      "boundary_id": "nfz_l1_3_v1",
+      "center_enu_m": [
+        7460.04,
+        6374.774,
+        28
+      ],
+      "inspect_entity_role": "U_inspect",
+      "inspect_fov_coverage_required": true,
+      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "polygon_enu_m": [
+        [
+          7446.04,
+          6364.774
+        ],
+        [
+          7474.04,
+          6364.774
+        ],
+        [
+          7474.04,
+          6384.774
+        ],
+        [
+          7446.04,
+          6384.774
+        ]
+      ],
+      "source": "scene_entity",
+      "source_entity_id": "nfz_l1_3_v1",
+      "uav_boundary_crossing_required": true
+    },
     "conflict_distance_m": 14.0,
-    "resolution_tick": 420
+    "deterministic_sumo_traffic_template": {
+      "min_vehicle_count": 8,
+      "route_source": "sumo_explicit_vehicle_plan",
+      "seed_profiles": {
+        "seed00": {
+          "direction_bias": "inbound_to_roi",
+          "direction_weights": {
+            "cross": 0.1,
+            "inbound": 0.7,
+            "outbound": 0.2
+          },
+          "name": "morning_peak"
+        },
+        "seed01": {
+          "direction_bias": "balanced_cross_traffic",
+          "direction_weights": {
+            "cross": 0.33,
+            "inbound": 0.34,
+            "outbound": 0.33
+          },
+          "name": "midday"
+        },
+        "seed02": {
+          "direction_bias": "outbound_from_roi",
+          "direction_weights": {
+            "cross": 0.1,
+            "inbound": 0.2,
+            "outbound": 0.7
+          },
+          "name": "evening_peak"
+        }
+      },
+      "semantic_vehicle_roles": [
+        "deterministic_background_vehicle"
+      ],
+      "source_policy": "explicit_episode_plan_only_v1"
+    },
+    "resolution_tick": 420,
+    "semantic_event_contract": {
+      "background_semantics": {
+        "pedestrian_role": "bystanders not reacting unless risk descends",
+        "policy": "semantic_context_not_decoration",
+        "vehicle_role": "uninterrupted flow under conflict"
+      },
+      "capture_boundary": {
+        "anchor_entity_roles": [
+          "capture_boundary",
+          "hazard_zone",
+          "airspace_constraint"
+        ],
+        "boundary_id": "nfz_l1_3_v1",
+        "boundary_role": "capture_boundary",
+        "center_enu_m": [
+          7460.04,
+          6374.774,
+          28
+        ],
+        "geometry_source": "event_entity",
+        "inspect_entity_role": "U_inspect",
+        "inspect_fov_coverage_required": true,
+        "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+        "polygon_enu_m": [
+          [
+            7446.04,
+            6364.774
+          ],
+          [
+            7474.04,
+            6364.774
+          ],
+          [
+            7474.04,
+            6384.774
+          ],
+          [
+            7446.04,
+            6384.774
+          ]
+        ],
+        "source": "scene_entity",
+        "source_entity_id": "nfz_l1_3_v1",
+        "uav_boundary_crossing_required": true,
+        "z_policy": "ground_to_event_altitude"
+      },
+      "determinism": {
+        "compatibility_paths": "forbidden",
+        "fallback": "forbidden",
+        "guessing": "forbidden"
+      },
+      "exact_counts": {
+        "facility": 3,
+        "logical": 10,
+        "pedestrian": 2,
+        "uav": 3,
+        "vehicle": 2
+      },
+      "inspect": {
+        "altitude_code": "I28",
+        "altitude_m": 28.0,
+        "corridor_policy": "inspect_capture_corridor",
+        "fov_coverage_required": true,
+        "min_path_length_m": 80.0,
+        "motion_policy": "fixed_altitude_closed_loop",
+        "required_presence": "episode_full_duration",
+        "role": "U_inspect",
+        "sensor_profile_required": true
+      },
+      "inspect_fov_coverage_required": true,
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": [
+          "conflict_point"
+        ]
+      },
+      "required_event": "intruder conflict > deconflict > dual landing",
+      "required_intents": [
+        "intruder_conflict",
+        "avoid_or_rth",
+        "landing_or_terminal_resolution"
+      ],
+      "scenario_id": "L1-3_v1",
+      "schema": "low_altitude_event_chain_contract_v1",
+      "uav_boundary_crossing_required": true,
+      "weather": "clear"
+    },
+    "spatial_grid_assignment": {
+      "accident_class": "",
+      "actual_capture_center_enu_m": [
+        7453.727,
+        6373.024,
+        29.0
+      ],
+      "applied_world_origin_enu_m": [
+        7370.54,
+        6336.774,
+        0.0
+      ],
+      "event_space_class": "nontraffic_main_road_grid",
+      "exclusion_radius_m": 180.0,
+      "expanded_capture_center_enu_m": [
+        7460.04,
+        6374.774,
+        28.0
+      ],
+      "grid_cell": {
+        "cell_id": "grid_006_001",
+        "center_enu_m": [
+          7479.117416,
+          6381.0082,
+          0.0
+        ],
+        "edge_ids": [
+          "cg_edge_156_f_pl1",
+          "cg_edge_156_r_pl0",
+          "cg_edge_186_f_pl1",
+          "cg_edge_186_r_pl0",
+          "cg_edge_22_f_pl0",
+          "cg_edge_22_f_pl1",
+          "cg_edge_277_f_pl0",
+          "cg_edge_294_f_pl0",
+          "cg_edge_300_f_pl0",
+          "cg_edge_342_f_pl0",
+          "cg_edge_364_f_pl0",
+          "cg_edge_447_f_pl1",
+          "cg_edge_447_r_pl0",
+          "cg_edge_491_f_pl0",
+          "cg_edge_534_f_pl1",
+          "cg_edge_577_f_pl0",
+          "cg_edge_772_f_pl0",
+          "cg_edge_772_f_pl1"
+        ],
+        "incident_count": 0,
+        "main_edge_count": 18,
+        "max_speed_mps": 11.11,
+        "representative_enu_m": [
+          7454.453,
+          6370.3655,
+          0.0
+        ],
+        "total_main_edge_length_m": 853.139407
+      },
+      "policy": "city_grid_main_road_event_coverage_v1",
+      "provisional_capture_center_enu_m": [
+        7083.913,
+        6233.591,
+        36.333
+      ],
+      "scenario_id": "L1-3_v1",
+      "source": "main_road_grid.nonincident_cell",
+      "target_center_enu_m": [
+        7454.453,
+        6370.3655,
+        0.0
+      ],
+      "target_error_m": 2.755848,
+      "traffic_incident_id": ""
+    },
+    "target_facility_count": 3,
+    "target_logical_count": 10,
+    "target_pedestrian_count": 2,
+    "target_uav_count": 3,
+    "target_vehicle_count": 2,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "intruder_l1_3_v1": 28.0,
+      "u_inspect_l1_3_v1": 28.0,
+      "uav_l1_3_v1_primary": 30.0
+    },
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "uav_corridor_segment_count": 33,
+    "uav_corridor_segment_details": [
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "segment_end_enu_m": [
+          7453.9,
+          6346.982,
+          24.0
+        ],
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          7453.9,
+          6346.982,
+          3.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "segment_end_enu_m": [
+          7434.04,
+          6360.774,
+          30.0
+        ],
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7453.9,
+          6346.982,
+          24.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "segment_end_enu_m": [
+          7449.04,
+          6368.774,
+          30.0
+        ],
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          7434.04,
+          6360.774,
+          30.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "segment_end_enu_m": [
+          7453.04,
+          6370.774,
+          30.0
+        ],
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7449.04,
+          6368.774,
+          30.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "segment_end_enu_m": [
+          7447.04,
+          6374.774,
+          30.0
+        ],
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7453.04,
+          6370.774,
+          30.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "segment_end_enu_m": [
+          7429.04,
+          6385.774,
+          30.0
+        ],
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7447.04,
+          6374.774,
+          30.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "segment_end_enu_m": [
+          7429.04,
+          6385.774,
+          36.0
+        ],
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7429.04,
+          6385.774,
+          30.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "segment_end_enu_m": [
+          7453.9,
+          6346.982,
+          36.0
+        ],
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7429.04,
+          6385.774,
+          36.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "segment_end_enu_m": [
+          7453.9,
+          6346.982,
+          3.0
+        ],
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7453.9,
+          6346.982,
+          36.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7470.04,
+          6350.274,
+          24.0
+        ],
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          7470.04,
+          6350.274,
+          3.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7460.04,
+          6357.974,
+          29.0
+        ],
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7470.04,
+          6350.274,
+          24.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7460.04,
+          6360.974,
+          29.0
+        ],
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          7460.04,
+          6357.974,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7460.04,
+          6368.774,
+          29.0
+        ],
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7460.04,
+          6360.974,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7454.04,
+          6368.774,
+          29.0
+        ],
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7460.04,
+          6368.774,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7454.04,
+          6374.774,
+          29.0
+        ],
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7454.04,
+          6368.774,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7447.04,
+          6376.774,
+          29.0
+        ],
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7454.04,
+          6374.774,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7451.54,
+          6380.774,
+          29.0
+        ],
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7447.04,
+          6376.774,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7446.04,
+          6376.774,
+          29.0
+        ],
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7451.54,
+          6380.774,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7460.04,
+          6386.774,
+          29.0
+        ],
+        "segment_index": 9,
+        "segment_start_enu_m": [
+          7446.04,
+          6376.774,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7488.54,
+          6386.774,
+          29.0
+        ],
+        "segment_index": 10,
+        "segment_start_enu_m": [
+          7460.04,
+          6386.774,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7488.54,
+          6386.774,
+          36.0
+        ],
+        "segment_index": 11,
+        "segment_start_enu_m": [
+          7488.54,
+          6386.774,
+          29.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7488.54,
+          6350.274,
+          36.0
+        ],
+        "segment_index": 12,
+        "segment_start_enu_m": [
+          7488.54,
+          6386.774,
+          36.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7470.04,
+          6350.274,
+          36.0
+        ],
+        "segment_index": 13,
+        "segment_start_enu_m": [
+          7488.54,
+          6350.274,
+          36.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "segment_end_enu_m": [
+          7470.04,
+          6350.274,
+          3.0
+        ],
+        "segment_index": 14,
+        "segment_start_enu_m": [
+          7470.04,
+          6350.274,
+          36.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "segment_end_enu_m": [
+          7450.15,
+          6367.71,
+          28.0
+        ],
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          7460.04,
+          6374.774,
+          28.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "segment_end_enu_m": [
+          7460.04,
+          6369.825,
+          28.0
+        ],
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7450.15,
+          6367.71,
+          28.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "segment_end_enu_m": [
+          7469.93,
+          6367.71,
+          28.0
+        ],
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          7460.04,
+          6369.825,
+          28.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "segment_end_enu_m": [
+          7468.989,
+          6374.774,
+          28.0
+        ],
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7469.93,
+          6367.71,
+          28.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "segment_end_enu_m": [
+          7469.93,
+          6381.838,
+          28.0
+        ],
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7468.989,
+          6374.774,
+          28.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "segment_end_enu_m": [
+          7460.04,
+          6379.723,
+          28.0
+        ],
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7469.93,
+          6381.838,
+          28.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "segment_end_enu_m": [
+          7450.15,
+          6381.838,
+          28.0
+        ],
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7460.04,
+          6379.723,
+          28.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "segment_end_enu_m": [
+          7451.091,
+          6374.774,
+          28.0
+        ],
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7450.15,
+          6381.838,
+          28.0
+        ]
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "segment_end_enu_m": [
+          7460.04,
+          6374.774,
+          28.0
+        ],
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7451.091,
+          6374.774,
+          28.0
+        ]
+      }
+    ],
+    "uav_corridor_segments": [
+      {
+        "assigned_altitude_m": 30.0,
+        "entity_id": "uav_l1_3_v1_primary",
+        "point_count": 10,
+        "used_lateral_bypass": false
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "intruder_l1_3_v1",
+        "point_count": 16,
+        "used_lateral_bypass": false
+      },
+      {
+        "assigned_altitude_m": 28.0,
+        "entity_id": "u_inspect_l1_3_v1",
+        "point_count": 11,
+        "used_lateral_bypass": false
+      }
+    ],
+    "uav_lateral_bypass_used": {
+      "intruder_l1_3_v1": false,
+      "u_inspect_l1_3_v1": false,
+      "uav_l1_3_v1_primary": false
+    },
+    "utm_service_plan": {
+      "global_uav_flow_policy": {
+        "authorization_status": "active",
+        "flight_plan_approval_status": "approved",
+        "intent_end_tick": 900,
+        "intent_start_tick": 0,
+        "source_contract": "uav_global_flow"
+      },
+      "model_id": "aeroworld_deterministic_utm_service",
+      "model_version": "1.0.0",
+      "schema_name": "utm_service_plan",
+      "schema_version": "1.0.0",
+      "uav_plans": [
+        {
+          "authorization_schedule": [
+            {
+              "end_tick": 900,
+              "start_tick": 0,
+              "status": "active"
+            }
+          ],
+          "corridor_id": "utm_corridor:L1-3_v1:uav_00",
+          "flight_plan_schedule": [
+            {
+              "approval_status": "approved",
+              "end_tick": 900,
+              "start_tick": 0
+            }
+          ],
+          "intent_end_tick": 900,
+          "intent_start_tick": 0,
+          "uav_id": "intruder_l1_3_v1"
+        },
+        {
+          "authorization_schedule": [
+            {
+              "end_tick": 900,
+              "start_tick": 0,
+              "status": "active"
+            }
+          ],
+          "corridor_id": "utm_corridor:L1-3_v1:uav_01",
+          "flight_plan_schedule": [
+            {
+              "approval_status": "approved",
+              "end_tick": 900,
+              "start_tick": 0
+            }
+          ],
+          "intent_end_tick": 900,
+          "intent_start_tick": 0,
+          "uav_id": "u_inspect_l1_3_v1"
+        },
+        {
+          "authorization_schedule": [
+            {
+              "end_tick": 900,
+              "start_tick": 0,
+              "status": "active"
+            }
+          ],
+          "corridor_id": "utm_corridor:L1-3_v1:uav_02",
+          "flight_plan_schedule": [
+            {
+              "approval_status": "approved",
+              "end_tick": 900,
+              "start_tick": 0
+            }
+          ],
+          "intent_end_tick": 900,
+          "intent_start_tick": 0,
+          "uav_id": "uav_l1_3_v1_primary"
+        }
+      ]
+    }
   },
   "triggers": [
     {
@@ -27,11 +870,10 @@
       "trigger_id": "trig_boundary_conflict",
       "type": "entity_proximity",
       "entity_a": "intruder_l1_3_v1",
-      "entity_b": "nfz_l1_3_v1",
-      "distance_m": 14.0,
+      "entity_b": "uav_l1_3_v1_primary",
+      "distance_m": 15.0,
       "operator": "lte",
-      "metric": "3d",
-      "min_true_ticks": 3
+      "metric": "3d"
     },
     {
       "trigger_id": "trig_after_boundary_conflict_delay_31",
@@ -62,26 +904,58 @@
         {
           "type": "move_entity",
           "action_id": "move_uav_l1_3_v1_primary_takeoff_entry",
+          "activity_type": "takeoff",
           "entity_id": "uav_l1_3_v1_primary",
+          "post_activity_type": "cruise",
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7453.9,
+                6346.982,
+                3.0
+              ],
+              [
+                7453.9,
+                6346.982,
+                24.0
+              ],
+              [
+                7434.04,
+                6360.774,
+                30
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "low_altitude_waypoints_preserved_and_building_clear"
+          },
+          "velocity_mps": 5.0,
           "waypoints_enu_m": [
             [
-              7068.668,
-              6208.316,
+              7453.9,
+              6346.982,
               3.0
             ],
             [
-              7068.668,
-              6208.316,
+              7453.9,
+              6346.982,
               24.0
             ],
             [
-              7063.5,
-              6224.0,
-              30
+              7434.04,
+              6360.774,
+              30.0
             ]
-          ],
-          "velocity_mps": 5.0
+          ]
         }
+      ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "L1-3_v1.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L1-3_v1_lifecycle_takeoff_uav_l1_3_v1_primary",
@@ -92,6 +966,13 @@
         "target_ids": [
           "uav_l1_3_v1_primary",
           "pad_home_uav_l1_3_v1_primary"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "L1-3_v1.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -104,26 +985,58 @@
         {
           "type": "move_entity",
           "action_id": "move_intruder_l1_3_v1_takeoff_entry",
+          "activity_type": "takeoff",
           "entity_id": "intruder_l1_3_v1",
+          "post_activity_type": "cruise",
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 28.0,
+            "original_waypoints_enu_m": [
+              [
+                7470.04,
+                6350.274,
+                3.0
+              ],
+              [
+                7470.04,
+                6350.274,
+                24.0
+              ],
+              [
+                7460.04,
+                6357.974,
+                29.0
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "low_altitude_waypoints_preserved_and_building_clear"
+          },
+          "velocity_mps": 5.0,
           "waypoints_enu_m": [
             [
-              7103.342,
-              6231.193,
+              7470.04,
+              6350.274,
               3.0
             ],
             [
-              7103.342,
-              6231.193,
+              7470.04,
+              6350.274,
               24.0
             ],
             [
-              7101.5,
-              6230.0,
-              29
+              7460.04,
+              6357.974,
+              29.0
             ]
-          ],
-          "velocity_mps": 5.0
+          ]
         }
+      ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "L1-3_v1.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "landing_pad",
+        "semantic_context"
       ],
       "log_event": {
         "topic": "evt_L1-3_v1_lifecycle_takeoff_intruder_l1_3_v1",
@@ -134,6 +1047,14 @@
         "target_ids": [
           "intruder_l1_3_v1",
           "pad_home_intruder_l1_3_v1"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "L1-3_v1.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "landing_pad",
+          "semantic_context"
         ]
       }
     },
@@ -145,45 +1066,110 @@
       "actions": [
         {
           "type": "move_entity",
-          "action_id": "move_boundary_approach",
+          "action_id": "move_boundary_near_miss_approach",
           "entity_id": "uav_l1_3_v1_primary",
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7434.04,
+                6360.774,
+                30
+              ],
+              [
+                7449.04,
+                6368.774,
+                30
+              ],
+              [
+                7453.04,
+                6370.774,
+                30
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "low_altitude_waypoints_preserved_and_building_clear"
+          },
+          "velocity_mps": 8.0,
           "waypoints_enu_m": [
             [
-              7063.5,
-              6224.0,
-              30
+              7434.04,
+              6360.774,
+              30.0
             ],
             [
-              7078.5,
-              6232.0,
-              30
+              7449.04,
+              6368.774,
+              30.0
             ],
             [
-              7082.5,
-              6234.0,
-              30
+              7453.04,
+              6370.774,
+              30.0
             ]
-          ],
-          "velocity_mps": 8.0
+          ]
         },
         {
           "type": "move_entity",
-          "action_id": "move_intruder_converge",
+          "action_id": "move_intruder_near_miss_converge",
           "entity_id": "intruder_l1_3_v1",
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 28.0,
+            "original_waypoints_enu_m": [
+              [
+                7460.04,
+                6357.974,
+                29.0
+              ],
+              [
+                7460.04,
+                6360.974,
+                29.0
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "low_altitude_waypoints_preserved_and_building_clear"
+          },
+          "velocity_mps": 10.0,
           "waypoints_enu_m": [
             [
-              7101.5,
-              6230.0,
-              29
+              7460.04,
+              6357.974,
+              29.0
             ],
             [
-              7092.5,
-              6236.0,
-              29
+              7460.04,
+              6360.974,
+              29.0
             ]
-          ],
-          "velocity_mps": 10.0
+          ]
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l1_3_v1_approach_boundary_00",
+          "delay_ticks": 0,
+          "entity_id": "uav_l1_3_v1_primary",
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick",
+          "state_patch": {
+            "sensor_state": {
+              "intruder_detected": true
+            }
+          }
         }
+      ],
+      "intent": "airspace_boundary_conflict",
+      "intent_stage": "01.airspace_boundary_conflict",
+      "causal_chain_id": "L1-3_v1.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_predecessor_event_ids": [
+        "lifecycle_takeoff_uav_l1_3_v1_primary",
+        "lifecycle_takeoff_intruder_l1_3_v1"
+      ],
+      "causal_predecessor_mode": "all_of",
+      "target_roles": [
+        "capture_boundary",
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L1-3_v1_approach_boundary",
@@ -194,6 +1180,14 @@
         "target_ids": [
           "uav_l1_3_v1_primary",
           "nfz_l1_3_v1"
+        ],
+        "intent": "airspace_boundary_conflict",
+        "intent_stage": "01.airspace_boundary_conflict",
+        "causal_chain_id": "L1-3_v1.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "capture_boundary",
+          "mission_uav"
         ]
       }
     },
@@ -207,39 +1201,156 @@
           "type": "move_entity",
           "action_id": "move_boundary_avoidance",
           "entity_id": "uav_l1_3_v1_primary",
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7453.04,
+                6370.774,
+                30
+              ],
+              [
+                7447.04,
+                6374.774,
+                34
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "waypoints_repaired_for_building_clearance"
+          },
+          "velocity_mps": 3.0,
           "waypoints_enu_m": [
             [
-              7082.5,
-              6234.0,
-              30
+              7453.04,
+              6370.774,
+              30.0
             ],
             [
-              7076.5,
-              6238.0,
-              34
+              7447.04,
+              6374.774,
+              30.0
             ]
-          ],
-          "velocity_mps": 3.0
+          ]
         },
         {
-          "type": "set_visual_state",
-          "action_id": "hover_boundary_hold",
+          "type": "move_entity",
+          "action_id": "move_intruder_l1_3_v1_conflict_transit",
+          "entity_id": "intruder_l1_3_v1",
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 28.0,
+            "original_waypoints_enu_m": [
+              [
+                7460.04,
+                6360.974,
+                29.0
+              ],
+              [
+                7460.04,
+                6368.774,
+                29.0
+              ],
+              [
+                7454.04,
+                6368.774,
+                29.0
+              ],
+              [
+                7454.04,
+                6374.774,
+                29.0
+              ],
+              [
+                7447.04,
+                6376.774,
+                29.0
+              ],
+              [
+                7451.54,
+                6380.774,
+                29.0
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "low_altitude_waypoints_preserved_and_building_clear"
+          },
+          "velocity_mps": 10.0,
+          "waypoints_enu_m": [
+            [
+              7460.04,
+              6360.974,
+              29.0
+            ],
+            [
+              7460.04,
+              6368.774,
+              29.0
+            ],
+            [
+              7454.04,
+              6368.774,
+              29.0
+            ],
+            [
+              7454.04,
+              6374.774,
+              29.0
+            ],
+            [
+              7447.04,
+              6376.774,
+              29.0
+            ],
+            [
+              7451.54,
+              6380.774,
+              29.0
+            ]
+          ]
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l1_3_v1_boundary_conflict_00",
+          "delay_ticks": 0,
           "entity_id": "uav_l1_3_v1_primary",
-          "visual_state": {
-            "mode": "hover"
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick",
+          "state_patch": {
+            "control_state": {
+              "deconfliction_active": true,
+              "evasion_active": true
+            }
           }
         }
+      ],
+      "require_conditions": [
+        "trig_approach_boundary"
+      ],
+      "intent": "intruder_conflict",
+      "intent_stage": "02.airspace_boundary_conflict",
+      "causal_chain_id": "L1-3_v1.semantic_event_chain",
+      "causal_predecessor_intent": "airspace_boundary_conflict",
+      "target_roles": [
+        "capture_boundary",
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L1-3_v1_boundary_conflict",
         "category": "airspace",
-        "title": "Noncooperative intruder enters constrained airspace",
+        "title": "Intruder near NFZ closes within 15 m of mission UAV",
         "severity": "warning",
         "overlay": "airspace",
         "target_ids": [
           "uav_l1_3_v1_primary",
           "nfz_l1_3_v1",
           "intruder_l1_3_v1"
+        ],
+        "intent": "intruder_conflict",
+        "intent_stage": "02.airspace_boundary_conflict",
+        "causal_chain_id": "L1-3_v1.semantic_event_chain",
+        "causal_predecessor_intent": "airspace_boundary_conflict",
+        "target_roles": [
+          "capture_boundary",
+          "mission_uav"
         ]
       }
     },
@@ -253,30 +1364,135 @@
           "type": "move_entity",
           "action_id": "move_boundary_return_safe",
           "entity_id": "uav_l1_3_v1_primary",
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7447.04,
+                6374.774,
+                34
+              ],
+              [
+                7429.04,
+                6385.774,
+                34
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "waypoints_repaired_for_building_clearance"
+          },
+          "velocity_mps": 9.0,
           "waypoints_enu_m": [
             [
-              7076.5,
-              6238.0,
-              34
+              7447.04,
+              6374.774,
+              30.0
             ],
             [
-              7058.5,
-              6249.0,
-              34
+              7429.04,
+              6385.774,
+              30.0
             ]
-          ],
-          "velocity_mps": 9.0
+          ]
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_intruder_l1_3_v1_return_safe",
+          "entity_id": "intruder_l1_3_v1",
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 28.0,
+            "original_waypoints_enu_m": [
+              [
+                7451.54,
+                6380.774,
+                29.0
+              ],
+              [
+                7446.04,
+                6376.774,
+                29.0
+              ],
+              [
+                7460.04,
+                6386.774,
+                29.0
+              ],
+              [
+                7488.54,
+                6386.774,
+                29.0
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "low_altitude_waypoints_preserved_and_building_clear"
+          },
+          "velocity_mps": 10.0,
+          "waypoints_enu_m": [
+            [
+              7451.54,
+              6380.774,
+              29.0
+            ],
+            [
+              7446.04,
+              6376.774,
+              29.0
+            ],
+            [
+              7460.04,
+              6386.774,
+              29.0
+            ],
+            [
+              7488.54,
+              6386.774,
+              29.0
+            ]
+          ]
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l1_3_v1_return_safe_airspace_00",
+          "delay_ticks": 0,
+          "entity_id": "uav_l1_3_v1_primary",
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick",
+          "state_patch": {
+            "control_state": {
+              "deconfliction_active": false,
+              "evasion_active": false
+            },
+            "sensor_state": {
+              "intruder_detected": false
+            }
+          }
         }
+      ],
+      "intent": "avoid_or_rth",
+      "intent_stage": "03.avoid_or_rth",
+      "causal_chain_id": "L1-3_v1.semantic_event_chain",
+      "causal_predecessor_intent": "intruder_conflict",
+      "target_roles": [
+        "capture_boundary",
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L1-3_v1_return_safe_airspace",
         "category": "uav_mission",
-        "title": "UAV returns to safe airspace",
+        "title": "Intruder initiates return-to-safe-airspace maneuver",
         "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
           "uav_l1_3_v1_primary",
           "nfz_l1_3_v1"
+        ],
+        "intent": "avoid_or_rth",
+        "intent_stage": "03.avoid_or_rth",
+        "causal_chain_id": "L1-3_v1.semantic_event_chain",
+        "causal_predecessor_intent": "intruder_conflict",
+        "target_roles": [
+          "capture_boundary",
+          "mission_uav"
         ]
       }
     },
@@ -289,26 +1505,84 @@
         {
           "type": "move_entity",
           "action_id": "move_uav_l1_3_v1_primary_landing_return",
+          "activity_type": "return_to_pad",
           "entity_id": "uav_l1_3_v1_primary",
+          "post_activity_type": "landed",
+          "terminal_feasibility": {
+            "available_ticks": 535,
+            "dispatch_upper_bound_tick": 355,
+            "home_pose_origin_z_m": 3.0,
+            "landing_reference_enu_m": [
+              7453.9,
+              6346.982,
+              3.0
+            ],
+            "max_speed_mps": 8.0,
+            "model": "constant_speed_path_with_explicit_landing_reference_v2",
+            "required_speed_mps": 1.590173,
+            "route_length_m": 85.074276,
+            "touchdown_altitude_tolerance_m": 1.5,
+            "touchdown_dwell_ticks": 5
+          },
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                7429.04,
+                6385.774,
+                34.0
+              ],
+              [
+                7429.04,
+                6385.774,
+                36.0
+              ],
+              [
+                7453.9,
+                6346.982,
+                36.0
+              ],
+              [
+                7453.9,
+                6346.982,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "low_altitude_waypoints_preserved_and_building_clear"
+          },
+          "velocity_mps": 4.0,
           "waypoints_enu_m": [
             [
-              7058.5,
-              6249.0,
-              34.0
+              7429.04,
+              6385.774,
+              30.0
             ],
             [
-              7068.668,
-              6208.316,
-              22.0
+              7429.04,
+              6385.774,
+              36.0
             ],
             [
-              7068.668,
-              6208.316,
+              7453.9,
+              6346.982,
+              36.0
+            ],
+            [
+              7453.9,
+              6346.982,
               3.0
             ]
-          ],
-          "velocity_mps": 4.0
+          ]
         }
+      ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "L1-3_v1.semantic_event_chain",
+      "causal_predecessor_intent": "avoid_or_rth",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L1-3_v1_lifecycle_landing_uav_l1_3_v1_primary",
@@ -319,6 +1593,14 @@
         "target_ids": [
           "uav_l1_3_v1_primary",
           "pad_home_uav_l1_3_v1_primary"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "L1-3_v1.semantic_event_chain",
+        "causal_predecessor_intent": "avoid_or_rth",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     },
@@ -331,26 +1613,94 @@
         {
           "type": "move_entity",
           "action_id": "move_intruder_l1_3_v1_landing_return",
+          "activity_type": "return_to_pad",
           "entity_id": "intruder_l1_3_v1",
+          "post_activity_type": "landed",
+          "terminal_feasibility": {
+            "available_ticks": 525,
+            "dispatch_upper_bound_tick": 365,
+            "home_pose_origin_z_m": 3.0,
+            "landing_reference_enu_m": [
+              7470.04,
+              6350.274,
+              3.0
+            ],
+            "max_speed_mps": 8.0,
+            "model": "constant_speed_path_with_explicit_landing_reference_v2",
+            "required_speed_mps": 1.809524,
+            "route_length_m": 95.0,
+            "touchdown_altitude_tolerance_m": 1.5,
+            "touchdown_dwell_ticks": 5
+          },
+          "uav_corridor_validation": {
+            "assigned_altitude_m": 28.0,
+            "original_waypoints_enu_m": [
+              [
+                7488.54,
+                6386.774,
+                29.0
+              ],
+              [
+                7488.54,
+                6386.774,
+                36.0
+              ],
+              [
+                7488.54,
+                6350.274,
+                36.0
+              ],
+              [
+                7470.04,
+                6350.274,
+                36.0
+              ],
+              [
+                7470.04,
+                6350.274,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity",
+            "status": "low_altitude_waypoints_preserved_and_building_clear"
+          },
+          "velocity_mps": 4.0,
           "waypoints_enu_m": [
             [
-              7092.5,
-              6236.0,
+              7488.54,
+              6386.774,
               29.0
             ],
             [
-              7103.342,
-              6231.193,
-              22.0
+              7488.54,
+              6386.774,
+              36.0
             ],
             [
-              7103.342,
-              6231.193,
+              7488.54,
+              6350.274,
+              36.0
+            ],
+            [
+              7470.04,
+              6350.274,
+              36.0
+            ],
+            [
+              7470.04,
+              6350.274,
               3.0
             ]
-          ],
-          "velocity_mps": 4.0
+          ]
         }
+      ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "L1-3_v1.semantic_event_chain",
+      "causal_predecessor_intent": "avoid_or_rth",
+      "target_roles": [
+        "landing_pad",
+        "semantic_context"
       ],
       "log_event": {
         "topic": "evt_L1-3_v1_lifecycle_landing_intruder_l1_3_v1",
@@ -361,6 +1711,14 @@
         "target_ids": [
           "intruder_l1_3_v1",
           "pad_home_intruder_l1_3_v1"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "L1-3_v1.semantic_event_chain",
+        "causal_predecessor_intent": "avoid_or_rth",
+        "target_roles": [
+          "landing_pad",
+          "semantic_context"
         ]
       }
     }

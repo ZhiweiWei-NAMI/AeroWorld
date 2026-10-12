@@ -10,6 +10,8 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from Dataset.semantic_truth.provenance import open_artifact_text
+
 EPISODE = 'L6-5_v1__seed00'
 TARGETS = {'uav_digital_l6_5_v1', 'gcs_anchor_l6_5_v1'}
 PROJECT = Path(__file__).resolve().parents[3]
@@ -20,7 +22,7 @@ def read(path):
 
 
 def rows(path):
-    with path.open() as handle:
+    with open_artifact_text(path) as handle:
         for line in handle:
             if line.strip():
                 yield json.loads(line)

@@ -1,0 +1,499 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aeroworld:p01:ns3:v1:network_state",
+  "title": "network_state",
+  "type": "object",
+  "properties": {
+    "episode_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producer_version": {
+      "const": "p01.ns3.v1"
+    },
+    "source_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "config_ref": {
+      "const": "run_config.json"
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "life_epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "units": {
+      "type": "object",
+      "required": [
+        "time"
+      ],
+      "properties": {
+        "time": {
+          "const": "ns"
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "dimensions": {
+      "type": "object",
+      "required": [
+        "time"
+      ],
+      "properties": {
+        "time": {
+          "const": "time"
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "time_support": {
+      "type": "object",
+      "required": [
+        "start_ns",
+        "end_ns",
+        "end_exclusive"
+      ],
+      "properties": {
+        "start_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_exclusive": {
+          "type": "boolean"
+        },
+        "anchor": {
+          "const": "packet_expiry_ns"
+        },
+        "ttl_ns": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "link_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "flow_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "src_node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dst_node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "receiver_owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "receiver_life_epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "time_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mature_accepted_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "on_time_delivered_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ttl_loss_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "latency_mean_ms": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "reason",
+        "unit",
+        "dimension"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "KNOWN",
+            "UNKNOWN"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "KNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "packet_loss_ratio": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "reason",
+        "unit",
+        "dimension"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "KNOWN",
+            "UNKNOWN"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "KNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "mac_queue_depth": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "reason",
+        "unit",
+        "dimension"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "KNOWN",
+            "UNKNOWN"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "KNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "mac_queue_bytes": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "reason",
+        "unit",
+        "dimension"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "KNOWN",
+            "UNKNOWN"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "KNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "number"
+              },
+              "reason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "mac_queue_observed_until_ns": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "mac_queue_source_ref": {
+      "enum": [
+        "network_queue_samples.jsonl",
+        "network_queue_samples.jsonl.gz"
+      ]
+    }
+  },
+  "required": [
+    "episode_id",
+    "producer_version",
+    "source_ref",
+    "config_ref",
+    "owner",
+    "life_epoch",
+    "status",
+    "reason",
+    "units",
+    "dimensions",
+    "time_support",
+    "link_id",
+    "flow_id",
+    "src_node_id",
+    "dst_node_id",
+    "receiver_owner",
+    "receiver_life_epoch",
+    "time_ns",
+    "mature_accepted_count",
+    "on_time_delivered_count",
+    "ttl_loss_count",
+    "latency_mean_ms",
+    "packet_loss_ratio",
+    "mac_queue_depth",
+    "mac_queue_bytes",
+    "mac_queue_observed_until_ns",
+    "mac_queue_source_ref"
+  ],
+  "additionalProperties": true
+}

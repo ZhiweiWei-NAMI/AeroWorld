@@ -1,0 +1,65 @@
+schema: aeroworld_arm_config
+version: 4
+arm_id: arm_diversion_withheld
+group_key: L1-4_v1/seed02/grp_diversion_withheld
+episode_id: L1-4_v1__seed02
+event_family: corridor_congestion
+mode: intervention
+entity_ids:
+- uav_l1_4_v1_primary
+- uav_l1_4_v1_secondary
+- uav_l1_4_v1_tertiary
+predicate_ids:
+- airspace.airspace_corridor_over_capacity
+window:
+  start_tick: 360
+  fork_tick: 365
+  end_tick: 545
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L1_airspace/interaction/L1-4_v1/scene_setup.json
+  script: Dataset/scenarios/L1_airspace/interaction/L1-4_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L1-4_v1__seed02/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L1-4_v1__seed02/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L1-4_v1__seed02/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L1-4_v1__seed02/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L1-4_v1__seed02/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L1-4_v1__seed02/event_outcomes.jsonl
+execution:
+  omit_action_ids:
+  - move_corridor_secondary_divert_out
+  actions:
+  - tick: 370
+    action:
+      type: move_entity
+      action_id: arm_diversion_withheld_secondary_continue
+      entity_id: uav_l1_4_v1_secondary
+      activity_type: airborne
+      post_activity_type: landed
+      terminal_feasibility:
+        landing_reference_enu_m: [6358.018, 6437.427, 3.0]
+      velocity_mps: 6.0
+      waypoints_enu_m:
+      - - 6351.374
+        - 6413.758
+        - 50.0
+      - - 6451.374
+        - 6413.758
+        - 50.0
+      - - 6358.018
+        - 6437.427
+        - 50.0
+      - - 6358.018
+        - 6437.427
+        - 3.0
+expected:
+  target_event: occurs
+  rationale: 提前替换 secondary 的分流计划，保留进入容量格的航段；超限形成后继续前行，使共同占用持续更久。
+  falsified_if: 分支实测与该声明不符
+script: scripts/arms/L1-4_v1/seed02/grp_diversion_withheld/arm_diversion_withheld.py
+output: arms/L1-4_v1/seed02/grp_diversion_withheld/arm_diversion_withheld
+provenance:
+  experiment_ref: design/L1-4_v1/seed02/grp_diversion_withheld/experiment.json
+  parameter_sources:
+    factual_root: aw_data

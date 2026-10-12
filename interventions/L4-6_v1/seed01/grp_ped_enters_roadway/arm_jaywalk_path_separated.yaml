@@ -1,0 +1,59 @@
+schema: aeroworld_l4_window_config
+version: 1
+group_key: L4-6_v1/seed01/grp_ped_enters_roadway
+episode_id: L4-6_v1__seed01
+event_family: vehicle_pedestrian_conflict
+subject_class: pedestrian
+entity_ids:
+- ped_jaywalk_l4_6_v1
+- car_jaywalk_l4_6_v1
+predicate_ids:
+- safety.vehicle_pedestrian_conflict
+window:
+  start_tick: 210
+  fork_tick: 220
+  end_tick: 410
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/collision/L4-6_v1/scene_setup.json
+  script: Dataset/scenarios/L4_agents/collision/L4-6_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed01/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed01/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed01/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed01/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-6_v1__seed01/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-6_v1__seed01/event_outcomes.jsonl
+arm_id: arm_jaywalk_path_separated
+mode: intervention
+execution:
+  omit_action_ids: []
+  actions:
+  - tick: 220
+    action:
+      type: move_entity
+      action_id: arm_ped_hold_lateral_v1_seed01
+      entity_id: ped_jaywalk_l4_6_v1
+      waypoints_enu_m:
+      - - 6237.747
+        - 7958.445
+        - 0.0
+      - - 6237.747
+        - 7962.445
+        - 0.0
+      velocity_mps: 1.6
+  trigger_rewrites: []
+expected:
+  target_event: absent_in_window
+  rationale: 'the intervention move at 220 preempts the ped entry move after the same-tick source action dispatch: the pedestrian holds at [6237.747,7962.445], 4.0 m laterally off the factual waiting point, while the car still runs its 25.0 m 5 m/s approach segment; design-derived minimum 3d distance 8.882 m lies outside the 4.1 m trigger domain, so vehicle_ped_proximity, ped_retreats and conflict_cleared never fire and vehicle_state.braking stays false all window; the jaywalking patch is kept, so it still rises from 221 -- the successor absence is trigger non-satisfaction, not silent propagation'
+  falsified_if: any tick satisfies d<=4.1, or vehicle_ped_proximity / ped_retreats / conflict_cleared fire, or vehicle_state.braking is set true
+script: scripts/arms/L4-6_v1/seed01/grp_ped_enters_roadway/arm_jaywalk_path_separated.py
+output: arms/L4-6_v1/seed01/grp_ped_enters_roadway/arm_jaywalk_path_separated
+provenance:
+  experiment_ref: design/L4-6_v1/seed01/grp_ped_enters_roadway/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    event_script: Dataset/scenarios/L4_agents/collision/L4-6_v1/event_script.json
+    canonical_event_trace: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed01/event_trace.jsonl
+    canonical_trajectories: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed01/trajectories.jsonl
+    design_facts: design factual_measured_facts (three-seed measured, equal across seeds)

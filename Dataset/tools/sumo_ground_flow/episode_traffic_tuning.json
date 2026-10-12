@@ -1,0 +1,119 @@
+{
+  "schema_name": "aero_sumo_episode_traffic_tuning",
+  "schema_version": "v1",
+  "defaults": {
+    "context_free_flow_smoothing_entry_ticks": [
+      40,
+      276,
+      500,
+      700,
+      760,
+      820,
+      880
+    ],
+    "context_free_flow_smoothing_max_per_slot": 1,
+    "context_free_flow_smoothing_stop_ticks": 45,
+    "future_vehicle_entry_lead_fraction": 0.2,
+    "future_vehicle_entry_reserve_ticks": 0,
+    "narrow_roi_route_crossing_cap_per_slot": 2,
+    "narrow_roi_visible_edge_threshold": 2,
+    "roi_route_crossing_smoothing_max_per_slot": 2,
+    "roi_route_crossing_cap_per_slot": null
+  },
+  "scenario_overrides": {
+    "L1-3_v2": {
+      "reason": "Compact ROI road band: full per-slot ROI-crossing demand queues on the same short approach edges and prevents same-slot entrants.",
+      "future_vehicle_entry_reserve_ticks": 100,
+      "roi_route_crossing_cap_per_slot": 3
+    },
+    "L2-5_v1": {
+      "reason": "Semantic vehicles now use a same-edge physical SUMO lane corridor for the all-red queue and manual-flow recovery; keep the scenario-local guard windows so background traffic does not enter the protected queue during the event.",
+      "future_vehicle_entry_reserve_ticks": 100,
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900
+    },
+    "L3-3_v1": {
+      "reason": "The emergency ambulance protected corridor can be crossed by slot background vehicles when SUMO queues release near the protected window; keep background traffic off the protected semantic corridor for the full episode while preserving other ROI traffic.",
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900
+    },
+    "L4-4_v1": {
+      "reason": "The falling-UAV semantic car is lane-fixed on cg_edge_397_f_pl0. Route-crossing background vehicles can activate several ticks before their nominal core-entry tick and briefly enter the protected corridor after the roof-contact window, so add a scenario-local post-window guard without changing the road topology or other episodes.",
+      "protected_window_post_route_guard_ticks": 80
+    },
+    "L4-6_v1": {
+      "reason": "Keep background traffic off the lane-authored jaywalk conflict corridor for the full semantic window.",
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900
+    },
+    "L4-6_v2": {
+      "reason": "Keep background traffic off the lane-authored jaywalk conflict corridor and release non-protected ROI traffic before the junction queue forms.",
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900,
+      "semantic_release_tick_overrides": {
+        "car_jaywalk_l4_6_v2": 153
+      }
+    },
+    "L4-7_v1": {
+      "reason": "The ambulance response actor now uses source waypoints on a same-edge physical lane corridor. Fresh seed00 manifest review found the optional two-per-slot ROI setStop controls physically too late, then no longer downstream or expired while pending; disable only that optional smoothing layer while preserving the 90 planned background vehicles and runtime failure reporting.",
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900,
+      "roi_route_crossing_smoothing_max_per_slot": 0
+    },
+    "L4-7_v2": {
+      "reason": "The ambulance response actor now uses source waypoints on a same-edge physical lane corridor. Fresh seed00 manifest review also found optional ROI setStop controls too late, no longer downstream, unresolved on the final route, or expired while pending; disable only that optional smoothing layer while preserving the 90 planned background vehicles and runtime failure reporting.",
+      "roi_route_crossing_smoothing_max_per_slot": 0
+    },
+    "L4-9_v1": {
+      "reason": "The intersection A vehicle needs a longer SUMO approach to reach its semantic corridor before lane-control handoff; keep the insertion outside ROI and tune only this semantic actor's release timing.",
+      "semantic_release_tick_overrides": {
+        "car_intersection_l4_9_v1_a": 45
+      }
+    },
+    "L4-10_v1": {
+      "reason": "Keep background traffic off the lane-authored ambulance priority corridor during the full semantic window.",
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900
+    },
+    "L4-10_v2": {
+      "reason": "Keep background traffic off the lane-authored ambulance priority corridor during the full semantic window.",
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900
+    },
+    "L4-11_v1": {
+      "reason": "Keep background traffic off the vehicle-fault semantic corridor while directed ROI-crossing routes use their geometry-derived release time.",
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900
+    },
+    "X3_pedestrian_fall_to_emergency_response": {
+      "reason": "Keep all background traffic off the realized ambulance semantic corridor for the full episode so the protected-window validator cannot observe background intrusion while the ambulance is under semantic control. Fresh seed00 manifest review found optional ROI setStop controls too late, no longer downstream, or expired while pending; disable only that optional smoothing layer while preserving the 90 planned background vehicles and runtime failure reporting.",
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900,
+      "roi_route_crossing_smoothing_max_per_slot": 0
+    },
+    "L5-1_v1": {
+      "reason": "Keep background traffic off the lane-authored rain-response corridor during the full semantic window.",
+      "protected_window_post_route_guard_ticks": 900,
+      "protected_window_pre_route_guard_ticks": 900
+    },
+    "L5-1_v2": {
+      "reason": "The rain-response vehicle follows the authored physical SUMO lane without projection overrides."
+    },
+    "L5-1_v3": {
+      "reason": "The ROI is served by terminal road branches. The 19.584 m terminal edge stores at most floor((19.584 + 2.5) / (5.0 + 2.5)) = 2 vehicles; two independent non-terminal ROI routes raise the per-slot physical upper bound to 4. Only one vehicle per slot may hold on the terminal edge.",
+      "roi_route_crossing_cap_per_slot": 4,
+      "roi_route_crossing_smoothing_max_per_slot": 1,
+      "roi_capacity_model": {
+        "policy": "terminal_storage_plus_independent_nonterminal_routes_v1",
+        "terminal_edge_id": "cg_edge_220_r_pl0",
+        "terminal_edge_length_m": 19.584,
+        "vehicle_length_m": 5.0,
+        "minimum_gap_m": 2.5,
+        "terminal_storage_upper_bound_vehicles": 2,
+        "independent_nonterminal_roi_route_count": 2,
+        "per_slot_route_upper_bound": 4
+      }
+    }
+  },
+  "episode_overrides": {}
+}

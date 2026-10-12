@@ -1,0 +1,232 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+world:OntologyShape
+    a sh:NodeShape ;
+    sh:targetNode <https://w3id.org/aeroworld/ontology/world> ;
+    sh:closed false ;
+    sh:property [ sh:path owl:versionIRI ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path owl:versionInfo ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path owl:imports ; sh:hasValue <https://w3id.org/aeroworld/ontology/core> ] .
+
+world:PublicClassShape
+    a sh:NodeShape ;
+    sh:targetClass owl:Class ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true ;
+        sh:languageIn ( "en" "zh" )
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true ;
+        sh:languageIn ( "en" "zh" )
+    ] .
+
+world:PublicPropertyShape
+    a sh:NodeShape ;
+    sh:targetClass owl:ObjectProperty ;
+    sh:targetClass owl:DatatypeProperty ;
+    sh:targetClass owl:AnnotationProperty ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true ;
+        sh:languageIn ( "en" "zh" )
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true ;
+        sh:languageIn ( "en" "zh" )
+    ] .
+
+world:DatatypePropertyMetadataShape
+    a sh:NodeShape ;
+    sh:targetClass owl:DatatypeProperty ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:unitSymbol ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string
+    ] ;
+    sh:property [
+        sh:path world:stateFieldCategory ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string
+    ] .
+
+world:WorldFrameShape
+    a sh:NodeShape ;
+    sh:targetClass world:WorldFrame ;
+    sh:property [
+        sh:path world:worldFrameOfEpisode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Episode
+    ] ;
+    sh:property [
+        sh:path world:worldFrameAtInstant ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:TickInstant
+    ] ;
+    sh:property [
+        sh:path world:worldFrameUsesMap ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class world:OperationalMap
+    ] ;
+    sh:property [
+        sh:path world:worldFrameAtSite ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class world:Site
+    ] ;
+    sh:property [
+        sh:path world:worldFrameInRegionOfInterest ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class world:RegionOfInterest
+    ] ;
+    sh:property [
+        sh:path world:worldFrameCaptureBoundary ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class world:CaptureBoundary
+    ] ;
+    sh:property [
+        sh:path world:frameContainsEntityState ;
+        sh:minCount 1 ;
+        sh:class world:EntityStateAtTick
+    ] .
+
+world:EntityStateAtTickShape
+    a sh:NodeShape ;
+    sh:targetClass world:EntityStateAtTick ;
+    sh:property [
+        sh:path world:stateOfEntity ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Entity
+    ] ;
+    sh:property [
+        sh:path world:stateAtInstant ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:TickInstant
+    ] ;
+    sh:property [
+        sh:path world:entityStateInFrame ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class world:WorldFrame
+    ] ;
+    sh:property [
+        sh:path ( world:entityStateInFrame world:worldFrameAtInstant ) ;
+        sh:equals world:stateAtInstant
+    ] ;
+    sh:property [
+        sh:path [ sh:inversePath world:frameContainsEntityState ] ;
+        sh:equals world:entityStateInFrame
+    ] ;
+    sh:property [
+        sh:path [ sh:inversePath world:hasEntityState ] ;
+        sh:equals world:stateOfEntity
+    ] .
+
+world:StaticMapFeatureShape
+    a sh:NodeShape ;
+    sh:targetClass world:StaticMapFeature ;
+    sh:property [
+        sh:path world:staticFeatureInMap ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class world:OperationalMap
+    ] ;
+    sh:property [
+        sh:path [ sh:inversePath world:mapHasStaticFeature ] ;
+        sh:minCount 1 ;
+        sh:class world:OperationalMap
+    ] ;
+    sh:property [
+        sh:path world:staticFeatureIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1
+    ] ;
+    sh:property [
+        sh:path world:sourceFeatureIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1
+    ] ;
+    sh:property [
+        sh:path world:sourceFeatureLayer ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "road" "building" "water" "green" "block" "bounds" )
+    ] ;
+    sh:property [
+        sh:path world:sourceFeatureLocator ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1
+    ] ;
+    sh:property [
+        sh:path world:sourceGeometryType ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "Point" "MultiPoint" "LineString" "MultiLineString" "Polygon" "MultiPolygon" "GeometryCollection" )
+    ] ;
+    sh:property [
+        sh:path world:sourceGeometryDigest ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^sha256:[0-9a-f]{64}$"
+    ] ;
+    sh:property [
+        sh:path world:sourceGeometryBbox ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 5
+    ] ;
+    sh:property [
+        sh:path world:sourceGeometryCentroid ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 5
+    ] ;
+    sh:property [
+        sh:path world:sourcePropertiesDigest ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^sha256:[0-9a-f]{64}$"
+    ] .

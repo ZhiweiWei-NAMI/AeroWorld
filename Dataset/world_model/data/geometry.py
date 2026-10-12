@@ -8,7 +8,6 @@ Transforms are available independently of image arrays for predicted poses.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
 
 import numpy as np
 
@@ -126,12 +125,19 @@ def calibration_from_capture(camera: Mapping, lidar: Mapping) -> Calibration:
     f = w / (2 * np.tan(np.deg2rad(fov) / 2))
     intrinsic = np.array([[f, 0, w/2], [0, f, h/2], [0, 0, 1]], dtype=np.float64)
     actual = lidar["capture_vehicle"]["pre_scan_pose"]
-    pose = actual["pose"]
-    orientation = pose["orientation"]
-    actual_xyzw = [orientation[k+"_val"] for k in ("x", "y", "z", "w")]
-    position_world = np.asarray(actual["requested_position_enu_m"]) + WORLD_FROM_NED @ (
-        np.asarray(pose["position_ned_m"]) - np.asarray(actual["requested_position_ned_m"]))
-    body = rigid_transform(WORLD_FROM_NED @ quaternion_matrix(actual_xyzw), position_world)
+    if "pose" in actual:
+        pose = actual["pose"]
+        orientation = pose["orientation"]
+        body_rotation = quaternion_matrix([orientation[k+"_val"] for k in ("x", "y", "z", "w")])
+        position_world = np.asarray(actual["requested_position_enu_m"]) + WORLD_FROM_NED @ (
+            np.asarray(pose["position_ned_m"]) - np.asarray(actual["requested_position_ned_m"]))
+    else:
+        # Some v14 recaptures omit the read-back kinematic pose.  The requested simSetKinematics pose is
+        # used instead; over every read-back pose of the earlier captures it differs by <= 6.1e-5 m
+        # and <= 7e-8 in rotation-matrix entries (float32 read-back rounding).
+        body_rotation = rotation_ned(actual["requested_rotation_deg"])
+        position_world = np.asarray(actual["requested_position_enu_m"], dtype=np.float64)
+    body = rigid_transform(WORLD_FROM_NED @ body_rotation, position_world)
     reported = lidar["lidar"]["reported_sensor_pose_body_ned"]
     sensor_body = rigid_transform(quaternion_matrix(reported["orientation_body_xyzw"]),
                                  reported["position_body_ned_m"])
@@ -140,20 +146,6 @@ def calibration_from_capture(camera: Mapping, lidar: Mapping) -> Calibration:
         camera["fixed_world_camera_position_enu_m"])
     return Calibration(w, h, intrinsic, camera_world, body @ sensor_body,
                        body, sensor_body, np.linalg.inv(body) @ camera_world)
-
-
-def calibration_at_world_pose(capture_position_world_m, body_rotation_deg,
-                              static_rig: Calibration) -> Calibration:
-    """Reuse fixed mount with a predicted *capture-world* body pose.
-
-    A predicted source AGL pose needs a separately justified ground-reference
-    conversion. This function never borrows target-frame ground or pose.
-    """
-    body = rigid_transform(WORLD_FROM_NED @ rotation_ned(body_rotation_deg),
-                           capture_position_world_m)
-    return Calibration(static_rig.width, static_rig.height, static_rig.intrinsic.copy(),
-                       body @ static_rig.camera_to_body, body @ static_rig.sensor_to_body,
-                       body, static_rig.sensor_to_body.copy(), static_rig.camera_to_body.copy())
 
 
 def project_world(points_world, calibration: Calibration):
@@ -166,72 +158,3 @@ def project_world(points_world, calibration: Calibration):
     inside = front & (uv[:, 0] >= 0) & (uv[:, 0] < calibration.width) \
         & (uv[:, 1] >= 0) & (uv[:, 1] < calibration.height)
     return uv, xyz, inside
-
-
-def unproject_depth(depth_m, calibration: Calibration, *, semantics: str):
-    """Unproject explicitly specified axial or radial distance; no guessing."""
-    if semantics not in ("axial", "radial"):
-        raise ValueError("depth geometry requires confirmed axial/radial semantics")
-    depth = np.asarray(depth_m)
-    if depth.shape != (calibration.height, calibration.width):
-        raise ValueError("depth image does not match calibration")
-    v, u = np.indices(depth.shape)
-    rays = np.stack(((u-calibration.intrinsic[0, 2])/calibration.intrinsic[0, 0],
-                     (v-calibration.intrinsic[1, 2])/calibration.intrinsic[1, 1],
-                     np.ones(depth.shape)), axis=-1)
-    if semantics == "radial":
-        rays /= np.linalg.norm(rays, axis=-1, keepdims=True)
-    valid = np.isfinite(depth) & (depth > 0)
-    world = transform_points((rays * depth[..., None]).reshape(-1, 3),
-                             calibration.camera_to_world).reshape(*depth.shape, 3)
-    return world, valid
-
-
-def lidar_depth_association(points_sensor, hit_mask, depth_m, segmentation,
-                            calibration: Calibration) -> dict:
-    """Associate real hits to pixels, retaining both depth hypotheses.
-
-    These are geometric correspondences, not instance labels or a claim of
-    matched acquisition time. Occlusion/color support requires declared depth
-    semantics and a consumer-selected tolerance.
-    """
-    scan_indices = np.flatnonzero(np.asarray(hit_mask, dtype=bool))
-    points_world = transform_points(np.asarray(points_sensor)[scan_indices], calibration.sensor_to_world)
-    uv, optical, inside = project_world(points_world, calibration)
-    scan_indices, uv, optical, points_world = (a[inside] for a in
-                                               (scan_indices, uv, optical, points_world))
-    pixels = np.floor(uv).astype(np.int32)
-    sampled = depth_m[pixels[:, 1], pixels[:, 0]]
-    radial = np.linalg.norm(optical, axis=1)
-    axial_residual = (optical[:, 2]-sampled).astype(np.float32)
-    radial_residual = (radial-sampled).astype(np.float32)
-    return {"scan_indices": scan_indices, "pixel_uv": uv.astype(np.float32),
-            "pixel_ij": pixels[:, ::-1], "points_world_m": points_world,
-            "camera_optical_m": optical.astype(np.float32),
-            "depth_sample_m": sampled, "axial_residual_m": axial_residual,
-            "radial_residual_m": radial_residual,
-            "axial_support_within_0_25m": np.isfinite(sampled) & (sampled > 0) & (np.abs(axial_residual) <= .25),
-            "radial_support_within_0_25m": np.isfinite(sampled) & (sampled > 0) & (np.abs(radial_residual) <= .25),
-            "segmentation_class_id": segmentation[pixels[:, 1], pixels[:, 0]]}
-
-
-def association_metrics(association: Mapping, calibration: Calibration, points_sensor) -> dict:
-    """Measured geometry and alternate depth residuals, without acceptance thresholds."""
-    points = np.asarray(points_sensor)
-    world = transform_points(points, calibration.sensor_to_world)
-    recovered = transform_points(world, calibration.world_to_sensor)
-    metrics = {"projected_hit_count": len(association["scan_indices"]),
-               "sensor_world_roundtrip_max_abs_m": float(np.max(np.abs(recovered-points))),
-               "depth_semantics_producer_source_confirmed": False}
-    for kind in ("axial", "radial"):
-        residual = np.asarray(association[kind+"_residual_m"])
-        residual = residual[np.isfinite(residual)]
-        if not len(residual):
-            raise ValueError("no finite LiDAR/depth associations")
-        metrics[kind] = {"finite_count": len(residual),
-                         "median_signed_m": float(np.median(residual)),
-                         "median_absolute_m": float(np.median(np.abs(residual))),
-                         "p90_absolute_m": float(np.quantile(np.abs(residual), .9)),
-                         "within_0_25m_count": int(np.count_nonzero(np.abs(residual) <= .25)),
-                         "within_1m_count": int(np.count_nonzero(np.abs(residual) <= 1))}
-    return metrics

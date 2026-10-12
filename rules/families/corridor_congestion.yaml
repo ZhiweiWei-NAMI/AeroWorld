@@ -1,0 +1,270 @@
+# ARM 生成规则 —— corridor_congestion
+#
+# 命名约束：本文件名 corridor_congestion.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 本族实测规模：102 条臂 / 3 个 group × 2 profile（L1-4_v1 / L1-4_v2）× 3 seed。
+#   每组每 profile 每 seed 5~6 条臂（grp_03 无 avoid、grp_04/05 全 6 条）。
+# 真实臂覆盖 4 类意图：factual / suppress / delay / divert（**没有** tradeoff，见 arms 段注释）。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: corridor_congestion
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    真实来源 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里只登记“指针 + 关键字段快照”，快照仅用于生成期自检，改定义请改源头。
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/corridor_congestion
+  rule_id: event_family.corridor_congestion.0    # 与臂 objective/manifest.json 的 rule_id 逐字一致
+  mapping_class: A_direct                        # 单谓词直连，非复合
+  event_type_id: airspace.airspace_corridor_capacity_exceedance_event
+  trigger:
+    predicate_id: airspace.airspace_corridor_over_capacity
+    direction: rising
+  roles:
+    corridor:
+      kind: trigger_binding
+      ontology_class: AirspaceCorridor
+      predicate_role: corridor
+      background_allowed: false
+  support_conditions: []                         # registry 里本族 support_conditions 为空
+  terminal:
+    predicate_id: airspace.airspace_corridor_over_capacity
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [corridor]
+  authoritative_predicates:                      # 快照；权威在 registry
+    - airspace.airspace_corridor_over_capacity
+    - utm.deconfliction_active
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  intervention_subject: mission_uav      # 造成容量超限的是 UAV 编队本身
+  # 判定证据（本会话实测，非推断）：
+  #   1) registry 里 mapping_class = A_direct；
+  #   2) 102/102 条臂的 raw/branch_manifest.json **没有** *_authority 字段
+  #      （全库 7,662 条臂扫描：只有 rain_fog_environment 带 rain_fog_authority =
+  #       scene_exogenous_weather_transition）→ 不是场景权威外生；
+  #   3) 102/102 条臂台账 status=applied，没有 design_intent_conflict_exogenous_* 记录；
+  #   4) 3 个 group 上都真实生成了 suppress / delay / replace 三类干预臂。
+  # 实测干预实体（102 条臂 intervention_entity_ids 的并集）：
+  #   uav_l1_4_v1_primary / _secondary / _tertiary      （L1-4_v1）
+  #   uav_l1_4_v2_primary / _secondary / _tertiary      （L1-4_v2）
+  # 关键澄清：触发角色 corridor（本体 AirspaceCorridor）只是命名事件的那个空域单元，
+  #   **不是**干预实体。本族没有任何针对 corridor 本体的动作；
+  #   干预一律落在占用它的 UAV 上（move_entity 改路径 / hold 停住）。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # 实测锚点（raw/branch_manifest.json 的 group_id 与 fork_tick，两个 profile 各一组）：
+  #   grp_03_corridor_capacity_exceeded (fork 355 / 365)
+  #   grp_04_priority_resequence        (fork 360 / 370)
+  #   grp_05_corridor_capacity_restored (fork 375 / 385)
+  # anchor_event_id 由事件链给出，不在此硬编码。
+
+# ─────────────────────────────────────────────────────────────
+# ④ 4 类真实意图（本族没有 tradeoff 的真实臂，见段末注释）
+#    operation 只能取已注册 4 值之一；键名是**意图**不是 arm_id。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：arm_factual × 18，台账 operation=reuse_factual_causal_event、
+    #       factual_preserved=true、suppressed_event_ids=[]、generated_action_ids=[]
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 逐字一致
+    suppression_basis: authored_trigger_and_causal_predecessor_closure
+    # 实测：本族 suppress 只有一种形态 —— arm_no_op_suppress × 18（arm_kind: no_op_hold），
+    #       台账**没有** coupled_hold，即只做闭包抑制、不注入延续事件；
+    #       manifest 的 intervention_entity_ids 仍指向 2~3 架 UAV。
+    coupled_hold:
+      applies_when: never          # 实测 18/18 条 suppress 臂都不带 coupled_hold
+    suppressed_event_ids_observed:       # 快照；3 组的并集
+      - corridor_capacity_exceeded
+      - priority_resequence
+      - corridor_capacity_restored
+      - lifecycle_landing_uav_l1_4_v1_primary
+      - lifecycle_landing_uav_l1_4_v1_secondary
+      - lifecycle_landing_uav_l1_4_v1_tertiary
+      - lifecycle_landing_uav_l1_4_v2_primary
+      - lifecycle_landing_uav_l1_4_v2_secondary
+      - lifecycle_landing_uav_l1_4_v2_tertiary
+    # 抑制的实现形态（实测 raw/event_script.json）：把锚点及其因果后代的 authored tick
+    # 触发改写到 tick 901（> 集长 900）；锚点事件自己的 authored 动作集**保留不动**，
+    # 只是永不触发。18 条 suppress 臂的 original_anchor_trigger.type 实测
+    # tick × 6、event_fired_after × 12。
+
+  delay:
+    operation: delay_causal_event
+    mechanism: none                    # 只重定时触发，不派发新动作
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: governed_default    # rule | governed_default | scene
+        min: 21
+        max: 50
+        default: 30
+        # 实测（36 条 delay 臂，全部 0 条 generated_action_ids）：
+        #   arm_delay          × 18: 50 / 21 / 44（每个组一个值，跨 profile 与 seed 相同）
+        #   arm_delay_postpone × 18: 恒 30
+        # 重定时对象是**锚点自己的触发**，不是实体动作：
+        #   36/36 条带 delay_mechanism_evidence，其中 match_count=0 / unmatched=true。
+    repairs_observed:
+      - delay_applied_to_authored_tick_trigger             # × 12
+      - delay_applied_to_authored_event_relative_trigger   # × 24
+    coupled_hold:
+      # 实测：delay 臂**会**注入 branch_coupled_hold_* 把 UAV 停住（与 suppress 相反）
+      required: true
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.mission_uav
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+      # 实测 coupled_hold.entity_ids（每组跨 2 profile × 3 seed 一致）：
+      #   grp_03: primary+secondary+tertiary 三架全停，action_count=6
+      #   grp_04: primary+secondary+tertiary 三架全停，action_count=6
+      #   grp_05: primary+secondary 两架停住，action_count=4
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: anchor_authored_action_actor   # 实测就是那 3 架（或 2 架）UAV
+      actor_role_binding: roles.corridor    # 触发角色只命名事件，不决定动作落在谁身上
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: lateral_exit_to_ground_hold   # 从场景解析“横向退出容量单元”的落点
+          velocity_mps:
+            source: observed
+            value: 6.0
+      physics_intent: vacate_capacity_cell
+    # 实测两种形态，都归到 divert 意图：
+    #   arm_divert_lateral × 18（arm_kind: divert_lateral）
+    #     台账 operation=replace_causal_event、
+    #     generated_action_ids=["motion_grounded_0_move","motion_grounded_1_move","motion_grounded_2_move"]
+    #     事件脚本里把锚点原有的 3 条 move_corridor_*_enter_capacity_cell 整体替换为
+    #     3 条 move_entity（逐架），实测 waypoints z=3.0（回到 home hover 高度）、
+    #     velocity_mps=6.0。
+    #   arm_avoid_tertiary_hold_outside_corridor × 12（arm_kind: avoid）
+    #     事件脚本里锚点的 actions 被**清空**成 []（就地不动），台账 generated_action_ids=[]，
+    #     objective_skipped=true，repairs=[{kind: stationary_hold_omits_zero_length_move,
+    #     omitted_steps: 1}] —— 即执行器本想发一条零长度 move，最终省略。
+    #     ⚠ 这 12 条臂的 objective/ 只有 6 个文件、**没有 manifest.json / window_closure.json**
+    #     （实测），raw/ 侧字段齐全。校验器不能假设 objective/manifest.json 一定存在。
+
+  # ── tradeoff 故意不写：本族没有落到 arms/ 的真实 tradeoff 臂 ──────────
+  # 证据（本会话扫描 102 条臂的 arm_id 全量）：
+  #   arm_factual / arm_no_op_suppress / arm_delay / arm_delay_postpone /
+  #   arm_divert_lateral / arm_avoid_tertiary_hold_outside_corridor
+  # 没有任何 arm_tradeoff_* 或 arm_slow（rules/intents.yaml 的 tradeoff 前缀）。
+  # 5 类意图里本族只被生成了 4 类；凭空补一个 tradeoff 会写出没有臂支撑的机制。
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+    # 实测：fork_tick 与台账 original_anchor_trigger.tick 一致；同一 group 在两个
+    #       profile 上差 10 tick（355/365、360/370、375/385）。
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/L1-4_v*/manifest.json
+    # 实测：window_end_tick − fork_tick ∈ [50, 260]，无常数可写；
+    #       90/102 条 manifest 带 window_end_basis
+    #       {candidate_end_tick, modeled_motion[], parent_evidence_end_tick}
+    #       且 window_semantics_only=true。12 条 avoid 臂是早期形态（objective_skipped=true），
+    #       没有 window_end_basis —— 生成器必须以实测 window_end_tick 为准，不能用 design end 反推。
+  history_frames: 8                 # Dataset/world_model/arm_rssm.py: HISTORY_FRAMES = 8
+  horizon_frames: 5                 # Dataset/world_model/arm_rssm.py: FUTURE_HORIZON = 5
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测：18/18 条 arm_factual event_observed=true、first_true_tick=fork_tick
+
+  suppress:
+    target_event: absent_in_window
+    # ⚠ 本族实测异常，判定前**必须**先读 window_semantics.json（见 limits.known_conflicts）：
+    #   18/18 条 arm_no_op_suppress 的锚点 authored 触发确实被写到 901，
+    #   但 event_observed 仍是 **true**、first_true_tick=fork_tick、
+    #   predicate_true_ticks 覆盖整个窗口。
+    #   即：本族的 suppress 不能用“predicate 在窗口内不成立”判定。
+    # TODO: 需确认 —— 该谓词是否按**规划航路**而非实际机位求值；
+    #       确认前不要给本族的 suppress 臂判 PASS。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5             # 采集步长 5 tick
+    # ⚠ 同上的原因：36/36 条 delay 臂的 first_true_tick 都等于 fork_tick，
+    #   位移只体现在**锚点 authored 触发的 tick**（365 → 415 / 395，实测），
+    #   不体现在 window_semantics 的 first_true_tick 上。
+    #   判定必须用台账 delay_ticks + 改写后的 trigger tick 对齐，不能只看 rising_tick。
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 实测：arm_avoid_tertiary_hold_outside_corridor 12/12 event_observed=false；
+    #       arm_divert_lateral 18/18 event_observed=true（事件仍成立，只是换了空间路径）。
+    #       两种形态不能共用一个“事件不成立”的判据 —— divert 的底线是
+    #       “状态轨迹与 factual 可辨”，不是“目标事件消失”。
+
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+    # 实测：102/102 条 manifest delta_only=true；
+    #       其中 90/102 条另带 trajectory_scope=intervention_delta_only 与
+    #       artifact_scope=parent_reference_plus_local_delta；
+    #       另 12 条（avoid）objective_skipped=true 且没有 artifact_scope / trajectory_scope /
+    #       window_end_basis 字段，objective/ 也缺 manifest.json。
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "**本族最大的坑**：suppress 臂把锚点 authored 触发改写到 tick 901，但 objective/
+       window_semantics.json 仍报 event_observed=true / first_true_tick=fork_tick
+       （实测 18/18）。原因未确认（疑与该谓词按规划航路而非实际机位求值有关）。
+       在该语义确认之前，本族 suppress / delay 的“事件是否消失/位移”不能只看 predicate"
+    - "suppress / delay 作用于 script_scheduled 的 authored tick 触发。抑制范围是台账
+       因果前驱闭包，跨 CDC 到 lifecycle_landing_* 收尾事件；若场景增删链节点，
+       闭包范围必须重算，不能沿用本快照"
+    - "avoid 形态（arm_avoid_tertiary_hold_outside_corridor）把锚点动作清空成 []，
+       台账 generated_action_ids=[]，只有 repairs 记录省略了一条零长度 move。
+       它**不产生**任何实体动作增量，任何要求 generated_action_ids 非空的实现都会判它无效"
+    - "这 12 条 avoid 臂的 objective/ 只有 6 个文件（缺 manifest.json / window_closure.json /
+       semantic_graph_deltas.jsonl 等），manifest 也缺 artifact_scope / window_end_basis。
+       跨臂汇总不能假设字段齐全"
+  not_claimed:
+    - "tradeoff —— 本族无真实臂（原因见 arms 段注释）"
+    - "utm.deconfliction_active 的可干预性 —— 它是本族的权威谓词之一，但不作为锚点"
+    - "corridor 本体（AirspaceCorridor）的可干预性 —— 本族不生成针对空域单元的动作"
+    - "G10 整库发布审计（不在本规则范围内）"

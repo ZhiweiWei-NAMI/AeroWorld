@@ -1,0 +1,696 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w3id.org/aeroworld/schema/compute_comm_supplement_profile.schema.json",
+  "title": "AeroWorld Compute Communication Supplement Profile",
+  "type": "object",
+  "required": [
+    "schema_name",
+    "schema_version",
+    "profile_id",
+    "semantics_scope",
+    "decision_layer_included",
+    "default_input_root",
+    "default_output_root",
+    "model",
+    "inputs",
+    "authoritative_tick_policy",
+    "source_policy",
+    "parameter_governance",
+    "compute",
+    "communication",
+    "predicate_rules",
+    "event_rules",
+    "validation"
+  ],
+  "properties": {
+    "schema_name": {
+      "const": "compute_comm_supplement_profile"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "semantics_scope": {
+      "const": "simulated_derived_compute_communication_supplement"
+    },
+    "decision_layer_included": {
+      "const": false
+    },
+    "default_input_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "default_output_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "model_id",
+        "model_version",
+        "seed_namespace"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "seed_namespace": {
+          "const": "profile_whitelisted_model_input_digest_v3"
+        }
+      },
+      "additionalProperties": false
+    },
+    "inputs": {
+      "type": "object",
+      "required": [
+        "episode_manifest",
+        "entity_roster",
+        "truth_frames",
+        "weather"
+      ],
+      "properties": {
+        "episode_manifest": {
+          "const": "episode_manifest.json"
+        },
+        "entity_roster": {
+          "const": "global_entity_roster.json"
+        },
+        "truth_frames": {
+          "const": "truth_frames.jsonl"
+        },
+        "weather": {
+          "const": "weather_meta.jsonl"
+        }
+      },
+      "additionalProperties": false
+    },
+    "authoritative_tick_policy": {
+      "type": "object",
+      "required": [
+        "start",
+        "end",
+        "step",
+        "adjacency"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "step": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "adjacency": {
+          "const": "exact_step"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_policy": {
+      "type": "object",
+      "required": [
+        "authoritative_inputs",
+        "forbidden_inputs",
+        "model_input_fields",
+        "forbidden_manifest_fields",
+        "missing_parameter_policy",
+        "authored_event_labels_are_fact_source"
+      ],
+      "properties": {
+        "authoritative_inputs": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbidden_inputs": {
+          "type": "array",
+          "contains": {
+            "const": "event_trace.jsonl"
+          },
+          "items": {
+            "type": "string"
+          }
+        },
+        "model_input_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "forbidden_manifest_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "missing_parameter_policy": {
+          "const": "unknown_with_missing_source_record"
+        },
+        "authored_event_labels_are_fact_source": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "compute": {
+      "$ref": "#/$defs/compute"
+    },
+    "communication": {
+      "$ref": "#/$defs/communication"
+    },
+    "parameter_governance": {
+      "$ref": "#/$defs/parameterGovernance"
+    },
+    "predicate_rules": {
+      "type": "object",
+      "minProperties": 16,
+      "additionalProperties": {
+        "$ref": "#/$defs/rule"
+      }
+    },
+    "event_rules": {
+      "type": "object",
+      "minProperties": 6,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "event_type_id",
+          "rule_id",
+          "rule_version",
+          "participant_bindings"
+        ],
+        "properties": {
+          "event_type_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rule_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rule_version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+          },
+          "participant_bindings": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "require_schema_profile",
+        "require_capacity_conservation",
+        "require_time_adjacency",
+        "predicate_truth_values",
+        "event_transition_policy"
+      ],
+      "properties": {
+        "require_schema_profile": {
+          "const": true
+        },
+        "require_capacity_conservation": {
+          "const": true
+        },
+        "require_time_adjacency": {
+          "const": true
+        },
+        "predicate_truth_values": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "true"
+            },
+            {
+              "const": "false"
+            },
+            {
+              "const": "unknown"
+            },
+            {
+              "const": "out_of_scope"
+            }
+          ],
+          "items": false
+        },
+        "event_transition_policy": {
+          "const": "adjacent_false_to_true_only"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "parameterGovernance": {
+      "type": "object",
+      "required": [
+        "review_status",
+        "measurement_provenance",
+        "source_class",
+        "permitted_uses",
+        "forbidden_claims",
+        "bandwidth_model",
+        "parameter_groups"
+      ],
+      "properties": {
+        "review_status": {
+          "const": "reviewed_for_controlled_simulation"
+        },
+        "measurement_provenance": {
+          "type": "object",
+          "required": ["hardware_logs_present", "network_logs_present"],
+          "properties": {
+            "hardware_logs_present": {"const": false},
+            "network_logs_present": {"const": false}
+          },
+          "additionalProperties": false
+        },
+        "source_class": {
+          "const": "standard_referenced_parameter"
+        },
+        "permitted_uses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "forbidden_claims": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "allOf": [
+            {"contains": {"const": "measured_hardware_performance"}},
+            {"contains": {"const": "measured_network_performance"}},
+            {"contains": {"const": "real_world_generalization"}}
+          ],
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "parameter_groups": {
+          "type": "object",
+          "required": [
+            "compute_capacity",
+            "compute_task_demand",
+            "communication_channel",
+            "station_operational_state",
+            "weather_attenuation",
+            "retransmission",
+            "seed_variation",
+            "event_labels"
+          ],
+          "properties": {
+            "compute_capacity": {"$ref": "#/$defs/parameterGroup"},
+            "compute_task_demand": {"$ref": "#/$defs/parameterGroup"},
+            "communication_channel": {"$ref": "#/$defs/parameterGroup"},
+            "station_operational_state": {"$ref": "#/$defs/parameterGroup"},
+            "weather_attenuation": {"$ref": "#/$defs/parameterGroup"},
+            "retransmission": {"$ref": "#/$defs/parameterGroup"},
+            "seed_variation": {"$ref": "#/$defs/parameterGroup"},
+            "event_labels": {"$ref": "#/$defs/parameterGroup"}
+          },
+          "additionalProperties": false
+        },
+        "bandwidth_model": {
+          "type": "object",
+          "required": ["parameter", "value", "scope", "external_numeric_basis", "mapping"],
+          "properties": {
+            "parameter": {"const": "communication.station_profiles.base_station.channel_bandwidth_mbps"},
+            "value": {"type": "number", "minimum": 0},
+            "scope": {"const": "per_flow_nominal_cap"},
+            "external_numeric_basis": {"const": "unverified"},
+            "mapping": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
+        "references": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "source_class": {
+            "const": "standard_referenced_parameter"
+          }
+        },
+        "required": ["source_class"]
+      },
+      "then": {
+        "required": ["references"]
+      }
+    },
+    "reference": {
+      "type": "object",
+      "required": [
+        "document_id",
+        "title",
+        "publisher",
+        "year",
+        "anchors"
+      ],
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1
+        },
+        "year": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 2100
+        },
+        "anchors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/anchor"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "anchor": {
+      "type": "object",
+      "required": [
+        "group",
+        "parameter",
+        "value",
+        "mapping"
+      ],
+      "properties": {
+        "group": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {},
+        "mapping": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "parameterGroup": {
+      "type": "object",
+      "required": ["status", "basis", "sensitivity_required"],
+      "properties": {
+        "status": {
+          "enum": [
+            "standard_referenced_parameter",
+            "deterministic_simulation",
+            "simulated_derived"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sensitivity_required": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "rule": {
+      "type": "object",
+      "required": [
+        "rule_id",
+        "rule_version",
+        "role_bindings"
+      ],
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rule_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "role_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "compute": {
+      "type": "object",
+      "required": [
+        "rule_version",
+        "overcapacity_utilization_threshold",
+        "max_queue_depth_default",
+        "node_unavailability_schedule",
+        "node_profiles",
+        "task_profiles"
+      ],
+      "properties": {
+        "rule_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "overcapacity_utilization_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "max_queue_depth_default": {
+          "type": "number",
+          "minimum": 0
+        },
+        "node_unavailability_schedule": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/nodeUnavailabilityWindow"}
+        },
+        "node_profiles": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/nodeProfile"
+          }
+        },
+        "task_profiles": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/taskProfile"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "communication": {
+      "type": "object",
+      "required": [
+        "rule_version",
+        "channel",
+        "station_profiles",
+        "flow_profiles",
+        "handover_policy"
+      ],
+      "properties": {
+        "rule_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "channel": {
+          "type": "object"
+        },
+        "station_profiles": {
+          "type": "object",
+          "required": ["base_station"],
+          "properties": {
+            "base_station": {
+              "type": "object",
+              "required": ["channel_bandwidth_mbps"],
+              "properties": {
+                "channel_bandwidth_mbps": {"type": "number", "minimum": 0}
+              }
+            }
+          }
+        },
+        "flow_profiles": {
+          "type": "object",
+          "minProperties": 1
+        },
+        "handover_policy": {
+          "type": "object",
+          "required": [
+            "handover_margin_m",
+            "minimum_dwell_ticks"
+          ],
+          "properties": {
+            "handover_margin_m": {
+              "type": "number",
+              "minimum": 0
+            },
+            "minimum_dwell_ticks": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "nodeProfile": {
+      "type": "object",
+      "required": [
+        "cpu_cores",
+        "gpu_units",
+        "memory_mb",
+        "max_queue_depth"
+      ],
+      "properties": {
+        "cpu_cores": {
+          "type": "number",
+          "minimum": 0
+        },
+        "gpu_units": {
+          "type": "number",
+          "minimum": 0
+        },
+        "memory_mb": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_queue_depth": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "taskProfile": {
+      "type": "object",
+      "required": [
+        "task_kind",
+        "cpu_cores",
+        "cpu_cores_per_mps",
+        "gpu_units",
+        "memory_mb",
+        "deadline_slack_ticks",
+        "deterministic_variation",
+        "load_windows"
+      ],
+      "properties": {
+        "task_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cpu_cores": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cpu_cores_per_mps": {
+          "type": "number",
+          "minimum": 0
+        },
+        "gpu_units": {
+          "type": "number",
+          "minimum": 0
+        },
+        "memory_mb": {
+          "type": "number",
+          "minimum": 0
+        },
+        "deadline_slack_ticks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deterministic_variation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "load_windows": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/loadWindow"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "loadWindow": {
+      "type": "object",
+      "required": ["start_tick", "end_tick", "demand_multiplier"],
+      "properties": {
+        "start_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "end_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "demand_multiplier": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "nodeUnavailabilityWindow": {
+      "type": "object",
+      "required": ["entity_category", "entity_rank", "start_tick", "end_tick"],
+      "properties": {
+        "entity_category": {"enum": ["uav", "vehicle"]},
+        "entity_rank": {"type": "integer", "minimum": 0},
+        "start_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "end_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5}
+      },
+      "additionalProperties": false
+    }
+  }
+}

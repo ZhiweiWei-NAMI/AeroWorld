@@ -1,0 +1,215 @@
+{
+  "schema": "l4_arm_business_semantics_v1",
+  "authority_scope": "L4 ARM observed business response; not a formal ontology event family",
+  "capture_step_ticks": 5,
+  "terminal_hold_samples": 2,
+  "stationary_speed_tolerance_mps": 1e-06,
+  "stationary_tolerance_basis": "Raw velocities are serialized to six decimal places; this threshold accepts recorded zero, not operationally slow driving.",
+  "geometric_thresholds": {
+    "low_altitude_max_m": 20.0,
+    "low_altitude_basis": "The low-altitude descent profile is authored as 30 -> 15 -> 5 m; 20 m separates the low-altitude leg from the transit altitude without reading the script's own descent stage.",
+    "pedestrian_near_horizontal_m": 3.0,
+    "pedestrian_near_vertical_m": 7.0,
+    "pedestrian_near_basis": "Source pedestrian_near_miss trigger horizontal_distance_m/vertical_distance_m; both conditions must hold on the measured separation.",
+    "landing_zone_radius_m": 8.0,
+    "landing_zone_basis": "Governed landing_zone_radius_m from the core predicate registry, centred on the source descent target until an actual replacement descent is dispatched; not a birth pad or a declared facility.",
+    "contact_radius_m": 3.0,
+    "contact_basis": "Identical to the authored vehicle_roof_contact trigger distance (3.0 m, 3D). Damage may only be read as evidence after the same measured geometry that authorises the response has held.",
+    "stationary_speed_mps": 1e-06,
+    "stationary_basis": "Same recorded-zero threshold as stationary_speed_tolerance_mps; a physically stopped vehicle is one whose measured speed is recorded zero.",
+    "airborne_min_m": 1.5,
+    "airborne_basis": "Governed airborne_threshold_m from the core predicate registry.",
+    "touchdown_max_m": 0.5,
+    "touchdown_basis": "Governed touchdown_threshold_m from the core predicate registry.",
+    "min_yield_center_separation_m": 2.5,
+    "min_yield_center_separation_basis": "Authored PRIORITY_VEHICLE_MIN_CENTER_SEPARATION_M: the priority and yield lanes are physically distinct at this centre separation.",
+    "hold_creep_speed_mps": 0.05,
+    "hold_creep_basis": "A holding aircraft may drift only with sensor noise; 0.05 m/s is far below any authored transit speed and far above the six-decimal velocity rounding floor."
+  },
+  "profiles": {
+    "L4-4_v1": {
+      "mechanism": "uav_vehicle",
+      "event_family": "l4_uav_vehicle_contact_observed",
+      "predicate_ids": [
+        "l4_business.uav_vehicle_proximity",
+        "l4_business.uav_vehicle_contact",
+        "l4_business.uav_damaged",
+        "l4_business.uav_airborne",
+        "l4_business.vehicle_emergency_stop_active",
+        "l4_business.vehicle_physically_stopped"
+      ],
+      "onset_predicate": "l4_business.uav_vehicle_contact",
+      "terminal_predicate": "l4_business.vehicle_physically_stopped"
+    },
+    "L4-4_v2": {
+      "mechanism": "uav_vehicle",
+      "event_family": "l4_uav_vehicle_contact_observed",
+      "predicate_ids": [
+        "l4_business.uav_vehicle_proximity",
+        "l4_business.uav_vehicle_contact",
+        "l4_business.uav_damaged",
+        "l4_business.uav_airborne",
+        "l4_business.vehicle_emergency_stop_active",
+        "l4_business.vehicle_physically_stopped"
+      ],
+      "onset_predicate": "l4_business.uav_vehicle_contact",
+      "terminal_predicate": "l4_business.vehicle_physically_stopped"
+    },
+    "L4-5_v1": {
+      "mechanism": "uav_pedestrian",
+      "event_family": "l4_uav_pedestrian_clearance_observed",
+      "predicate_ids": [
+        "l4_business.uav_low_altitude",
+        "l4_business.aircraft_near_pedestrian",
+        "l4_business.landing_zone_occupied",
+        "l4_business.pedestrian_clear_of_landing_zone",
+        "l4_business.uav_hold_active",
+        "l4_business.uav_landed"
+      ],
+      "onset_predicate": "l4_business.aircraft_near_pedestrian",
+      "terminal_predicate": "l4_business.uav_landed"
+    },
+    "L4-5_v2": {
+      "mechanism": "uav_pedestrian",
+      "event_family": "l4_uav_pedestrian_clearance_observed",
+      "predicate_ids": [
+        "l4_business.uav_low_altitude",
+        "l4_business.aircraft_near_pedestrian",
+        "l4_business.landing_zone_occupied",
+        "l4_business.pedestrian_clear_of_landing_zone",
+        "l4_business.uav_hold_active",
+        "l4_business.uav_landed"
+      ],
+      "onset_predicate": "l4_business.aircraft_near_pedestrian",
+      "terminal_predicate": "l4_business.uav_landed"
+    },
+    "L4-5_v3": {
+      "mechanism": "uav_pedestrian",
+      "event_family": "l4_uav_pedestrian_clearance_observed",
+      "predicate_ids": [
+        "l4_business.uav_low_altitude",
+        "l4_business.aircraft_near_pedestrian",
+        "l4_business.landing_zone_occupied",
+        "l4_business.pedestrian_clear_of_landing_zone",
+        "l4_business.uav_hold_active",
+        "l4_business.uav_landed"
+      ],
+      "onset_predicate": "l4_business.aircraft_near_pedestrian",
+      "terminal_predicate": "l4_business.uav_landed"
+    },
+    "L4-9_v1": {
+      "mechanism": "intersection",
+      "event_family": "l4_intersection_braking_observed",
+      "predicate_ids": [
+        "l4_business.near_pair",
+        "l4_business.braking_active",
+        "l4_business.yielding_active",
+        "l4_business.braking_stopped"
+      ],
+      "onset_predicate": "l4_business.near_pair",
+      "terminal_predicate": "l4_business.braking_stopped"
+    },
+    "L4-9_v2": {
+      "mechanism": "intersection",
+      "event_family": "l4_intersection_braking_observed",
+      "predicate_ids": [
+        "l4_business.near_pair",
+        "l4_business.braking_active",
+        "l4_business.yielding_active",
+        "l4_business.braking_stopped"
+      ],
+      "onset_predicate": "l4_business.near_pair",
+      "terminal_predicate": "l4_business.braking_stopped"
+    },
+    "L4-10_v1": {
+      "mechanism": "ambulance",
+      "event_family": "l4_ambulance_priority_passage_observed",
+      "predicate_ids": [
+        "l4_business.ambulance_approaching_vehicle",
+        "l4_business.priority_request_active",
+        "l4_business.priority_request_acknowledged",
+        "l4_business.civilian_yielding",
+        "l4_business.yield_clearance_satisfied",
+        "l4_business.ambulance_geometry_passed",
+        "l4_business.priority_passage_completed"
+      ],
+      "onset_predicate": "l4_business.priority_request_active",
+      "terminal_predicate": "l4_business.priority_passage_completed"
+    },
+    "L4-10_v2": {
+      "mechanism": "ambulance",
+      "event_family": "l4_ambulance_priority_passage_observed",
+      "predicate_ids": [
+        "l4_business.ambulance_approaching_vehicle",
+        "l4_business.priority_request_active",
+        "l4_business.priority_request_acknowledged",
+        "l4_business.civilian_yielding",
+        "l4_business.yield_clearance_satisfied",
+        "l4_business.ambulance_geometry_passed",
+        "l4_business.priority_passage_completed"
+      ],
+      "onset_predicate": "l4_business.priority_request_active",
+      "terminal_predicate": "l4_business.priority_passage_completed"
+    },
+    "L4-11_v1": {
+      "mechanism": "av",
+      "event_family": "l4_av_safe_stop_observed",
+      "predicate_ids": [
+        "l4_business.sensor_fault",
+        "l4_business.minimal_risk_maneuver",
+        "l4_business.declared_stopped_safe",
+        "l4_business.physically_stopped_safe"
+      ],
+      "onset_predicate": "l4_business.minimal_risk_maneuver",
+      "terminal_predicate": "l4_business.physically_stopped_safe"
+    },
+    "L4-11_v2": {
+      "mechanism": "av",
+      "event_family": "l4_av_safe_stop_observed",
+      "predicate_ids": [
+        "l4_business.sensor_fault",
+        "l4_business.minimal_risk_maneuver",
+        "l4_business.declared_stopped_safe",
+        "l4_business.physically_stopped_safe"
+      ],
+      "onset_predicate": "l4_business.minimal_risk_maneuver",
+      "terminal_predicate": "l4_business.physically_stopped_safe"
+    }
+  },
+  "definitions": {
+    "near_pair": "Euclidean distance and continuous dwell taken from the source vehicle_collision_warning trigger.",
+    "braking_active": "Both bound vehicles have vehicle_state.braking == true.",
+    "yielding_active": "At least one bound vehicle has vehicle_state.yielding == true.",
+    "braking_stopped": "Both vehicles report braking and have observed speed <= stationary_speed_tolerance_mps.",
+    "ambulance_approaching_vehicle": "Source civilian_vehicle_yields distance predicate and dwell hold, and the ambulance-to-civilian relative range rate is closing; the measured approach geometry, reported separately from the request state.",
+    "priority_request_active": "The source ambulance_priority_approach move action actually dispatched successfully and the next state sample is observed. The request stays active from the dispatch onward until the passage completes; it does not require the ambulance to still be closing, so a vehicle waiting for a clearance keeps its request active. Cancelled or overwritten stationary approach movement does not activate it.",
+    "priority_request_acknowledged": "Raw vehicle_state.priority_request_acknowledged; records the scheduled response handshake only. It carries no passage meaning and may hold before any geometric passage.",
+    "civilian_yielding": "Bound civilian vehicle_state.yielding == true.",
+    "yield_clearance_satisfied": "Measured lateral separation between the ambulance and the civilian exceeds the authored minimum lane-centre separation while the civilian is yielding; geometry only, not legal right of way.",
+    "ambulance_geometry_passed": "Ambulance is downstream of the civilian along the fixed first nonzero authored ambulance approach segment; geometric order only, not legal right of way.",
+    "priority_passage_completed": "ambulance_geometry_passed is true and a valid yield clearance was actually established during this passage; the clearance is carried as passage history, so a civilian that has already finished yielding does not erase the completion. Never true before the geometric crossing.",
+    "uav_low_altitude": "Measured UAV height above local ground is below the governed low-altitude band; from trajectories, not from a declared state.",
+    "aircraft_near_pedestrian": "Measured horizontal and vertical UAV-to-pedestrian separation both fall inside the source pedestrian_near_miss proximity thresholds; the pre-existing formal safety.aircraft_near_pedestrian margin is not reused as this local geometry.",
+    "landing_zone_occupied": "A bound pedestrian is inside the landing-zone radius around the source low-descent destination. After the first successfully dispatched descent at or after the fork, use that executed move's destination; the dispatch sample retains the common source target. The centre stays fixed during flight and later return-home movement.",
+    "pedestrian_clear_of_landing_zone": "Every bound pedestrian is outside the fixed current descent-target radius; the complement of landing_zone_occupied under the same measurement.",
+    "uav_hold_active": "Raw control_state.hold_active together with measured horizontal speed at or below hold_creep_speed_mps; the aircraft must actually hold position, not merely declare an intent.",
+    "uav_landed": "Measured height at or below the governed touchdown threshold together with speed at or below the stationary threshold; a physical touchdown, not the declared post_activity_type.",
+    "uav_vehicle_proximity": "Measured 3D UAV-to-ground-vehicle separation is at or below the authored vehicle_roof_contact trigger distance (3.0 m); the current-tick approach band.",
+    "uav_vehicle_contact": "The authored trigger geometry has held at least once during this window (history, so a later separation does not erase it); contact is an event that happened, not a state that must persist.",
+    "uav_damaged": "Measured contact has held at least once during this window together with raw incident_state.physical_fault_active; damage without prior measured contact is a response running ahead of its cause and is reported false.",
+    "uav_airborne": "Measured height above the governed airborne threshold; read from position, so a terminated aircraft reads false even if a later script schedules it to fly.",
+    "vehicle_emergency_stop_active": "Raw vehicle_state.emergency_stop; the declared response only.",
+    "vehicle_physically_stopped": "Measured speed <= stationary_speed_tolerance_mps; a physically stopped vehicle is one whose recorded velocity is zero, independent of any declared emergency stop.",
+    "sensor_fault": "Raw vehicle_state.sensor_fault == true.",
+    "minimal_risk_maneuver": "Raw sensor_fault and minimal_risk_maneuver_active are true.",
+    "declared_stopped_safe": "Raw vehicle_state.stopped_safe, materialized by the L4 engine only when the actual MRM response move has finished at its endpoint without interruption. It is not an advance command acknowledgement; the physical predicate independently requires recorded zero speed.",
+    "physically_stopped_safe": "Raw sensor_fault, minimal_risk_maneuver_active, stopped_safe are true and observed speed <= stationary_speed_tolerance_mps.",
+    "yield_response": ""
+  },
+  "event_policy": {
+    "onset": "One occurrence per authored incident instance; the priority-passage instance requires the actual priority-approach movement dispatch and a measured closing approach. Pure geometry remains independent and may be true during earlier background entry. The pedestrian and UAV-vehicle instances open on the measured geometric contact or near-pedestrian predicate, never on a declared flag.",
+    "terminal": "Terminal predicate true on two consecutive formal samples after onset; record the confirmed local outcome, never infer global hazard recovery, legal right of way, or clinical recovery.",
+    "missing": "Inactive lifecycle samples are unknown; absent required typed state fields are explicit errors.",
+    "causality": "Predicate and event-phase evidence only; no causal edge inferred from temporal order."
+  }
+}

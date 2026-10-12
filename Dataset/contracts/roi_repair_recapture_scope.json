@@ -1,0 +1,227 @@
+{
+  "schema_name": "aeroworld_roi_repair_recapture_scope",
+  "schema_version": "2.0.0",
+  "generated_for_date": "2026-08-27",
+  "formal_authority_root": "aw_data/render_ready_episodes_capture_filtered",
+  "ue_transfer_boundary": "aw_data/render_ready_episodes_capture_filtered",
+  "episode_ticks": [0, 900],
+  "capture_step_ticks": 5,
+  "capture_frames_per_episode": 181,
+  "seeds": [0, 1, 2],
+  "profile_count": 31,
+  "episode_count": 93,
+  "profiles": [
+    "L2-1_v2",
+    "L2-3_v1",
+    "L2-3_v2",
+    "L2-4_v1",
+    "L2-5_v1",
+    "L3-1_v1",
+    "L4-1_v2",
+    "L4-3_v1",
+    "L4-3_v2",
+    "L4-3_v3",
+    "L4-4_v1",
+    "L4-4_v2",
+    "L4-5_v1",
+    "L4-5_v2",
+    "L4-5_v3",
+    "L4-6_v1",
+    "L4-6_v2",
+    "L4-7_v1",
+    "L4-7_v2",
+    "L4-8_v1",
+    "L4-8_v2",
+    "L4-9_v1",
+    "L4-9_v2",
+    "L4-10_v1",
+    "L4-10_v2",
+    "L4-11_v1",
+    "L4-11_v2",
+    "L5-1_v1",
+    "L5-1_v2",
+    "L5-1_v3",
+    "X1_rain_to_c2loss_to_forced_landing"
+  ],
+  "roi_policy": {
+    "policy": "preserve_formal_roi_except_five_proven_infeasible_profiles_v1",
+    "unchanged_profile_count": 26,
+    "unchanged_episode_count": 78,
+    "full_chain_rebuild_profile_count": 5,
+    "full_chain_rebuild_episode_count": 15,
+    "full_chain_rebuild_profiles": [
+      "L2-3_v1",
+      "L3-1_v1",
+      "L4-4_v1",
+      "L4-9_v1",
+      "X1_rain_to_c2loss_to_forced_landing"
+    ],
+    "replacement_contract": "Dataset/contracts/roi_rebuild_contracts.json"
+  },
+  "sumo_background_policy": {
+    "identity": "global_entity_roster.entities[source == sumo_traci]",
+    "scope_rebuild": "rebuild all 93 recapture episodes with the current UE roadway-mesh geometry authority",
+    "unaffected_corpus_episodes": "preserve the other 117 formal episodes byte-for-byte",
+    "canonical_authority_root": "aw_data/sumo_outputs/episode_vehicle_authority",
+    "staging_authority_roots": "forbidden"
+  },
+  "uav_background_policy": {
+    "authority_root": "aw_data/uav_outputs/donghu_uav_flow_270s",
+    "mutation": "forbidden",
+    "audit_scope": "only_the_84_user_reported_actor_tick_pairs"
+  },
+  "trajectory_semantic_profiles": [
+    "L2-5_v1",
+    "L3-1_v1",
+    "L4-4_v1",
+    "L4-4_v2",
+    "L4-6_v1",
+    "L4-6_v2",
+    "L4-7_v1",
+    "L4-7_v2",
+    "L4-9_v1",
+    "L4-9_v2",
+    "L4-10_v1",
+    "L4-10_v2",
+    "L4-11_v1",
+    "L4-11_v2",
+    "L5-1_v1",
+    "L5-1_v2",
+    "L5-1_v3",
+    "X1_rain_to_c2loss_to_forced_landing"
+  ],
+  "targeted_inspect_altitude_m": {
+    "L2-3_v2": 35,
+    "L2-4_v1": 30,
+    "L4-3_v1": 30,
+    "L4-3_v2": 30,
+    "L4-4_v2": 105,
+    "L4-5_v1": 50,
+    "L4-5_v2": 50,
+    "L4-6_v1": 85,
+    "L4-6_v2": 85,
+    "L4-7_v1": 30,
+    "L4-8_v1": 50,
+    "L4-8_v2": 50,
+    "L4-10_v1": 55,
+    "L4-10_v2": 20,
+    "L4-11_v2": 30,
+    "X1_rain_to_c2loss_to_forced_landing": 20
+  },
+  "inspect_black_frame_targets": {
+    "L2-1_v2": [445],
+    "L2-3_v1": [170],
+    "L2-3_v2": [435],
+    "L2-4_v1": [255],
+    "L4-1_v2": [295],
+    "L4-3_v1": [105],
+    "L4-3_v2": [110],
+    "L4-3_v3": [110],
+    "L4-4_v1": [725],
+    "L4-4_v2": [730],
+    "L4-5_v1": [110],
+    "L4-5_v2": [110],
+    "L4-5_v3": [860],
+    "L4-6_v1": [5],
+    "L4-6_v2": [880],
+    "L4-7_v1": [370],
+    "L4-8_v1": [110],
+    "L4-8_v2": [110],
+    "L4-9_v1": [55, 445],
+    "L4-10_v1": [300],
+    "L4-11_v1": [635],
+    "L4-11_v2": [875]
+  },
+  "secondary_black_frame_targets": [
+    {
+      "profile": "L4-1_v2",
+      "actor": "uav_conflict_l4_1_v2_b",
+      "observations": [
+        {"seed": 0, "tick": 120},
+        {"seed": 1, "tick": 120},
+        {"seed": 2, "tick": 120}
+      ]
+    },
+    {
+      "profile": "L2-5_v1",
+      "actor": "global_uav_uav_intersection_inspect_02",
+      "observations": [
+        {"seed": 2, "tick": 60}
+      ]
+    },
+    {
+      "profile": "L4-6_v1",
+      "actor": "global_uav_uav_intersection_inspect_02",
+      "observations": [
+        {"seed": 2, "tick": 290},
+        {"seed": 1, "tick": 500}
+      ]
+    },
+    {
+      "profile": "L4-4_v2",
+      "actor": "global_uav_uav_pad_patrol_pad_13",
+      "observations": [
+        {"seed": 1, "tick": 145},
+        {"seed": 2, "tick": 150}
+      ]
+    },
+    {
+      "profile": "L4-4_v2",
+      "actor": "global_uav_uav_delivery_p0_042",
+      "observations": [
+        {"seed": 2, "tick": 0}
+      ]
+    },
+    {
+      "profile": "L4-4_v2",
+      "actor": "global_uav_uav_delivery_p1_000",
+      "observations": [
+        {"seed": 1, "tick": 25}
+      ]
+    },
+    {
+      "profile": "L4-4_v2",
+      "actor": "global_uav_uav_delivery_p1_013",
+      "observations": [
+        {"seed": 1, "tick": 400}
+      ]
+    },
+    {
+      "profile": "L4-4_v2",
+      "actor": "global_uav_uav_delivery_p1_035",
+      "observations": [
+        {"seed": 1, "tick": 510}
+      ]
+    },
+    {
+      "profile": "L4-4_v2",
+      "actor": "global_uav_uav_delivery_p1_041",
+      "observations": [
+        {"seed": 2, "tick": 85}
+      ]
+    },
+    {
+      "profile": "L4-4_v2",
+      "actor": "global_uav_uav_delivery_p1_051",
+      "observations": [
+        {"seed": 2, "tick": 115}
+      ]
+    },
+    {
+      "profile": "L4-4_v2",
+      "actor": "global_uav_uav_incident_response_16",
+      "observations": [
+        {"seed": 1, "tick": 230}
+      ]
+    }
+  ],
+  "explicit_exclusions": [
+    "L6-5",
+    "X4",
+    "X5",
+    "L6-3",
+    "L6-4",
+    "L1_tail_frames"
+  ],
+  "formal_pixel_status": "awaiting_UE_RGB_depth_segmentation_recapture"
+}

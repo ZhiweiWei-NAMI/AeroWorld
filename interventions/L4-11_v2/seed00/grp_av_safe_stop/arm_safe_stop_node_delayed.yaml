@@ -1,0 +1,50 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_safe_stop_node_delayed
+group_key: L4-11_v2/seed00/grp_av_safe_stop
+episode_id: L4-11_v2__seed00
+event_family: l4_av_safe_stop_observed
+mode: intervention
+entity_ids:
+- av_fault_l4_11_v2
+predicate_ids:
+- l4_business.sensor_fault
+- l4_business.minimal_risk_maneuver
+- l4_business.declared_stopped_safe
+- l4_business.physically_stopped_safe
+window:
+  start_tick: 230
+  fork_tick: 260
+  end_tick: 380
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/failure/L4-11_v2/scene_setup.json
+  script: Dataset/scenarios/L4_agents/failure/L4-11_v2/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-11_v2__seed00/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-11_v2__seed00/weather_meta.jsonl
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-11_v2__seed00/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-11_v2__seed00/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-11_v2__seed00/event_outcomes.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-11_v2__seed00/global_entity_roster.json
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites:
+  - trigger_id: trig_after_av_sensor_fault_delay_30
+    delay_ticks: 30
+    mechanism: fired_after_delay_shift
+expected:
+  target_event: observe
+  rationale: 仅将实际 MRM 派发推迟 30 tick，保留路径与速度。stopped_safe 随本臂真实动作完成产生，而不是由固定声明延迟产生；预期 MRM onset 与真实停稳都后移，窗口不足时保留 right_censored。
+  falsified_if: 未实际执行或仍在运动的响应被标记完成；实际路径、速度或派发延迟偏离本配置；未观测到的停稳被写成完成。
+script: scripts/arms/L4-11_v2/seed00/grp_av_safe_stop/arm_safe_stop_node_delayed.py
+output: arms/L4-11_v2/seed00/grp_av_safe_stop/arm_safe_stop_node_delayed
+provenance:
+  experiment_ref: design/L4-11_v2/seed00/grp_av_safe_stop/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    event_script: Dataset/scenarios/L4_agents/failure/L4-11_v2/event_script.json
+    business_rules: Dataset/semantic_rules/profiles/l4_arm_business_semantics.json
+    completion_state: 'Dataset/tools/l4_window.py run_engine: current successful MRM move, endpoint, zero speed, and no later movement/stopping interruption'
+subject_class: vehicle

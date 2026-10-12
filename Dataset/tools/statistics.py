@@ -1,16 +1,15 @@
-"""
-数据集统计报告。
+"""Report structural statistics and stable ontology-module selections.
 
-分析场景分布、事件分布、图规模等统计信息。
-
-使用方式:
-    python statistics.py --dataset-root Dataset/
+Usage:
+    python statistics.py --dataset-root Dataset
 """
 
 from __future__ import annotations
-import json, argparse
+
+import argparse
+import json
+from collections import Counter
 from pathlib import Path
-from collections import defaultdict, Counter
 
 
 def main() -> None:
@@ -20,96 +19,78 @@ def main() -> None:
 
     root = Path(args.dataset_root).resolve()
 
-    # Load taxonomy
-    taxonomy_path = root / "taxonomy.json"
-    with open(taxonomy_path, "r", encoding="utf-8") as f:
-        taxonomy = json.load(f)
+    selection_manifest_path = (
+        root / "knowledge_graph" / "profiles" / "ontology_selection_manifest.json"
+    )
+    with selection_manifest_path.open("r", encoding="utf-8") as f:
+        selection_manifest = json.load(f)
 
-    # Find all event_script.json
     scenarios_dir = root / "scenarios"
-    scripts = list(scenarios_dir.rglob("event_script.json"))
+    scripts = sorted(scenarios_dir.rglob("event_script.json"))
 
-    # Load all event scripts
     all_scripts = []
-    for sp in scripts:
-        with open(sp, "r", encoding="utf-8") as f:
+    for script_path in scripts:
+        with script_path.open("r", encoding="utf-8") as f:
             all_scripts.append(json.load(f))
 
     print("=" * 60)
-    print("UAM Dataset Statistics")
+    print("AeroWorld Dataset Statistics")
     print("=" * 60)
-
-    # Scenario counts by layer
-    layer_counts: dict[str, int] = defaultdict(int)
-    for s in all_scripts:
-        sid = s.get("scenario_id", "")
-        layer = sid.split("-")[0] if "-" in sid else "unknown"
-        layer_counts[layer] += 1
-
     print(f"\nTotal scenarios: {len(all_scripts)}")
-    print("\nPer ODD Layer:")
-    for layer in sorted(layer_counts):
-        print(f"  {layer}: {layer_counts[layer]}")
 
-    # Event chain statistics
+    selected_modules = selection_manifest["selected_modules"]
+    episodes = selection_manifest["episodes"]
+    module_episode_counts = {module_id: len(episodes) for module_id in selected_modules}
+
+    print(
+        f"\nStable ontology modules: {len(selected_modules)} "
+        f"(mapped episodes: {len(episodes)})"
+    )
+    for module_id in selected_modules:
+        print(f"  {module_id}: {module_episode_counts[module_id]}")
+
     chain_lengths = []
     event_counts = []
-    trigger_types: dict[str, int] = Counter()
-    action_types: dict[str, int] = Counter()
+    trigger_types: Counter[str] = Counter()
+    action_types: Counter[str] = Counter()
 
-    for s in all_scripts:
-        events = s.get("events", [])
+    for script in all_scripts:
+        events = script.get("events", [])
         event_counts.append(len(events))
 
-        # Chain length = number of events with on_fire.emit_events
-        chain_events = [e for e in events if e.get("on_fire", {}).get("emit_events")]
+        chain_events = [
+            event for event in events if event.get("on_fire", {}).get("emit_events")
+        ]
         chain_lengths.append(len(chain_events))
 
-        # Trigger types
-        for t in s.get("triggers", []):
-            trigger_types[t.get("type", "unknown")] += 1
+        for trigger in script.get("triggers", []):
+            trigger_types[trigger.get("type", "unknown")] += 1
 
-        # Action types
-        for e in events:
-            for a in e.get("actions", []):
-                action_types[a.get("type", "unknown")] += 1
+        for event in events:
+            for action in event.get("actions", []):
+                action_types[action.get("type", "unknown")] += 1
 
-    print(f"\nEvents per scenario: min={min(event_counts)}, max={max(event_counts)}, "
-          f"mean={sum(event_counts)/len(event_counts):.1f}")
-    print(f"Chain events per scenario: min={min(chain_lengths)}, max={max(chain_lengths)}, "
-          f"mean={sum(chain_lengths)/len(chain_lengths):.1f}")
+    if event_counts:
+        print(
+            f"\nEvents per scenario: min={min(event_counts)}, "
+            f"max={max(event_counts)}, "
+            f"mean={sum(event_counts) / len(event_counts):.1f}"
+        )
+        print(
+            f"Chain events per scenario: min={min(chain_lengths)}, "
+            f"max={max(chain_lengths)}, "
+            f"mean={sum(chain_lengths) / len(chain_lengths):.1f}"
+        )
+    else:
+        print("\nNo event scripts found.")
 
     print("\nTrigger types:")
-    for ttype, count in trigger_types.most_common():
-        print(f"  {ttype}: {count}")
+    for trigger_type, count in trigger_types.most_common():
+        print(f"  {trigger_type}: {count}")
 
     print("\nAction types:")
-    for atype, count in action_types.most_common():
-        print(f"  {atype}: {count}")
-
-    # Mechanism distribution
-    mech_counts: dict[str, int] = Counter()
-    for et in taxonomy["event_types"]:
-        mech = et.get("mechanism", "unknown")
-        mech_counts[mech] += len(et.get("variants", []))
-
-    print("\nPer Mechanism Category:")
-    for mech in sorted(mech_counts):
-        print(f"  {mech}: {mech_counts[mech]}")
-
-    # CAAC coverage
-    print("\nCAAC Emergency Event Coverage:")
-    caac = taxonomy.get("caac_coverage_matrix", {})
-    covered = 0
-    for caac_id in sorted(caac.keys()):
-        info = caac[caac_id]
-        coverage_text = info.get("coverage", "Not covered")
-        is_covered = "Not " not in coverage_text.split(".")[0]
-        if is_covered:
-            covered += 1
-        status = "OK" if is_covered else "PARTIAL"
-        print(f"  {caac_id}: {status} — {coverage_text[:70]}")
-    print(f"\nCAAC coverage: {covered}/{len(caac)}")
+    for action_type, count in action_types.most_common():
+        print(f"  {action_type}: {count}")
 
 
 if __name__ == "__main__":

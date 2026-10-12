@@ -3,13 +3,788 @@
   "scenario_id": "L3-3_v2",
   "description": "Hazmat leak isolation, evacuation, and UAV monitoring",
   "parameters": {
-    "incident_tick": 240
+    "incident_tick": 240,
+    "semantic_event_contract": {
+      "schema": "low_altitude_event_chain_contract_v1",
+      "scenario_id": "L3-3_v2",
+      "exact_counts": {
+        "uav": 3,
+        "vehicle": 2,
+        "pedestrian": 8,
+        "facility": 4,
+        "logical": 8
+      },
+      "capture_boundary": {
+        "boundary_id": "hazmat_zone_l3_3_v2",
+        "geometry_source": "event_entity",
+        "anchor_entity_roles": [
+          "capture_boundary",
+          "hazard_zone",
+          "airspace_constraint"
+        ],
+        "boundary_role": "capture_boundary",
+        "z_policy": "ground_to_event_altitude",
+        "source": "scene_entity",
+        "source_entity_id": "hazmat_zone_l3_3_v2",
+        "center_enu_m": [
+          6597.08,
+          7902.554,
+          3
+        ],
+        "polygon_enu_m": [
+          [
+            6584.08,
+            7892.554
+          ],
+          [
+            6610.08,
+            7892.554
+          ],
+          [
+            6610.08,
+            7912.554
+          ],
+          [
+            6584.08,
+            7912.554
+          ]
+        ],
+        "uav_boundary_crossing_required": true,
+        "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+        "inspect_fov_coverage_required": true,
+        "inspect_entity_role": "U_inspect"
+      },
+      "inspect": {
+        "role": "U_inspect",
+        "altitude_code": "I18",
+        "altitude_m": 18.0,
+        "min_path_length_m": 80.0,
+        "required_presence": "episode_full_duration",
+        "motion_policy": "fixed_altitude_closed_loop",
+        "corridor_policy": "inspect_capture_corridor",
+        "fov_coverage_required": true,
+        "sensor_profile_required": true
+      },
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": []
+      },
+      "uav_boundary_crossing_required": true,
+      "inspect_fov_coverage_required": true,
+      "required_event": "hazmat spread > evacuation > handoff",
+      "required_intents": [
+        "traffic_or_facility_incident",
+        "crowd_evacuation",
+        "recovery_or_restore"
+      ],
+      "background_semantics": {
+        "vehicle_role": "responder + blocked traffic",
+        "pedestrian_role": "evacuating and waiting groups",
+        "policy": "semantic_context_not_decoration"
+      },
+      "weather": "clear",
+      "determinism": {
+        "fallback": "forbidden",
+        "guessing": "forbidden",
+        "compatibility_paths": "forbidden"
+      }
+    },
+    "target_uav_count": 3,
+    "target_vehicle_count": 2,
+    "target_pedestrian_count": 8,
+    "target_facility_count": 4,
+    "target_logical_count": 8,
+    "deterministic_sumo_traffic_template": {
+      "source_policy": "explicit_episode_plan_only_v1",
+      "min_vehicle_count": 12,
+      "seed_profiles": {
+        "seed00": {
+          "name": "morning_peak",
+          "direction_bias": "inbound_to_roi",
+          "direction_weights": {
+            "inbound": 0.7,
+            "outbound": 0.2,
+            "cross": 0.1
+          }
+        },
+        "seed01": {
+          "name": "midday",
+          "direction_bias": "balanced_cross_traffic",
+          "direction_weights": {
+            "inbound": 0.34,
+            "outbound": 0.33,
+            "cross": 0.33
+          }
+        },
+        "seed02": {
+          "name": "evening_peak",
+          "direction_bias": "outbound_from_roi",
+          "direction_weights": {
+            "inbound": 0.2,
+            "outbound": 0.7,
+            "cross": 0.1
+          }
+        }
+      },
+      "semantic_vehicle_roles": [
+        "semantic_event_vehicle",
+        "deterministic_background_vehicle"
+      ],
+      "route_source": "sumo_explicit_vehicle_plan"
+    },
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 29,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "uav_l3_3_v2": 30.0,
+      "u_inspect_l3_3_v2": 18.0,
+      "uav_observer_l3_3_v2_3": 80.0
+    },
+    "uav_lateral_bypass_used": {
+      "uav_l3_3_v2": true,
+      "u_inspect_l3_3_v2": false,
+      "uav_observer_l3_3_v2_3": false
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "uav_l3_3_v2",
+        "point_count": 9,
+        "assigned_altitude_m": 30.0,
+        "used_lateral_bypass": true
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "point_count": 21,
+        "assigned_altitude_m": 18.0,
+        "used_lateral_bypass": false
+      },
+      {
+        "entity_id": "uav_observer_l3_3_v2_3",
+        "point_count": 3,
+        "assigned_altitude_m": 80.0,
+        "used_lateral_bypass": false
+      }
+    ],
+    "uav_corridor_segment_details": [
+      {
+        "entity_id": "uav_l3_3_v2",
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          6549.871,
+          7856.992,
+          3.0
+        ],
+        "segment_end_enu_m": [
+          6549.871,
+          7856.992,
+          24.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_l3_3_v2",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          6549.871,
+          7856.992,
+          24.0
+        ],
+        "segment_end_enu_m": [
+          6581.08,
+          7881.554,
+          33.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_l3_3_v2",
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          6581.08,
+          7881.554,
+          33.0
+        ],
+        "segment_end_enu_m": [
+          6581.08,
+          7881.554,
+          30.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_l3_3_v2",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          6581.08,
+          7881.554,
+          30.0
+        ],
+        "segment_end_enu_m": [
+          6591.08,
+          7891.554,
+          30.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_l3_3_v2",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          6591.08,
+          7891.554,
+          30.0
+        ],
+        "segment_end_enu_m": [
+          6591.08,
+          7914.554,
+          30.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_l3_3_v2",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          6591.08,
+          7914.554,
+          30.0
+        ],
+        "segment_end_enu_m": [
+          6591.08,
+          7914.554,
+          36.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_l3_3_v2",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          6591.08,
+          7914.554,
+          36.0
+        ],
+        "segment_end_enu_m": [
+          6549.871,
+          7856.992,
+          36.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_l3_3_v2",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          6549.871,
+          7856.992,
+          36.0
+        ],
+        "segment_end_enu_m": [
+          6549.871,
+          7856.992,
+          3.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          6584.08,
+          7892.554,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6584.08,
+          7893.054,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          6584.08,
+          7893.054,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6584.08,
+          7892.054,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          6584.08,
+          7892.054,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6584.08,
+          7892.554,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          6584.08,
+          7892.554,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6610.08,
+          7892.554,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          6610.08,
+          7892.554,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6610.08,
+          7893.054,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          6610.08,
+          7893.054,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6610.08,
+          7892.054,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          6610.08,
+          7892.054,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6610.08,
+          7892.554,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          6610.08,
+          7892.554,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6596.206,
+          7905.214,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          6596.206,
+          7905.214,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6595.972,
+          7905.656,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 9,
+        "segment_start_enu_m": [
+          6595.972,
+          7905.656,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6596.44,
+          7904.772,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 10,
+        "segment_start_enu_m": [
+          6596.44,
+          7904.772,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6596.206,
+          7905.214,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 11,
+        "segment_start_enu_m": [
+          6596.206,
+          7905.214,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6584.08,
+          7912.554,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 12,
+        "segment_start_enu_m": [
+          6584.08,
+          7912.554,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6584.08,
+          7913.054,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 13,
+        "segment_start_enu_m": [
+          6584.08,
+          7913.054,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6584.08,
+          7912.054,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 14,
+        "segment_start_enu_m": [
+          6584.08,
+          7912.054,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6584.08,
+          7912.554,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 15,
+        "segment_start_enu_m": [
+          6584.08,
+          7912.554,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6597.08,
+          7902.554,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 16,
+        "segment_start_enu_m": [
+          6597.08,
+          7902.554,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6597.08,
+          7903.054,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 17,
+        "segment_start_enu_m": [
+          6597.08,
+          7903.054,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6597.08,
+          7902.054,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 18,
+        "segment_start_enu_m": [
+          6597.08,
+          7902.054,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6597.08,
+          7902.554,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_3_v2",
+        "segment_index": 19,
+        "segment_start_enu_m": [
+          6597.08,
+          7902.554,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6584.08,
+          7892.554,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "uav_observer_l3_3_v2_3",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          6568.316,
+          7918.409,
+          80.0
+        ],
+        "segment_end_enu_m": [
+          6597.08,
+          7902.554,
+          80.0
+        ],
+        "assigned_altitude_m": 80.0
+      }
+    ],
+    "utm_service_plan": {
+      "schema_name": "utm_service_plan",
+      "schema_version": "1.0.0",
+      "model_id": "aeroworld_deterministic_utm_service",
+      "model_version": "1.0.0",
+      "global_uav_flow_policy": {
+        "source_contract": "uav_global_flow",
+        "intent_start_tick": 0,
+        "intent_end_tick": 900,
+        "authorization_status": "active",
+        "flight_plan_approval_status": "approved"
+      },
+      "uav_plans": [
+        {
+          "uav_id": "u_inspect_l3_3_v2",
+          "corridor_id": "utm_corridor:L3-3_v2:uav_00",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_l3_3_v2",
+          "corridor_id": "utm_corridor:L3-3_v2:uav_01",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_observer_l3_3_v2_3",
+          "corridor_id": "utm_corridor:L3-3_v2:uav_02",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        }
+      ]
+    },
+    "capture_boundary": {
+      "boundary_id": "hazmat_zone_l3_3_v2",
+      "source": "scene_entity",
+      "source_entity_id": "hazmat_zone_l3_3_v2",
+      "center_enu_m": [
+        6597.08,
+        7902.554,
+        3
+      ],
+      "polygon_enu_m": [
+        [
+          6584.08,
+          7892.554
+        ],
+        [
+          6610.08,
+          7892.554
+        ],
+        [
+          6610.08,
+          7912.554
+        ],
+        [
+          6584.08,
+          7912.554
+        ]
+      ],
+      "uav_boundary_crossing_required": true,
+      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "inspect_fov_coverage_required": true,
+      "inspect_entity_role": "U_inspect"
+    },
+    "spatial_grid_assignment": {
+      "scenario_id": "L3-3_v2",
+      "event_space_class": "traffic_incident_grid",
+      "target_center_enu_m": [
+        6594.03,
+        7884.715,
+        0.0
+      ],
+      "grid_cell": {
+        "cell_id": "grid_002_008",
+        "center_enu_m": [
+          6582.640029,
+          7875.613427,
+          0.0
+        ],
+        "representative_enu_m": [
+          6594.03,
+          7884.715,
+          0.0
+        ],
+        "edge_ids": [
+          "cg_edge_114_f_pl0",
+          "cg_edge_479_r_pl2",
+          "cg_edge_479_r_pl3",
+          "cg_edge_728_f_pl2",
+          "cg_edge_728_r_pl0",
+          "cg_edge_728_r_pl1"
+        ],
+        "main_edge_count": 6,
+        "total_main_edge_length_m": 354.750188,
+        "max_speed_mps": 11.11,
+        "incident_count": 0
+      },
+      "source": "main_road_grid.traffic_incident_cell",
+      "traffic_incident_id": "",
+      "accident_class": "",
+      "exclusion_radius_m": 180.0,
+      "policy": "city_grid_main_road_event_coverage_v1",
+      "provisional_capture_center_enu_m": [
+        7088.95,
+        6252.161,
+        3.629
+      ],
+      "applied_world_origin_enu_m": [
+        6505.08,
+        7832.554,
+        0.0
+      ],
+      "actual_capture_center_enu_m": [
+        6601.263,
+        7886.01,
+        2.661
+      ],
+      "expanded_capture_center_enu_m": [
+        6597.08,
+        7902.554,
+        3.0
+      ],
+      "target_error_m": 7.348014
+    }
   },
   "triggers": [
     {
       "trigger_id": "trig_lifecycle_takeoff_uav_l3_3_v2",
       "type": "tick",
       "tick": 30
+    },
+    {
+      "trigger_id": "trig_hazmat_ped_a_approach",
+      "type": "tick",
+      "tick": 120
     },
     {
       "trigger_id": "trig_hazmat_leak",
@@ -23,22 +798,86 @@
       "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_pedestrian_evacuation_delay_30",
+      "trigger_id": "trig_after_isolation_setup_delay_30",
       "type": "event_fired_after",
-      "event_id": "pedestrian_evacuation",
+      "event_id": "isolation_setup",
       "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_ambulance_arrival_delay_42",
-      "type": "event_fired_after",
-      "event_id": "ambulance_arrival",
-      "delay_ticks": 42
+      "trigger_id": "trig_hazmat_ped_a_safe_dwell",
+      "type": "entity_proximity",
+      "entity_a": "ped_hazmat_l3_3_v2_a",
+      "entity_b": "hazmat_safe_anchor_l3_3_v2_a",
+      "distance_m": 3.0,
+      "operator": "lte",
+      "metric": "xy_plus_z",
+      "horizontal_distance_m": 3.0,
+      "vertical_distance_m": 5.0,
+      "min_true_ticks": 10
     },
     {
-      "trigger_id": "trig_after_uav_external_monitor_delay_94",
+      "trigger_id": "trig_hazmat_ped_b_safe_dwell",
+      "type": "entity_proximity",
+      "entity_a": "ped_hazmat_l3_3_v2_b",
+      "entity_b": "hazmat_safe_anchor_l3_3_v2_b",
+      "distance_m": 3.0,
+      "operator": "lte",
+      "metric": "xy_plus_z",
+      "horizontal_distance_m": 3.0,
+      "vertical_distance_m": 5.0,
+      "min_true_ticks": 10
+    },
+    {
+      "trigger_id": "trig_pedestrian_safe_zone_reached",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_hazmat_ped_a_safe_dwell",
+        "trig_hazmat_ped_b_safe_dwell"
+      ]
+    },
+    {
+      "trigger_id": "trig_after_pedestrian_safe_zone_reached_delay_30",
+      "type": "event_fired_after",
+      "event_id": "pedestrian_safe_zone_reached",
+      "delay_ticks": 30
+    },
+    {
+      "trigger_id": "trig_ambulance_arrived",
+      "type": "entity_proximity",
+      "entity_a": "ambulance_l3_3_v2",
+      "entity_b": "hazmat_arrival_anchor_l3_3_v2",
+      "distance_m": 3.0,
+      "operator": "lte",
+      "metric": "xy",
+      "min_true_ticks": 10
+    },
+    {
+      "trigger_id": "trig_after_ambulance_arrived_delay_15",
+      "type": "event_fired_after",
+      "event_id": "ambulance_arrived",
+      "delay_ticks": 15
+    },
+    {
+      "trigger_id": "trig_after_uav_external_monitor_delay_86",
       "type": "event_fired_after",
       "event_id": "uav_external_monitor",
-      "delay_ticks": 94
+      "delay_ticks": 86
+    },
+    {
+      "trigger_id": "trig_hazmat_resolved",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_after_uav_external_monitor_delay_86",
+        "trig_after_ambulance_arrived_delay_15"
+      ]
+    },
+    {
+      "trigger_id": "trig_after_hazmat_resolved_delay_64",
+      "type": "event_fired_after",
+      "event_id": "hazmat_resolved",
+      "delay_ticks": 64
     }
   ],
   "events": [
@@ -54,23 +893,55 @@
           "entity_id": "uav_l3_3_v2",
           "waypoints_enu_m": [
             [
-              7075.75,
-              6248.473,
+              6549.871,
+              7856.992,
               3.0
             ],
             [
-              7075.75,
-              6248.473,
+              6549.871,
+              7856.992,
               24.0
             ],
             [
-              7076.0,
-              6249.0,
-              33
+              6581.08,
+              7881.554,
+              33.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "activity_type": "takeoff",
+          "post_activity_type": "cruise",
+          "uav_corridor_validation": {
+            "status": "low_altitude_waypoints_preserved_and_building_clear",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                6549.871,
+                7856.992,
+                3.0
+              ],
+              [
+                6549.871,
+                7856.992,
+                24.0
+              ],
+              [
+                6581.08,
+                7881.554,
+                33
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
+      ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L3-3_v2_lifecycle_takeoff_uav_l3_3_v2",
@@ -81,6 +952,117 @@
         "target_ids": [
           "uav_l3_3_v2",
           "pad_home_uav_l3_3_v2"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
+        ]
+      }
+    },
+    {
+      "event_id": "hazmat_ped_a_approach",
+      "trigger_ref": "trig_hazmat_ped_a_approach",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_hazmat_ped_a_approach",
+          "entity_id": "ped_hazmat_l3_3_v2_a",
+          "waypoints_enu_m": [
+            [
+              6585.604,
+              7915.599,
+              0.0
+            ],
+            [
+              6593.483,
+              7900.176,
+              0.0
+            ]
+          ],
+          "velocity_mps": 1.25,
+          "activity_type": "walking",
+          "post_activity_type": "waiting"
+        }
+      ],
+      "intent": "context",
+      "intent_stage": "00.context",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "target_roles": [
+        "pedestrian"
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v2_hazmat_ped_a_approach",
+        "category": "scene_context",
+        "title": "Context pedestrian walks into the event area before the primary event",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "ped_hazmat_l3_3_v2_a"
+        ],
+        "intent": "context",
+        "intent_stage": "00.context",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "target_roles": [
+          "pedestrian"
+        ]
+      }
+    },
+    {
+      "event_id": "hazmat_ped_b_approach",
+      "trigger_ref": "trig_hazmat_ped_a_approach",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "move_entity",
+          "action_id": "move_hazmat_ped_b_approach",
+          "entity_id": "ped_hazmat_l3_3_v2_b",
+          "waypoints_enu_m": [
+            [
+              6601.792,
+              7907.892,
+              0.0
+            ],
+            [
+              6596.324,
+              7902.388,
+              0.0
+            ]
+          ],
+          "velocity_mps": 1.25,
+          "activity_type": "walking",
+          "post_activity_type": "waiting"
+        }
+      ],
+      "intent": "context",
+      "intent_stage": "00.context",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "pedestrian"
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v2_hazmat_ped_b_approach",
+        "category": "scene_context",
+        "title": "Context pedestrian walks into the event area before the primary event",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "ped_hazmat_l3_3_v2_b"
+        ],
+        "intent": "context",
+        "intent_stage": "00.context",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "pedestrian"
         ]
       }
     },
@@ -96,8 +1078,8 @@
           "entity_id": "hazmat_zone_l3_3_v2",
           "asset_id": "trigger.hazard.generic.box.v1",
           "position_enu_m": [
-            7092.0,
-            6270.0,
+            6597.08,
+            7902.554,
             3
           ],
           "rotation_deg": {
@@ -106,7 +1088,27 @@
           "visual_state": {
             "mode": "isolation_active"
           }
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l3_3_v2_hazmat_leak_00",
+          "entity_id": "hazmat_zone_l3_3_v2",
+          "delay_ticks": 0,
+          "state_patch": {
+            "incident_state": {
+              "temporary_lockdown_active": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
         }
+      ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "01.traffic_or_facility_incident",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "capture_boundary"
       ],
       "log_event": {
         "topic": "evt_L3-3_v2_hazmat_leak",
@@ -116,13 +1118,57 @@
         "overlay": "dynamic_constraint",
         "target_ids": [
           "hazmat_zone_l3_3_v2"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "01.traffic_or_facility_incident",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "capture_boundary"
+        ]
+      }
+    },
+    {
+      "event_id": "isolation_setup",
+      "trigger_ref": "trig_after_hazmat_leak_delay_30",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_hazmat_isolation",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "intent": "isolation",
+      "intent_stage": "02.isolation",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "capture_boundary"
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v2_isolation_setup",
+        "category": "dynamic_constraint",
+        "title": "Hazmat isolation perimeter is established",
+        "severity": "warning",
+        "overlay": "dynamic_constraint",
+        "target_ids": [
+          "hazmat_zone_l3_3_v2"
+        ],
+        "intent": "isolation",
+        "intent_stage": "02.isolation",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "capture_boundary"
         ]
       }
     },
     {
       "event_id": "pedestrian_evacuation",
-      "trigger_ref": "trig_after_hazmat_leak_delay_30",
-      "priority": 2,
+      "trigger_ref": "trig_after_isolation_setup_delay_30",
+      "priority": 3,
       "max_fire_count": 1,
       "actions": [
         {
@@ -131,13 +1177,18 @@
           "entity_id": "ped_hazmat_l3_3_v2_a",
           "waypoints_enu_m": [
             [
-              6374.81,
-              7886.949,
+              6593.483,
+              7900.176,
               0.0
             ],
             [
-              6370.992,
-              7885.526,
+              6602.735,
+              7889.003,
+              0.0
+            ],
+            [
+              6611.986,
+              7877.83,
               0.0
             ]
           ],
@@ -151,20 +1202,59 @@
           "entity_id": "ped_hazmat_l3_3_v2_b",
           "waypoints_enu_m": [
             [
-              6379.906,
-              7890.104,
+              6596.324,
+              7902.388,
               0.0
             ],
             [
-              6380.335,
-              7891.31,
+              6608.101,
+              7893.18,
+              0.0
+            ],
+            [
+              6619.877,
+              7883.972,
               0.0
             ]
           ],
           "velocity_mps": 1.4,
           "activity_type": "evacuating",
           "post_activity_type": "waiting"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l3_3_v2_pedestrian_evacuation_00",
+          "entity_id": "ped_hazmat_l3_3_v2_a",
+          "delay_ticks": 5,
+          "state_patch": {
+            "pedestrian_state": {
+              "evacuation_active": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l3_3_v2_pedestrian_evacuation_01",
+          "entity_id": "ped_hazmat_l3_3_v2_b",
+          "delay_ticks": 5,
+          "state_patch": {
+            "pedestrian_state": {
+              "evacuation_active": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
         }
+      ],
+      "intent": "crowd_evacuation",
+      "intent_stage": "03.crowd_evacuation",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "isolation",
+      "target_roles": [
+        "capture_boundary",
+        "pedestrian"
       ],
       "log_event": {
         "topic": "evt_L3-3_v2_pedestrian_evacuation",
@@ -176,50 +1266,408 @@
           "ped_hazmat_l3_3_v2_a",
           "ped_hazmat_l3_3_v2_b",
           "hazmat_zone_l3_3_v2"
+        ],
+        "intent": "crowd_evacuation",
+        "intent_stage": "03.crowd_evacuation",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "isolation",
+        "target_roles": [
+          "capture_boundary",
+          "pedestrian"
         ]
       }
     },
     {
-      "event_id": "ambulance_arrival",
-      "trigger_ref": "trig_after_pedestrian_evacuation_delay_30",
-      "priority": 3,
+      "event_id": "hazmat_ped_a_safe_dwell",
+      "trigger_ref": "trig_hazmat_ped_a_safe_dwell",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [],
+      "require_conditions": [
+        "trig_after_isolation_setup_delay_30"
+      ],
+      "intent": "context",
+      "intent_stage": "04.context",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "crowd_evacuation",
+      "target_roles": [
+        "capture_boundary",
+        "pedestrian"
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v2_hazmat_ped_a_safe_dwell",
+        "category": "scene_context",
+        "title": "First target pedestrian remains at the physical safe-zone anchor",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "ped_hazmat_l3_3_v2_a",
+          "hazmat_safe_anchor_l3_3_v2_a"
+        ],
+        "intent": "context",
+        "intent_stage": "04.context",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "crowd_evacuation",
+        "target_roles": [
+          "capture_boundary",
+          "pedestrian"
+        ]
+      }
+    },
+    {
+      "event_id": "hazmat_ped_b_safe_dwell",
+      "trigger_ref": "trig_hazmat_ped_b_safe_dwell",
+      "priority": 4,
+      "max_fire_count": 1,
+      "actions": [],
+      "require_conditions": [
+        "trig_after_isolation_setup_delay_30"
+      ],
+      "intent": "context",
+      "intent_stage": "04.context",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "capture_boundary",
+        "pedestrian"
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v2_hazmat_ped_b_safe_dwell",
+        "category": "scene_context",
+        "title": "Second target pedestrian remains at the physical safe-zone anchor",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "ped_hazmat_l3_3_v2_b",
+          "hazmat_safe_anchor_l3_3_v2_b"
+        ],
+        "intent": "context",
+        "intent_stage": "04.context",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "capture_boundary",
+          "pedestrian"
+        ]
+      }
+    },
+    {
+      "event_id": "pedestrian_safe_zone_reached",
+      "trigger_ref": "trig_pedestrian_safe_zone_reached",
+      "priority": 4,
       "max_fire_count": 1,
       "actions": [
         {
+          "type": "capture_screenshot",
+          "action_id": "capture_hazmat_safe_zone",
+          "camera_id": "demo_high_overview"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l3_3_v2_pedestrian_safe_zone_reached_00",
+          "entity_id": "ped_hazmat_l3_3_v2_a",
+          "delay_ticks": 0,
+          "state_patch": {
+            "pedestrian_state": {
+              "evacuation_active": false,
+              "safe_zone_reached": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l3_3_v2_pedestrian_safe_zone_reached_01",
+          "entity_id": "ped_hazmat_l3_3_v2_b",
+          "delay_ticks": 0,
+          "state_patch": {
+            "pedestrian_state": {
+              "evacuation_active": false,
+              "safe_zone_reached": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+        }
+      ],
+      "intent": "both_target_pedestrians_satisfy_the_physical_safe_zone_dwell_threshold",
+      "intent_stage": "04.both_target_pedestrians_satisfy_the_physical_safe_zone_dwell_threshold",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "capture_boundary",
+        "pedestrian"
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v2_pedestrian_safe_zone_reached",
+        "category": "pedestrian",
+        "title": "Both target pedestrians satisfy the physical safe-zone dwell threshold",
+        "severity": "info",
+        "overlay": "pedestrian",
+        "target_ids": [
+          "ped_hazmat_l3_3_v2_a",
+          "ped_hazmat_l3_3_v2_b",
+          "hazmat_zone_l3_3_v2",
+          "hazmat_safe_anchor_l3_3_v2_a",
+          "hazmat_safe_anchor_l3_3_v2_b"
+        ],
+        "intent": "both_target_pedestrians_satisfy_the_physical_safe_zone_dwell_threshold",
+        "intent_stage": "04.both_target_pedestrians_satisfy_the_physical_safe_zone_dwell_threshold",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "capture_boundary",
+          "pedestrian"
+        ]
+      }
+    },
+    {
+      "event_id": "ambulance_dispatch",
+      "trigger_ref": "trig_after_pedestrian_safe_zone_reached_delay_30",
+      "priority": 5,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_ambulance_l3_3_v2",
+          "entity_id": "ambulance_l3_3_v2",
+          "asset_id": "vehicle.emergency.ambulance.v1",
+          "position_enu_m": [
+            6610.74,
+            7863.37,
+            0.0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 128.257
+          },
+          "visual_state": {
+            "mode": "response",
+            "lights_on": true
+          }
+        },
+        {
           "type": "move_entity",
-          "action_id": "move_ambulance_hazmat",
+          "action_id": "move_ambulance_hazmat_dispatch",
           "entity_id": "ambulance_l3_3_v2",
           "waypoints_enu_m": [
             [
-              7039.154,
-              6248.764,
+              6610.74,
+              7863.37,
               0.0
             ],
             [
-              7078.74,
-              6261.154,
+              6610.121,
+              7864.155,
+              0.0
+            ],
+            [
+              6609.507,
+              7864.944,
+              0.0
+            ],
+            [
+              6608.89,
+              7865.732,
+              0.0
+            ],
+            [
+              6608.274,
+              7866.519,
+              0.0
+            ],
+            [
+              6607.656,
+              7867.306,
+              0.0
+            ],
+            [
+              6607.039,
+              7868.092,
+              0.0
+            ],
+            [
+              6606.422,
+              7868.879,
+              0.0
+            ],
+            [
+              6605.805,
+              7869.667,
+              0.0
+            ],
+            [
+              6605.191,
+              7870.455,
+              0.0
+            ],
+            [
+              6604.577,
+              7871.245,
+              0.0
+            ],
+            [
+              6603.96,
+              7872.032,
+              0.0
+            ],
+            [
+              6603.344,
+              7872.819,
+              0.0
+            ],
+            [
+              6602.726,
+              7873.606,
+              0.0
+            ],
+            [
+              6602.109,
+              7874.392,
+              0.0
+            ],
+            [
+              6601.492,
+              7875.18,
+              0.0
+            ],
+            [
+              6600.875,
+              7875.967,
+              0.0
+            ],
+            [
+              6600.26,
+              7876.755,
+              0.0
+            ],
+            [
+              6599.646,
+              7877.545,
+              0.0
+            ],
+            [
+              6599.03,
+              7878.332,
+              0.0
+            ],
+            [
+              6598.413,
+              7879.119,
+              0.0
+            ],
+            [
+              6597.796,
+              7879.906,
+              0.0
+            ],
+            [
+              6597.178,
+              7880.693,
+              0.0
+            ],
+            [
+              6596.562,
+              7881.48,
+              0.0
+            ],
+            [
+              6595.945,
+              7882.267,
+              0.0
+            ],
+            [
+              6595.33,
+              7883.056,
               0.0
             ]
           ],
           "velocity_mps": 11.0
         }
       ],
+      "intent": "isolation",
+      "intent_stage": "05.isolation",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "both_target_pedestrians_satisfy_the_physical_safe_zone_dwell_threshold",
+      "target_roles": [
+        "capture_boundary",
+        "vehicle"
+      ],
+      "validation_event_type": "intentional_pedestrian_vehicle_interaction",
+      "validation_reason": "Hazmat response intentionally brings an emergency vehicle close to evacuating pedestrians at the isolation perimeter.",
+      "validation_skip_checks": [
+        "pedestrian_vehicle_dynamic_clearance"
+      ],
       "log_event": {
-        "topic": "evt_L3-3_v2_ambulance_arrival",
+        "topic": "evt_L3-3_v2_ambulance_dispatch",
         "category": "vehicle",
-        "title": "Ambulance arrives at isolation perimeter",
+        "title": "Ambulance is dispatched and departs toward isolation perimeter",
         "severity": "warning",
         "overlay": "vehicle",
         "target_ids": [
           "ambulance_l3_3_v2",
           "hazmat_zone_l3_3_v2"
+        ],
+        "intent": "isolation",
+        "intent_stage": "05.isolation",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "both_target_pedestrians_satisfy_the_physical_safe_zone_dwell_threshold",
+        "target_roles": [
+          "capture_boundary",
+          "vehicle"
+        ]
+      }
+    },
+    {
+      "event_id": "ambulance_arrived",
+      "trigger_ref": "trig_ambulance_arrived",
+      "priority": 6,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_hazmat_ambulance_arrived",
+          "camera_id": "demo_high_overview"
+        }
+      ],
+      "intent": "isolation",
+      "intent_stage": "06.isolation",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "isolation",
+      "target_roles": [
+        "capture_boundary",
+        "vehicle"
+      ],
+      "validation_event_type": "intentional_pedestrian_vehicle_interaction",
+      "validation_reason": "Hazmat arrival is checked after deterministic travel completion at the isolation perimeter.",
+      "validation_skip_checks": [
+        "pedestrian_vehicle_dynamic_clearance"
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v2_ambulance_arrived",
+        "category": "vehicle",
+        "title": "Ambulance physically dwells at the isolation perimeter arrival anchor",
+        "severity": "warning",
+        "overlay": "vehicle",
+        "target_ids": [
+          "ambulance_l3_3_v2",
+          "hazmat_zone_l3_3_v2",
+          "hazmat_arrival_anchor_l3_3_v2"
+        ],
+        "intent": "isolation",
+        "intent_stage": "06.isolation",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "isolation",
+        "target_roles": [
+          "capture_boundary",
+          "vehicle"
         ]
       }
     },
     {
       "event_id": "uav_external_monitor",
-      "trigger_ref": "trig_after_ambulance_arrival_delay_42",
-      "priority": 4,
+      "trigger_ref": "trig_after_ambulance_arrived_delay_15",
+      "priority": 7,
       "max_fire_count": 1,
       "actions": [
         {
@@ -228,22 +1676,49 @@
           "entity_id": "uav_l3_3_v2",
           "waypoints_enu_m": [
             [
-              7076.0,
-              6249.0,
-              33
+              6581.08,
+              7881.554,
+              33.0
             ],
             [
-              7086.0,
-              6259.0,
-              30
+              6581.08,
+              7881.554,
+              30.0
             ],
             [
-              7102.0,
-              6282.0,
-              30
+              6591.08,
+              7891.554,
+              30.0
+            ],
+            [
+              6591.08,
+              7914.554,
+              30.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                6581.08,
+                7881.554,
+                33
+              ],
+              [
+                6591.08,
+                7891.554,
+                30
+              ],
+              [
+                6607.08,
+                7914.554,
+                30
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         },
         {
           "type": "capture_screenshot",
@@ -251,21 +1726,130 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "recovery_or_restore",
+      "intent_stage": "07.recovery_or_restore",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "isolation",
+      "target_roles": [
+        "capture_boundary",
+        "mission_uav",
+        "vehicle"
+      ],
       "log_event": {
         "topic": "evt_L3-3_v2_uav_external_monitor",
         "category": "uav_mission",
-        "title": "UAV monitors hazmat zone from outside",
+        "title": "UAV monitors hazmat zone after responder handoff dwell",
         "severity": "info",
         "overlay": "uav_mission",
         "target_ids": [
           "uav_l3_3_v2",
+          "hazmat_zone_l3_3_v2",
+          "ambulance_l3_3_v2"
+        ],
+        "intent": "recovery_or_restore",
+        "intent_stage": "07.recovery_or_restore",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "isolation",
+        "target_roles": [
+          "capture_boundary",
+          "mission_uav",
+          "vehicle"
+        ]
+      }
+    },
+    {
+      "event_id": "hazmat_clearance_observation_window",
+      "trigger_ref": "trig_after_uav_external_monitor_delay_86",
+      "priority": 8,
+      "max_fire_count": 1,
+      "actions": [],
+      "intent": "context",
+      "intent_stage": "08.context",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "recovery_or_restore",
+      "target_roles": [
+        "capture_boundary"
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v2_hazmat_clearance_observation_window",
+        "category": "scene_context",
+        "title": "Clearance observation opens after the weather profile clears and responder monitoring handoff completes",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
           "hazmat_zone_l3_3_v2"
+        ],
+        "intent": "context",
+        "intent_stage": "08.context",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "recovery_or_restore",
+        "target_roles": [
+          "capture_boundary"
+        ]
+      }
+    },
+    {
+      "event_id": "hazmat_resolved",
+      "trigger_ref": "trig_hazmat_resolved",
+      "priority": 8,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "capture_screenshot",
+          "action_id": "capture_hazmat_resolved",
+          "camera_id": "demo_high_overview"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l3_3_v2_hazmat_resolved_00",
+          "entity_id": "hazmat_zone_l3_3_v2",
+          "delay_ticks": 0,
+          "state_patch": {
+            "incident_state": {
+              "temporary_lockdown_active": false
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+        }
+      ],
+      "intent": "clearance",
+      "intent_stage": "08.clearance",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "capture_boundary",
+        "mission_uav",
+        "vehicle"
+      ],
+      "log_event": {
+        "topic": "evt_L3-3_v2_hazmat_resolved",
+        "category": "dynamic_constraint",
+        "title": "Hazmat clearance observation is documented after physical response gates",
+        "severity": "info",
+        "overlay": "dynamic_constraint",
+        "target_ids": [
+          "hazmat_zone_l3_3_v2",
+          "ambulance_l3_3_v2",
+          "uav_l3_3_v2",
+          "hazmat_safe_anchor_l3_3_v2_a",
+          "hazmat_safe_anchor_l3_3_v2_b",
+          "hazmat_arrival_anchor_l3_3_v2"
+        ],
+        "intent": "clearance",
+        "intent_stage": "08.clearance",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "capture_boundary",
+          "mission_uav",
+          "vehicle"
         ]
       }
     },
     {
       "event_id": "lifecycle_landing_uav_l3_3_v2",
-      "trigger_ref": "trig_after_uav_external_monitor_delay_94",
+      "trigger_ref": "trig_after_hazmat_resolved_delay_64",
       "priority": 9,
       "max_fire_count": 1,
       "actions": [
@@ -275,23 +1859,81 @@
           "entity_id": "uav_l3_3_v2",
           "waypoints_enu_m": [
             [
-              7102.0,
-              6282.0,
+              6591.08,
+              7914.554,
               30.0
             ],
             [
-              7075.75,
-              6248.473,
-              22.0
+              6591.08,
+              7914.554,
+              36.0
             ],
             [
-              7075.75,
-              6248.473,
+              6549.871,
+              7856.992,
+              36.0
+            ],
+            [
+              6549.871,
+              7856.992,
               3.0
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 8.0,
+          "activity_type": "return_to_pad",
+          "post_activity_type": "landed",
+          "uav_corridor_validation": {
+            "status": "low_altitude_waypoints_preserved_and_building_clear",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                6607.08,
+                7914.554,
+                30.0
+              ],
+              [
+                6607.08,
+                7914.554,
+                36.0
+              ],
+              [
+                6549.871,
+                7856.992,
+                36.0
+              ],
+              [
+                6549.871,
+                7856.992,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          },
+          "terminal_feasibility": {
+            "model": "constant_speed_path_with_explicit_landing_reference_v2",
+            "dispatch_upper_bound_tick": 740,
+            "route_length_m": 109.792411,
+            "available_ticks": 150,
+            "required_speed_mps": 7.319494,
+            "max_speed_mps": 8.0,
+            "home_pose_origin_z_m": 3.0,
+            "landing_reference_enu_m": [
+              6549.871,
+              7856.992,
+              3.0
+            ],
+            "touchdown_altitude_tolerance_m": 1.5,
+            "touchdown_dwell_ticks": 5
+          }
         }
+      ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "L3-3_v2.semantic_event_chain",
+      "causal_predecessor_intent": "clearance",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L3-3_v2_lifecycle_landing_uav_l3_3_v2",
@@ -302,6 +1944,14 @@
         "target_ids": [
           "uav_l3_3_v2",
           "pad_home_uav_l3_3_v2"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "L3-3_v2.semantic_event_chain",
+        "causal_predecessor_intent": "clearance",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     }

@@ -1,0 +1,87 @@
+{
+ "schema": "aero_l6_explicit_arm_v3",
+ "version": 1,
+ "spec": {
+  "profile": "L6-1_v1",
+  "seed": "seed02",
+  "anchor_event_id": "rth_engaged",
+  "arm_id": "arm_rth_cancelled",
+  "mode": "intervention",
+  "role": "narrative_branch",
+  "window_start_tick": 270,
+  "window_fork_tick": 275,
+  "window_end_tick": 340,
+  "primary_predicate": "communication.link_unavailable",
+  "subject_entity_ids": [
+   "tower_l6_1_v1",
+   "uav_digital_l6_1_v1"
+  ],
+  "mechanism": {
+   "kind": "omit_rth_response_and_hold_at_fork",
+   "cancel_event_ids": [],
+   "omit_action_ids": [
+    "set_uav_rth",
+    "move_uav_rth_home",
+    "set_runtime_state_l6_1_v1_rth_engaged_00",
+    "set_uav_link_restored_hold"
+   ],
+   "injections": [
+    {
+     "tick": 275,
+     "type": "set_visual_state",
+     "action_id": "arm_rth_hold",
+     "entity_id": "uav_digital_l6_1_v1",
+     "visual_state": {
+      "mode": "hold"
+     }
+    }
+   ]
+  },
+  "retime": null,
+  "omit_action_ids": [
+   "set_uav_rth",
+   "move_uav_rth_home",
+   "set_runtime_state_l6_1_v1_rth_engaged_00",
+   "set_uav_link_restored_hold"
+  ],
+  "inject_actions": [
+   {
+    "tick": 275,
+    "type": "set_visual_state",
+    "action_id": "arm_rth_hold",
+    "entity_id": "uav_digital_l6_1_v1",
+    "visual_state": {
+     "mode": "hold"
+    }
+   }
+  ],
+  "cancel_event_ids": [],
+  "hypothesis": "rth_engaged 事件仍在 275 派发，但其三项响应动作被省略并注入 hold，因此 UAV 从 fork 位置保持、rth_active 始终为 false。c2_recovered 仍在 325 派发；保留 tower 恢复及通信恢复，只省略会覆盖本分支显式 hold 状态的 set_uav_link_restored_hold。",
+  "falsified_if": "若 UAV 在 275 后移动或进入 return_to_home，rth_active 变为 true，c2_recovered 未在 325 派发，或通信未在 330 恢复并稳定至 340，则分支被证伪。",
+  "window_basis": "闭区间 [270,340] 与 factual 共享 tick 275 动作前快照，覆盖被省略的 RTH 响应和仍保留的链路恢复。省略 set_uav_link_restored_hold 保留本分支显式 hold 状态；当前位置悬停不代表到家；landing@405 在范围外，不评价着陆。",
+  "window_needed_nodes": [
+   {
+    "event_id": "rth_engaged",
+    "tick": 275,
+    "role": "authored_event_actions_omitted"
+   },
+   {
+    "action_id": "arm_rth_hold",
+    "tick": 275,
+    "role": "injected_stationary_hold"
+   },
+   {
+    "event_id": "c2_recovered",
+    "tick": 325,
+    "role": "authored_recovery_retained"
+   },
+   {
+    "predicate_id": "communication.link_unavailable",
+    "tick": 340,
+    "role": "recovery_hold_terminal"
+   }
+  ],
+  "window_censored": false,
+  "group_suffix": ""
+ }
+}

@@ -31,7 +31,8 @@ def read(path):
 
 
 def json_rows(path):
-    with path.open('rb') as handle:
+    from Dataset.semantic_truth.provenance import open_artifact_binary
+    with open_artifact_binary(path) as handle:
         for line in handle:
             if line.strip():
                 yield orjson.loads(line)
@@ -158,6 +159,7 @@ def state_operations(previous, current, tick):
 
 
 def update_world_graph(source, target, payload, template, world, stable_identifier):
+    from Dataset.semantic_truth.provenance import open_objective_text
     base = read(source / 'world_truth_graph_base.json'); defaults = base['governed_parameters']
     original_states = {state['tuple_id']: copy.deepcopy(state) for state in base['initial_assertions'] if state['predicate_id'] == PREDICATE}
     if not original_states:
@@ -175,7 +177,7 @@ def update_world_graph(source, target, payload, template, world, stable_identifi
     previous = current; previous_delta_id = None; graph_counts = Counter()
     delta_target = target / 'world_truth_graph_deltas.jsonl'
     delta_pending = delta_target.with_suffix(delta_target.suffix + '.pending')
-    with delta_pending.open('wb') as destination:
+    with open_objective_text(delta_pending, artifact_name=delta_target.name) as destination:
         for tick in TICKS[1:]:
             delta = None; other = []
             if pending is not None and pending['tick'] < tick:
@@ -199,7 +201,7 @@ def update_world_graph(source, target, payload, template, world, stable_identifi
                         'annotation_layer': 'L1', 'source_layer': 'L0', 'episode_id': base['episode_id'], 'tick': tick}
                 delta.update(operations=operations, operation_count=len(operations), previous_delta_id=previous_delta_id,
                     delta_id=stable_identifier('world_truth_graph_delta', base['episode_id'], tick, operations))
-                destination.write(orjson.dumps(delta) + b'\n'); previous_delta_id = delta['delta_id']; graph_counts['delta_rows'] += 1
+                destination.write(orjson.dumps(delta).decode('utf-8') + '\n'); previous_delta_id = delta['delta_id']; graph_counts['delta_rows'] += 1
             previous = current
     if pending is not None:
         raise ValueError('Existing graph extends outside the declared episode ticks')

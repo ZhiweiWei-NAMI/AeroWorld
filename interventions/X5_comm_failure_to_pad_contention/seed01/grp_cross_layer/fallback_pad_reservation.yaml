@@ -1,0 +1,206 @@
+{
+  "profile": "X5_comm_failure_to_pad_contention",
+  "seed": "seed01",
+  "episode_id": "X5_comm_failure_to_pad_contention__seed01",
+  "group": "X5_comm_failure_to_pad_contention/seed01/grp_cross_layer",
+  "arm_id": "fallback_pad_reservation",
+  "mode": "intervention",
+  "window": {
+    "start_tick": 210,
+    "fork_tick": 220,
+    "end_tick": 670,
+    "phase": "after_state_sample_before_actions"
+  },
+  "sources": {
+    "scene": "interventions/X5_comm_failure_to_pad_contention/seed01/grp_cross_layer/scene_setup.json",
+    "original_scene": "Dataset/scenarios/X_cross_layer/X5_comm_failure_to_pad_contention/scene_setup.json",
+    "script": "Dataset/scenarios/X_cross_layer/X5_comm_failure_to_pad_contention/event_script.json",
+    "canonical": "aw_data/render_ready_episodes_capture_filtered/X5_comm_failure_to_pad_contention__seed01",
+    "predicate_script": "interventions/X5_comm_failure_to_pad_contention/seed01/grp_cross_layer/factual_event_script.json"
+  },
+  "removed_event_ids": [
+    "pad_priority_arbitration",
+    "second_uav_reroute"
+  ],
+  "intervention_actions": [
+    {
+      "event_id": "dual_uav_pad_contention",
+      "trigger_ref": "trig_after_backup_pad_unavailable_delay_30",
+      "action": {
+        "type": "move_entity",
+        "action_id": "move_x5_uav_b_to_pad_hold",
+        "entity_id": "uav_x5_second",
+        "velocity_mps": 5.0,
+        "activity_type": "cruise",
+        "post_activity_type": "holding",
+        "waypoints_enu_m": [
+          [
+            6634.525,
+            6505.436,
+            31.0
+          ],
+          [
+            6650.0,
+            6470.0,
+            45.0
+          ]
+        ]
+      }
+    },
+    {
+      "event_id": "x_local_pad_reservation",
+      "trigger_ref": "x_local_pad_reservation",
+      "action": {
+        "type": "set_runtime_state",
+        "action_id": "x5_local_reservation",
+        "entity_id": "pad_x5_primary",
+        "delay_ticks": 0,
+        "state_patch": {
+          "facility_state": {
+            "arbitration_winner_id": "uav_x5_priority",
+            "priority_granted": true,
+            "priority_granted_to": "uav_x5_priority",
+            "request_count": 1,
+            "requester_ids": [
+              "uav_x5_priority"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "event_id": "x_second_return",
+      "trigger_ref": "x_second_return",
+      "action": {
+        "type": "move_entity",
+        "action_id": "x5_second_return_from_wait",
+        "entity_id": "uav_x5_second",
+        "velocity_mps": 7.579,
+        "activity_type": "descending",
+        "post_activity_type": "landed",
+        "waypoints_enu_m": [
+          [
+            6650.0,
+            6470.0,
+            45.0
+          ],
+          [
+            6650.819,
+            6498.378,
+            27.5
+          ],
+          [
+            6659.262,
+            6513.999,
+            24.0
+          ],
+          [
+            6659.262,
+            6513.999,
+            3.0
+          ],
+          [
+            6659.262,
+            6513.999,
+            0.8
+          ]
+        ],
+        "terminal_feasibility": {
+          "model": "constant_speed_path_with_explicit_landing_reference_v2",
+          "landing_reference_enu_m": [
+            6659.262,
+            6513.999,
+            0.8
+          ],
+          "touchdown_altitude_tolerance_m": 1.5,
+          "touchdown_dwell_ticks": 5
+        }
+      }
+    }
+  ],
+  "definition": {
+    "entrypoint": "scripts/arms/X5_comm_failure_to_pad_contention/seed01/grp_cross_layer/fallback_pad_reservation.py",
+    "research_question": "配额服务失效时，本地预留规则能否在双机进场前消除停机坪争用？",
+    "window_basis": "factual 双请求于 285 正式样本可见，仲裁命令 560、改航 590、基站恢复 655。本地预留取 275，双机 280 出发；second 改到独立等待点，555 开始返航并在窗口内着陆；priority 保持原进场终点，源返航位于窗口外。",
+    "parameter_model": {
+      "parameter_changes": false,
+      "motion_model": "沿用源动作分段恒速与 ceil(distance/speed*10) 整 tick 计时；second 机改道速度与源出发一致 5.0 m/s。",
+      "state_visibility": "先采样后动作；runtime 补丁按声明 delay_ticks 生效。",
+      "recovery_model": "正式步长 5，recovery_hold_samples=3。",
+      "scope": "窗口推导来自源动作实际完成及状态保持；分支运行后重新验证。"
+    },
+    "branch_changes": {
+      "removed_event_ids": [
+        "pad_priority_arbitration",
+        "second_uav_reroute"
+      ],
+      "added_event_ids": [
+        "x_local_pad_reservation",
+        "x_second_return"
+      ],
+      "removed_action_ids": [
+        "move_x5_uav_b_reroute",
+        "set_runtime_state_x5_comm_failure_to_pad_contention_dual_uav_pad_contention_00",
+        "set_runtime_state_x5_comm_failure_to_pad_contention_pad_priority_arbitration_00",
+        "set_runtime_state_x5_comm_failure_to_pad_contention_pad_priority_arbitration_01",
+        "set_runtime_state_x5_comm_failure_to_pad_contention_second_uav_reroute_00",
+        "set_runtime_state_x5_comm_failure_to_pad_contention_second_uav_reroute_01",
+        "set_x5_pad_reserved",
+        "set_x5_uav_b_hold"
+      ],
+      "added_action_ids": [
+        "x5_local_reservation",
+        "x5_second_return_from_wait"
+      ],
+      "replaced_action_ids": [
+        "move_x5_uav_b_to_pad_hold"
+      ],
+      "changed_event_ids": [
+        "dual_uav_pad_contention",
+        "station_recovered"
+      ],
+      "changed_trigger_ids": [
+        "trig_after_second_uav_reroute_delay_63",
+        "x_local_pad_reservation",
+        "x_second_return"
+      ]
+    }
+  },
+  "gates": {},
+  "scope": {
+    "simulated_entity_ids": [
+      "tower_x5_comm",
+      "pad_x5_primary",
+      "pad_x5_backup",
+      "uav_x5_priority",
+      "uav_x5_second",
+      "u_inspect_x5_comm_failure_to_pad_contention",
+      "bg_ped_x5_comm_failure_to_pad_contention_01",
+      "bg_ped_x5_comm_failure_to_pad_contention_02",
+      "bg_ped_x5_comm_failure_to_pad_contention_03",
+      "bg_ped_x5_comm_failure_to_pad_contention_04",
+      "contract_facility_x5_comm_failure_to_pad_contention_04",
+      "contract_facility_x5_comm_failure_to_pad_contention_05",
+      "pad_home_uav_x5_priority",
+      "pad_home_uav_x5_second",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_00",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_01",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_02",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_03",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_04",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_05",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_06",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_07",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_08",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_09"
+    ],
+    "canonical_only_scene_entity_ids": [
+      "bg_vehicle_x5_comm_failure_to_pad_contention_01",
+      "bg_vehicle_x5_comm_failure_to_pad_contention_02",
+      "bg_vehicle_x5_comm_failure_to_pad_contention_03"
+    ],
+    "background_policy": "Every canonical truth-frame entity outside the engine roster is retained unchanged. Background vehicles are not simulated or replaced.",
+    "interaction_limit": "Scripted participants, geometry triggers and runtime state are recomputed; no feedback from immutable background traffic is claimed."
+  },
+  "hypothesis": "基站故障与配额失效真实发生；本地预留于双机出发前确定性授予 priority 机，second 机在等待点保持，请求计数恒为 1，争用/仲裁/改航链不发生。"
+}

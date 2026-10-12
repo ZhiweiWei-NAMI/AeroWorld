@@ -1,0 +1,43 @@
+schema: aeroworld_arm_config
+version: 4
+arm_id: arm_avoidance_withheld
+group_key: L1-3_v1/seed02/grp_avoidance_withheld
+episode_id: L1-3_v1__seed02
+event_family: uav_separation_conflict
+mode: intervention
+entity_ids:
+- intruder_l1_3_v1
+- uav_l1_3_v1_primary
+predicate_ids:
+- safety.aircraft_pair_below_separation
+window:
+  start_tick: 235
+  fork_tick: 240
+  end_tick: 520
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L1_airspace/interaction/L1-3_v1/scene_setup.json
+  script: Dataset/scenarios/L1_airspace/interaction/L1-3_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L1-3_v1__seed02/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L1-3_v1__seed02/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L1-3_v1__seed02/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L1-3_v1__seed02/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L1-3_v1__seed02/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L1-3_v1__seed02/event_outcomes.jsonl
+execution:
+  omit_action_ids:
+  - move_boundary_avoidance
+  - move_boundary_return_safe
+  - move_intruder_l1_3_v1_return_safe
+  actions: []
+expected:
+  target_event: occurs
+  rationale: 保留冲突形成，取消本机规避与双方返回段，使指定机对沿名义航迹继续。
+  falsified_if: 分支实测与该声明不符
+script: scripts/arms/L1-3_v1/seed02/grp_avoidance_withheld/arm_avoidance_withheld.py
+output: arms/L1-3_v1/seed02/grp_avoidance_withheld/arm_avoidance_withheld
+provenance:
+  experiment_ref: design/L1-3_v1/seed02/grp_avoidance_withheld/experiment.json
+  parameter_sources:
+    factual_root: aw_data

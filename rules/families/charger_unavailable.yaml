@@ -1,0 +1,307 @@
+# ARM 生成规则 —— charger_unavailable
+#
+# 命名约束：本文件名 charger_unavailable.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 本族实测规模：72 条臂 / 3 个 group × 2 profile（L2-3_v1 / L2-3_v2）× 3 seed。
+#   grp_01 6 条臂 × 6 = 36；grp_02 / grp_03 各 3 条臂 × 6 = 18；合计 72。
+# 真实臂**覆盖全部 5 类意图**：factual / suppress / delay / divert / tradeoff。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: charger_unavailable
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    真实来源 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里只登记“指针 + 关键字段快照”，快照仅用于生成期自检，改定义请改源头。
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/charger_unavailable
+  rule_id: event_family.charger_unavailable.0    # 与臂 objective/manifest.json 的 rule_id 逐字一致
+  mapping_class: A_direct                        # 单谓词直连，非复合
+  event_type_id: facility.charging_station_unavailability_event
+  trigger:
+    predicate_id: facility.charging_station_unavailable
+    direction: rising
+  roles:
+    station:
+      kind: trigger_binding
+      ontology_class: ChargingStation
+      predicate_role: station
+      background_allowed: false
+  support_conditions: []                         # registry 里本族 support_conditions 为空
+  terminal:
+    predicate_id: facility.charging_station_unavailable
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [station]
+  authoritative_predicates:                      # 快照；权威在 registry
+    - facility.charging_station_unavailable
+    - facility.charging_queue_over_capacity
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  intervention_subject: station          # 事件权威 trigger_binding 的角色名（ChargingStation）
+  # 判定证据（本会话实测，非推断）：
+  #   1) registry 里 mapping_class = A_direct；
+  #   2) 72/72 条臂的 raw/branch_manifest.json **没有** *_authority 字段
+  #      （全库 7,662 条臂扫描：只有 rain_fog_environment 带 rain_fog_authority =
+  #       scene_exogenous_weather_transition）→ 不是场景权威外生；
+  #   3) 72/72 条臂台账 status=applied，repairs 只出现
+  #      delay_applied_to_authored_tick_trigger × 6 与
+  #      delay_applied_to_authored_event_relative_trigger × 12，
+  #      没有任何 design_intent_conflict_exogenous_* 记录；
+  #   4) 3 个 group 上真实生成了 suppress / delay / replace 三类干预臂，
+  #      且 grp_01 上 5 类意图齐全。
+  # 实测干预实体（72 条臂 intervention_entity_ids 的并集）：
+  #   charger_primary_l2_3_v1 / _v2      主充电桩（设施本体）
+  #   charger_backup_l2_3_v1  / _v2      备用充电桩
+  #   uav_l2_3_v1 / uav_l2_3_v2          受影响的无人机
+  # 关键澄清：本族是“**地面设施 + 无人机**”双主体。设施故障由场景 authored
+  #   （event_script.json: set_visual_state offline + set_runtime_state
+  #    facility_state{availability:unavailable, fault:true}），
+  #   但干预臂真实存在，且落点既在设施上（grp_01 的 move/hold）也在 UAV 上
+  #   （grp_02/03 的 hold/delay）——因此不是外生。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # 实测锚点（raw/branch_manifest.json 的 group_id 与 fork_tick）：
+  #   grp_01_charger_unavailable    (fork 240，两个 profile 相同)   6 类臂
+  #   grp_02_uav_inspects_charger   (fork 270，两个 profile 相同)   3 类臂
+  #   grp_03_reroute_backup_charger (fork 325 @L2-3_v1 / 405 @L2-3_v2) 3 类臂
+  # anchor_event_id 由事件链给出，不在此硬编码。
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图（全覆盖）
+#    operation 只能取已注册 4 值之一；键名是**意图**不是 arm_id。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：arm_factual × 18，台账 operation=reuse_factual_causal_event、
+    #       factual_preserved=true、suppressed_event_ids=[]、generated_action_ids=[]
+    #       注意 grp_01 的 arm_factual 是唯一 intervention_entity_ids=[] 的组
+    #       （锚点事件本来就只改设施状态，不需要动实体）。
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 逐字一致
+    suppression_basis: authored_trigger_and_causal_predecessor_closure
+    # 实测两种形态（24 条 suppress 臂，二者 suppressed_event_ids 完全相同）：
+    variants:
+      - arm_id_pattern: arm_no_op_suppress   # arm_kind: no_op_hold  × 6（仅 grp_01）
+        coupled_hold_injected: false         # 只有台账闭包，不注入延续事件
+      - arm_id_pattern: arm_hold             # arm_kind: hold        × 18（grp_01/02/03 都有）
+        coupled_hold_injected: true          # 闭包 + branch_coupled_hold_* 延续事件
+    coupled_hold:
+      applies_when: arm_kind == hold
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.station        # 被干预主体先行，耦合伙伴随后
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+      # 实测 coupled_hold.entity_ids 与 action_count（每 profile 每 seed 一致）：
+      #   grp_01: ('charger_primary_l2_3_v{1,2}',)                         action_count=2
+      #   grp_02: ('uav_l2_3_v{1,2}',)                                     action_count=2
+      #   grp_03: ('charger_backup_l2_3_v{1,2}','uav_l2_3_v{1,2}')         action_count=4
+    suppressed_event_ids_observed:       # 快照；3 组的并集
+      - charger_unavailable
+      - uav_inspects_charger
+      - reroute_backup_charger
+      - backup_charging_service
+    # 抑制的实现形态（实测 raw/event_script.json）：把锚点及其因果后代的 authored tick
+    # 触发改写到 tick 901（> 集长 900）。24 条 suppress 臂的 original_anchor_trigger.type
+    # 实测 tick × 12、event_fired_after × 12。
+
+  delay:
+    operation: delay_causal_event
+    mechanism: none                    # 只重定时触发，不派发新动作
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: governed_default    # rule | governed_default | scene
+        min: 25
+        max: 50
+        default: 30
+        # 实测（18 条 delay 臂，全部 0 条 generated_action_ids）：
+        #   arm_delay_postpone × 6（仅 grp_01）: 恒 30
+        #   arm_delay          × 6（grp_02）  : 25 @L2-3_v1 / 50 @L2-3_v2
+        #   arm_delay          × 6（grp_03）  : 29 @L2-3_v1 / 28 @L2-3_v2
+        # 重定时对象是**锚点自己的触发**，不是实体动作：
+        #   18/18 条带 delay_mechanism_evidence，match_count=0 / unmatched=true。
+    repairs_observed:
+      - delay_applied_to_authored_event_relative_trigger   # × 12（arm_delay）
+      - delay_applied_to_authored_tick_trigger             # × 6 （arm_delay_postpone）
+    coupled_hold:
+      # 实测：只有 grp_02 / grp_03 的 arm_delay 注入 branch_coupled_hold_*；
+      #       grp_01 只有 arm_delay_postpone，**不带** coupled_hold
+      applies_when: arm_id == arm_delay
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.station
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: anchor_authored_action_actor   # 实测就是 charger_primary_l2_3_v1（设施本体）
+      actor_role_binding: roles.station
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: relocate_to_backup_vertipad   # 从场景解析“备用停机位”的落点
+          velocity_mps:
+            source: observed
+            value: 6.0
+      physics_intent: relocate_charging_service
+    # 实测：arm_avoid_divert_to_backup_vertipad_02 × 6（仅 grp_01，arm_kind: avoid），
+    #   operation=replace_causal_event、generated_action_ids=["motion_grounded_0_move"]。
+    #   事件脚本里把锚点原有的 authored 动作集
+    #     [set_visual_state set_primary_charger_offline,
+    #      set_runtime_state facility_state{availability:unavailable,fault:true}]
+    #   整体替换为**一条 move_entity**，actor=charger_primary_l2_3_v1，
+    #   实测 waypoints [[6116.117,6417.794,0.0],[6126.117,6417.794,0.0]]、velocity_mps=6.0。
+    # ⚠ 语义注意：被替换掉的是“设施状态变更”，替换成的是“设施位移”。
+    #   臂名说的是 divert_to_backup_vertipad_02，但动作落在**充电桩实体**上而不是 UAV 上。
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity          # ← 与 uav_takeoff 的 tradeoff 不同，本族不是状态补丁
+      actor: anchor_authored_action_actor   # 实测 charger_primary_l2_3_v1
+      actor_role_binding: roles.station
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: overhead_loiter_loop   # 30 m 高度上的闭环盘旋，等待复位
+          velocity_mps:
+            source: observed
+            value: 3.0
+      physics_intent: bounded_loiter_keep_service_pending
+    # 实测：arm_tradeoff_overhead_loiter_pending_reset × 6（仅 grp_01，arm_kind: trade_off），
+    #   operation=replace_causal_event、generated_action_ids=["motion_grounded_0_move"]。
+    #   同样是替换锚点 authored 动作集，actor=charger_primary_l2_3_v1，
+    #   实测 4 个航点构成闭合环 [[6086.117,6417.794,30.0],[6071.117,6432.794,30.0],
+    #   [6056.117,6417.794,30.0],[6071.117,6417.794,30.0]]、velocity_mps=3.0。
+    #   与 divert 的唯一差别是**路径形状与速度**：divert 是移向备用位的位移，
+    #   tradeoff 是原地 30 m 高度盘旋等待 —— 事件仍可能发生（实测 6/6 event_observed=false，
+    #   见 expect）。
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+    # 实测：fork_tick 与台账 original_anchor_trigger.tick 一致（240 / 270 / 325|405）。
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/L2-3_v*/manifest.json
+    # 实测：window_end_tick − fork_tick ∈ [50, 178]，无常数可写；
+    #       全部 72 条 manifest 带 window_end_basis
+    #       {candidate_end_tick, modeled_motion[], parent_evidence_end_tick}
+    #       且 window_semantics_only=true（窗口只用于语义判定，不是物理终点）。
+    #       生成器必须以 manifest 的实测 window_end_tick 为准，不能用 design end 反推。
+  history_frames: 8                 # Dataset/world_model/arm_rssm.py: HISTORY_FRAMES = 8
+  horizon_frames: 5                 # Dataset/world_model/arm_rssm.py: FUTURE_HORIZON = 5
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测：18/18 条 arm_factual event_observed=true。
+    #   首次成立 tick 随链节点：grp_01 first_true=rising=245；
+    #   grp_02 first_true=270（无 rising，fork 时已成立）；
+    #   grp_03 first_true=325 @L2-3_v1 / rising=500 @L2-3_v2。
+    #   另：**只有 grp_01 的 arm_factual** intervention_entity_ids=[]（锚点只改设施状态）；
+    #   grp_02/03 的 factual 仍带 ('uav_l2_3_v{1,2}',)。
+
+  suppress:
+    target_event: absent_in_window
+    # 实测：arm_hold(18) + arm_no_op_suppress(6) 共 24 条，其中 **15 条 event_observed=false**、
+    #       9 条 true。false 的 15 条 = grp_01 全部 12 条 + grp_03 的 3 条；
+    #       true 的 9 条是 fork 已在链下游（270/325/500）的组，锚点不是本窗口的“首次成立”。
+    #       判定前必须先看 factual 的 rising_tick / first_true_tick。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5             # 采集步长 5 tick
+    # 实测：grp_01（fork 240）factual rising_tick=245 → arm_delay_postpone rising_tick=275
+    #       （delay_ticks=30，位移与参数一致）。
+    #       grp_02 的 6 条 arm_delay first_true_tick=270，与同组 factual 相同；
+    #       grp_03 的 3 条 first_true_tick=500（与 L2-3_v2 的 factual 相同），
+    #       另 3 条 event_observed=false、first_true 缺失（L2-3_v1）。
+    #       → 位移只体现在**触发 tick**上，判定要看触发 tick 位移，
+    #         不要只看 event_observed 或 first_true_tick。
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 实测：arm_avoid_divert_to_backup_vertipad_02 6/6 event_observed=false
+    #       （设施被挪到备用位后，charging_station_unavailable 在窗口内不再成立）。
+
+  tradeoff:
+    target_event: occurs            # tradeoff 允许事件仍发生
+    differs_from_factual: true
+    # 实测：arm_tradeoff_overhead_loiter_pending_reset 6/6 event_observed=false
+    #       —— 本族的 tradeoff 实际也把事件消掉了。因此**不能**用
+    #       “target_event: occurs” 给本族 tradeoff 判 PASS；判据是
+    #       differs_from_factual + 物理合法性（见 limits）。
+
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+    # 实测：72/72 条 manifest delta_only=true、
+    #       trajectory_scope=intervention_delta_only、
+    #       artifact_scope=parent_reference_plus_local_delta。
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "**divert / tradeoff 的动作落在充电桩实体上**（charger_primary_l2_3_v1），不是落在 UAV 上。
+       锚点原本的 authored 动作是设施状态变更（set_visual_state + set_runtime_state），
+       替换后却变成 move_entity。‘把充电桩搬走’是否是有意设计，未在数据里找到说明。
+       TODO: 需确认 —— 确认前不要据此写成‘UAV 改道去备用位’"
+    - "divert 与 tradeoff 共用同一个 generator 与同一个 actor，只有路径形状/速度不同
+       （divert: 平移到备用位 6.0 m/s；tradeoff: 30 m 高度闭环盘旋 3.0 m/s）。
+       任何按 generator 区分两类意图的实现，在本族都会失败"
+    - "suppress / delay 作用于 script_scheduled 的 authored tick 触发
+       （L2-3_v1 的 charger_unavailable 在 tick 240）。抑制范围是台账因果前驱闭包，
+       含链尾 backup_charging_service；若场景增删链节点必须重算，不能沿用本快照"
+    - "arm_delay_postpone（仅 grp_01）不注入 coupled_hold，而 arm_delay（grp_02/03）注入；
+       同一个 delay 意图下两种形态的实体增量不同，跨臂汇总不能假设一致"
+  not_claimed:
+    - "facility.charging_queue_over_capacity 的独立可干预性 —— 它是本族权威谓词之一，
+       但 arms/ 里没有以它为锚点的臂（README §8.1 记为历史唯一缺口）"
+    - "grp_02 / grp_03 的 divert / tradeoff —— 这两个组只生成了 factual / delay / suppress
+       三类臂，不能把 grp_01 的机制外推到它们身上"
+    - "G10 整库发布审计（不在本规则范围内）"

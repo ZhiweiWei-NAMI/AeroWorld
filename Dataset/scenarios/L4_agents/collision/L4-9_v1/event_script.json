@@ -4,7 +4,1037 @@
   "description": "Vehicle-vehicle intersection conflict",
   "parameters": {
     "incident_tick": 260,
-    "resolution_tick": 520
+    "resolution_tick": 520,
+    "semantic_event_contract": {
+      "schema": "low_altitude_event_chain_contract_v1",
+      "scenario_id": "L4-9_v1",
+      "exact_counts": {
+        "uav": 3,
+        "vehicle": 3,
+        "pedestrian": 3,
+        "facility": 1,
+        "logical": 2
+      },
+      "capture_boundary": {
+        "boundary_id": "capture_boundary_l4_9_v1",
+        "geometry_source": "event_entity",
+        "anchor_entity_roles": [
+          "capture_boundary",
+          "hazard_zone",
+          "airspace_constraint"
+        ],
+        "boundary_role": "capture_boundary",
+        "z_policy": "ground_to_event_altitude",
+        "source": "event_entity_envelope",
+        "source_entity_id": "car_intersection_l4_9_v1_a",
+        "center_enu_m": [
+          7071.658,
+          6183.919,
+          0.0
+        ],
+        "polygon_enu_m": [
+          [
+            7037.695,
+            6142.721
+          ],
+          [
+            7105.622,
+            6142.721
+          ],
+          [
+            7105.622,
+            6225.117
+          ],
+          [
+            7037.695,
+            6225.117
+          ]
+        ],
+        "geometry_authority": "minimal_rebuilt_roi_contract_v1",
+        "uav_boundary_crossing_required": true,
+        "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+        "inspect_fov_coverage_required": true,
+        "inspect_entity_role": "U_inspect"
+      },
+      "inspect": {
+        "role": "U_inspect",
+        "altitude_code": "I18",
+        "altitude_m": 18.0,
+        "min_path_length_m": 80.0,
+        "required_presence": "episode_full_duration",
+        "motion_policy": "fixed_altitude_closed_loop",
+        "corridor_policy": "inspect_capture_corridor",
+        "fov_coverage_required": true,
+        "sensor_profile_required": true
+      },
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": [
+          "conflict_point"
+        ]
+      },
+      "uav_boundary_crossing_required": true,
+      "inspect_fov_coverage_required": true,
+      "required_event": "vehicle conflict > warning/brake",
+      "required_intents": [
+        "collision_or_near_miss",
+        "brake"
+      ],
+      "background_semantics": {
+        "vehicle_role": "conflict/brake/yield chain",
+        "pedestrian_role": "waiting at roadside",
+        "policy": "semantic_context_not_decoration"
+      },
+      "weather": "clear",
+      "determinism": {
+        "fallback": "forbidden",
+        "guessing": "forbidden",
+        "compatibility_paths": "forbidden"
+      }
+    },
+    "target_uav_count": 3,
+    "target_vehicle_count": 3,
+    "target_pedestrian_count": 3,
+    "target_facility_count": 1,
+    "target_logical_count": 2,
+    "deterministic_sumo_traffic_template": {
+      "source_policy": "explicit_episode_plan_only_v1",
+      "min_vehicle_count": 12,
+      "seed_profiles": {
+        "seed00": {
+          "name": "morning_peak",
+          "direction_bias": "inbound_to_roi",
+          "direction_weights": {
+            "inbound": 0.7,
+            "outbound": 0.2,
+            "cross": 0.1
+          }
+        },
+        "seed01": {
+          "name": "midday",
+          "direction_bias": "balanced_cross_traffic",
+          "direction_weights": {
+            "inbound": 0.34,
+            "outbound": 0.33,
+            "cross": 0.33
+          }
+        },
+        "seed02": {
+          "name": "evening_peak",
+          "direction_bias": "outbound_from_roi",
+          "direction_weights": {
+            "inbound": 0.2,
+            "outbound": 0.7,
+            "cross": 0.1
+          }
+        }
+      },
+      "semantic_vehicle_roles": [
+        "semantic_event_vehicle",
+        "deterministic_background_vehicle"
+      ],
+      "route_source": "sumo_explicit_vehicle_plan"
+    },
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 38,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "u_inspect_l4_9_v1": 18.0,
+      "uav_observer_l4_9_v1_2": 50.0,
+      "uav_observer_l4_9_v1_3": 80.0
+    },
+    "uav_lateral_bypass_used": {
+      "u_inspect_l4_9_v1": false,
+      "uav_observer_l4_9_v1_2": false,
+      "uav_observer_l4_9_v1_3": false
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "point_count": 37,
+        "assigned_altitude_m": 18.0,
+        "used_lateral_bypass": false
+      },
+      {
+        "entity_id": "uav_observer_l4_9_v1_2",
+        "point_count": 3,
+        "assigned_altitude_m": 50.0,
+        "used_lateral_bypass": false
+      },
+      {
+        "entity_id": "uav_observer_l4_9_v1_3",
+        "point_count": 3,
+        "assigned_altitude_m": 80.0,
+        "used_lateral_bypass": false
+      }
+    ],
+    "uav_corridor_segment_details": [
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          7037.695,
+          6142.721,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7037.695,
+          6143.221,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7037.695,
+          6143.221,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7037.695,
+          6142.221,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          7037.695,
+          6142.221,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7037.695,
+          6142.721,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7037.695,
+          6142.721,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7105.622,
+          6142.721,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          7105.622,
+          6142.721,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7105.622,
+          6143.221,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          7105.622,
+          6143.221,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7105.622,
+          6142.221,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          7105.622,
+          6142.221,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7105.622,
+          6142.721,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          7105.622,
+          6142.721,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7108.602,
+          6207.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          7108.602,
+          6207.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7108.22,
+          6207.174,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 9,
+        "segment_start_enu_m": [
+          7108.22,
+          6207.174,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7108.983,
+          6207.82,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 10,
+        "segment_start_enu_m": [
+          7108.983,
+          6207.82,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7108.602,
+          6207.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 11,
+        "segment_start_enu_m": [
+          7108.602,
+          6207.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7058.602,
+          6167.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 12,
+        "segment_start_enu_m": [
+          7058.602,
+          6167.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7002.602,
+          6133.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 13,
+        "segment_start_enu_m": [
+          7002.602,
+          6133.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6982.602,
+          6125.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 14,
+        "segment_start_enu_m": [
+          6982.602,
+          6125.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6978.602,
+          6125.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 15,
+        "segment_start_enu_m": [
+          6978.602,
+          6125.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6972.602,
+          6131.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 16,
+        "segment_start_enu_m": [
+          6972.602,
+          6131.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6958.602,
+          6171.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 17,
+        "segment_start_enu_m": [
+          6958.602,
+          6171.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6952.602,
+          6199.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 18,
+        "segment_start_enu_m": [
+          6952.602,
+          6199.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6952.602,
+          6203.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 19,
+        "segment_start_enu_m": [
+          6952.602,
+          6203.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6958.602,
+          6207.497,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 20,
+        "segment_start_enu_m": [
+          6958.602,
+          6207.497,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7031.649,
+          6233.505,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 21,
+        "segment_start_enu_m": [
+          7031.649,
+          6233.505,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7032.055,
+          6233.797,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 22,
+        "segment_start_enu_m": [
+          7032.055,
+          6233.797,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7031.244,
+          6233.212,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 23,
+        "segment_start_enu_m": [
+          7031.244,
+          6233.212,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7031.649,
+          6233.505,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 24,
+        "segment_start_enu_m": [
+          7031.649,
+          6233.505,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6955.649,
+          6205.505,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 25,
+        "segment_start_enu_m": [
+          6955.649,
+          6205.505,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6951.649,
+          6201.505,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 26,
+        "segment_start_enu_m": [
+          6951.649,
+          6201.505,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6961.649,
+          6159.505,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 27,
+        "segment_start_enu_m": [
+          6961.649,
+          6159.505,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6975.649,
+          6127.505,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 28,
+        "segment_start_enu_m": [
+          6975.649,
+          6127.505,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6979.649,
+          6125.505,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 29,
+        "segment_start_enu_m": [
+          6979.649,
+          6125.505,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6989.649,
+          6127.505,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 30,
+        "segment_start_enu_m": [
+          6989.649,
+          6127.505,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7009.649,
+          6137.505,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 31,
+        "segment_start_enu_m": [
+          7009.649,
+          6137.505,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7079.632,
+          6178.843,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 32,
+        "segment_start_enu_m": [
+          7079.632,
+          6178.843,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7079.364,
+          6178.421,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 33,
+        "segment_start_enu_m": [
+          7079.364,
+          6178.421,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7079.901,
+          6179.264,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 34,
+        "segment_start_enu_m": [
+          7079.901,
+          6179.264,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7079.632,
+          6178.843,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l4_9_v1",
+        "segment_index": 35,
+        "segment_start_enu_m": [
+          7079.632,
+          6178.843,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7037.695,
+          6142.721,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "uav_observer_l4_9_v1_2",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7101.197,
+          6126.728,
+          50.0
+        ],
+        "segment_end_enu_m": [
+          7071.658,
+          6183.919,
+          50.0
+        ],
+        "assigned_altitude_m": 50.0
+      },
+      {
+        "entity_id": "uav_observer_l4_9_v1_3",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7121.818,
+          6159.594,
+          80.0
+        ],
+        "segment_end_enu_m": [
+          7071.658,
+          6183.919,
+          80.0
+        ],
+        "assigned_altitude_m": 80.0
+      }
+    ],
+    "utm_service_plan": {
+      "schema_name": "utm_service_plan",
+      "schema_version": "1.0.0",
+      "model_id": "aeroworld_deterministic_utm_service",
+      "model_version": "1.0.0",
+      "global_uav_flow_policy": {
+        "source_contract": "uav_global_flow",
+        "intent_start_tick": 0,
+        "intent_end_tick": 900,
+        "authorization_status": "active",
+        "flight_plan_approval_status": "approved"
+      },
+      "uav_plans": [
+        {
+          "uav_id": "u_inspect_l4_9_v1",
+          "corridor_id": "utm_corridor:L4-9_v1:uav_00",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_observer_l4_9_v1_2",
+          "corridor_id": "utm_corridor:L4-9_v1:uav_01",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_observer_l4_9_v1_3",
+          "corridor_id": "utm_corridor:L4-9_v1:uav_02",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        }
+      ]
+    },
+    "capture_boundary": {
+      "boundary_id": "capture_boundary_l4_9_v1",
+      "source": "event_entity_envelope",
+      "source_entity_id": "car_intersection_l4_9_v1_a",
+      "center_enu_m": [
+        7071.658,
+        6183.919,
+        0.0
+      ],
+      "polygon_enu_m": [
+        [
+          7037.695,
+          6142.721
+        ],
+        [
+          7105.622,
+          6142.721
+        ],
+        [
+          7105.622,
+          6225.117
+        ],
+        [
+          7037.695,
+          6225.117
+        ]
+      ],
+      "geometry_authority": "minimal_rebuilt_roi_contract_v1",
+      "uav_boundary_crossing_required": true,
+      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "inspect_fov_coverage_required": true,
+      "inspect_entity_role": "U_inspect"
+    },
+    "spatial_grid_assignment": {
+      "scenario_id": "L4-9_v1",
+      "event_space_class": "traffic_incident_grid",
+      "target_center_enu_m": [
+        7071.658,
+        6183.919,
+        0.0
+      ],
+      "grid_cell": {
+        "cell_id": "grid_004_000",
+        "center_enu_m": [
+          7018.349053,
+          6159.381852,
+          0.0
+        ],
+        "representative_enu_m": [
+          7027.289,
+          6139.77,
+          0.0
+        ],
+        "edge_ids": [
+          "cg_edge_354_f_pl1",
+          "cg_edge_354_r_pl0",
+          "cg_edge_369_f_pl0",
+          "cg_edge_64_f_pl1",
+          "cg_edge_64_r_pl0"
+        ],
+        "main_edge_count": 5,
+        "total_main_edge_length_m": 409.709676,
+        "max_speed_mps": 11.11,
+        "incident_count": 0
+      },
+      "source": "minimal_rebuilt_roi_contract_v1",
+      "traffic_incident_id": "",
+      "accident_class": "",
+      "exclusion_radius_m": 180.0,
+      "policy": "city_grid_main_road_event_coverage_v1",
+      "provisional_capture_center_enu_m": [
+        7061.509,
+        6205.686,
+        0.0
+      ],
+      "applied_world_origin_enu_m": [
+        7010.149,
+        6178.233,
+        0.0
+      ],
+      "actual_capture_center_enu_m": [
+        7061.509,
+        6205.686,
+        0.0
+      ],
+      "expanded_capture_center_enu_m": [
+        7071.658,
+        6183.919,
+        0.0
+      ],
+      "target_error_m": 24.016754
+    },
+    "roi_contract": {
+      "policy": "minimal_rebuilt_roi_contract_v1",
+      "source_root": "aw_data/render_ready_episodes_capture_filtered",
+      "scenario_id": "L4-9_v1",
+      "map_id": "donghu_road_topo",
+      "active_site_id": "site.intersection_a",
+      "active_roi_id": "roi.intersection_a.v1",
+      "capture_boundary_id": "capture_boundary_l4_9_v1",
+      "capture_polygon_enu_m": [
+        [
+          7037.695,
+          6142.721
+        ],
+        [
+          7105.622,
+          6142.721
+        ],
+        [
+          7105.622,
+          6225.117
+        ],
+        [
+          7037.695,
+          6225.117
+        ]
+      ],
+      "baseline_capture_polygon_enu_m": [
+        [
+          7035.5,
+          6154.648
+        ],
+        [
+          7103.427,
+          6154.648
+        ],
+        [
+          7103.427,
+          6237.044
+        ],
+        [
+          7035.5,
+          6237.044
+        ]
+      ],
+      "runtime_crop_bbox_enu_m": [
+        6977.695,
+        6082.721,
+        7165.622,
+        6285.117
+      ],
+      "expanded_boundary_padding_m": 60.0,
+      "runtime_crop_policy": "roi_polygon_expanded_60m_runtime_truth_crop_v1",
+      "tick_start": 0,
+      "tick_end": 900,
+      "capture_step_ticks": 5,
+      "capture_frames_per_episode": 181,
+      "seed_consistency": "exact_across_seed00_seed01_seed02",
+      "full_chain_rebuild_required": true,
+      "minimal_change_evidence": {
+        "preserved_dimensions_m": [
+          67.927,
+          82.396
+        ],
+        "center_translation_enu_m": [
+          2.195,
+          -11.927
+        ],
+        "center_translation_norm_m": 12.127298,
+        "inspect_altitude_m": 18.0,
+        "sensor_hfov_deg": 85.0,
+        "sensor_resolution": [
+          1280,
+          720
+        ],
+        "camera_footprint_half_extents_m": [
+          16.493961,
+          9.277853
+        ],
+        "observation_center_clearance_m": 0.51,
+        "camera_cross_footprint_guard_m": 0.1,
+        "translation_feasible_set_interior_guard_m": 0.05,
+        "rounded_contract_min_feasibility_margin_m": 0.050815,
+        "building_geometry_authority": "ue_building_footprints_plus_6m_clearance",
+        "selection": "minimum_same_size_axis_aligned_translation_into_one_connected_fixed_altitude_observation_component"
+      }
+    },
+    "release_spatial_authority": {
+      "policy": "minimal_rebuilt_roi_contract_v1",
+      "source_root": "aw_data/render_ready_episodes_capture_filtered",
+      "roi_contract_center_enu_m": [
+        7071.658,
+        6183.919,
+        0.0
+      ],
+      "actual_assignment_center_enu_m": [
+        7061.509,
+        6205.686,
+        0.0
+      ],
+      "assignment_outside_roi_m": 0.0,
+      "attempts": [
+        {
+          "attempt": 1,
+          "target_assignment_center_enu_m": [
+            7071.658,
+            6183.919,
+            0.0
+          ],
+          "actual_assignment_center_enu_m": [
+            7061.509,
+            6205.686,
+            0.0
+          ],
+          "roi_contract_center_enu_m": [
+            7071.658,
+            6183.919,
+            0.0
+          ],
+          "assignment_outside_roi_m": 0.0,
+          "polygon_matches_roi_contract": true
+        }
+      ]
+    }
   },
   "triggers": [
     {
@@ -21,6 +1051,12 @@
       "operator": "lte",
       "metric": "3d",
       "min_true_ticks": 2
+    },
+    {
+      "trigger_id": "trig_after_vehicle_collision_warning_delay_50",
+      "type": "event_fired_after",
+      "event_id": "vehicle_collision_warning",
+      "delay_ticks": 50
     }
   ],
   "events": [
@@ -31,24 +1067,77 @@
       "max_fire_count": 1,
       "actions": [
         {
+          "type": "spawn_entity",
+          "action_id": "spawn_car_intersection_l4_9_v1_b_at_dispatch",
+          "entity_id": "car_intersection_l4_9_v1_b",
+          "asset_id": "vehicle.emergency.suv.v1",
+          "position_enu_m": [
+            7061.305,
+            6181.715,
+            0.0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 110.791
+          }
+        },
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_car_intersection_l4_9_v1_a_at_dispatch",
+          "entity_id": "car_intersection_l4_9_v1_a",
+          "asset_id": "vehicle.ground.boxcar.v1",
+          "position_enu_m": [
+            7079.922,
+            6221.045,
+            0.0
+          ],
+          "rotation_deg": {
+            "yaw_deg": -161.275
+          }
+        },
+        {
           "type": "move_entity",
           "action_id": "move_car_a_intersection",
           "entity_id": "car_intersection_l4_9_v1_a",
           "waypoints_enu_m": [
             [
-              7117.09,
-              6334.89,
+              7079.922,
+              6221.045,
               0.0
             ],
             [
-              7134.0,
-              6337.0,
-              0
+              7076.132,
+              6219.765,
+              0.0
             ],
             [
-              7141.0,
-              6338.0,
-              0
+              7072.343,
+              6218.485,
+              0.0
+            ],
+            [
+              7068.552,
+              6217.207,
+              0.0
+            ],
+            [
+              7064.763,
+              6215.925,
+              0.0
+            ],
+            [
+              7060.974,
+              6214.645,
+              0.0
+            ],
+            [
+              7057.184,
+              6213.364,
+              0.0
+            ],
+            [
+              7053.41,
+              6212.04,
+              0.0
             ]
           ],
           "velocity_mps": 8.0
@@ -59,33 +1148,71 @@
           "entity_id": "car_intersection_l4_9_v1_b",
           "waypoints_enu_m": [
             [
-              7148.146,
-              6348.849,
+              7061.305,
+              6181.715,
               0.0
             ],
             [
-              7142.0,
-              6345.0,
-              0
+              7059.886,
+              6185.455,
+              0.0
             ],
             [
-              7141.0,
-              6338.0,
-              0
+              7058.465,
+              6189.194,
+              0.0
+            ],
+            [
+              7057.051,
+              6192.936,
+              0.0
+            ],
+            [
+              7055.635,
+              6196.677,
+              0.0
+            ],
+            [
+              7054.217,
+              6200.417,
+              0.0
+            ],
+            [
+              7052.809,
+              6204.161,
+              0.0
+            ],
+            [
+              7051.5,
+              6207.94,
+              0.0
             ]
           ],
           "velocity_mps": 7.5
         }
       ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "01.traffic_or_facility_incident",
+      "causal_chain_id": "L4-9_v1.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "vehicle"
+      ],
       "log_event": {
         "topic": "evt_L4-9_v1_vehicles_enter_intersection",
         "category": "vehicle",
-        "title": "Two vehicles enter the same intersection from different lanes",
+        "title": "Two vehicles enter the same intersection from different legal SUMO edges",
         "severity": "warning",
         "overlay": "vehicle",
         "target_ids": [
           "car_intersection_l4_9_v1_a",
           "car_intersection_l4_9_v1_b"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "01.traffic_or_facility_incident",
+        "causal_chain_id": "L4-9_v1.semantic_event_chain",
+        "target_roles": [
+          "vehicle"
         ]
       }
     },
@@ -96,46 +1223,60 @@
       "max_fire_count": 1,
       "actions": [
         {
-          "type": "move_entity",
-          "action_id": "move_car_a_brake",
+          "type": "set_visual_state",
+          "action_id": "set_car_a_braking",
           "entity_id": "car_intersection_l4_9_v1_a",
-          "waypoints_enu_m": [
-            [
-              7141.0,
-              6338.0,
-              0
-            ],
-            [
-              7140.0,
-              6338.0,
-              0
-            ]
-          ],
-          "velocity_mps": 0.5
+          "visual_state": {
+            "mode": "braking"
+          }
         },
         {
-          "type": "move_entity",
-          "action_id": "move_car_b_brake",
+          "type": "set_visual_state",
+          "action_id": "set_car_b_braking",
           "entity_id": "car_intersection_l4_9_v1_b",
-          "waypoints_enu_m": [
-            [
-              7141.0,
-              6338.0,
-              0
-            ],
-            [
-              7142.0,
-              6339.0,
-              0
-            ]
-          ],
-          "velocity_mps": 0.5
+          "visual_state": {
+            "mode": "braking"
+          }
         },
         {
           "type": "capture_screenshot",
           "action_id": "capture_vehicle_conflict",
           "camera_id": "demo_high_overview"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l4_9_v1_vehicle_collision_warning_00",
+          "entity_id": "car_intersection_l4_9_v1_a",
+          "delay_ticks": 1,
+          "state_patch": {
+            "vehicle_state": {
+              "braking": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l4_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l4_9_v1_vehicle_collision_warning_01",
+          "entity_id": "car_intersection_l4_9_v1_b",
+          "delay_ticks": 5,
+          "state_patch": {
+            "vehicle_state": {
+              "braking": true,
+              "yielding": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l4_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
         }
+      ],
+      "intent": "vehicle_brake",
+      "intent_stage": "02.vehicle_brake",
+      "causal_chain_id": "L4-9_v1.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "vehicle"
       ],
       "log_event": {
         "topic": "evt_L4-9_v1_vehicle_collision_warning",
@@ -146,6 +1287,56 @@
         "target_ids": [
           "car_intersection_l4_9_v1_a",
           "car_intersection_l4_9_v1_b"
+        ],
+        "intent": "vehicle_brake",
+        "intent_stage": "02.vehicle_brake",
+        "causal_chain_id": "L4-9_v1.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "vehicle"
+        ]
+      }
+    },
+    {
+      "event_id": "intersection_conflict_stage_closes",
+      "trigger_ref": "trig_after_vehicle_collision_warning_delay_50",
+      "priority": 3,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "remove_entity",
+          "action_id": "remove_car_a_after_conflict_evidence",
+          "entity_id": "car_intersection_l4_9_v1_a"
+        },
+        {
+          "type": "remove_entity",
+          "action_id": "remove_car_b_after_conflict_evidence",
+          "entity_id": "car_intersection_l4_9_v1_b"
+        }
+      ],
+      "intent": "context",
+      "intent_stage": "00.context",
+      "causal_chain_id": "L4-9_v1.semantic_event_chain",
+      "causal_predecessor_intent": "vehicle_brake",
+      "target_roles": [
+        "vehicle"
+      ],
+      "log_event": {
+        "topic": "evt_L4-9_v1_intersection_conflict_stage_closes",
+        "category": "scene_context",
+        "title": "Conflict vehicles leave the event stage after the braking evidence dwell",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "car_intersection_l4_9_v1_a",
+          "car_intersection_l4_9_v1_b"
+        ],
+        "intent": "context",
+        "intent_stage": "00.context",
+        "causal_chain_id": "L4-9_v1.semantic_event_chain",
+        "causal_predecessor_intent": "vehicle_brake",
+        "target_roles": [
+          "vehicle"
         ]
       }
     }

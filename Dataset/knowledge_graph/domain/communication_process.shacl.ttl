@@ -1,0 +1,391 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/communication_process#> .
+@prefix shape: <https://w3id.org/aeroworld/ontology/domain/communication_process/shapes#> .
+
+<https://w3id.org/aeroworld/ontology/domain/communication_process/shapes>
+    a owl:Ontology ;
+    owl:imports <https://w3id.org/aeroworld/ontology/domain/communication_process> ;
+    owl:versionInfo "0.3.0" .
+
+shape:PredicateSignatureShape
+    a sh:NodeShape ;
+    sh:targetClass aw:PredicateType ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:predicateIdentifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:class aw:ArgumentRole ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "One predicate cannot declare duplicate argument-role keys."@en ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this aw:declaresArgumentRole ?left, ?right .
+                ?left aw:argumentRoleKey ?key .
+                ?right aw:argumentRoleKey ?key .
+                FILTER (?left != ?right)
+            }
+        """
+    ] .
+
+shape:ArgumentRoleShape
+    a sh:NodeShape ;
+    sh:targetObjectsOf aw:declaresArgumentRole ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:argumentRoleKey ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:argumentClass ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1
+    ] .
+
+shape:DomainClassShape
+    a sh:NodeShape ;
+    sh:targetSubjectsOf rdfs:subClassOf ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] .
+
+shape:DomainRelationShape
+    a sh:NodeShape ;
+    sh:targetClass owl:ObjectProperty ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] .
+
+shape:StateDatatypePropertyShape
+    a sh:NodeShape ;
+    sh:targetSubjectsOf world:stateFieldCategory ;
+    sh:property [
+        sh:path rdf:type ;
+        sh:hasValue owl:DatatypeProperty
+    ] ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path world:unitSymbol ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:stateFieldCategory ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+shape:sessionUsesStationExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:sessionUsesStation ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:CommunicationSession
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:CommunicationStation
+    ] .
+
+shape:flowUsesRouteExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:flowUsesRoute ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:DataFlow
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:CommunicationRoute
+    ] .
+
+shape:allocationServesFlowExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:allocationServesFlow ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:ChannelAllocation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:DataFlow
+    ] .
+
+shape:sessionCarriesFlowExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:sessionCarriesFlow ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:CommunicationSession
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:DataFlow
+    ] .
+
+shape:transmissionSendsMessageExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:transmissionSendsMessage ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:TransmissionAttempt
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:Message
+    ] .
+
+shape:transmissionUsesAllocationExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:transmissionUsesAllocation ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:TransmissionAttempt
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ChannelAllocation
+    ] .
+
+shape:retransmissionRepeatsTransmissionExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:retransmissionRepeatsTransmission ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Retransmission
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:TransmissionAttempt
+    ] .
+
+shape:handoverTransfersSessionExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:handoverTransfersSession ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Handover
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:CommunicationSession
+    ] .
+
+shape:handoverSourceStationExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:handoverSourceStation ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Handover
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:CommunicationStation
+    ] .
+
+shape:handoverTargetStationExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:handoverTargetStation ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Handover
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:CommunicationStation
+    ] .
+
+shape:reservationServesFlowExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:reservationServesFlow ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:BandwidthReservation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:DataFlow
+    ] .
+
+shape:routeUsesStationExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:routeUsesStation ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:CommunicationRoute
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:CommunicationStation
+    ] .
+
+shape:LinkUnavailableExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:LinkUnavailable ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:LinkUnavailableArgument_station dom:LinkUnavailableArgument_actor )
+    ] .
+
+shape:LinkDegradedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:LinkDegraded ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:LinkDegradedArgument_station dom:LinkDegradedArgument_actor )
+    ] .
+
+shape:MessageTransmissionFailedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:MessageTransmissionFailed ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:MessageTransmissionFailedArgument_attempt )
+    ] .
+
+shape:ChannelBandwidthOverAllocatedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:ChannelBandwidthOverAllocated ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:ChannelBandwidthOverAllocatedArgument_allocation )
+    ] .
+
+shape:CommunicationSessionInterruptedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:CommunicationSessionInterrupted ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:CommunicationSessionInterruptedArgument_session )
+    ] .
+
+shape:HandoverInProgressExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:HandoverInProgress ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:HandoverInProgressArgument_handover )
+    ] .
+
+shape:DataFlowLatencyAboveThresholdExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:DataFlowLatencyAboveThreshold ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:DataFlowLatencyAboveThresholdArgument_flow )
+    ] .
+
+shape:PacketLossAboveThresholdExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:PacketLossAboveThreshold ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:PacketLossAboveThresholdArgument_flow )
+    ] .
+
+shape:RetransmissionInProgressExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:RetransmissionInProgress ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:RetransmissionInProgressArgument_retransmission )
+    ] .

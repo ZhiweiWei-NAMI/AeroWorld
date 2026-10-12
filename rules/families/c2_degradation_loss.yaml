@@ -1,0 +1,276 @@
+# ARM 生成规则 —— c2_degradation_loss
+#
+# 命名约束：本文件名 c2_degradation_loss.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# ⚠️ 本族是**原专用 runner 族**（Dataset/tools/run_c2_grounding.py）。它的干预机制
+#    与其他所有族都不同，见下面 ④ 与 limits。照抄别的族的 mechanism 一定会写错。
+#
+# ─────────────────────────────────────────────────────────────
+# 本文件的事实来源（全部在本机实测，可复跑）
+# ─────────────────────────────────────────────────────────────
+#   臂：240 条 = 81 个 (profile, seed, group) 三元组（27 组 × 3 seed）
+#       profile：L2-1_v1/v2 · L6-1_v1/v2 · L6-2_v1/v2 · X1_rain_to_c2loss_to_forced_landing
+#     arm_id 分布（**只有三种，只有三个意图被实现**）：
+#       arm_factual   81  → 意图 factual
+#       arm_delay     81  → 意图 delay
+#       arm_hold      78  → 意图 suppress
+#     全族没有 arm_no_op_suppress，也**没有 arm_avoid_* / arm_tradeoff_***
+#     —— 即 divert / tradeoff 两个意图在本族从未落地（见 limits）。
+#     78 而非 81：X1_rain_to_c2loss_to_forced_landing/grp_03_rain_onset 的
+#     三个 seed 都没有 arm_hold（见 limits.known_conflicts）。
+#
+#   证据命令：
+#     grep -rl '"event_family_id":"c2_degradation_loss"' \
+#       --include=branch_manifest.json arms/ | wc -l
+#     python 读 arms/L6-2_v1/seed00/grp_02_c2_degradation/*/raw/{branch_manifest.json,branch_event_ledger.jsonl,event_script.json}
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: c2_degradation_loss
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    内容真实来源是 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里登记的是"指针 + 关键字段快照"，快照仅用于生成期自检，改定义请改源头。
+#    谓词注册表：Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/c2_degradation_loss
+  rule_ids:
+    - event_family.c2_degradation_loss.0     # 链路降级
+    - event_family.c2_degradation_loss.1     # 链路丢失
+  mapping_class: B_composite
+  event_type_ids:
+    - communication.c2_link_degradation_event
+    - communication.c2_link_loss_event
+  trigger:
+    any_of:
+      - { predicate_id: communication.link_degraded,    direction: rising, event_type_id: communication.c2_link_degradation_event }
+      - { predicate_id: communication.link_unavailable, direction: rising, event_type_id: communication.c2_link_loss_event }
+  roles:                                   # 两个分支的角色集合相同
+    actor:   { kind: trigger_binding, ontology_class: UnmannedAircraft }
+    station: { kind: trigger_binding, ontology_class: CommunicationStation }
+  support_conditions: []                   # authority 两个分支都是空表
+  # authority 另登记三个"响应面"谓词（快照，仅供自检；本规则不拿它们当触发）：
+  #   communication.handover_in_progress
+  #   emergency.aircraft_in_safe_hold
+  #   emergency.aircraft_in_return_to_home
+  # terminal（快照）：communication.link_degraded / link_unavailable = false，
+  #   hold_parameter = recovery_hold_samples，join_roles = [actor, station]
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别：决定这条事件"能不能被人为改变"
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 实测回答"干预对象是谁"：**链路两端的状态**，主端是 station（CommunicationStation，
+  #   即 tower_*），另一端是 actor（UnmannedAircraft，即 uav_*）。不是"无人机的位置"，
+  #   也不是任何可寻址的干扰源。
+  intervention_subject: station
+  intervention_subject_bound: actor
+  # 实测依据（不是推断）：
+  #   manifest 的 intervention_entity_ids 里，链路端点是 tower_*（CommunicationStation）
+  #   与 uav_*（UnmannedAircraft）两类（factual 45 tower + 72 uav、hold 66 tower + 78 uav、
+  #   delay 69 tower + 84 uav）。X1 的 rain_onset 节点因为 fork 落在交通场景正中，
+  #   还额外耦合了整批背景实体（sumo_vehicle_* / bg_ped_* / bg_vehicle_* / global_uav_* /
+  #   ped_*）—— 那是耦合闭包，不是干预对象本身。
+  #   78 条 hold 与 81 条 delay 的 coupled_hold.entity_ids 同样只有链路两端。
+  #
+  # 为什么 B_composite 不等于 exogenous（这条判据被实测推翻，记录在案）：
+  #   authority 的 mapping_class=B_composite 只说明"两类事件复合"，与因果类别无关。
+  #   6 个 B_composite 族里有 4 个（uav_pedestrian_near_miss 702 条臂、
+  #   signal_malfunction 105、uav_vehicle_conflict 72、本族 240）都有真实的干预臂。
+  #   唯一可靠的 exogenous 判据是 manifest 里的 `*_authority` 字段值形如
+  #   scene_exogenous_*（rain_fog_environment 的 1254 条臂全部带该字段），
+  #   而本族 240 条 manifest 中 **0 条**含 `*_authority` 字段。
+  #   台账侧：159 条臂写下 operation=suppress/delay 且 status=applied
+  #   （78 hold + 81 delay），若事件是场景权威，这些臂只会是 DESIGN_INTENT_CONFLICT。
+  #
+  # 诚实边界：本族确有**脚本/天气为根**的链节点（X1 的 rain_onset / rain_threshold），
+  #   那部分锚点的调度权归场景（script_scheduled），见 limits.known_conflicts。
+  #   这不改变整族判 agent_caused：链上的链路状态节点是被干预成功的。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点：事件链上哪些节点能分叉
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # anchor_event_id 由事件链给出，不在此硬编码。
+  # 本族实测的链节点（81 组的 anchor_event_id）：
+  #   L2-1：station_degraded · uav_link_response · patrol_resume_via_backup_link
+  #   L6-1：c2_loss · rth_engaged · c2_recovered
+  #   L6-2：uav_c2_precheck_patrol · c2_degradation · uav_delayed_response ·
+  #         backup_link_lock · nominal_c2_restore
+  #   X1  ：rain_onset · rain_threshold · c2_loss_tick · c2_loss_after_rain · c2_safe_hold
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    通用骨架在 rules/intents.yaml；此处只写本族的差异。
+#    operation 只能取 4 个已注册值之一：
+#      reuse_factual_causal_event | suppress_causal_event
+#      delay_causal_event | replace_causal_event
+#
+#    ⚠️ 本族**只实现 3 个意图**（factual / suppress / delay）。
+#       divert 与 tradeoff 在本族 240 条臂里一条都没有，因此**故意不写**这两段：
+#       写了就是编造一个从未落地的机制。若将来要补，必须先有臂、再改本文件。
+#
+#    键名是**意图**（factual/suppress/delay/divert/tradeoff），
+#    具体臂名由 rules/intents.yaml 的 arm_id_patterns 给出。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：arm_factual × 81，台账 operation=reuse_factual_causal_event、
+    #       factual_preserved=true、suppressed_event_ids=[]、generated_action_ids=[]
+    # 注意：factual 的**原样事件**本身就带动作，且本族的原样动作就是链路状态转移：
+    #   c2_degradation   → set_runtime_state(tower, communication_state.mode=degraded)
+    #   c2_loss          → set_runtime_state(uav, communication_state…) + set_visual_state(tower)
+    #                      （L6-1 的 factual 还含一条 authored move_entity —— 那是事件本身
+    #                        的原样动作，不是干预动作，别把它当成 divert 机制）
+    #   station_degraded → set_runtime_state(tower) + set_runtime_state(uav)（两端都打）
+    #   c2_loss_tick(X1) → set_runtime_state(tower, availability=0.0, station_unavailable=true)
+    #   rain_threshold   → set_weather(rain=0.65, visibility_m=1500) + set_runtime_state(tower)
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 一致（78/78）
+    # 实测：arm_hold × 78 —— 本族**没有 arm_no_op_suppress**，抑制臂只有这一种。
+    #   台账：suppression_basis=authored_trigger_and_causal_predecessor_closure（78/78）、
+    #         suppression_scope=whole_event_bundle_and_branch_ledger（78/78）、
+    #         suppressed_event_ids 2~7 条（含锚点的因果前驱闭包）、
+    #         repairs=[]（78/78）、coupled_hold.injected=true（78/78）。
+    coupled_hold:
+      required: true
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.station          # 先写 station
+        actor_bound: roles.actor      # 再写被绑定的 UAV
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+
+  delay:
+    operation: delay_causal_event
+    # 实测：arm_delay × 81 —— delay_ticks ∈ {20×39, 33×12, 50×6, 23×6, 21×6,
+    #   25×6, 31×3, 40×3}，全部 ≤ 50 且 (锚点 tick + delay) 不越 900。
+    #   台账额外字段：original_anchor_trigger、delay_mechanism_evidence（81/81）、
+    #   coupled_hold（81/81）。repairs 实测三种（81 条各自命中一种）：
+    #     delay_applied_to_authored_tick_trigger ×27
+    #     delay_applied_to_authored_event_relative_trigger ×51
+    #     delay_applied_after_measured_parent_dispatch ×3（source_trigger_type=weather_state）
+    #   重定时对象是**锚点自己的触发**，不是实体动作：
+    #   81 条 delay_mechanism_evidence 里都至少有一条 match_count=0 / unmatched=true
+    #   （延迟本身不派发位移）；另 45 条还带一条指向事件原样动作的记录
+    #   （arm_factual / source=authored_source_event_action）。
+    mechanism:
+      generator: set_runtime_state
+      actor: roles.station
+      actor_bound: roles.actor
+      template:
+        - step_kind: state_patch
+          state_patch:
+            control_state:
+              hold_active: true
+    retiming:
+      target: anchor_event_trigger          # trig_<anchor> 的 tick / event_fired_after 重定时
+      authored_schedule_owned_by: scene     # 不改写场景脚本，只改分支内的触发时刻
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: scene        # 逐臂取自已编排的候选，非全局常数
+        min: 20
+        max: 50
+        default: 20             # 众数（39/81）
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+    # 实测：锚点触发形态 tick(51) / event_fired_after(102) / weather_state(6)。
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/*/manifest.json
+    # 实测：window_end_tick − fork_tick ∈ [57, 161]，无常数可写。
+    #       240/240 条 manifest 都带 window_end_basis
+    #         {candidate_end_tick, modeled_motion[], parent_evidence_end_tick}
+    #       且 window_semantics_only=true。
+    #       modeled_motion 的准确口径（别写成"恒为空"）：135/240 条非空，但里面每一条
+    #       的 arm_id 都是 **arm_factual**、source 都是 authored_source_event_action
+    #       —— 那是被继承下来的 factual 事件原样位移，用于算窗口端点。
+    #       本族的干预臂（arm_delay 81 条 / arm_hold 78 条）**没有一条**带自己的
+    #       modeled_motion 记录，也没有一条派发 generated_action_ids（240/240 为空）。
+    #       即：本族干预不改轨迹，只改链路状态与触发时刻（见 ④）。
+  history_frames: 8
+  horizon_frames: 5
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+
+  suppress:
+    target_event: absent_in_window
+    # 若 factual 里该事件本就没发生，这组标 not_intervenable，而不是干预成功
+    # 本族抑制的是链路状态转移：判定要看 communication.link_degraded /
+    # communication.link_unavailable 的上升沿是否消失，而不是看轨迹位移。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+
+  # divert / tradeoff 没有期望可写：本族没有这两类臂。
+
+  # 所有臂共用的最低要求
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "X1_rain_to_c2loss_to_forced_landing/grp_03_rain_onset 的三个 seed 都没有 arm_hold：
+       该节点锚点是 weather-rooted 的 trig_rain_onset（tick 触发、由降雨驱动），
+       抑制一个场景权威的天气转移只会得到 DESIGN_INTENT_CONFLICT
+       ——这与 rain_fog_environment 的处理一致，因此本族不改判 exogenous，
+       只在这一节点上不给 suppress。"
+    - "X1/grp_04_rain_threshold 的 6 条臂（3 hold + 3 delay）锚在 weather_state 触发上
+       （trig_rain_threshold: operator=gte, parameter=rain, value=0.5, sustain_ticks=5），
+       锚点自身动作含 set_weather。这些臂的 suppress/delay 触碰场景权威天气，
+       应按 DESIGN_INTENT_CONFLICT 复核，不得当作 PASS 依据。"
+    - "本族 divert / tradeoff **从未落地**：240 条臂里没有 arm_avoid_* / arm_tradeoff_*。
+       规则里不写这两段是为了不编造机制；要补必须先有用例、再回填。"
+    - "coupled_hold 注入的动作 id 带 '_move' 后缀但 type 实测是 set_runtime_state
+       （如 coupled_continuation_0_move = {state_patch:{control_state:{hold_active:true}}}）。
+       这是耦合闭包对 facility 类实体只发运行时补丁的命名痕迹，
+       按 id 猜 generator 会猜错 —— 判机制请读 action 的 type 字段。"
+  not_claimed:
+    - G10 整库发布审计（不在本规则范围内）
+    - "为什么本族必须用专用 runner（留档）：本族 240 条臂的 generated_action_ids 全为空
+       （240/240），且 159 条干预臂（81 delay + 78 hold）**没有一条**带自己的
+       window_end_basis.modeled_motion 记录（modeled_motion 里只可能出现继承来的
+       arm_factual 原样位移）。mechanism 是
+       「重定时/抑制锚点触发 + 注入 fork-tick coupled_hold 事件，动作为 set_runtime_state
+       打 control_state.hold_active=true 到链路两端，station 在先 UAV 在后」。
+       通用位移 runner 的 delta-only 模型（以实体轨迹增量为中心）根本表达不了
+       「不改轨迹、只改链路状态与触发时刻」这种干预，所以历史上有专用 runner
+       Dataset/tools/run_c2_grounding.py（它在 _source_goal 里按 arm_kind 映射
+       event_change_mode：no_op_hold→E_to_absent、avoid→E_to_absent、
+       delay_recover→event_timing_or_recovery、trade_off→E_A_to_E_B、
+       factual→factual_reference；而磁盘上的 arm_kind 实测只有 factual/delay/hold 三种）。"

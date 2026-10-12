@@ -1,0 +1,145 @@
+{
+  "profile": "X2_gnss_spoof_to_geofence_violation",
+  "seed": "seed02",
+  "episode_id": "X2_gnss_spoof_to_geofence_violation__seed02",
+  "group": "X2_gnss_spoof_to_geofence_violation/seed02/grp_cross_layer",
+  "arm_id": "factual",
+  "mode": "factual_observation",
+  "window": {
+    "start_tick": 220,
+    "fork_tick": 230,
+    "end_tick": 415,
+    "phase": "after_state_sample_before_actions"
+  },
+  "sources": {
+    "scene": "interventions/X2_gnss_spoof_to_geofence_violation/seed02/grp_cross_layer/scene_setup.json",
+    "original_scene": "Dataset/scenarios/X_cross_layer/X2_gnss_spoof_to_geofence_violation/scene_setup.json",
+    "script": "Dataset/scenarios/X_cross_layer/X2_gnss_spoof_to_geofence_violation/event_script.json",
+    "canonical": "aw_data/render_ready_episodes_capture_filtered/X2_gnss_spoof_to_geofence_violation__seed02",
+    "predicate_script": "interventions/X2_gnss_spoof_to_geofence_violation/seed02/grp_cross_layer/factual_event_script.json"
+  },
+  "removed_event_ids": [],
+  "intervention_actions": [
+    {
+      "event_id": "safety_correction",
+      "trigger_ref": "trig_after_geofence_violation_delay_30",
+      "action": {
+        "type": "set_runtime_state",
+        "action_id": "set_runtime_state_x2_gnss_spoof_to_geofence_violation_safety_correction_00",
+        "entity_id": "uav_x2_spoofed",
+        "delay_ticks": 1,
+        "state_patch": {
+          "navigation_state": {
+            "gnss_spoofed": false,
+            "visual_relocalization": true,
+            "operational_state": "relocalizing"
+          }
+        },
+        "runtime_state_schedule_profile_id": "l5_l6_x_runtime_state_schedule",
+        "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+      }
+    },
+    {
+      "event_id": "route_recovered",
+      "trigger_ref": "trig_after_safety_correction_delay_38",
+      "action": {
+        "type": "set_visual_state",
+        "action_id": "set_x2_nav_restored",
+        "entity_id": "uav_x2_spoofed",
+        "visual_state": {
+          "mode": "geofence_alert"
+        }
+      }
+    },
+    {
+      "event_id": "route_recovered",
+      "trigger_ref": "trig_after_safety_correction_delay_38",
+      "action": {
+        "type": "set_runtime_state",
+        "action_id": "set_runtime_state_x2_gnss_spoof_to_geofence_violation_route_recovered_00",
+        "entity_id": "uav_x2_spoofed",
+        "delay_ticks": 5,
+        "state_patch": {
+          "navigation_state": {
+            "visual_relocalization": false,
+            "mission_recovered": false,
+            "route_uncertain": false,
+            "route_recovered": true,
+            "operational_state": "geofence_alert"
+          }
+        },
+        "runtime_state_schedule_profile_id": "l5_l6_x_runtime_state_schedule",
+        "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+      }
+    }
+  ],
+  "definition": {
+    "entrypoint": "scripts/arms/X2_gnss_spoof_to_geofence_violation/seed02/grp_cross_layer/factual.py",
+    "entrypoint_sha256": "9f2ee4241945daeaec665323016e467a66bb79358d4c39de0df9a8de63672e03",
+    "research_question": "GNSS欺骗、航迹偏移与围栏接近告警如何衔接；导航恢复时受限空域条件是否仍成立？",
+    "window_basis": "纠偏移动作390到达，route_recovered在400派发，按5 tick延迟恢复导航；正式样本405/410/415确认。空域边界条件仍成立，围栏告警与任务恢复保持未解决；480开始的普通返航不属于此窗口。",
+    "parameter_model": {
+      "parameter_changes": false,
+      "motion_model": "沿用源动作分段恒速与ceil(distance/speed*10)整tick计时；不改变速度、航点或语义阈值。",
+      "state_visibility": "先采样后动作；runtime补丁按声明delay_ticks生效。",
+      "recovery_model": "正式步长5，当前recovery_hold_samples=3；first_false_capture+(3-1)*5。",
+      "scope": "窗口推导来自源动作实际完成及状态保持；分支运行后重新验证。"
+    },
+    "branch_changes": {
+      "removed_event_ids": [],
+      "added_event_ids": [],
+      "removed_action_ids": [],
+      "added_action_ids": [],
+      "replaced_action_ids": [
+        "set_runtime_state_x2_gnss_spoof_to_geofence_violation_route_recovered_00",
+        "set_runtime_state_x2_gnss_spoof_to_geofence_violation_safety_correction_00",
+        "set_x2_nav_restored"
+      ],
+      "changed_event_ids": [
+        "route_recovered",
+        "safety_correction"
+      ],
+      "changed_trigger_ids": []
+    }
+  },
+  "gates": {
+    "x_guard_geofence_violation": {
+      "trigger_id": "x_guard_geofence_violation",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_geofence_violation",
+        "x_predecessor_geofence_violation"
+      ]
+    }
+  },
+  "scope": {
+    "simulated_entity_ids": [
+      "uav_x2_spoofed",
+      "nfz_x2_geofence",
+      "u_inspect_x2_gnss_spoof_to_geofence_violation",
+      "bg_ped_x2_gnss_spoof_to_geofence_violation_01",
+      "bg_ped_x2_gnss_spoof_to_geofence_violation_02",
+      "bg_ped_x2_gnss_spoof_to_geofence_violation_03",
+      "bg_ped_x2_gnss_spoof_to_geofence_violation_04",
+      "contract_facility_x2_gnss_spoof_to_geofence_violation_02",
+      "uav_observer_x2_gnss_spoof_to_geofence_violation_3",
+      "pad_home_uav_x2_spoofed",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_00",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_01",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_02",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_03",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_04",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_05",
+      "corridor_x2_gnss_spoof_to_geofence_violation_uav_x2_spoofed_06"
+    ],
+    "canonical_only_scene_entity_ids": [
+      "bg_vehicle_x2_gnss_spoof_to_geofence_violation_01",
+      "bg_vehicle_x2_gnss_spoof_to_geofence_violation_02",
+      "bg_vehicle_x2_gnss_spoof_to_geofence_violation_03"
+    ],
+    "background_policy": "Every canonical truth-frame entity outside the engine roster is retained unchanged. Background vehicles are not simulated or replaced.",
+    "interaction_limit": "Scripted participants, geometry triggers and runtime state are recomputed; no feedback from immutable background traffic is claimed."
+  },
+  "hypothesis": "纠偏后GNSS与路线恢复，受限空域边界条件仍成立，因此围栏告警持续且不宣告任务恢复。"
+}

@@ -405,3 +405,4 @@ class SpatialEventGridPlanner:
                 exclusion_radius_m=self.accident_exclusion_radius_m,
             )
         return assignments
+

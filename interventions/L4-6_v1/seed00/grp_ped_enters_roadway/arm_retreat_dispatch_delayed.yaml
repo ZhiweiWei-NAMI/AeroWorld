@@ -1,0 +1,52 @@
+schema: aeroworld_l4_window_config
+version: 1
+group_key: L4-6_v1/seed00/grp_ped_enters_roadway
+episode_id: L4-6_v1__seed00
+event_family: vehicle_pedestrian_conflict
+subject_class: pedestrian
+entity_ids:
+- ped_jaywalk_l4_6_v1
+- car_jaywalk_l4_6_v1
+predicate_ids:
+- safety.vehicle_pedestrian_conflict
+window:
+  start_tick: 210
+  fork_tick: 220
+  end_tick: 410
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/collision/L4-6_v1/scene_setup.json
+  script: Dataset/scenarios/L4_agents/collision/L4-6_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed00/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed00/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed00/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed00/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-6_v1__seed00/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-6_v1__seed00/event_outcomes.jsonl
+arm_id: arm_retreat_dispatch_delayed
+mode: intervention
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites:
+  - trigger_id: trig_after_vehicle_ped_proximity_delay_30
+    delay_ticks: 20
+    mechanism: fired_after_delay_shift
+expected:
+  target_event: occurs
+  rationale: Only postpone the pedestrian-retreat trigger by 20 ticks. The original proximity response and the vehicle low-speed repositioning remain unchanged;
+    retreat dispatch is expected at 325 rather than 305, with conflict_cleared at the window edge 410. A response not confirmed before the window ends remains
+    right-censored.
+  falsified_if: The pedestrian retreat does not move by the configured delay, the preceding vehicle response changes, or an unobserved recovery is reported
+    as complete.
+script: scripts/arms/L4-6_v1/seed00/grp_ped_enters_roadway/arm_retreat_dispatch_delayed.py
+output: arms/L4-6_v1/seed00/grp_ped_enters_roadway/arm_retreat_dispatch_delayed
+provenance:
+  experiment_ref: design/L4-6_v1/seed00/grp_ped_enters_roadway/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    event_script: Dataset/scenarios/L4_agents/collision/L4-6_v1/event_script.json
+    canonical_event_trace: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed00/event_trace.jsonl
+    canonical_trajectories: aw_data/render_ready_episodes_capture_filtered/L4-6_v1__seed00/trajectories.jsonl
+    design_facts: design factual_measured_facts (three-seed measured, equal across seeds)

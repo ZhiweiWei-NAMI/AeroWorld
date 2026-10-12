@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w3id.org/aeroworld/schema/utm_service_plan.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_name",
+    "schema_version",
+    "model_id",
+    "model_version",
+    "global_uav_flow_policy",
+    "uav_plans"
+  ],
+  "properties": {
+    "schema_name": {"const": "utm_service_plan"},
+    "schema_version": {"const": "1.0.0"},
+    "model_id": {"const": "aeroworld_deterministic_utm_service"},
+    "model_version": {"const": "1.0.0"},
+    "global_uav_flow_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_contract", "intent_start_tick", "intent_end_tick", "authorization_status", "flight_plan_approval_status"],
+      "properties": {
+        "source_contract": {"const": "uav_global_flow"},
+        "intent_start_tick": {"const": 0},
+        "intent_end_tick": {"const": 900},
+        "authorization_status": {"enum": ["active", "revoked"]},
+        "flight_plan_approval_status": {"enum": ["approved", "rejected"]}
+      }
+    },
+    "uav_plans": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/uav_plan"}
+    }
+  },
+  "$defs": {
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_tick", "end_tick"],
+      "properties": {
+        "start_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "end_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "status": {"enum": ["active", "revoked"]},
+        "approval_status": {"enum": ["approved", "rejected"]}
+      },
+      "oneOf": [
+        {"required": ["status"]},
+        {"required": ["approval_status"]}
+      ]
+    },
+    "uav_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uav_id", "corridor_id", "intent_start_tick", "intent_end_tick", "authorization_schedule", "flight_plan_schedule"],
+      "properties": {
+        "uav_id": {"type": "string", "minLength": 1},
+        "corridor_id": {"type": "string", "minLength": 1},
+        "intent_start_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "intent_end_tick": {"type": "integer", "minimum": 0, "maximum": 900, "multipleOf": 5},
+        "authorization_schedule": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/schedule"}},
+        "flight_plan_schedule": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/schedule"}}
+      }
+    }
+  }
+}

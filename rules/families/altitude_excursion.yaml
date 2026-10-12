@@ -1,0 +1,48 @@
+schema: aeroworld_window_family_rule
+version: 1
+family: altitude_excursion
+status: active_for_window_experiments
+semantic_authority:
+  source: Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json
+  predicate_id: airspace.aircraft_outside_assigned_altitude_band
+  event_rule_id: event_family.altitude_excursion.0
+  threshold_source: parameter_governance.governed_defaults
+experiment_authority: design/<profile>/<seed>/<group>/experiment.json
+config_schema: rules/arm_config.schema.json
+config_identity: <group_key>/<arm_id>
+window:
+  storage: inclusive_start_to_end
+  initial_state: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+  reference: original_episode_predicate_transitions_and_event_outcomes
+  ending: include_selected_event_recovery_and_relevant_action_completion
+  unfinished: explicit_right_censoring
+  outside_window: immutable_source_references
+interventions:
+  authority: explicit_configuration_actions_and_omissions
+  fixed_intent_count: false
+  direct_truth_editing: forbidden
+  automatic_causal_descendant_suppression: forbidden
+  source_actions_not_omitted: execute_normally
+execution:
+  dedicated_entry_per_arm: true
+  shared_primitives: serialization_simulation_predicate_and_event_calculation
+assets:
+  required:
+    - manifest.json
+    - raw/initial_state.json
+    - raw/fork_state.json
+    - raw/actions.jsonl
+    - raw/states.jsonl
+    - raw/trajectories.jsonl
+    - raw/weather.jsonl
+    - objective/predicate_truth.jsonl
+    - objective/predicate_truth_ticks.jsonl
+    - objective/predicate_transitions.jsonl
+    - objective/event_occurrences.jsonl
+    - objective/event_outcomes.jsonl
+    - objective/window_status.json
+    - chain/events.jsonl
+    - chain/relations.jsonl
+  empty_event_sequence: allowed_with_explicit_window_status
+  relation_policy: evidence_typed_no_causal_inference_from_order_alone

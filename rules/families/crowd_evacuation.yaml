@@ -1,0 +1,255 @@
+# ARM 生成规则 —— crowd_evacuation
+#
+# 命名约束：本文件名 crowd_evacuation.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 本文件只写"怎么干预"。事件与谓词的**定义**在下列冻结源里，本文件只引用：
+#   · 事件权威  Dataset/semantic_rules/profiles/event_family_authority_mapping.json#/families/crowd_evacuation
+#   · 谓词注册  Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json#/templates/safety.crowd_evacuation_active
+#   · 执行器    Dataset/tools/run_motion_family_delta_grounding.py（通用 runner）
+#   · 物理包线  rules/physics.yaml（本文件不得豁免其中任何一条）
+#
+# 本文件的每一条 mechanism 都对着 arms/ 里的真实臂核过：
+#   150 条臂 / 11 个 group_id × 3 seed = 33 个 (episode, group) / 3 个 profile
+#   （L4-8_v1, L4-8_v2, X6_crowd_evacuation_to_airspace_lockdown）
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: crowd_evacuation
+
+# ─────────────────────────────────────────────────────────────
+# ⓪ 生成路径
+# ─────────────────────────────────────────────────────────────
+generation:
+  runner: Dataset/tools/run_motion_family_delta_grounding.py
+  alternatives_source: Dataset/tools/rewrite_coupled_alternatives.py
+  alternatives_declared: [delay, hold_pair]        # FAMILY_ALTERNATIVES['crowd_evacuation']，第 52 行
+  # 150/150 条臂实测：delta_only=true, trajectory_scope=intervention_delta_only,
+  # artifact_scope=parent_reference_plus_local_delta, window_semantics_only=true
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/crowd_evacuation
+  rule_id: event_family.crowd_evacuation.0
+  mapping_class: A_direct
+  event_type_id: emergency.crowd_evacuation_event
+  trigger:
+    predicate_id: safety.crowd_evacuation_active
+    direction: rising
+  # 角色名逐字取自 authority 的 trigger.event_role_sources：本族只有 crowd 一个绑定角色
+  roles:
+    crowd: { kind: trigger_binding, ontology_class: Crowd, predicate_role: crowd }
+  support_conditions: []          # authority 里本族为空
+  terminal:                       # 快照：改定义请改源头
+    predicate_id: safety.crowd_evacuation_active
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [crowd]
+  authoritative_predicates:
+    - safety.crowd_evacuation_active
+    - emergency.aircraft_in_safe_hold
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 干预对象是"人群"，执行时还捎带监控无人机（见下 evidence）
+  intervention_subject: [crowd]
+  # 证据（实测）：mapping_class=A_direct；150/150 条 manifest 都没有 *_authority 字段。
+  #   intervention_entity_ids 实测三类：
+  #     · 人群本身：["ped_evac_l4_8_v1_00" ... "ped_evac_l4_8_v1_08"]（9 个行人）
+  #     · 监控无人机：["uav_crowd_monitor_l4_8_v1"]
+  #     · 疏散区/禁飞区对：["nfz_x6_lockdown","uav_x6_monitor"]
+  #   → 疏散是智能体与场景设施共同造成的可干预事件，5 类意图全部合法。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node
+  exclude_roles: []     # 本族**不排除终态/恢复节点**
+  # 实测恢复节点也在干预范围内：X6/grp_04_lockdown_cleared（21 条臂）、
+  # L4-8/grp_02_crowd_safe_zone_reached（18 条臂）
+  # anchor_event_id 由事件链给出，不在此硬编码
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图（键名是**意图**，不是 arm_id）
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  # 4.1 基线
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    arm_ids: [arm_factual]
+    evidence:
+      arms: 33
+      ledger_flag: "factual_preserved=true"
+      # 实测 event_window_state：not_observed 15 / active_at_window_entry 12 / local_onset_observed 6
+
+  # 4.2 抑制
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger
+    arm_ids: [arm_hold_pair, arm_no_op_suppress]   # 两者都 → intent=suppress
+    evidence:
+      arms: 48                                     # arm_hold_pair 33（arm_kind=hold_pair）+ arm_no_op_suppress 15（arm_kind=no_op_hold）
+      suppression_basis: authored_trigger_and_causal_predecessor_closure
+      suppressed_event_ids_per_arm: { 2: 12, 3: 6, 4: 15, 5: 12, 15: 3 }   # 锚点 + 后继链
+      coupled_hold_injected: { arm_hold_pair: true, arm_no_op_suppress: false }
+    coupled_hold:                                  # 仅 arm_hold_pair / arm_delay 注入
+      # 实测按住集合（33 条 arm_hold_pair）：
+      #   8 个行人（整个人群）15 条 · 1 个监控无人机 12 条 · {nfz,uav} 2 个 6 条
+      entity_roles: [crowd, uav_crowd_monitor]
+      # 实测动作构成：set_visual_state(stopped) 120 + set_visual_state(hold) 18
+      #              + set_runtime_state(control_state) 150
+      action:
+        - step_kind: visual_state
+          visual_state: { mode: stopped_or_hold }   # 行人=stopped，无人机=hold
+        - step_kind: state_patch
+          state_patch: { control_state: { hold_active: true } }
+      injected_event_id_pattern: branch_coupled_hold_<arm_id>
+
+  # 4.3 推迟
+  delay:
+    operation: delay_causal_event
+    arm_ids: [arm_delay, arm_delay_postpone]
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: governed_default
+        min: 20
+        max: 50
+        default: 30
+    evidence:
+      arms: 48                                     # arm_delay 33 + arm_delay_postpone 15
+      delay_ticks_observed: { 20: 9, 26: 3, 30: 15, 33: 3, 36: 3, 50: 15 }
+      # arm_delay          ← clamp(window_duration_ticks // 3, 20, 60)   (rewrite_coupled_alternatives.py:506)
+      # arm_delay_postpone ← 设计层 authored 30                          (design/episodes/**/arm_delay_postpone.json)
+      repairs:
+        delay_applied_to_authored_event_relative_trigger: 30
+        delay_applied_to_authored_tick_trigger: 9
+        delay_applied_after_measured_parent_dispatch: 9
+      coupled_hold_injected: { arm_delay: true, arm_delay_postpone: false }
+
+  # 4.4 绕开：把执行者挪出疏散走廊/禁飞区
+  divert:
+    operation: replace_causal_event
+    arm_ids: [arm_avoid_immediate_corridor_evacuation_rth, arm_avoid_lateral_nfz_escape_arc]
+    mechanism:
+      generator: move_entity
+      # authority 只绑定 crowd 一个角色；落地 actor 是耦合闭包里的首个可动实体
+      # （实测 X6 组是监控无人机 uav_x6_monitor）
+      actor: coupled_movable_actor
+      template:
+        - step_kind: move
+          waypoints_enu_m: { source: generator_authored, mode: escape_corridor_or_nfz }
+          velocity_mps: { source: generator_authored }
+      physics_intent: leave_evacuation_corridor
+    evidence:
+      arms: 6
+      actions_per_arm: 1
+      action_type: move_entity                       # 6/6
+      targets: { uav_x6_monitor: 6 }
+      observed_geometry:
+        arm_avoid_immediate_corridor_evacuation_rth: "2 waypoints, velocity 7.5 m/s"
+        arm_avoid_lateral_nfz_escape_arc: "3 waypoints, velocity 6.5 m/s"
+      ledger_repairs: []                             # 6/6 无 repair
+
+  # 4.5 权衡：不消除疏散，改它的代价结构（外围巡逻 / 高空等待）
+  tradeoff:
+    operation: replace_causal_event
+    arm_ids:
+      - arm_tradeoff_perimeter_egress_route_patrol
+      - arm_tradeoff_high_altitude_holding_stack
+      - arm_tradeoff_holding_pattern_outside_lockdown_buffer
+    mechanism:
+      generator: move_entity
+      # 同 divert：authority 只绑定 crowd，落地 actor 随 group 落在首个可动实体上
+      actor: coupled_movable_actor
+      template:
+        - step_kind: move
+          waypoints_enu_m: { source: generator_authored, mode: perimeter_patrol_or_holding }
+          velocity_mps: { source: generator_authored }
+      physics_intent: hold_outside_evacuation_zone
+    evidence:
+      arms: 15
+      actions_per_arm: 1
+      action_type: move_entity                       # 15/15
+      targets: { ped_evac_l4_8_v1_00: 3, ped_evac_l4_8_v2_00: 3, uav_crowd_monitor_l4_8_v1: 3, uav_x6_monitor: 6 }
+      observed_geometry:
+        arm_tradeoff_perimeter_egress_route_patrol: "2 waypoints, velocity 5.0 m/s"
+        arm_tradeoff_high_altitude_holding_stack: "2 waypoints, velocity 4.0 m/s"
+        arm_tradeoff_holding_pattern_outside_lockdown_buffer: "1 waypoint, velocity 2.0 m/s"
+      ledger_repairs:
+        single_waypoint_destination_validated_from_parent_pose: 3
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick      # 实测 = 父代 dispatch_tick
+  duration_ticks:
+    source: design_declared          # 实测 50 / 80 / 100 / 110 / 150
+  history_frames: 8
+  horizon_frames: 5
+  # manifest.window_end_tick 是执行/证据地平线（window_semantics_only=true），不是观察窗口；
+  # 扩展规则见 run_motion_family_delta_grounding.py:1405-1467。
+  # 实测 150 条臂延长 10~335 tick。
+  evidence_horizon:
+    semantics: execution_and_evidence_only
+    max_tick: 900
+    extension_observed_ticks: [10, 20, 35, 60, 145, 165, 205, 208, 214, 215, 335]
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— rubric，不是结论
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测 event_window_state：not_observed 15 / active_at_window_entry 12 / local_onset_observed 6
+
+  suppress:
+    target_event: absent_in_window
+    # 实测 48 条抑制臂里 18 条是 active_at_window_entry（fork 时人群已在疏散中），
+    # 这类组上"窗口内不发生"不可达；判定要看 coupled_hold 是否改变了引擎状态。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift: { approx: delay_ticks, tolerance_ticks: 5 }
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    generated_action_required: true
+
+  tradeoff:
+    differs_from_factual: true
+    generated_action_required: true
+    # tradeoff 允许疏散仍在窗口内成立，但状态轨迹必须与 factual 可辨
+
+  common:
+    intervention_must_change_engine_state: true
+    physically_valid: true                        # 交给 rules/physics.yaml
+    delta_rows_after_fork_only: true
+    no_pre_fork_delta: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "tradeoff 臂把行人按 5.0 m/s 平移：实测 arms/L4-8_v1/seed00/grp_02_crowd_safe_zone_reached/arm_tradeoff_perimeter_egress_route_patrol 的生成动作是 move_entity(velocity_mps=5.0) 作用于 ped_evac_l4_8_v1_00，实测轨迹速度 4.997 m/s；而 physics.yaml 的 pedestrian 全局包线是 2.0 m/s，L4-8_v1 与 X6 的 scene_setup.json 都没有声明平台包线。物理判定权在物理校验层，本规则不豁免也不宣称通过。"
+    - "fork 时人群已在疏散中的组上（实测 18/48 条抑制臂），suppress 无法判成 absent_in_window。"
+    - "设计层声明 33 条 avoid + 33 条 tradeoff 候选，实际只落地 6 条 divert + 15 条 tradeoff；arm_avoid_high_altitude_broad_surveillance(21)、arm_avoid_high_altitude_surveillance_climb(3)、arm_tradeoff_perimeter_egress_monitoring_patrol(3) 等候选一条都没成臂。"
+  not_claimed:
+    - "G10 整库发布审计（不在本规则范围内）"
+  open_questions:
+    - "TODO: 需确认——行人按 5.0 m/s 干预是否应改写成'无人机执行、人群不动'的代价结构；那要改生成器与设计层，不是改规则。"

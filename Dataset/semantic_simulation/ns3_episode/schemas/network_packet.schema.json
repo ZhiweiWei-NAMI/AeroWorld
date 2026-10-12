@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:aeroworld:p01:ns3:v1:network_packet",
+  "title": "network_packet",
+  "type": "object",
+  "properties": {
+    "episode_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producer_version": {
+      "const": "p01.ns3.v1"
+    },
+    "source_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "config_ref": {
+      "const": "run_config.json"
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "life_epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "units": {
+      "type": "object",
+      "required": [
+        "time"
+      ],
+      "properties": {
+        "time": {
+          "const": "ns"
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "dimensions": {
+      "type": "object",
+      "required": [
+        "time"
+      ],
+      "properties": {
+        "time": {
+          "const": "time"
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "time_support": {
+      "type": "object",
+      "required": [
+        "start_ns",
+        "end_ns",
+        "end_exclusive"
+      ],
+      "properties": {
+        "start_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_exclusive": {
+          "type": "boolean"
+        },
+        "anchor": {
+          "const": "packet_expiry_ns"
+        },
+        "ttl_ns": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "link_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "src_node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dst_node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "flow_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "first_tx_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "accepted": {
+      "type": "boolean"
+    },
+    "rx_ns": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expiry_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "late_rx_ns": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "on_time_delivery": {
+      "type": "boolean"
+    },
+    "mature_at_horizon": {
+      "type": "boolean"
+    },
+    "receiver_owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "receiver_life_epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "payload_unit": {
+      "const": "byte"
+    },
+    "payload_dimension": {
+      "const": "information"
+    }
+  },
+  "required": [
+    "episode_id",
+    "producer_version",
+    "source_ref",
+    "config_ref",
+    "owner",
+    "life_epoch",
+    "status",
+    "reason",
+    "units",
+    "dimensions",
+    "time_support",
+    "packet_id",
+    "link_id",
+    "src_node_id",
+    "dst_node_id",
+    "flow_id",
+    "payload_bytes",
+    "first_tx_ns",
+    "accepted",
+    "rx_ns",
+    "expiry_ns",
+    "late_rx_ns",
+    "on_time_delivery",
+    "mature_at_horizon",
+    "receiver_owner",
+    "receiver_life_epoch",
+    "payload_unit",
+    "payload_dimension"
+  ],
+  "additionalProperties": true
+}

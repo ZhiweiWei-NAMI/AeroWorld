@@ -1,0 +1,41 @@
+schema: aeroworld_arm_config
+version: 4
+arm_id: arm_factual
+group_key: L1-4_v2/seed00/grp_diversion_withheld
+episode_id: L1-4_v2__seed00
+event_family: corridor_congestion
+mode: factual_observation
+entity_ids:
+- uav_l1_4_v2_primary
+- uav_l1_4_v2_secondary
+- uav_l1_4_v2_tertiary
+predicate_ids:
+- airspace.airspace_corridor_over_capacity
+window:
+  start_tick: 350
+  fork_tick: 355
+  end_tick: 530
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L1_airspace/interaction/L1-4_v2/scene_setup.json
+  script: Dataset/scenarios/L1_airspace/interaction/L1-4_v2/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L1-4_v2__seed00/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L1-4_v2__seed00/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L1-4_v2__seed00/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L1-4_v2__seed00/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L1-4_v2__seed00/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L1-4_v2__seed00/event_outcomes.jsonl
+execution:
+  omit_action_ids: []
+  actions: []
+expected:
+  target_event: observe
+  rationale: 记录声明事实源中的所选事件及恢复，不预设干预效果。
+  falsified_if: 分支实测与该声明不符
+script: scripts/arms/L1-4_v2/seed00/grp_diversion_withheld/arm_factual.py
+output: arms/L1-4_v2/seed00/grp_diversion_withheld/arm_factual
+provenance:
+  experiment_ref: design/L1-4_v2/seed00/grp_diversion_withheld/experiment.json
+  parameter_sources:
+    factual_root: aw_data

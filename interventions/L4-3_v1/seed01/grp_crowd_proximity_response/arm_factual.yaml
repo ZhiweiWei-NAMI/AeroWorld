@@ -1,0 +1,48 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_factual
+group_key: L4-3_v1/seed01/grp_crowd_proximity_response
+episode_id: L4-3_v1__seed01
+event_family: crowd_evacuation
+subject_class: pedestrian
+mode: factual_observation
+entity_ids:
+- uav_forced_landing_l4_3_v1
+- ped_landing_l4_3_v1_a
+- ped_landing_l4_3_v1_b
+predicate_ids:
+- safety.crowd_evacuation_active
+- safety.aircraft_near_pedestrian
+window:
+  start_tick: 305
+  fork_tick: 310
+  end_tick: 480
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/failure/L4-3_v1/scene_setup.json
+  script: Dataset/scenarios/L4_agents/failure/L4-3_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-3_v1__seed01/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-3_v1__seed01/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-3_v1__seed01/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-3_v1__seed01/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-3_v1__seed01/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-3_v1__seed01/event_outcomes.jsonl
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites: []
+expected:
+  target_event: occurs
+  rationale: 同一 UAV 降落调度与轨迹；行人沿原撤离方向到着陆点水平距离 16 m，正式阈值保持 15 m。按 2 m/s 分段 ceil 计时，路径
+    A 15.011748 m、B 17.901210 m，理论运动时长 76/90 tick。干预仅推迟人群响应 60 tick；正式近人谓词按真实轨迹重算，不用局部响应区域代替。着陆不声明安全，疏散激活不等于疏散完成。
+  falsified_if: 同组 UAV 轨迹不同，或行人正式近人谓词不随真实撤离改变。
+script: scripts/arms/L4-3_v1/seed01/grp_crowd_proximity_response/arm_factual.py
+output: arms/L4-3_v1/seed01/grp_crowd_proximity_response/arm_factual
+provenance:
+  experiment_ref: design/L4-3_v1/seed01/grp_crowd_proximity_response/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    factual_rebuild: 当前源脚本无干预实跑；aw_data 只提供范围外背景和历史对照
+    physical_model: 同一 UAV 降落调度与轨迹；行人沿原撤离方向到着陆点水平距离 16 m，正式阈值保持 15 m。按 2 m/s 分段 ceil
+      计时，路径 A 15.011748 m、B 17.901210 m，理论运动时长 76/90 tick。干预仅推迟人群响应 60 tick；正式近人谓词按真实轨迹重算，不用局部响应区域代替。着陆不声明安全，疏散激活不等于疏散完成。

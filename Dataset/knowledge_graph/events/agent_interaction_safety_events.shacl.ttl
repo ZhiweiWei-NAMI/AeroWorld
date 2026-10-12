@@ -1,0 +1,170 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix evt: <https://w3id.org/aeroworld/ontology/events/agent_interaction_safety#> .
+@prefix shape: <https://w3id.org/aeroworld/ontology/events/agent_interaction_safety/shapes#> .
+
+<https://w3id.org/aeroworld/ontology/events/agent_interaction_safety/shapes>
+    a owl:Ontology ;
+    owl:imports <https://w3id.org/aeroworld/ontology/events/agent_interaction_safety> ;
+    owl:versionInfo "0.3.0" .
+
+shape:StableEventTypeShape
+    a sh:NodeShape ;
+    sh:targetClass aw:EventType ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:eventTypeIdentifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:class aw:ParticipantRole ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "One event type cannot declare duplicate participant-role keys."@en ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this aw:declaresParticipantRole ?left, ?right .
+                ?left aw:participantRoleKey ?key .
+                ?right aw:participantRoleKey ?key .
+                FILTER (?left != ?right)
+            }
+        """
+    ] .
+
+shape:CompleteParticipantRoleShape
+    a sh:NodeShape ;
+    sh:targetObjectsOf aw:declaresParticipantRole ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:participantRoleKey ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:participantClass ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1
+    ] .
+
+shape:AircraftPairConflictEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:AircraftPairConflictEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:AircraftPairConflictEventRole_first_aircraft evt:AircraftPairConflictEventRole_second_aircraft )
+    ] .
+
+shape:AircraftStructureStrikeEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:AircraftStructureStrikeEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:AircraftStructureStrikeEventRole_aircraft evt:AircraftStructureStrikeEventRole_structure )
+    ] .
+
+shape:AircraftStructureNearMissEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:AircraftStructureNearMissEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:AircraftStructureNearMissEventRole_aircraft evt:AircraftStructureNearMissEventRole_structure )
+    ] .
+
+shape:AircraftForcedLandingPopulatedAreaEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:AircraftForcedLandingPopulatedAreaEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:AircraftForcedLandingPopulatedAreaEventRole_aircraft evt:AircraftForcedLandingPopulatedAreaEventRole_populated_area )
+    ] .
+
+shape:AircraftGroundVehicleCollisionEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:AircraftGroundVehicleCollisionEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:AircraftGroundVehicleCollisionEventRole_aircraft evt:AircraftGroundVehicleCollisionEventRole_vehicle )
+    ] .
+
+shape:AircraftGroundVehicleConflictEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:AircraftGroundVehicleConflictEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:AircraftGroundVehicleConflictEventRole_aircraft evt:AircraftGroundVehicleConflictEventRole_vehicle )
+    ] .
+
+shape:AircraftPedestrianNearMissEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:AircraftPedestrianNearMissEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:AircraftPedestrianNearMissEventRole_aircraft evt:AircraftPedestrianNearMissEventRole_pedestrian )
+    ] .
+
+shape:PedestrianVehicleConflictEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:PedestrianVehicleConflictEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( evt:PedestrianVehicleConflictEventRole_pedestrian evt:PedestrianVehicleConflictEventRole_vehicle )
+    ] .
+
+shape:CrowdEvacuationEventExactParticipantRolesShape
+    a sh:NodeShape ;
+    sh:targetNode evt:CrowdEvacuationEvent ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( evt:CrowdEvacuationEventRole_crowd )
+    ] .

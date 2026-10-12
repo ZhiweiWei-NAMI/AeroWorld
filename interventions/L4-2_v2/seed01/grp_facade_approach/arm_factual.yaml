@@ -1,0 +1,45 @@
+schema: "aeroworld_l4_window_config"
+version: 1
+arm_id: "arm_factual"
+group_key: "L4-2_v2/seed01/grp_facade_approach"
+episode_id: "L4-2_v2__seed01"
+event_family: "structure_near_miss"
+subject_class: "uav"
+mode: "factual_observation"
+entity_ids:
+  - "uav_facade_l4_2_v2"
+  - "facade_anchor_l4_2_v2"
+predicate_ids:
+  - "safety.aircraft_near_building_structure"
+  - "airspace.aircraft_airborne"
+window:
+  start_tick: 230
+  fork_tick: 250
+  end_tick: 500
+  phase: "after_state_sample_before_actions"
+  intervention_order: "source_actions_then_intervention"
+sources:
+  scene: "Dataset/scenarios/L4_agents/collision/L4-2_v2/scene_setup.json"
+  script: "Dataset/scenarios/L4_agents/collision/L4-2_v2/event_script.json"
+  trajectories: "aw_data/render_ready_episodes_capture_filtered/L4-2_v2__seed01/trajectories.jsonl"
+  weather: "aw_data/render_ready_episodes_capture_filtered/L4-2_v2__seed01/weather_meta.jsonl"
+  roster: "aw_data/render_ready_episodes_capture_filtered/L4-2_v2__seed01/global_entity_roster.json"
+  event_realization: "aw_data/render_ready_episodes_capture_filtered/L4-2_v2__seed01/event_realization.jsonl"
+  predicate_transitions: "aw_data/objective_semantic_truth/L4-2_v2__seed01/predicate_transitions.jsonl"
+  event_outcomes: "aw_data/objective_semantic_truth/L4-2_v2__seed01/event_outcomes.jsonl"
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites: []
+expected:
+  target_event: "occurs"
+  rationale: "当前 factual：facade_approach 在250派发，facade_proximity 在410派发，facade_recovery 在440派发；正式近建筑事件 onset=400、恢复确认=440。派发、谓词退出和恢复保持确认分别记录。"
+  falsified_if: "任一源动作被省略或任一触发阈值改变，或 facade_proximity/facade_recovery 未在实测 tick 附近 dispatch。"
+script: "scripts/arms/L4-2_v2/seed01/grp_facade_approach/arm_factual.py"
+output: "arms/L4-2_v2/seed01/grp_facade_approach/arm_factual"
+provenance:
+  experiment_ref: "design/L4-2_v2/seed01/grp_facade_approach/experiment.json"
+  parameter_sources:
+    factual_root: "aw_data"
+    anchor: "l4_chain_truth fragment(L4-2_v2, seed01).fork_event_id = facade_approach"
+    trace: "aw_data/render_ready_episodes_capture_filtered/L4-2_v2__seed01/event_trace.jsonl"

@@ -1,0 +1,1216 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix aws: <https://w3id.org/aeroworld/ontology/core/shapes#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://w3id.org/aeroworld/ontology/core/shapes>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/core/shapes/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    dct:title "AeroWorld core ontology SHACL constraints"@en ,
+        "AeroWorld 核心本体 SHACL 约束"@zh ;
+    dct:description "Structural acceptance constraints for objective predicate and event graph instances. Candidate closure and total truth coverage are validated by the executable semantic specification layer."@en ,
+        "用于客观谓词与事件图实例的结构验收约束；候选闭包与完整真值覆盖由可执行语义规范层验证。"@zh ;
+    dct:conformsTo <https://www.w3.org/TR/shacl/> .
+
+aws:EpisodeShape
+    a sh:NodeShape ;
+    sh:targetClass aw:Episode ;
+    sh:property [
+        sh:path aw:episodeIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "Episode requires exactly one non-empty episodeIdentifier."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "episodeIdentifier must be globally unique in one validation graph."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:episodeIdentifier ?identifier .
+                ?other a aw:Episode ;
+                       aw:episodeIdentifier ?identifier .
+                FILTER (?other != $this)
+            }
+        """
+    ] .
+
+aws:EntityShape
+    a sh:NodeShape ;
+    sh:targetClass aw:Entity ;
+    sh:property [
+        sh:path aw:entityIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "Entity requires exactly one stable entityIdentifier."@en
+    ] ;
+    sh:property [
+        sh:path aw:inEpisode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Episode ;
+        sh:nodeKind sh:IRI ;
+        sh:message "Entity must be scoped to exactly one Episode."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "entityIdentifier must be unique within an Episode."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:entityIdentifier ?identifier .
+                ?other a aw:Entity ;
+                       aw:inEpisode ?episode ;
+                       aw:entityIdentifier ?identifier .
+                FILTER (?other != $this)
+            }
+        """
+    ] .
+
+aws:TickInstantShape
+    a sh:NodeShape ;
+    sh:targetClass aw:TickInstant ;
+    sh:property [
+        sh:path aw:inEpisode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Episode ;
+        sh:nodeKind sh:IRI ;
+        sh:message "TickInstant must belong to exactly one Episode."@en
+    ] ;
+    sh:property [
+        sh:path aw:tickValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "TickInstant requires one non-negative tickValue."@en
+    ] ;
+    sh:property [
+        sh:path aw:previousAuthoritativeInstant ;
+        sh:maxCount 1 ;
+        sh:class aw:TickInstant ;
+        sh:nodeKind sh:IRI ;
+        sh:message "TickInstant has at most one previous authoritative instant."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "tickValue must be unique within an Episode."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:tickValue ?tick .
+                ?other a aw:TickInstant ;
+                       aw:inEpisode ?episode ;
+                       aw:tickValue ?tick .
+                FILTER (?other != $this)
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A previous authoritative instant must be earlier and belong to the same Episode."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:tickValue ?tick ;
+                      aw:previousAuthoritativeInstant ?previous .
+                ?previous aw:tickValue ?previousTick .
+                FILTER (
+                    ?previousTick >= ?tick ||
+                    NOT EXISTS { ?previous aw:inEpisode ?episode }
+                )
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "previousAuthoritativeInstant cannot skip a materialized authoritative TickInstant."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:tickValue ?tick ;
+                      aw:previousAuthoritativeInstant ?previous .
+                ?previous aw:tickValue ?previousTick .
+                ?intermediate a aw:TickInstant ;
+                              aw:inEpisode ?episode ;
+                              aw:tickValue ?intermediateTick .
+                FILTER (
+                    ?previousTick < ?intermediateTick &&
+                    ?intermediateTick < ?tick
+                )
+            }
+        """
+    ] .
+
+aws:TickIntervalShape
+    a sh:NodeShape ;
+    sh:targetClass aw:TickInterval ;
+    sh:property [
+        sh:path aw:startTick ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "TickInterval requires one non-negative startTick."@en
+    ] ;
+    sh:property [
+        sh:path aw:endTick ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "TickInterval endTick, when present, must be one non-negative integer."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "TickInterval endTick must be greater than or equal to startTick."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:startTick ?start ;
+                      aw:endTick ?end .
+                FILTER (?end < ?start)
+            }
+        """
+    ] .
+
+aws:ArgumentRoleShape
+    a sh:NodeShape ;
+    sh:targetClass aw:ArgumentRole ;
+    sh:property [
+        sh:path aw:argumentRoleKey ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ArgumentRole requires exactly one non-empty argumentRoleKey."@en
+    ] .
+
+aws:PredicateTypeShape
+    a sh:NodeShape ;
+    sh:targetClass aw:PredicateType ;
+    sh:property [
+        sh:path aw:predicateIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "PredicateType requires exactly one predicateIdentifier."@en
+    ] ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:class aw:ArgumentRole ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateType must declare at least one ArgumentRole."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "predicateIdentifier must be globally unique in one validation graph."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:predicateIdentifier ?identifier .
+                ?other a aw:PredicateType ;
+                       aw:predicateIdentifier ?identifier .
+                FILTER (?other != $this)
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A PredicateType cannot declare two ArgumentRoles with the same argumentRoleKey."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:declaresArgumentRole ?first, ?second .
+                FILTER (?first != ?second)
+                ?first aw:argumentRoleKey ?key .
+                ?second aw:argumentRoleKey ?key .
+            }
+        """
+    ] .
+
+aws:PredicateArgumentBindingShape
+    a sh:NodeShape ;
+    sh:targetClass aw:PredicateArgumentBinding ;
+    sh:property [
+        sh:path aw:bindsArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:ArgumentRole ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateArgumentBinding requires exactly one ArgumentRole."@en
+    ] ;
+    sh:property [
+        sh:path aw:bindsEntity ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Entity ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateArgumentBinding requires exactly one stable Entity."@en
+    ] .
+
+aws:ObjectivePredicateAssertionShape
+    a sh:NodeShape ;
+    sh:targetClass aw:ObjectivePredicateAssertion ;
+    sh:property [
+        sh:path aw:assertionIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ObjectivePredicateAssertion requires exactly one assertionIdentifier."@en
+    ] ;
+    sh:property [
+        sh:path aw:inEpisode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Episode ;
+        sh:nodeKind sh:IRI ;
+        sh:message "ObjectivePredicateAssertion must belong to exactly one Episode."@en
+    ] ;
+    sh:property [
+        sh:path aw:assertsPredicate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:PredicateType ;
+        sh:nodeKind sh:IRI ;
+        sh:message "ObjectivePredicateAssertion requires exactly one PredicateType."@en
+    ] ;
+    sh:property [
+        sh:path aw:hasArgumentBinding ;
+        sh:minCount 1 ;
+        sh:class aw:PredicateArgumentBinding ;
+        sh:nodeKind sh:IRI ;
+        sh:message "ObjectivePredicateAssertion requires at least one argument binding."@en
+    ] ;
+    sh:property [
+        sh:path aw:hasTruthValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in (
+            aw:TrueValue
+            aw:FalseValue
+            aw:UnknownValue
+            aw:OutOfScopeValue
+        ) ;
+        sh:message "ObjectivePredicateAssertion requires exactly one registered truth value."@en
+    ] ;
+    sh:property [
+        sh:path aw:validDuring ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:TickInterval ;
+        sh:nodeKind sh:IRI ;
+        sh:message "ObjectivePredicateAssertion requires exactly one validity interval."@en
+    ] ;
+    sh:property [
+        sh:path aw:generatedByRule ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:DerivationRule ;
+        sh:nodeKind sh:IRI ;
+        sh:message "ObjectivePredicateAssertion requires one versioned derivation rule."@en
+    ] ;
+    sh:property [
+        sh:path aw:derivedFromSource ;
+        sh:minCount 1 ;
+        sh:class aw:SourceRecord ;
+        sh:nodeKind sh:IRI ;
+        sh:message "ObjectivePredicateAssertion requires authoritative source provenance."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "assertionIdentifier must be unique within an Episode."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:assertionIdentifier ?identifier .
+                ?other a aw:ObjectivePredicateAssertion ;
+                       aw:inEpisode ?episode ;
+                       aw:assertionIdentifier ?identifier .
+                FILTER (?other != $this)
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "An assertion cannot bind the same argument role more than once."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:hasArgumentBinding ?first, ?second .
+                FILTER (?first != ?second)
+                ?first aw:bindsArgumentRole ?role .
+                ?second aw:bindsArgumentRole ?role .
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Every assertion binding role must be declared by its PredicateType."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:assertsPredicate ?predicate ;
+                      aw:hasArgumentBinding ?binding .
+                ?binding aw:bindsArgumentRole ?role .
+                FILTER NOT EXISTS { ?predicate aw:declaresArgumentRole ?role }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "An assertion must bind every ArgumentRole declared by its PredicateType."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:assertsPredicate ?predicate .
+                ?predicate aw:declaresArgumentRole ?role .
+                FILTER NOT EXISTS {
+                    $this aw:hasArgumentBinding ?binding .
+                    ?binding aw:bindsArgumentRole ?role .
+                }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Assertion argument entities must belong to the same Episode as the assertion."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:hasArgumentBinding ?binding .
+                ?binding aw:bindsEntity ?entity .
+                FILTER NOT EXISTS { ?entity aw:inEpisode ?episode }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Assertion source records must belong to the same Episode as the assertion."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:derivedFromSource ?source .
+                FILTER NOT EXISTS { ?source aw:inEpisode ?episode }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Two assertions for the same predicate tuple cannot have overlapping validity intervals."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:assertsPredicate ?predicate ;
+                      aw:validDuring ?thisInterval .
+                ?thisInterval aw:startTick ?thisStart .
+                OPTIONAL { ?thisInterval aw:endTick ?thisEnd }
+
+                ?other a aw:ObjectivePredicateAssertion ;
+                       aw:inEpisode ?episode ;
+                       aw:assertsPredicate ?predicate ;
+                       aw:validDuring ?otherInterval .
+                FILTER (?other != $this)
+                ?otherInterval aw:startTick ?otherStart .
+                OPTIONAL { ?otherInterval aw:endTick ?otherEnd }
+
+                FILTER (
+                    (!BOUND(?thisEnd) || ?otherStart <= ?thisEnd) &&
+                    (!BOUND(?otherEnd) || ?thisStart <= ?otherEnd)
+                )
+                FILTER NOT EXISTS {
+                    $this aw:hasArgumentBinding ?thisBinding .
+                    ?thisBinding aw:bindsArgumentRole ?role ;
+                                 aw:bindsEntity ?entity .
+                    FILTER NOT EXISTS {
+                        ?other aw:hasArgumentBinding ?otherBinding .
+                        ?otherBinding aw:bindsArgumentRole ?role ;
+                                      aw:bindsEntity ?entity .
+                    }
+                }
+            }
+        """
+    ] .
+
+aws:PredicateTransitionShape
+    a sh:NodeShape ;
+    sh:targetClass aw:PredicateTransition ;
+    sh:property [
+        sh:path aw:transitionIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "PredicateTransition requires exactly one transitionIdentifier."@en
+    ] ;
+    sh:property [
+        sh:path aw:inEpisode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Episode ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateTransition must belong to exactly one Episode."@en
+    ] ;
+    sh:property [
+        sh:path aw:transitionOfPredicate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:PredicateType ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateTransition requires exactly one PredicateType."@en
+    ] ;
+    sh:property [
+        sh:path aw:fromAssertion ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:ObjectivePredicateAssertion ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateTransition requires exactly one preceding predicate assertion."@en
+    ] ;
+    sh:property [
+        sh:path aw:toAssertion ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:ObjectivePredicateAssertion ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateTransition requires exactly one succeeding predicate assertion."@en
+    ] ;
+    sh:property [
+        sh:path aw:hasArgumentBinding ;
+        sh:minCount 1 ;
+        sh:class aw:PredicateArgumentBinding ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateTransition requires at least one argument binding."@en
+    ] ;
+    sh:property [
+        sh:path aw:fromTruthValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( aw:TrueValue aw:FalseValue ) ;
+        sh:message "PredicateTransition requires one explicit boolean source value; unknown and out-of-scope values break continuity."@en
+    ] ;
+    sh:property [
+        sh:path aw:toTruthValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( aw:TrueValue aw:FalseValue ) ;
+        sh:message "PredicateTransition requires one explicit boolean target value; unknown and out-of-scope values break continuity."@en
+    ] ;
+    sh:property [
+        sh:path aw:atInstant ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:TickInstant ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateTransition requires exactly one TickInstant."@en
+    ] ;
+    sh:property [
+        sh:path aw:generatedByRule ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:DerivationRule ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateTransition requires one versioned derivation rule."@en
+    ] ;
+    sh:property [
+        sh:path aw:derivedFromSource ;
+        sh:minCount 1 ;
+        sh:class aw:SourceRecord ;
+        sh:nodeKind sh:IRI ;
+        sh:message "PredicateTransition requires authoritative source provenance."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "transitionIdentifier must be unique within an Episode."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:transitionIdentifier ?identifier .
+                ?other a aw:PredicateTransition ;
+                       aw:inEpisode ?episode ;
+                       aw:transitionIdentifier ?identifier .
+                FILTER (?other != $this)
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A transition must change truth value."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:fromTruthValue ?value ;
+                      aw:toTruthValue ?value .
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A transition must link two different predicate assertions."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:fromAssertion ?assertion ;
+                      aw:toAssertion ?assertion .
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Transition boundary assertions must match its Episode, PredicateType, and truth values."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:transitionOfPredicate ?predicate ;
+                      aw:fromTruthValue ?fromTruth ;
+                      aw:toTruthValue ?toTruth ;
+                      aw:fromAssertion ?fromAssertion ;
+                      aw:toAssertion ?toAssertion .
+                {
+                    FILTER NOT EXISTS {
+                        ?fromAssertion aw:inEpisode ?episode ;
+                                       aw:assertsPredicate ?predicate ;
+                                       aw:hasTruthValue ?fromTruth .
+                    }
+                }
+                UNION
+                {
+                    FILTER NOT EXISTS {
+                        ?toAssertion aw:inEpisode ?episode ;
+                                     aw:assertsPredicate ?predicate ;
+                                     aw:hasTruthValue ?toTruth .
+                    }
+                }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Transition boundary assertions must bind the same role-to-entity tuple as the transition."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:fromAssertion ?fromAssertion ;
+                      aw:toAssertion ?toAssertion ;
+                      aw:hasArgumentBinding ?transitionBinding .
+                ?transitionBinding aw:bindsArgumentRole ?role ;
+                                   aw:bindsEntity ?entity .
+                {
+                    FILTER NOT EXISTS {
+                        ?fromAssertion aw:hasArgumentBinding ?fromBinding .
+                        ?fromBinding aw:bindsArgumentRole ?role ;
+                                     aw:bindsEntity ?entity .
+                    }
+                }
+                UNION
+                {
+                    FILTER NOT EXISTS {
+                        ?toAssertion aw:hasArgumentBinding ?toBinding .
+                        ?toBinding aw:bindsArgumentRole ?role ;
+                                   aw:bindsEntity ?entity .
+                    }
+                }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Transition assertions must align with the current and previous authoritative TickInstants."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:fromAssertion/aw:validDuring ?fromInterval ;
+                      aw:toAssertion/aw:validDuring ?toInterval ;
+                      aw:atInstant ?instant .
+                OPTIONAL { ?instant aw:inEpisode ?instantEpisode }
+                OPTIONAL { ?instant aw:tickValue ?tick }
+                OPTIONAL { ?instant aw:previousAuthoritativeInstant ?previous }
+                OPTIONAL { ?previous aw:inEpisode ?previousEpisode }
+                OPTIONAL { ?previous aw:tickValue ?previousTick }
+                OPTIONAL { ?fromInterval aw:endTick ?fromEnd }
+                OPTIONAL { ?toInterval aw:startTick ?toStart }
+                FILTER (
+                    !BOUND(?instantEpisode) ||
+                    ?instantEpisode != ?episode ||
+                    !BOUND(?tick) ||
+                    !BOUND(?previous) ||
+                    !BOUND(?previousEpisode) ||
+                    ?previousEpisode != ?episode ||
+                    !BOUND(?previousTick) ||
+                    !BOUND(?fromEnd) ||
+                    ?fromEnd != ?previousTick ||
+                    !BOUND(?toStart) ||
+                    ?toStart != ?tick
+                )
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A transition must retain the authoritative sources of both boundary assertions."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this (aw:fromAssertion|aw:toAssertion) ?assertion .
+                ?assertion aw:derivedFromSource ?source .
+                FILTER NOT EXISTS { $this aw:derivedFromSource ?source }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A transition cannot bind the same argument role more than once."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:hasArgumentBinding ?first, ?second .
+                FILTER (?first != ?second)
+                ?first aw:bindsArgumentRole ?role .
+                ?second aw:bindsArgumentRole ?role .
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Every transition binding role must be declared by its PredicateType."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:transitionOfPredicate ?predicate ;
+                      aw:hasArgumentBinding ?binding .
+                ?binding aw:bindsArgumentRole ?role .
+                FILTER NOT EXISTS { ?predicate aw:declaresArgumentRole ?role }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A transition must bind every ArgumentRole declared by its PredicateType."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:transitionOfPredicate ?predicate .
+                ?predicate aw:declaresArgumentRole ?role .
+                FILTER NOT EXISTS {
+                    $this aw:hasArgumentBinding ?binding .
+                    ?binding aw:bindsArgumentRole ?role .
+                }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Transition argument entities must belong to the same Episode as the transition."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:hasArgumentBinding ?binding .
+                ?binding aw:bindsEntity ?entity .
+                FILTER NOT EXISTS { ?entity aw:inEpisode ?episode }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Transition source records must belong to the same Episode as the transition."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:derivedFromSource ?source .
+                FILTER NOT EXISTS { ?source aw:inEpisode ?episode }
+            }
+        """
+    ] .
+
+aws:RisingTransitionShape
+    a sh:NodeShape ;
+    sh:targetClass aw:RisingTransition ;
+    sh:property [
+        sh:path aw:fromTruthValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue aw:FalseValue ;
+        sh:message "RisingTransition must start at FalseValue."@en
+    ] ;
+    sh:property [
+        sh:path aw:toTruthValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue aw:TrueValue ;
+        sh:message "RisingTransition must end at TrueValue."@en
+    ] .
+
+aws:FallingTransitionShape
+    a sh:NodeShape ;
+    sh:targetClass aw:FallingTransition ;
+    sh:property [
+        sh:path aw:fromTruthValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue aw:TrueValue ;
+        sh:message "FallingTransition must start at TrueValue."@en
+    ] ;
+    sh:property [
+        sh:path aw:toTruthValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue aw:FalseValue ;
+        sh:message "FallingTransition must end at FalseValue."@en
+    ] .
+
+aws:ParticipantRoleShape
+    a sh:NodeShape ;
+    sh:targetClass aw:ParticipantRole ;
+    sh:property [
+        sh:path aw:participantRoleKey ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "ParticipantRole requires exactly one participantRoleKey."@en
+    ] .
+
+aws:EventTypeShape
+    a sh:NodeShape ;
+    sh:targetClass aw:EventType ;
+    sh:property [
+        sh:path aw:eventTypeIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "EventType requires exactly one eventTypeIdentifier."@en
+    ] ;
+    sh:property [
+        sh:path aw:declaresParticipantRole ;
+        sh:minCount 1 ;
+        sh:class aw:ParticipantRole ;
+        sh:nodeKind sh:IRI ;
+        sh:message "EventType must declare at least one ParticipantRole."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "eventTypeIdentifier must be globally unique in one validation graph."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:eventTypeIdentifier ?identifier .
+                ?other a aw:EventType ;
+                       aw:eventTypeIdentifier ?identifier .
+                FILTER (?other != $this)
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "An EventType cannot declare two ParticipantRoles with the same participantRoleKey."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:declaresParticipantRole ?first, ?second .
+                FILTER (?first != ?second)
+                ?first aw:participantRoleKey ?key .
+                ?second aw:participantRoleKey ?key .
+            }
+        """
+    ] .
+
+aws:EventParticipantBindingShape
+    a sh:NodeShape ;
+    sh:targetClass aw:EventParticipantBinding ;
+    sh:property [
+        sh:path aw:bindsParticipantRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:ParticipantRole ;
+        sh:nodeKind sh:IRI ;
+        sh:message "EventParticipantBinding requires exactly one ParticipantRole."@en
+    ] ;
+    sh:property [
+        sh:path aw:bindsEntity ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Entity ;
+        sh:nodeKind sh:IRI ;
+        sh:message "EventParticipantBinding requires exactly one stable Entity."@en
+    ] .
+
+aws:EventOccurrenceShape
+    a sh:NodeShape ;
+    sh:targetClass aw:EventOccurrence ;
+    sh:property [
+        sh:path aw:eventOccurrenceIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "EventOccurrence requires exactly one eventOccurrenceIdentifier."@en
+    ] ;
+    sh:property [
+        sh:path aw:inEpisode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Episode ;
+        sh:nodeKind sh:IRI ;
+        sh:message "EventOccurrence must belong to exactly one Episode."@en
+    ] ;
+    sh:property [
+        sh:path aw:instantiatesEventType ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:EventType ;
+        sh:nodeKind sh:IRI ;
+        sh:message "EventOccurrence requires exactly one EventType."@en
+    ] ;
+    sh:property [
+        sh:path aw:hasParticipantBinding ;
+        sh:minCount 1 ;
+        sh:class aw:EventParticipantBinding ;
+        sh:nodeKind sh:IRI ;
+        sh:message "EventOccurrence requires at least one participant binding."@en
+    ] ;
+    sh:property [
+        sh:path aw:occursDuring ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:TickInterval ;
+        sh:nodeKind sh:IRI ;
+        sh:message "EventOccurrence requires exactly one objective tick interval."@en
+    ] ;
+    sh:property [
+        sh:path aw:generatedByRule ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:DerivationRule ;
+        sh:nodeKind sh:IRI ;
+        sh:message "EventOccurrence requires one versioned derivation rule."@en
+    ] ;
+    sh:property [
+        sh:path aw:derivedFromSource ;
+        sh:minCount 1 ;
+        sh:class aw:SourceRecord ;
+        sh:nodeKind sh:IRI ;
+        sh:message "EventOccurrence requires authoritative source provenance."@en
+    ] ;
+    sh:property [
+        sh:path aw:initiatedByTransition ;
+        sh:maxCount 1 ;
+        sh:class aw:PredicateTransition ;
+        sh:nodeKind sh:IRI ;
+        sh:message "An event may have at most one initiating transition."@en
+    ] ;
+    sh:property [
+        sh:path aw:terminatedByTransition ;
+        sh:maxCount 1 ;
+        sh:class aw:PredicateTransition ;
+        sh:nodeKind sh:IRI ;
+        sh:message "An event may have at most one terminating transition."@en
+    ] ;
+    sh:property [
+        sh:path aw:directlyCauses ;
+        sh:class aw:EventOccurrence ;
+        sh:nodeKind sh:IRI ;
+        sh:message "directlyCauses must point to another EventOccurrence."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "eventOccurrenceIdentifier must be unique within an Episode."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:eventOccurrenceIdentifier ?identifier .
+                ?other a aw:EventOccurrence ;
+                       aw:inEpisode ?episode ;
+                       aw:eventOccurrenceIdentifier ?identifier .
+                FILTER (?other != $this)
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "An event cannot bind the same participant role more than once."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:hasParticipantBinding ?first, ?second .
+                FILTER (?first != ?second)
+                ?first aw:bindsParticipantRole ?role .
+                ?second aw:bindsParticipantRole ?role .
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Every event binding role must be declared by its EventType."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:instantiatesEventType ?eventType ;
+                      aw:hasParticipantBinding ?binding .
+                ?binding aw:bindsParticipantRole ?role .
+                FILTER NOT EXISTS { ?eventType aw:declaresParticipantRole ?role }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "An event occurrence must bind every ParticipantRole declared by its EventType."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:instantiatesEventType ?eventType .
+                ?eventType aw:declaresParticipantRole ?role .
+                FILTER NOT EXISTS {
+                    $this aw:hasParticipantBinding ?binding .
+                    ?binding aw:bindsParticipantRole ?role .
+                }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Event participant entities must belong to the same Episode as the event."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:hasParticipantBinding ?binding .
+                ?binding aw:bindsEntity ?entity .
+                FILTER NOT EXISTS { ?entity aw:inEpisode ?episode }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Event source records must belong to the same Episode as the event."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:derivedFromSource ?source .
+                FILTER NOT EXISTS { ?source aw:inEpisode ?episode }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Initiating and terminating transitions must belong to the same Episode as the event."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      (aw:initiatedByTransition|aw:terminatedByTransition) ?transition .
+                FILTER NOT EXISTS { ?transition aw:inEpisode ?episode }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "An initiating transition tick must equal the event interval startTick."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:occursDuring ?interval ;
+                      aw:initiatedByTransition ?transition .
+                ?interval aw:startTick ?start .
+                ?transition aw:atInstant ?instant .
+                ?instant aw:tickValue ?tick .
+                FILTER (?start != ?tick)
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A terminating transition requires the event endTick to match its preceding assertion endTick."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:occursDuring ?interval ;
+                      aw:terminatedByTransition ?transition .
+                ?transition aw:fromAssertion/aw:validDuring ?precedingInterval .
+                ?precedingInterval aw:endTick ?lastActiveTick .
+                FILTER NOT EXISTS { ?interval aw:endTick ?lastActiveTick }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "Causal and temporal event links cannot cross Episode boundaries."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      (aw:directlyCauses|aw:causallyPrecedes|aw:temporallyPrecedes) ?other .
+                FILTER NOT EXISTS { ?other aw:inEpisode ?episode }
+            }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "An event occurrence cannot directly cause itself."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE { $this aw:directlyCauses $this . }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "The causal-precedence graph must be acyclic."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE { $this aw:causallyPrecedes+ $this . }
+        """
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "The temporal-precedence graph must be acyclic."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE { $this aw:temporallyPrecedes+ $this . }
+        """
+    ] .
+
+aws:DerivationRuleShape
+    a sh:NodeShape ;
+    sh:targetClass aw:DerivationRule ;
+    sh:property [
+        sh:path aw:ruleIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "DerivationRule requires exactly one ruleIdentifier."@en
+    ] ;
+    sh:property [
+        sh:path aw:ruleVersion ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$" ;
+        sh:message "DerivationRule requires one semantic ruleVersion."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "A ruleIdentifier and ruleVersion pair must identify only one DerivationRule."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:ruleIdentifier ?identifier ;
+                      aw:ruleVersion ?version .
+                ?other a aw:DerivationRule ;
+                       aw:ruleIdentifier ?identifier ;
+                       aw:ruleVersion ?version .
+                FILTER (?other != $this)
+            }
+        """
+    ] .
+
+aws:SourceRecordShape
+    a sh:NodeShape ;
+    sh:targetClass aw:SourceRecord ;
+    sh:property [
+        sh:path aw:sourceIdentifier ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "SourceRecord requires exactly one sourceIdentifier."@en
+    ] ;
+    sh:property [
+        sh:path aw:sourceLocator ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "SourceRecord requires exactly one deterministic sourceLocator."@en
+    ] ;
+    sh:property [
+        sh:path aw:inEpisode ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class aw:Episode ;
+        sh:nodeKind sh:IRI ;
+        sh:message "SourceRecord must belong to exactly one Episode."@en
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "sourceIdentifier must be unique within an Episode."@en ;
+        sh:select """
+            PREFIX aw: <https://w3id.org/aeroworld/ontology/core#>
+            SELECT $this
+            WHERE {
+                $this aw:inEpisode ?episode ;
+                      aw:sourceIdentifier ?identifier .
+                ?other a aw:SourceRecord ;
+                       aw:inEpisode ?episode ;
+                       aw:sourceIdentifier ?identifier .
+                FILTER (?other != $this)
+            }
+        """
+    ] .

@@ -1,0 +1,301 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/mobility_regulation#> .
+@prefix shape: <https://w3id.org/aeroworld/ontology/domain/mobility_regulation/shapes#> .
+
+<https://w3id.org/aeroworld/ontology/domain/mobility_regulation/shapes>
+    a owl:Ontology ;
+    owl:imports <https://w3id.org/aeroworld/ontology/domain/mobility_regulation> ;
+    owl:versionInfo "0.3.0" .
+
+shape:PredicateSignatureShape
+    a sh:NodeShape ;
+    sh:targetClass aw:PredicateType ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:predicateIdentifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:class aw:ArgumentRole ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "One predicate cannot declare duplicate argument-role keys."@en ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this aw:declaresArgumentRole ?left, ?right .
+                ?left aw:argumentRoleKey ?key .
+                ?right aw:argumentRoleKey ?key .
+                FILTER (?left != ?right)
+            }
+        """
+    ] .
+
+shape:ArgumentRoleShape
+    a sh:NodeShape ;
+    sh:targetObjectsOf aw:declaresArgumentRole ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:argumentRoleKey ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:argumentClass ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1
+    ] .
+
+shape:DomainClassShape
+    a sh:NodeShape ;
+    sh:targetSubjectsOf rdfs:subClassOf ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] .
+
+shape:DomainRelationShape
+    a sh:NodeShape ;
+    sh:targetClass owl:ObjectProperty ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] .
+
+shape:StateDatatypePropertyShape
+    a sh:NodeShape ;
+    sh:targetSubjectsOf world:stateFieldCategory ;
+    sh:property [
+        sh:path rdf:type ;
+        sh:hasValue owl:DatatypeProperty
+    ] ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path world:unitSymbol ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:stateFieldCategory ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+shape:regulationAppliesToActorExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:regulationAppliesToActor ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Regulation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:MobileAgent
+    ] .
+
+shape:regulationAppliesAtRoadElementExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:regulationAppliesAtRoadElement ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Regulation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:RoadElement
+    ] .
+
+shape:violationOfRegulationExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:violationOfRegulation ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Violation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:Regulation
+    ] .
+
+shape:regulationConstrainsProcessExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:regulationConstrainsProcess ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Regulation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:Process
+    ] .
+
+shape:permissionPermitsProcessExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:permissionPermitsProcess ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Permission
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:Process
+    ] .
+
+shape:prohibitionForbidsProcessExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:prohibitionForbidsProcess ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Prohibition
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:Process
+    ] .
+
+shape:obligationRequiresProcessExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:obligationRequiresProcess ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:Obligation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue world:Process
+    ] .
+
+shape:TrafficSignalAppliesToVehicleExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:TrafficSignalAppliesToVehicle ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:TrafficSignalAppliesToVehicleArgument_signal dom:TrafficSignalAppliesToVehicleArgument_vehicle )
+    ] .
+
+shape:VehicleCrossesStopLineOnRedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:VehicleCrossesStopLineOnRed ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 3 ;
+        sh:maxCount 3 ;
+        sh:in ( dom:VehicleCrossesStopLineOnRedArgument_vehicle dom:VehicleCrossesStopLineOnRedArgument_stop_line dom:VehicleCrossesStopLineOnRedArgument_signal )
+    ] .
+
+shape:VehicleExceedsPostedSpeedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:VehicleExceedsPostedSpeed ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:VehicleExceedsPostedSpeedArgument_vehicle dom:VehicleExceedsPostedSpeedArgument_regulation )
+    ] .
+
+shape:VehicleViolatesRightOfWayExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:VehicleViolatesRightOfWay ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:VehicleViolatesRightOfWayArgument_vehicle dom:VehicleViolatesRightOfWayArgument_right_of_way )
+    ] .
+
+shape:VehicleViolatesFollowingDistanceExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:VehicleViolatesFollowingDistance ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 3 ;
+        sh:maxCount 3 ;
+        sh:in ( dom:VehicleViolatesFollowingDistanceArgument_following_vehicle dom:VehicleViolatesFollowingDistanceArgument_leading_vehicle dom:VehicleViolatesFollowingDistanceArgument_rule )
+    ] .
+
+shape:PedestrianHasCrosswalkPriorityExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:PedestrianHasCrosswalkPriority ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:PedestrianHasCrosswalkPriorityArgument_pedestrian dom:PedestrianHasCrosswalkPriorityArgument_crosswalk )
+    ] .

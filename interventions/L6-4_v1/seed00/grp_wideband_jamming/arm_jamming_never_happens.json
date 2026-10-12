@@ -1,0 +1,187 @@
+{
+ "schema": "aero_l6_explicit_arm_v3",
+ "version": 1,
+ "spec": {
+  "profile": "L6-4_v1",
+  "seed": "seed00",
+  "anchor_event_id": "wideband_jamming",
+  "arm_id": "arm_jamming_never_happens",
+  "mode": "intervention",
+  "role": "narrative_branch",
+  "window_start_tick": 235,
+  "window_fork_tick": 240,
+  "window_end_tick": 520,
+  "primary_predicate": "security.communication_jamming_impact_active",
+  "subject_entity_ids": [
+   "uav_digital_l6_4_v1",
+   "uav_digital_l6_4_v1_secondary"
+  ],
+  "mechanism": {
+   "kind": "explicit_fault_and_response_cancellation_with_mission_continuation",
+   "cancel_event_ids": [
+    "wideband_jamming",
+    "multi_uav_hold_entry",
+    "multi_uav_safe_hold",
+    "alternate_channel"
+   ],
+   "omit_action_ids": [],
+   "injections": [
+    {
+     "tick": 241,
+     "type": "move_entity",
+     "action_id": "arm_dual_cruise_continuation",
+     "entity_id": "uav_digital_l6_4_v1",
+     "activity_type": "cruise",
+     "post_activity_type": "cruise",
+     "velocity_mps": 5.0,
+     "waypoints_enu_m": [
+      [
+       6634.035,
+       6525.817,
+       30.0
+      ],
+      [
+       6638.035,
+       6529.817,
+       30.0
+      ],
+      [
+       6649.035,
+       6537.817,
+       30.0
+      ]
+     ]
+    },
+    {
+     "tick": 241,
+     "type": "move_entity",
+     "action_id": "arm_dual_cruise_continuation_b",
+     "entity_id": "uav_digital_l6_4_v1_secondary",
+     "activity_type": "cruise",
+     "post_activity_type": "cruise",
+     "velocity_mps": 5.0,
+     "waypoints_enu_m": [
+      [
+       6622.035,
+       6532.817,
+       50.0
+      ],
+      [
+       6627.035,
+       6537.817,
+       50.0
+      ],
+      [
+       6616.035,
+       6543.817,
+       50.0
+      ]
+     ]
+    }
+   ]
+  },
+  "retime": null,
+  "omit_action_ids": [],
+  "inject_actions": [
+   {
+    "tick": 241,
+    "type": "move_entity",
+    "action_id": "arm_dual_cruise_continuation",
+    "entity_id": "uav_digital_l6_4_v1",
+    "activity_type": "cruise",
+    "post_activity_type": "cruise",
+    "velocity_mps": 5.0,
+    "waypoints_enu_m": [
+     [
+      6634.035,
+      6525.817,
+      30.0
+     ],
+     [
+      6638.035,
+      6529.817,
+      30.0
+     ],
+     [
+      6649.035,
+      6537.817,
+      30.0
+     ]
+    ]
+   },
+   {
+    "tick": 241,
+    "type": "move_entity",
+    "action_id": "arm_dual_cruise_continuation_b",
+    "entity_id": "uav_digital_l6_4_v1_secondary",
+    "activity_type": "cruise",
+    "post_activity_type": "cruise",
+    "velocity_mps": 5.0,
+    "waypoints_enu_m": [
+     [
+      6622.035,
+      6532.817,
+      50.0
+     ],
+     [
+      6627.035,
+      6537.817,
+      50.0
+     ],
+     [
+      6616.035,
+      6543.817,
+      50.0
+     ]
+    ]
+   }
+  ],
+  "cancel_event_ids": [
+   "wideband_jamming",
+   "multi_uav_hold_entry",
+   "multi_uav_safe_hold",
+   "alternate_channel"
+  ],
+  "hypothesis": "wideband_jamming、hold_entry、safe_hold 和 alternate_channel 被逐项显式取消。241 注入双机 5.0 m/s 任务继续动作，A/B 分别在 286/315 起静止于计划终点。全窗 jamming_active、safe_hold_active 和 alternate_channel_active 均应为 false；普通 landing 在窗口之外且不属于目标。",
+  "falsified_if": "若任一被取消事件仍触发，任一相关状态变为 true，双机未从 242 开始运动，或未分别在 285/314 到达计划终点，则假设被证伪。",
+  "window_basis": "闭区间 [235,520]；240 是 after_state_sample_before_actions 共享检查点。窗口从干扰上升前的 正式采样开始，覆盖 241 的干扰状态、所有干预、460/461 的恢复边界和最晚 486 的 factual 恢复移动终止，并保留至 520 的后置观测。普通 landing 的 540/550 派发位于窗口之外。",
+  "window_needed_nodes": [
+   {
+    "event_id": "wideband_jamming",
+    "tick": 240,
+    "role": "explicitly_cancelled_anchor"
+   },
+   {
+    "event_id": "arm_dual_cruise_continuation",
+    "tick": 241,
+    "entity_id": "uav_digital_l6_4_v1",
+    "terminal_state_tick": 286,
+    "role": "injected_mission_continuation"
+   },
+   {
+    "event_id": "arm_dual_cruise_continuation_b",
+    "tick": 241,
+    "entity_id": "uav_digital_l6_4_v1_secondary",
+    "terminal_state_tick": 315,
+    "role": "injected_mission_continuation"
+   },
+   {
+    "event_id": "multi_uav_hold_entry",
+    "tick": 270,
+    "role": "explicitly_cancelled"
+   },
+   {
+    "event_id": "multi_uav_safe_hold",
+    "tick": 400,
+    "role": "explicitly_cancelled"
+   },
+   {
+    "event_id": "alternate_channel",
+    "tick": 460,
+    "role": "explicitly_cancelled"
+   }
+  ],
+  "window_censored": false,
+  "group_suffix": ""
+ }
+}

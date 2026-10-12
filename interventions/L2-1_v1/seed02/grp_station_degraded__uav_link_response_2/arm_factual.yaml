@@ -1,0 +1,55 @@
+{
+  "anchor_event": "station_degraded",
+  "arm_id": "arm_factual",
+  "entity_ids": [
+    "tower_l2_1_v1",
+    "uav_l2_1_v1"
+  ],
+  "episode_id": "L2-1_v1__seed02",
+  "execution": {
+    "actions": [],
+    "omit_action_ids": []
+  },
+  "expected": {
+    "falsified_if": "不适用：对照臂",
+    "rationale": "当前 factual 原始过程片段",
+    "target_event": "observe"
+  },
+  "experiment": "design/L2-1_v1/seed02/grp_station_degraded__uav_link_response_2/experiment.json",
+  "group_key": "L2-1_v1/seed02/grp_station_degraded__uav_link_response_2",
+  "mode": "factual_observation",
+  "output": "arms/L2-1_v1/seed02/grp_station_degraded__uav_link_response_2/arm_factual",
+  "predicate_ids": [
+    "communication.link_unavailable",
+    "communication.link_degraded"
+  ],
+  "profile": "L2-1_v1",
+  "provenance": {
+    "experiment_ref": "design/L2-1_v1/seed02/grp_station_degraded__uav_link_response_2/experiment.json",
+    "parameter_sources": {
+      "factual_root": "aw_data",
+      "window_basis": "闭区间 [255,360]；260 为动作前共享检查点，可早于实际干预。观察 station_degraded → uav_link_response 的局部过程和分支直接后果；终点保留现有实跑观察范围，恢复、无事件或截断按实际谓词与事件判定，不声称覆盖完整生命周期。factual 由当前引擎无干预执行，冻结 episode 仅作来源及背景引用。"
+    }
+  },
+  "schema": "aeroworld_l2_window_config",
+  "script": "scripts/arms/L2-1_v1/seed02/grp_station_degraded__uav_link_response_2/arm_factual.py",
+  "seed": "seed02",
+  "sources": {
+    "roster": "aw_data/render_ready_episodes_capture_filtered/L2-1_v1__seed02/global_entity_roster.json",
+    "scene": "Dataset/scenarios/L2_infrastructure/failure/L2-1_v1/scene_setup.json",
+    "script": "Dataset/scenarios/L2_infrastructure/failure/L2-1_v1/event_script.json",
+    "trajectories": "aw_data/render_ready_episodes_capture_filtered/L2-1_v1__seed02/trajectories.jsonl",
+    "weather": "aw_data/render_ready_episodes_capture_filtered/L2-1_v1__seed02/weather_meta.jsonl"
+  },
+  "target_families": [
+    "c2_degradation_loss"
+  ],
+  "version": 1,
+  "window": {
+    "end_tick": 360,
+    "fork_tick": 260,
+    "intervention_order": "source_actions_then_intervention",
+    "phase": "after_state_sample_before_actions",
+    "start_tick": 255
+  }
+}

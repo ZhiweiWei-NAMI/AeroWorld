@@ -1,0 +1,56 @@
+schema: "aeroworld_l4_window_config"
+version: 1
+arm_id: "arm_min_distance_exceeded"
+group_key: "L4-2_v1/seed00/grp_facade_approach"
+episode_id: "L4-2_v1__seed00"
+event_family: "structure_near_miss"
+subject_class: "uav"
+mode: "intervention"
+entity_ids:
+  - "uav_facade_l4_2_v1"
+  - "facade_anchor_l4_2_v1"
+predicate_ids:
+  - "safety.aircraft_near_building_structure"
+  - "airspace.aircraft_airborne"
+window:
+  start_tick: 230
+  fork_tick: 250
+  end_tick: 350
+  phase: "after_state_sample_before_actions"
+  intervention_order: "source_actions_then_intervention"
+sources:
+  scene: "Dataset/scenarios/L4_agents/collision/L4-2_v1/scene_setup.json"
+  script: "Dataset/scenarios/L4_agents/collision/L4-2_v1/event_script.json"
+  trajectories: "aw_data/render_ready_episodes_capture_filtered/L4-2_v1__seed00/trajectories.jsonl"
+  weather: "aw_data/render_ready_episodes_capture_filtered/L4-2_v1__seed00/weather_meta.jsonl"
+  roster: "aw_data/render_ready_episodes_capture_filtered/L4-2_v1__seed00/global_entity_roster.json"
+  event_realization: "aw_data/render_ready_episodes_capture_filtered/L4-2_v1__seed00/event_realization.jsonl"
+  predicate_transitions: "aw_data/objective_semantic_truth/L4-2_v1__seed00/predicate_transitions.jsonl"
+  event_outcomes: "aw_data/objective_semantic_truth/L4-2_v1__seed00/event_outcomes.jsonl"
+execution:
+  omit_action_ids:
+    - "move_uav_facade_near_miss_approach"
+  actions:
+    - tick: 250
+      action:
+        type: "move_entity"
+        action_id: "arm_move_uav_facade_outer_approach"
+        entity_id: "uav_facade_l4_2_v1"
+        velocity_mps: 7.0
+        waypoints_enu_m:
+          - [6309.991, 6539.331, 31.0]
+          - [6298.316, 6550.614, 26.0]
+          - [6304.049, 6561.94, 18.0]
+  trigger_rewrites: []
+expected:
+  target_event: "absent_in_window"
+  rationale: "替换为本臂配置的外侧航点；当前窗口到固定 facade_anchor 的三维最小间距为17.351263 m（大于正式15 m），水平最小间距为16.763055 m（大于脚本8 m）。正式目标事件缺席；窗内无 facade_proximity、facade_recovery 或 lifecycle_landing 后继派发，不宣称已恢复或已着陆。"
+  falsified_if: "proximity 触发成立，或 facade_proximity / facade_recovery 在窗内 dispatch，或 structure_near_miss onset 在窗内出现。"
+script: "scripts/arms/L4-2_v1/seed00/grp_facade_approach/arm_min_distance_exceeded.py"
+output: "arms/L4-2_v1/seed00/grp_facade_approach/arm_min_distance_exceeded"
+provenance:
+  experiment_ref: "design/L4-2_v1/seed00/grp_facade_approach/experiment.json"
+  parameter_sources:
+    factual_root: "aw_data"
+    omitted_action_ids: "move_uav_facade_near_miss_approach（facade_approach 内 approach move）于 Dataset/scenarios/L4_agents/collision/L4-2_v1/event_script.json"
+    intervention_waypoints: "design rewrites.actions：approach 航迹向外侧横移 +15.0 m；本实现按各航点对 facade_anchor 径向外移 15.0 m，阈值核算见 expected.rationale（design 内 11.28 m 数值无法由源坐标复现，以重算值声明）"

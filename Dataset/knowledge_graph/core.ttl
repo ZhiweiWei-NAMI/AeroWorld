@@ -1,0 +1,809 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://w3id.org/aeroworld/ontology/core>
+    a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/aeroworld/ontology/core/0.3.0> ;
+    owl:versionInfo "0.3.0" ;
+    dct:title "AeroWorld Objective Event Ontology Core"@en ,
+        "AeroWorld 客观事件本体核心"@zh ;
+    dct:description "A minimal domain-neutral kernel for stable episode entities, objective predicate assertions, predicate transitions, event occurrences, roles, deterministic derivation rules, time in simulation ticks, causality, and provenance."@en ,
+        "面向稳定 episode 实体、客观谓词断言、谓词切换、事件实例、角色、确定性推导规则、仿真 tick 时间、因果关系和溯源的最小领域无关内核。"@zh ;
+    dct:creator "AeroWorld Project" ;
+    dct:created "2026-07-29"^^xsd:date ;
+    dct:conformsTo <https://www.w3.org/TR/owl2-syntax/> ;
+    vann:preferredNamespacePrefix "aw" ;
+    vann:preferredNamespaceUri "https://w3id.org/aeroworld/ontology/core#" ;
+    rdfs:comment "This ontology deliberately has no owl:imports. Event ontology packages import this core and only their required domain fragments. Observer visibility, confidence, detection confirmation, raw continuous slots, and concrete event domains are outside the core scope."@en ,
+        "本体刻意不使用 owl:imports。事件本体包导入本核心及其真正需要的最小领域片段。观察者可见性、置信度、检测确认、原始连续 slot 和具体事件领域均不属于核心范围。"@zh .
+
+#################################################################
+# Core classes
+#################################################################
+
+aw:Episode
+    a owl:Class ;
+    rdfs:label "Episode"@en , "仿真回合"@zh ;
+    skos:definition "A bounded authoritative simulation run within which entity identity and tick time are scoped."@en ,
+        "限定稳定实体身份与 tick 时间作用域的一次权威仿真运行。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:episodeIdentifier ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] .
+
+aw:Entity
+    a owl:Class ;
+    rdfs:label "Stable entity"@en , "稳定实体"@zh ;
+    skos:definition "An objectively existing participant or contextual object whose identifier remains stable throughout one episode."@en ,
+        "在一个 episode 内标识保持稳定、客观存在的参与者或上下文对象。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:entityIdentifier ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:inEpisode ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:Episode
+        ] .
+
+aw:TemporalExtent
+    a owl:Class ;
+    rdfs:label "Temporal extent"@en , "时间范围"@zh ;
+    skos:definition "A simulation-time extent represented by an instant or an interval on the episode tick axis."@en ,
+        "以 episode tick 轴上的时刻或区间表示的仿真时间范围。"@zh .
+
+aw:TickInstant
+    a owl:Class ;
+    owl:disjointWith aw:TickInterval ;
+    rdfs:subClassOf aw:TemporalExtent ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:inEpisode ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:Episode
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:tickValue ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:previousAuthoritativeInstant ;
+          owl:maxQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:TickInstant
+        ] ;
+    rdfs:label "Tick instant"@en , "Tick 时刻"@zh ;
+    skos:definition "One exact non-negative simulation tick."@en ,
+        "一个精确的非负仿真 tick。"@zh .
+
+aw:TickInterval
+    a owl:Class ;
+    rdfs:subClassOf aw:TemporalExtent ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:startTick ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:endTick ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger
+        ] ;
+    rdfs:label "Tick interval"@en , "Tick 区间"@zh ;
+    skos:definition "A closed simulation-tick interval. A missing end tick means that the interval is open at the current data boundary."@en ,
+        "闭合的仿真 tick 区间；缺少结束 tick 表示该区间在当前数据边界仍未结束。"@zh .
+
+aw:PredicateType
+    a owl:Class ;
+    rdfs:label "Predicate type"@en , "谓词类型"@zh ;
+    skos:definition "A versioned semantic predicate signature with declared argument roles. Candidate closure and evaluation policy belong to an external executable predicate specification."@en ,
+        "具有已声明参数角色的版本化语义谓词签名；候选闭包与求值策略属于外部可执行谓词规范。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:predicateIdentifier ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:declaresArgumentRole ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:ArgumentRole
+        ] .
+
+aw:ArgumentRole
+    a owl:Class ;
+    rdfs:label "Predicate argument role"@en , "谓词参数角色"@zh ;
+    skos:definition "A named position in the signature of a predicate type."@en ,
+        "谓词类型签名中的命名参数位置。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:argumentRoleKey ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] .
+
+aw:PredicateArgumentBinding
+    a owl:Class ;
+    rdfs:label "Predicate argument binding"@en , "谓词参数绑定"@zh ;
+    skos:definition "A binding from one declared predicate argument role to one stable episode entity."@en ,
+        "从一个已声明的谓词参数角色到一个稳定 episode 实体的绑定。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:bindsArgumentRole ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:ArgumentRole
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:bindsEntity ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:Entity
+        ] .
+
+aw:TruthValue
+    a owl:Class ;
+    rdfs:label "Truth value"@en , "真值"@zh ;
+    skos:definition "A controlled objective predicate-evaluation value: true, false, unknown, or explicitly outside the eligible candidate scope."@en ,
+        "客观谓词求值使用的受控值：真、假、未知或显式超出合格候选作用域。"@zh .
+
+aw:ObjectivePredicateAssertion
+    a owl:Class ;
+    rdfs:label "Objective predicate assertion"@en , "客观谓词断言"@zh ;
+    skos:definition "A time-bounded, globally objective truth assertion produced deterministically from authoritative episode state."@en ,
+        "由 episode 权威状态确定性生成、具有时间边界的全局客观真值断言。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:assertionIdentifier ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:inEpisode ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:Episode
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:assertsPredicate ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:PredicateType
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:hasArgumentBinding ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:PredicateArgumentBinding
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:hasTruthValue ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:TruthValue
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:validDuring ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:TickInterval
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:generatedByRule ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:DerivationRule
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:derivedFromSource ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:SourceRecord
+        ] .
+
+aw:PredicateTransition
+    a owl:Class ;
+    rdfs:label "Predicate transition"@en , "谓词切换"@zh ;
+    skos:definition "An objective truth-value change for one predicate and one stable argument tuple at an exact tick."@en ,
+        "某一谓词及其稳定参数元组在精确 tick 上发生的客观真值变化。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:transitionIdentifier ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:inEpisode ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:Episode
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:transitionOfPredicate ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:PredicateType
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:fromAssertion ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:ObjectivePredicateAssertion
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:toAssertion ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:ObjectivePredicateAssertion
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:hasArgumentBinding ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:PredicateArgumentBinding
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:fromTruthValue ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:TruthValue
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:toTruthValue ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:TruthValue
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:atInstant ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:TickInstant
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:generatedByRule ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:DerivationRule
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:derivedFromSource ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:SourceRecord
+        ] .
+
+aw:RisingTransition
+    a owl:Class ;
+    owl:disjointWith aw:FallingTransition ;
+    rdfs:subClassOf aw:PredicateTransition ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:fromTruthValue ;
+          owl:hasValue aw:FalseValue
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:toTruthValue ;
+          owl:hasValue aw:TrueValue
+        ] ;
+    rdfs:label "Rising predicate transition"@en , "谓词上升沿"@zh ;
+    skos:definition "A closed-world predicate transition from false to true."@en ,
+        "闭世界谓词从假切换为真的变化。"@zh .
+
+aw:FallingTransition
+    a owl:Class ;
+    rdfs:subClassOf aw:PredicateTransition ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:fromTruthValue ;
+          owl:hasValue aw:TrueValue
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:toTruthValue ;
+          owl:hasValue aw:FalseValue
+        ] ;
+    rdfs:label "Falling predicate transition"@en , "谓词下降沿"@zh ;
+    skos:definition "A closed-world predicate transition from true to false."@en ,
+        "闭世界谓词从真切换为假的变化。"@zh .
+
+aw:EventType
+    a owl:Class ;
+    rdfs:label "Event type"@en , "事件类型"@zh ;
+    skos:definition "A versioned semantic definition of an event and its required participant-role signature."@en ,
+        "事件及其必需参与者角色签名的版本化语义定义。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:eventTypeIdentifier ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:declaresParticipantRole ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:ParticipantRole
+        ] .
+
+aw:ParticipantRole
+    a owl:Class ;
+    rdfs:label "Event participant role"@en , "事件参与者角色"@zh ;
+    skos:definition "A required named semantic role in the signature of an event type."@en ,
+        "事件类型签名中必需的命名语义角色。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:participantRoleKey ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] .
+
+aw:EventParticipantBinding
+    a owl:Class ;
+    rdfs:label "Event participant binding"@en , "事件参与者绑定"@zh ;
+    skos:definition "A binding from one event participant role to one stable episode entity."@en ,
+        "从一个事件参与者角色到一个稳定 episode 实体的绑定。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:bindsParticipantRole ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:ParticipantRole
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:bindsEntity ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:Entity
+        ] .
+
+aw:EventOccurrence
+    a owl:Class ;
+    rdfs:label "Event occurrence"@en , "事件实例"@zh ;
+    skos:definition "An objective event instance derived by a versioned rule from predicate state or predicate transitions."@en ,
+        "由版本化规则根据谓词状态或谓词切换推导出的客观事件实例。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:eventOccurrenceIdentifier ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:inEpisode ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:Episode
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:instantiatesEventType ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:EventType
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:hasParticipantBinding ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:EventParticipantBinding
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:occursDuring ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:TickInterval
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:generatedByRule ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:DerivationRule
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:derivedFromSource ;
+          owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:SourceRecord
+        ] .
+
+aw:DerivationRule
+    a owl:Class ;
+    rdfs:label "Derivation rule"@en , "推导规则"@zh ;
+    skos:definition "A deterministic, versioned rule used to compile authoritative state into predicates, transitions, or event occurrences."@en ,
+        "将权威状态编译为谓词、切换或事件实例的确定性版本化规则。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:ruleIdentifier ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:ruleVersion ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] .
+
+aw:SourceRecord
+    a owl:Class ;
+    rdfs:label "Authoritative source record"@en , "权威来源记录"@zh ;
+    skos:definition "A stable reference to an authoritative episode-state record used as derivation evidence."@en ,
+        "作为推导证据使用的权威 episode 状态记录的稳定引用。"@zh ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty aw:sourceIdentifier ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:sourceLocator ;
+          owl:cardinality "1"^^xsd:nonNegativeInteger
+        ] ,
+        [ a owl:Restriction ;
+          owl:onProperty aw:inEpisode ;
+          owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger ;
+          owl:onClass aw:Episode
+        ] .
+
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        aw:Episode
+        aw:Entity
+        aw:TemporalExtent
+        aw:PredicateType
+        aw:ArgumentRole
+        aw:PredicateArgumentBinding
+        aw:TruthValue
+        aw:ObjectivePredicateAssertion
+        aw:PredicateTransition
+        aw:EventType
+        aw:ParticipantRole
+        aw:EventParticipantBinding
+        aw:EventOccurrence
+        aw:DerivationRule
+        aw:SourceRecord
+    ) .
+
+#################################################################
+# Controlled individuals
+#################################################################
+
+aw:TrueValue
+    a owl:NamedIndividual , aw:TruthValue ;
+    rdfs:label "true"@en , "真"@zh ;
+    skos:definition "The objective predicate is established as true by its declared authority and rule."@en ,
+        "谓词依据其声明的权威来源与规则被确定为真。"@zh .
+
+aw:FalseValue
+    a owl:NamedIndividual , aw:TruthValue ;
+    rdfs:label "false"@en , "假"@zh ;
+    skos:definition "The objective predicate is established as false by its executable evaluation specification over an eligible candidate tuple."@en ,
+        "可执行求值规范针对合格候选元组将客观谓词确定为假。"@zh .
+
+aw:UnknownValue
+    a owl:NamedIndividual , aw:TruthValue ;
+    rdfs:label "unknown"@en , "未知"@zh ;
+    skos:definition "Authoritative input is insufficient to establish the objective predicate as true or false."@en ,
+        "权威输入不足以将客观谓词确定为真或假。"@zh .
+
+aw:OutOfScopeValue
+    a owl:NamedIndividual , aw:TruthValue ;
+    rdfs:label "out of scope"@en , "超出作用域"@zh ;
+    skos:definition "The argument tuple is outside the executable predicate specification's declared eligible candidate scope; this is explicit and is not false."@en ,
+        "参数元组超出可执行谓词规范声明的合格候选作用域；该值是显式状态且不等同于假。"@zh .
+
+[] a owl:AllDifferent ;
+    owl:distinctMembers (
+        aw:TrueValue
+        aw:FalseValue
+        aw:UnknownValue
+        aw:OutOfScopeValue
+    ) .
+
+#################################################################
+# Object properties
+#################################################################
+
+aw:inEpisode
+    a owl:ObjectProperty ;
+    rdfs:range aw:Episode ;
+    rdfs:label "in episode"@en , "属于 episode"@zh ;
+    skos:definition "Scopes an entity, source record, assertion, transition, or event occurrence to one episode."@en ,
+        "将实体、来源记录、断言、切换或事件实例限定到一个 episode。"@zh .
+
+aw:declaresArgumentRole
+    a owl:ObjectProperty ;
+    rdfs:domain aw:PredicateType ;
+    rdfs:range aw:ArgumentRole ;
+    rdfs:label "declares argument role"@en , "声明参数角色"@zh ;
+    skos:definition "Declares one named argument role in a predicate signature."@en ,
+        "声明谓词签名中的一个命名参数角色。"@zh .
+
+aw:assertsPredicate
+    a owl:ObjectProperty ;
+    rdfs:domain aw:ObjectivePredicateAssertion ;
+    rdfs:range aw:PredicateType ;
+    rdfs:label "asserts predicate"@en , "断言谓词"@zh ;
+    skos:definition "Identifies the predicate type instantiated by an objective assertion."@en ,
+        "标识客观断言所实例化的谓词类型。"@zh .
+
+aw:transitionOfPredicate
+    a owl:ObjectProperty ;
+    rdfs:domain aw:PredicateTransition ;
+    rdfs:range aw:PredicateType ;
+    rdfs:label "transition of predicate"@en , "所切换的谓词"@zh ;
+    skos:definition "Identifies the predicate whose truth value changes in a transition."@en ,
+        "标识在切换中真值发生变化的谓词。"@zh .
+
+aw:fromAssertion
+    a owl:ObjectProperty ;
+    rdfs:domain aw:PredicateTransition ;
+    rdfs:range aw:ObjectivePredicateAssertion ;
+    rdfs:label "from assertion"@en , "切换前断言"@zh ;
+    skos:definition "Identifies the authoritative predicate assertion immediately preceding a transition boundary."@en ,
+        "标识紧邻谓词切换边界之前的权威谓词断言。"@zh .
+
+aw:toAssertion
+    a owl:ObjectProperty ;
+    rdfs:domain aw:PredicateTransition ;
+    rdfs:range aw:ObjectivePredicateAssertion ;
+    rdfs:label "to assertion"@en , "切换后断言"@zh ;
+    skos:definition "Identifies the authoritative predicate assertion beginning at a transition boundary."@en ,
+        "标识从谓词切换边界开始生效的权威谓词断言。"@zh .
+
+aw:hasArgumentBinding
+    a owl:ObjectProperty ;
+    rdfs:range aw:PredicateArgumentBinding ;
+    rdfs:label "has argument binding"@en , "具有参数绑定"@zh ;
+    skos:definition "Associates an assertion or transition with one of its role-to-entity argument bindings."@en ,
+        "将断言或切换关联到一个角色至实体的参数绑定。"@zh .
+
+aw:bindsArgumentRole
+    a owl:ObjectProperty ;
+    rdfs:domain aw:PredicateArgumentBinding ;
+    rdfs:range aw:ArgumentRole ;
+    rdfs:label "binds argument role"@en , "绑定参数角色"@zh ;
+    skos:definition "Identifies the predicate argument role filled by a binding."@en ,
+        "标识某参数绑定所填充的谓词参数角色。"@zh .
+
+aw:bindsEntity
+    a owl:ObjectProperty ;
+    rdfs:range aw:Entity ;
+    rdfs:label "binds entity"@en , "绑定实体"@zh ;
+    skos:definition "Identifies the stable entity assigned to an argument or participant role."@en ,
+        "标识被分配给参数角色或参与者角色的稳定实体。"@zh .
+
+aw:hasTruthValue
+    a owl:ObjectProperty ;
+    rdfs:domain aw:ObjectivePredicateAssertion ;
+    rdfs:range aw:TruthValue ;
+    rdfs:label "has truth value"@en , "具有真值"@zh ;
+    skos:definition "Assigns one controlled objective truth value to a predicate assertion."@en ,
+        "为谓词断言赋予一个受控客观真值。"@zh .
+
+aw:fromTruthValue
+    a owl:ObjectProperty ;
+    rdfs:domain aw:PredicateTransition ;
+    rdfs:range aw:TruthValue ;
+    rdfs:label "from truth value"@en , "起始真值"@zh ;
+    skos:definition "The objective truth value immediately before a predicate transition."@en ,
+        "谓词切换之前的客观真值。"@zh .
+
+aw:toTruthValue
+    a owl:ObjectProperty ;
+    rdfs:domain aw:PredicateTransition ;
+    rdfs:range aw:TruthValue ;
+    rdfs:label "to truth value"@en , "目标真值"@zh ;
+    skos:definition "The objective truth value at and after a predicate transition."@en ,
+        "谓词切换当时及其后的客观真值。"@zh .
+
+aw:validDuring
+    a owl:ObjectProperty ;
+    rdfs:domain aw:ObjectivePredicateAssertion ;
+    rdfs:range aw:TickInterval ;
+    rdfs:label "valid during"@en , "有效时间区间"@zh ;
+    skos:definition "Associates an objective predicate assertion with its valid simulation-tick interval."@en ,
+        "将客观谓词断言关联到其有效仿真 tick 区间。"@zh .
+
+aw:atInstant
+    a owl:ObjectProperty ;
+    rdfs:domain aw:PredicateTransition ;
+    rdfs:range aw:TickInstant ;
+    rdfs:label "at instant"@en , "发生于时刻"@zh ;
+    skos:definition "Associates a predicate transition with its exact simulation tick."@en ,
+        "将谓词切换关联到其精确仿真 tick。"@zh .
+
+aw:previousAuthoritativeInstant
+    a owl:ObjectProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:TickInstant ;
+    rdfs:range aw:TickInstant ;
+    rdfs:label "previous authoritative instant"@en , "上一权威时刻"@zh ;
+    skos:definition "Links an episode-scoped tick instant to the immediately preceding tick present in that episode's authoritative state sequence."@en ,
+        "将 episode 内的 tick 时刻连接到该 episode 权威状态序列中紧邻的上一时刻。"@zh .
+
+aw:declaresParticipantRole
+    a owl:ObjectProperty ;
+    rdfs:domain aw:EventType ;
+    rdfs:range aw:ParticipantRole ;
+    rdfs:label "declares participant role"@en , "声明参与者角色"@zh ;
+    skos:definition "Declares one required named participant role in an event type signature."@en ,
+        "声明事件类型签名中的一个必需命名参与者角色。"@zh .
+
+aw:instantiatesEventType
+    a owl:ObjectProperty ;
+    rdfs:domain aw:EventOccurrence ;
+    rdfs:range aw:EventType ;
+    rdfs:label "instantiates event type"@en , "实例化事件类型"@zh ;
+    skos:definition "Identifies the event type instantiated by an objective event occurrence."@en ,
+        "标识客观事件实例所实例化的事件类型。"@zh .
+
+aw:hasParticipantBinding
+    a owl:ObjectProperty ;
+    rdfs:domain aw:EventOccurrence ;
+    rdfs:range aw:EventParticipantBinding ;
+    rdfs:label "has participant binding"@en , "具有参与者绑定"@zh ;
+    skos:definition "Associates an event occurrence with one of its role-to-entity participant bindings."@en ,
+        "将事件实例关联到一个角色至实体的参与者绑定。"@zh .
+
+aw:bindsParticipantRole
+    a owl:ObjectProperty ;
+    rdfs:domain aw:EventParticipantBinding ;
+    rdfs:range aw:ParticipantRole ;
+    rdfs:label "binds participant role"@en , "绑定参与者角色"@zh ;
+    skos:definition "Identifies the event participant role filled by a binding."@en ,
+        "标识某参与者绑定所填充的事件参与者角色。"@zh .
+
+aw:occursDuring
+    a owl:ObjectProperty ;
+    rdfs:domain aw:EventOccurrence ;
+    rdfs:range aw:TickInterval ;
+    rdfs:label "occurs during"@en , "发生时间区间"@zh ;
+    skos:definition "Associates an event occurrence with its objective simulation-tick interval."@en ,
+        "将事件实例关联到其客观仿真 tick 区间。"@zh .
+
+aw:initiatedByTransition
+    a owl:ObjectProperty ;
+    rdfs:domain aw:EventOccurrence ;
+    rdfs:range aw:PredicateTransition ;
+    rdfs:label "initiated by transition"@en , "由切换启动"@zh ;
+    skos:definition "Links an event occurrence to the predicate transition that starts it."@en ,
+        "将事件实例关联到启动该事件的谓词切换。"@zh .
+
+aw:terminatedByTransition
+    a owl:ObjectProperty ;
+    rdfs:domain aw:EventOccurrence ;
+    rdfs:range aw:PredicateTransition ;
+    rdfs:label "terminated by transition"@en , "由切换终止"@zh ;
+    skos:definition "Links an event occurrence to the predicate transition that ends it."@en ,
+        "将事件实例关联到终止该事件的谓词切换。"@zh .
+
+aw:generatedByRule
+    a owl:ObjectProperty ;
+    rdfs:range aw:DerivationRule ;
+    rdfs:label "generated by rule"@en , "由规则生成"@zh ;
+    skos:definition "Identifies the deterministic rule version that generated an assertion, transition, or event occurrence."@en ,
+        "标识生成断言、切换或事件实例的确定性规则版本。"@zh .
+
+aw:derivedFromSource
+    a owl:ObjectProperty ;
+    rdfs:range aw:SourceRecord ;
+    rdfs:label "derived from source"@en , "派生自来源"@zh ;
+    skos:definition "Links a semantic result to an authoritative source-state record."@en ,
+        "将语义结果关联到权威来源状态记录。"@zh .
+
+aw:directlyCauses
+    a owl:ObjectProperty ;
+    rdfs:domain aw:EventOccurrence ;
+    rdfs:range aw:EventOccurrence ;
+    rdfs:subPropertyOf aw:causallyPrecedes ;
+    rdfs:label "directly causes"@en , "直接导致"@zh ;
+    skos:definition "A non-transitive asserted direct causal relation between two event occurrences."@en ,
+        "两个事件实例之间非传递、显式断言的直接因果关系。"@zh .
+
+aw:causallyPrecedes
+    a owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:domain aw:EventOccurrence ;
+    rdfs:range aw:EventOccurrence ;
+    rdfs:label "causally precedes"@en , "因果先于"@zh ;
+    skos:definition "The transitive causal precedence closure containing direct and indirect causal ancestry."@en ,
+        "包含直接和间接因果祖先关系的传递因果先行闭包。"@zh .
+
+aw:temporallyPrecedes
+    a owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:domain aw:EventOccurrence ;
+    rdfs:range aw:EventOccurrence ;
+    rdfs:label "temporally precedes"@en , "时间先于"@zh ;
+    skos:definition "A transitive event-occurrence ordering on objective simulation time, without asserting causality."@en ,
+        "客观仿真时间上的传递事件次序，不蕴含因果关系。"@zh .
+
+#################################################################
+# Datatype properties
+#################################################################
+
+aw:episodeIdentifier
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:Episode ;
+    rdfs:range xsd:string ;
+    rdfs:label "episode identifier"@en , "Episode 标识符"@zh ;
+    skos:definition "The stable identifier of an episode."@en ,
+        "episode 的稳定标识符。"@zh .
+
+aw:entityIdentifier
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:Entity ;
+    rdfs:range xsd:string ;
+    rdfs:label "entity identifier"@en , "实体标识符"@zh ;
+    skos:definition "The stable identifier of an entity within its episode."@en ,
+        "实体在所属 episode 内的稳定标识符。"@zh .
+
+aw:tickValue
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:TickInstant ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:label "tick value"@en , "Tick 值"@zh ;
+    skos:definition "The exact non-negative simulation tick represented by an instant."@en ,
+        "时刻所表示的精确非负仿真 tick。"@zh .
+
+aw:startTick
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:TickInterval ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:label "start tick"@en , "开始 tick"@zh ;
+    skos:definition "The inclusive first tick of an interval."@en ,
+        "区间包含的第一个 tick。"@zh .
+
+aw:endTick
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:TickInterval ;
+    rdfs:range xsd:nonNegativeInteger ;
+    rdfs:label "end tick"@en , "结束 tick"@zh ;
+    skos:definition "The inclusive last tick of a closed interval."@en ,
+        "闭区间包含的最后一个 tick。"@zh .
+
+aw:predicateIdentifier
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:PredicateType ;
+    rdfs:range xsd:string ;
+    rdfs:label "predicate identifier"@en , "谓词标识符"@zh ;
+    skos:definition "The stable machine identifier of a predicate type."@en ,
+        "谓词类型的稳定机器标识符。"@zh .
+
+aw:argumentRoleKey
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:ArgumentRole ;
+    rdfs:range xsd:string ;
+    rdfs:label "argument role key"@en , "参数角色键"@zh ;
+    skos:definition "The stable key of a predicate argument role."@en ,
+        "谓词参数角色的稳定键。"@zh .
+
+aw:assertionIdentifier
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:ObjectivePredicateAssertion ;
+    rdfs:range xsd:string ;
+    rdfs:label "assertion identifier"@en , "断言标识符"@zh ;
+    skos:definition "The stable identifier of an objective predicate assertion."@en ,
+        "客观谓词断言的稳定标识符。"@zh .
+
+aw:transitionIdentifier
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:PredicateTransition ;
+    rdfs:range xsd:string ;
+    rdfs:label "transition identifier"@en , "切换标识符"@zh ;
+    skos:definition "The stable identifier of a predicate transition."@en ,
+        "谓词切换的稳定标识符。"@zh .
+
+aw:eventTypeIdentifier
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:EventType ;
+    rdfs:range xsd:string ;
+    rdfs:label "event type identifier"@en , "事件类型标识符"@zh ;
+    skos:definition "The stable machine identifier of an event type."@en ,
+        "事件类型的稳定机器标识符。"@zh .
+
+aw:participantRoleKey
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:ParticipantRole ;
+    rdfs:range xsd:string ;
+    rdfs:label "participant role key"@en , "参与者角色键"@zh ;
+    skos:definition "The stable key of an event participant role."@en ,
+        "事件参与者角色的稳定键。"@zh .
+
+aw:eventOccurrenceIdentifier
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:EventOccurrence ;
+    rdfs:range xsd:string ;
+    rdfs:label "event occurrence identifier"@en , "事件实例标识符"@zh ;
+    skos:definition "The stable identifier of an event occurrence."@en ,
+        "事件实例的稳定标识符。"@zh .
+
+aw:ruleIdentifier
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:DerivationRule ;
+    rdfs:range xsd:string ;
+    rdfs:label "rule identifier"@en , "规则标识符"@zh ;
+    skos:definition "The stable identifier of a deterministic derivation rule."@en ,
+        "确定性推导规则的稳定标识符。"@zh .
+
+aw:ruleVersion
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:DerivationRule ;
+    rdfs:range xsd:string ;
+    rdfs:label "rule version"@en , "规则版本"@zh ;
+    skos:definition "The immutable semantic version of a derivation rule."@en ,
+        "推导规则不可变的语义版本。"@zh .
+
+aw:sourceIdentifier
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:SourceRecord ;
+    rdfs:range xsd:string ;
+    rdfs:label "source identifier"@en , "来源标识符"@zh ;
+    skos:definition "The stable identifier of an authoritative source record."@en ,
+        "权威来源记录的稳定标识符。"@zh .
+
+aw:sourceLocator
+    a owl:DatatypeProperty , owl:FunctionalProperty ;
+    rdfs:domain aw:SourceRecord ;
+    rdfs:range xsd:string ;
+    rdfs:label "source locator"@en , "来源定位符"@zh ;
+    skos:definition "A deterministic locator for the authoritative source file and record."@en ,
+        "权威来源文件及记录的确定性定位符。"@zh .

@@ -1,0 +1,155 @@
+# ARM 生成规则 —— uav_takeoff
+#
+# 命名约束：本文件名 uav_takeoff.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: uav_takeoff
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    内容真实来源是 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里登记的是"指针 + 关键字段快照"，快照仅用于生成期自检，改定义请改源头。
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/uav_takeoff
+  rule_id: event_family.uav_takeoff.0
+  event_type_id: airspace.aircraft_takeoff_event
+  trigger:
+    predicate_id: airspace.aircraft_airborne
+    direction: rising
+  roles:
+    aircraft:  { kind: trigger_binding, ontology_class: UnmannedAircraft }
+    home_pad:  { kind: support_binding, ontology_class: LandingPad }
+  support_conditions:
+    - predicate_id: airspace.aircraft_at_home_pad
+      value: "true"
+      at: before
+      join_roles: [aircraft]
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别：决定这条事件"能不能被人为改变"
+#    agent_caused → 有干预实体，5 类臂都合法
+#    exogenous    → 环境自己变（如天气），禁止写干预臂
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 这条族的干预对象是智能体本身，不是环境
+  intervention_subject: aircraft
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点：事件链上哪些节点能分叉
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # anchor_event_id 由事件链给出，不在此硬编码
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    通用骨架在 rules/intents.yaml；此处只写本族的差异。
+#    operation 只能取 4 个已注册值之一：
+#      reuse_factual_causal_event | suppress_causal_event
+#      delay_causal_event | replace_causal_event
+#
+#    键名是**意图**（factual/suppress/delay/divert/tradeoff），
+#    具体臂名（arm_no_op_suppress 等）由 rules/intents.yaml 的 arm_id_patterns 给出。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 一致
+
+  delay:
+    operation: delay_causal_event
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: rule        # rule | governed_default | scene
+        min: 10
+        max: 60
+        default: 30
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.aircraft
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: aborted_takeoff_path     # 从场景解析"中止起飞"的落点
+      physics_intent: stay_grounded        # 声明意图，物理校验另算
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: set_runtime_state
+      actor: roles.aircraft
+      template:
+        - step_kind: state_patch
+          state_patch:
+            flight_mode: ground_hover
+            altitude_m: 3.0
+      physics_intent: low_hover
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/*/manifest.json
+  history_frames: 8
+  horizon_frames: 5
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+
+  suppress:
+    target_event: absent_in_window
+    # 若 factual 里该事件本就没发生，这组标 not_intervenable，而不是干预成功
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+
+  tradeoff:
+    differs_from_factual: true
+    # tradeoff 允许事件仍然发生，但状态轨迹必须与 factual 可辨
+
+  # 所有 alternative 臂共用的最低要求
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "若场景把起飞写成纯脚本权威（script_scheduled），suppress 臂会撞 DESIGN_INTENT_CONFLICT"
+  not_claimed:
+    - G10 整库发布审计（不在本规则范围内）

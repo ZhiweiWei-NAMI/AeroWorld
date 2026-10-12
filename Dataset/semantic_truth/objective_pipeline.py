@@ -7,6 +7,7 @@ adjacent transitions and lifecycle rows, and writes compact graph artifacts.
 
 from __future__ import annotations
 
+from Dataset.semantic_truth.provenance import open_artifact_text, open_objective_text
 import json
 import gc
 import ctypes
@@ -775,7 +776,9 @@ def _output_file_references(output_dir: Path) -> dict[str, Any]:
     return entries
 
 
-def _write_exact_artifact_tree(target: Path, files: Mapping[str, str]) -> None:
+def _write_exact_artifact_tree(
+    target: Path, files: Mapping[str, str], *, compress_jsonl: bool = False
+) -> None:
     _expected_tree_kinds(files)
     if _path_lexists(target):
         raise ObjectivePipelineError(
@@ -783,7 +786,7 @@ def _write_exact_artifact_tree(target: Path, files: Mapping[str, str]) -> None:
         )
     target.mkdir(parents=True)
     for name, text in sorted(files.items()):
-        _atomic_write_text(target / name, text)
+        _atomic_write_text(target / name, text, compress_jsonl=compress_jsonl)
 
 
 def write_episode_outputs(artifacts: ObjectiveEpisodeArtifacts) -> None:
@@ -811,7 +814,10 @@ def write_episode_outputs(artifacts: ObjectiveEpisodeArtifacts) -> None:
     )
     try:
         for name, text in sorted(artifacts.files.items()):
-            _atomic_write_text(staging_dir / name, text)
+            _atomic_write_text(
+                staging_dir / name, text,
+                compress_jsonl=output_dir.is_relative_to(DEFAULT_OUTPUT_ROOT.resolve()),
+            )
         if _path_lexists(output_dir):
             os.replace(output_dir, backup_dir)
         try:
@@ -850,7 +856,9 @@ def check_episode_outputs(artifacts: ObjectiveEpisodeArtifacts) -> list[str]:
             continue
         if expected_kinds[name] != "file":
             continue
-        if (artifacts.output_dir / name).read_text(encoding="utf-8") != artifacts.files[name]:
+        with open_artifact_text(artifacts.output_dir / name) as stream:
+            saved_text = stream.read()
+        if saved_text != artifacts.files[name]:
             mismatches.append(f"content:{name}")
     return mismatches
 
@@ -2075,7 +2083,10 @@ def _process_episode(
                 f"{artifacts.episode_id}: objective outputs are stale: {mismatches}"
             )
     else:
-        _write_exact_artifact_tree(job.materialized_output_dir, artifacts.files)
+        _write_exact_artifact_tree(
+            job.materialized_output_dir, artifacts.files,
+            compress_jsonl=job.final_output_dir.resolve().is_relative_to(DEFAULT_OUTPUT_ROOT.resolve()),
+        )
     processed = {
         "episode_id": artifacts.episode_id,
         "epi_id": artifacts.epi_id,
@@ -2096,7 +2107,8 @@ def _process_episode(
         _atomic_write_text(checkpoint, _json_text({
             "input_authority": job.input_authority,
             "execution_authority": job.execution_authority,
-            "files": {name: len(text.encode("utf-8")) for name, text in artifacts.files.items()},
+            "files": {name: (job.materialized_output_dir / name).stat().st_size
+                      for name in artifacts.files},
             "result": result,
         }))
     print(f"complete {artifacts.episode_id} events={processed['record_counts']['event_occurrences']}", flush=True)
@@ -2641,17 +2653,22 @@ def _json_text(value: Mapping[str, Any]) -> str:
     )
 
 
-def _atomic_write_text(path: Path, text: str) -> None:
+def _atomic_write_text(path: Path, text: str, *, compress_jsonl: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8", newline="\n")
+    writer = (open_objective_text(tmp, artifact_name=path.name) if compress_jsonl
+              else tmp.open("w", encoding="utf-8", newline="\n"))
+    with writer as stream:
+        stream.write(text)
     os.replace(tmp, path)
 
 
 def _check_root_file(path: Path, expected: str) -> None:
     if not path.is_file():
         raise ObjectivePipelineError(f"root output is missing: {path}")
-    if path.read_text(encoding="utf-8") != expected:
+    with open_artifact_text(path) as stream:
+        saved_text = stream.read()
+    if saved_text != expected:
         raise ObjectivePipelineError(f"root output is stale: {path}")
 
 

@@ -1,0 +1,55 @@
+schema: "aeroworld_l4_window_config"
+version: 1
+arm_id: "arm_separation_forced"
+group_key: "L4-1_v2/seed02/grp_converging_approach"
+episode_id: "L4-1_v2__seed02"
+event_family: "uav_separation_conflict"
+subject_class: "uav"
+mode: "intervention"
+entity_ids:
+  - "uav_conflict_l4_1_v2_a"
+  - "uav_conflict_l4_1_v2_b"
+predicate_ids:
+  - "safety.aircraft_pair_below_separation"
+window:
+  start_tick: 230
+  fork_tick: 240
+  end_tick: 540
+  phase: "after_state_sample_before_actions"
+  intervention_order: "source_actions_then_intervention"
+sources:
+  scene: "Dataset/scenarios/L4_agents/collision/L4-1_v2/scene_setup.json"
+  script: "Dataset/scenarios/L4_agents/collision/L4-1_v2/event_script.json"
+  trajectories: "aw_data/render_ready_episodes_capture_filtered/L4-1_v2__seed02/trajectories.jsonl"
+  weather: "aw_data/render_ready_episodes_capture_filtered/L4-1_v2__seed02/weather_meta.jsonl"
+  roster: "aw_data/render_ready_episodes_capture_filtered/L4-1_v2__seed02/global_entity_roster.json"
+  event_realization: "aw_data/render_ready_episodes_capture_filtered/L4-1_v2__seed02/event_realization.jsonl"
+  predicate_transitions: "aw_data/objective_semantic_truth/L4-1_v2__seed02/predicate_transitions.jsonl"
+  event_outcomes: "aw_data/objective_semantic_truth/L4-1_v2__seed02/event_outcomes.jsonl"
+execution:
+  omit_action_ids:
+    - "move_uav_b_converge"
+  actions:
+    - tick: 240
+      action:
+        type: "move_entity"
+        action_id: "arm_move_uav_conflict_l4_1_v2_b_separation_hold"
+        entity_id: "uav_conflict_l4_1_v2_b"
+        velocity_mps: 7.5
+        waypoints_enu_m:
+          - [6205.444, 6872.292, 30.0]
+          - [6225.444, 6885.292, 60.0]
+          - [6240.444, 6902.292, 80.0]
+  trigger_rewrites: []
+expected:
+  target_event: "absent_in_window"
+  rationale: "entity_proximity 需 xy≤20.788 且 |dz|≤35 同时成立；B 机在 fork tick 以 move_entity 被引离，先爬升同时横向远离 A 航线，末端保持点与 A 终点 hover 位 xy 距离远大于阈值，条件整窗不满足，min_true_ticks 无从累计。"
+  falsified_if: "窗内任一时刻两机 xy≤20.788 且 |dz|≤35（即谓词 rising），或 uav_conflict_resolution / resume_patrols 事件在窗内出现。"
+script: "scripts/arms/L4-1_v2/seed02/grp_converging_approach/arm_separation_forced.py"
+output: "arms/L4-1_v2/seed02/grp_converging_approach/arm_separation_forced"
+provenance:
+  experiment_ref: "design/L4-1_v2/seed02/grp_converging_approach/experiment.json"
+  parameter_sources:
+    factual_root: "aw_data"
+    omitted_action_ids: "move_uav_b_converge（converging_approach 内 B 机汇合 move）于 Dataset/scenarios/L4_agents/collision/L4-1_v2/event_script.json"
+    intervention_waypoints: "design parameter_sources.intervention_hold_waypoints_enu_m（末端保持点与 A 终点 [6193.444, 6866.292, 50.0] xy 距离 > 20.788 m）"

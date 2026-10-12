@@ -1,0 +1,89 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_civilian_no_yield
+group_key: L4-10_v2/seed00/grp_ambulance_priority_approach
+episode_id: L4-10_v2__seed00
+event_family: l4_ambulance_priority_passage_observed
+subject_class: vehicle
+mode: intervention
+entity_ids:
+- ambulance_priority_l4_10_v2
+- civilian_yield_l4_10_v2
+predicate_ids:
+- l4_business.ambulance_approaching_vehicle
+- l4_business.priority_request_active
+- l4_business.priority_request_acknowledged
+- l4_business.civilian_yielding
+- l4_business.yield_clearance_satisfied
+- l4_business.ambulance_geometry_passed
+- l4_business.priority_passage_completed
+window:
+  start_tick: 210
+  fork_tick: 220
+  end_tick: 560
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/interaction/L4-10_v2/scene_setup.json
+  script: Dataset/scenarios/L4_agents/interaction/L4-10_v2/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-10_v2__seed00/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-10_v2__seed00/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-10_v2__seed00/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-10_v2__seed00/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-10_v2__seed00/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-10_v2__seed00/event_outcomes.jsonl
+execution:
+  omit_action_ids:
+  - move_civilian_priority_pull_over
+  - set_runtime_state_l4_10_v2_civilian_vehicle_yields_00
+  - set_civilian_yielding
+  - remove_ambulance_after_priority_passage
+  - remove_civilian_after_priority_passage
+  actions:
+  - tick: 220
+    action:
+      type: move_entity
+      action_id: arm_civilian_no_yield_move_civilian
+      entity_id: civilian_yield_l4_10_v2
+      velocity_mps: 4.5
+      waypoints_enu_m:
+      - - 7963.903
+        - 7347.221
+        - 0.0
+      - - 7958.080627030362
+        - 7345.771871640458
+        - 0.0
+      - - 7933.8207396568705
+        - 7339.733836809032
+        - 0.0
+  - tick: 240
+    action:
+      type: move_entity
+      action_id: arm_civilian_no_yield_hold_ambulance
+      entity_id: ambulance_priority_l4_10_v2
+      velocity_mps: 0.5
+      waypoints_enu_m:
+      - - 7975.783333
+        - 7350.193167
+        - 0.0
+      - - 7973.842542010121
+        - 7349.710124213487
+        - 0.0
+  trigger_rewrites: []
+expected:
+  target_event: observe
+  rationale: The civilian keeps driving in the through lane without a yielding state. From its measured tick-240
+    position, the ambulance moves 2 m forward at at most 0.5 m/s and then stops. Both vehicles remain observed through
+    tick 560 because no passage completes. The request may be acknowledged, but yield_clearance_satisfied and priority_passage_completed
+    are expected false throughout the window.
+  falsified_if: The ambulance reverses along the approach direction, a yielding state appears, lateral clearance
+    or passage completion becomes true, or either subject disappears before the window ends.
+script: scripts/arms/L4-10_v2/seed00/grp_ambulance_priority_approach/arm_civilian_no_yield.py
+output: arms/L4-10_v2/seed00/grp_ambulance_priority_approach/arm_civilian_no_yield
+provenance:
+  experiment_ref: design/L4-10_v2/seed00/grp_ambulance_priority_approach/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    business_rules: Dataset/semantic_rules/profiles/l4_arm_business_semantics.json
+    runtime_state_schedule: Dataset/semantic_rules/profiles/epi_runtime_state_schedules/l4_runtime_state_schedule.json
+    window: design window (start/fork/end on the 5-tick formal grid)

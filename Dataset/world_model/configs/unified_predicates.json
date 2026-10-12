@@ -1,0 +1,306 @@
+{
+ "airspace.aircraft_inside_restricted_airspace": {
+  "expression": "region_active AND signed_distance_to_boundary_m <= boundary_margin_m",
+  "thresholds": {
+   "boundary_margin_m": 14.0
+  }
+ },
+ "airspace.aircraft_inside_protected_airspace": {
+  "expression": "inside_protected_airspace",
+  "thresholds": {}
+ },
+ "airspace.aircraft_is_non_cooperative": {
+  "expression": "NOT cooperative_flag",
+  "thresholds": {}
+ },
+ "airspace.aircraft_outside_assigned_altitude_band": {
+  "expression": "abs(position_z_m - assigned_altitude_m) > altitude_tolerance_m",
+  "thresholds": {
+   "altitude_tolerance_m": 5.0
+  }
+ },
+ "airspace.aircraft_occupies_airspace_corridor": {
+  "expression": "aircraft_inside_corridor",
+  "thresholds": {}
+ },
+ "airspace.aircraft_moving_in_corridor": {
+  "expression": "aircraft_inside_corridor AND speed_mps > aircraft_stationary_speed_threshold_mps",
+  "thresholds": {
+   "aircraft_stationary_speed_threshold_mps": 0.3
+  }
+ },
+ "airspace.aircraft_stationary_in_corridor": {
+  "expression": "aircraft_inside_corridor AND speed_mps <= aircraft_stationary_speed_threshold_mps",
+  "thresholds": {
+   "aircraft_stationary_speed_threshold_mps": 0.3
+  }
+ },
+ "airspace.airspace_corridor_over_capacity": {
+  "expression": "maximum_corridor_occupancy_count > maximum_corridor_capacity",
+  "thresholds": {}
+ },
+ "airspace.aircraft_airborne": {
+  "expression": "local-ground z_agl_m > airborne_threshold_m",
+  "thresholds": {
+   "airborne_threshold_m": 1.5
+  }
+ },
+ "airspace.aircraft_at_home_pad": {
+  "expression": "xy_distance_to_home_pad_m <= home_pad_radius_m",
+  "thresholds": {
+   "home_pad_radius_m": 4.0
+  }
+ },
+ "airspace.aircraft_touchdown": {
+  "expression": "z_agl_m <= touchdown_threshold_m AND speed_mps <= aircraft_stationary_speed_threshold_mps",
+  "thresholds": {
+   "touchdown_threshold_m": 0.5,
+   "aircraft_stationary_speed_threshold_mps": 0.3
+  }
+ },
+ "airspace.aircraft_in_landing_zone": {
+  "expression": "xy_distance_to_assigned_landing_zone_m <= landing_zone_radius_m",
+  "thresholds": {
+   "landing_zone_radius_m": 8.0
+  }
+ },
+ "ground.vehicle_moving_in_lane": {
+  "expression": "lane_id is present AND speed_mps > vehicle_stopped_speed_threshold_mps",
+  "thresholds": {
+   "vehicle_stopped_speed_threshold_mps": 0.3
+  }
+ },
+ "ground.vehicle_stopped_in_lane": {
+  "expression": "lane_id is present AND speed_mps <= vehicle_stopped_speed_threshold_mps",
+  "thresholds": {
+   "vehicle_stopped_speed_threshold_mps": 0.3
+  }
+ },
+ "ground.vehicle_queue_exceeds_length": {
+  "expression": "queue_vehicle_count > queue_length_threshold_vehicles",
+  "thresholds": {
+   "queue_length_threshold_vehicles": 5
+  }
+ },
+ "ground.road_segment_closed": {
+  "expression": "road_closed",
+  "thresholds": {}
+ },
+ "ground.pedestrian_in_crosswalk": {
+  "expression": "in_crosswalk",
+  "thresholds": {}
+ },
+ "ground.traffic_signal_malfunction_active": {
+  "expression": "controller_health = all_red_fault",
+  "thresholds": {}
+ },
+ "regulation.traffic_signal_applies_to_vehicle": {
+  "expression": "controlling_signal_id is present",
+  "thresholds": {}
+ },
+ "regulation.vehicle_crosses_stop_line_on_red": {
+  "expression": "crossed_stop_line AND controlling_signal_state = red",
+  "thresholds": {}
+ },
+ "regulation.vehicle_exceeds_posted_speed": {
+  "expression": "speed_mps > posted_speed_limit_mps",
+  "thresholds": {}
+ },
+ "regulation.vehicle_violates_right_of_way": {
+  "expression": "right_of_way_state = violation",
+  "thresholds": {}
+ },
+ "regulation.vehicle_violates_following_distance": {
+  "expression": "following_distance_m < following_distance_threshold_m",
+  "thresholds": {
+   "following_distance_threshold_m": 5.0
+  }
+ },
+ "regulation.pedestrian_has_crosswalk_priority": {
+  "expression": "in_crosswalk",
+  "thresholds": {}
+ },
+ "safety.aircraft_pair_below_separation": {
+  "expression": "nearest_aircraft_distance_m < separation_margin_m",
+  "thresholds": {
+   "separation_margin_m": 15.0
+  }
+ },
+ "safety.aircraft_near_building_structure": {
+  "expression": "nearest_building_distance_m < safety_near_structure_m",
+  "thresholds": {
+   "safety_near_structure_m": 15.0
+  }
+ },
+ "safety.aircraft_near_ground_vehicle": {
+  "expression": "nearest_ground_vehicle_distance_m < safety_near_vehicle_m",
+  "thresholds": {
+   "safety_near_vehicle_m": 15.0
+  }
+ },
+ "safety.aircraft_near_pedestrian": {
+  "expression": "nearest_pedestrian_distance_m < safety_near_pedestrian_m",
+  "thresholds": {
+   "safety_near_pedestrian_m": 15.0
+  }
+ },
+ "safety.vehicle_pedestrian_conflict": {
+  "expression": "nearest_pedestrian_distance_m < vehicle_pedestrian_conflict_m",
+  "thresholds": {
+   "vehicle_pedestrian_conflict_m": 5.0
+  }
+ },
+ "safety.crowd_evacuation_active": {
+  "expression": "evacuation_active",
+  "thresholds": {}
+ },
+ "safety.forced_landing_in_populated_area": {
+  "expression": "forced landing occurs within a real typed PopulatedArea",
+  "thresholds": {}
+ },
+ "facility.aircraft_battery_low": {
+  "expression": "state_of_charge_ratio < battery_low_ratio",
+  "thresholds": {
+   "battery_low_ratio": 0.2
+  }
+ },
+ "facility.charging_station_unavailable": {
+  "expression": "availability = unavailable",
+  "thresholds": {}
+ },
+ "facility.charging_queue_over_capacity": {
+  "expression": "requester_count > capacity",
+  "thresholds": {}
+ },
+ "facility.landing_pad_occupied": {
+  "expression": "occupied",
+  "thresholds": {}
+ },
+ "facility.landing_pad_contention": {
+  "expression": "both aircraft are simultaneous requesters for the same landing pad",
+  "thresholds": {}
+ },
+ "positioning.gnss_quality_degraded": {
+  "expression": "quality_level in {degraded, spoofing_suspect}",
+  "thresholds": {}
+ },
+ "positioning.gnss_spoofing_active": {
+  "expression": "the governed SpoofingSignal actively affects the aircraft",
+  "thresholds": {}
+ },
+ "positioning.navigation_error_exceeds_tolerance": {
+  "expression": "position_error_m > gnss_error_tolerance_m",
+  "thresholds": {
+   "gnss_error_tolerance_m": 8.0
+  }
+ },
+ "positioning.aircraft_deviates_from_planned_route": {
+  "expression": "path_deviation",
+  "thresholds": {}
+ },
+ "environment.rain_active": {
+  "expression": "rain > rain_active_threshold",
+  "thresholds": {
+   "rain_active_threshold": 0.0
+  }
+ },
+ "environment.fog_active": {
+  "expression": "fog_density > fog_density_threshold",
+  "thresholds": {
+   "fog_density_threshold": 0.1
+  }
+ },
+ "environment.visibility_below_threshold": {
+  "expression": "visibility_m < visibility_threshold_m",
+  "thresholds": {
+   "visibility_threshold_m": 250.0
+  }
+ },
+ "environment.wind_speed_above_threshold": {
+  "expression": "wind_speed > wind_speed_threshold_mps",
+  "thresholds": {
+   "wind_speed_threshold_mps": 10.0
+  }
+ },
+ "environment.low_illumination_active": {
+  "expression": "illumination_lux < low_illumination_threshold_lux",
+  "thresholds": {
+   "low_illumination_threshold_lux": 400.0
+  }
+ },
+ "environment.temperature_outside_operating_range": {
+  "expression": "temperature_c < temperature_min_c OR temperature_c > temperature_max_c",
+  "thresholds": {
+   "temperature_min_c": 0.0,
+   "temperature_max_c": 45.0
+  }
+ },
+ "security.ground_control_station_compromised": {
+  "expression": "auth_state = compromised",
+  "thresholds": {}
+ },
+ "security.unauthorized_command_received": {
+  "expression": "the aircraft receives a real typed UnauthorizedCommand",
+  "thresholds": {}
+ },
+ "security.communication_jamming_impact_active": {
+  "expression": "jamming_indicator for the exact aircraft-station link is true",
+  "thresholds": {}
+ },
+ "security.security_control_unavailable": {
+  "expression": "a real typed CyberSecurityControl is unavailable",
+  "thresholds": {}
+ },
+ "security.control_command_integrity_violated": {
+  "expression": "integrity is violated on a real typed CommandStream",
+  "thresholds": {}
+ },
+ "emergency.temporary_no_fly_zone_active": {
+  "expression": "any temporary no-fly region is active",
+  "thresholds": {}
+ },
+ "emergency.emergency_isolation_active": {
+  "expression": "emergency_isolation_active",
+  "thresholds": {}
+ },
+ "emergency.evacuation_in_progress": {
+  "expression": "evacuation progresses along a real typed EvacuationRoute",
+  "thresholds": {}
+ },
+ "emergency.emergency_vehicle_priority_active": {
+  "expression": "a real typed AmbulancePriorityPassage response is active",
+  "thresholds": {}
+ },
+ "emergency.aircraft_in_return_to_home": {
+  "expression": "rth_mode_active",
+  "thresholds": {}
+ },
+ "emergency.mission_aborted": {
+  "expression": "mission_abort_active",
+  "thresholds": {}
+ },
+ "emergency.aircraft_in_safe_hold": {
+  "expression": "safe_hold_active",
+  "thresholds": {}
+ },
+ "utm.airspace_authorization_active": {
+  "expression": "authorization.status = active",
+  "thresholds": {}
+ },
+ "utm.airspace_authorization_revoked": {
+  "expression": "authorization.status = revoked",
+  "thresholds": {}
+ },
+ "utm.flight_plan_approved": {
+  "expression": "flight_plan.approval_status = approved",
+  "thresholds": {}
+ },
+ "utm.operational_intent_conflict": {
+  "expression": "operational_intent.conflict_active",
+  "thresholds": {}
+ },
+ "utm.deconfliction_active": {
+  "expression": "deconfliction.resolution_status = active",
+  "thresholds": {}
+ }
+}

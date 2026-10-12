@@ -1,0 +1,116 @@
+{
+  "profile": "X3_pedestrian_fall_to_emergency_response",
+  "seed": "seed02",
+  "episode_id": "X3_pedestrian_fall_to_emergency_response__seed02",
+  "group": "X3_pedestrian_fall_to_emergency_response/seed02/grp_cross_layer",
+  "arm_id": "factual",
+  "mode": "factual_observation",
+  "window": {
+    "start_tick": 210,
+    "fork_tick": 220,
+    "end_tick": 460,
+    "phase": "after_state_sample_before_actions"
+  },
+  "sources": {
+    "scene": "interventions/X3_pedestrian_fall_to_emergency_response/seed02/grp_cross_layer/scene_setup.json",
+    "original_scene": "Dataset/scenarios/X_cross_layer/X3_pedestrian_fall_to_emergency_response/scene_setup.json",
+    "script": "Dataset/scenarios/X_cross_layer/X3_pedestrian_fall_to_emergency_response/event_script.json",
+    "canonical": "aw_data/render_ready_episodes_capture_filtered/X3_pedestrian_fall_to_emergency_response__seed02",
+    "predicate_script": "interventions/X3_pedestrian_fall_to_emergency_response/seed02/grp_cross_layer/factual_event_script.json"
+  },
+  "removed_event_ids": [],
+  "intervention_actions": [
+    {
+      "event_id": "emergency_documented",
+      "trigger_ref": "trig_after_responder_handoff_delay_30",
+      "action": {
+        "type": "set_runtime_state",
+        "action_id": "x3_close_dispatch_after_documentation",
+        "entity_id": "ped_x3_fall",
+        "delay_ticks": 1,
+        "state_patch": {
+          "incident_state": {
+            "dispatch_active": false
+          }
+        }
+      }
+    }
+  ],
+  "definition": {
+    "entrypoint": "scripts/arms/X3_pedestrian_fall_to_emergency_response/seed02/grp_cross_layer/factual.py",
+    "entrypoint_sha256": "e8d13203ae0e558ada5a321f17102cebd299552f8f35da0723088496e88bf6db",
+    "research_question": "跌倒后是否发生发现、派车、抵达和响应记录，派车状态是否正确关闭？",
+    "window_basis": "救护车397到达；445完成响应记录，446关闭派车状态；正式样本450/455/460确认关闭。伤情未恢复，仍保留为截断状态。525开始的无人机返航不属于响应结果。",
+    "parameter_model": {
+      "parameter_changes": false,
+      "motion_model": "沿用源动作分段恒速与ceil(distance/speed*10)整tick计时；不改变速度、航点或语义阈值。",
+      "state_visibility": "先采样后动作；runtime补丁按声明delay_ticks生效。",
+      "recovery_model": "正式步长5，当前recovery_hold_samples=3；first_false_capture+(3-1)*5。",
+      "scope": "窗口推导来自源动作实际完成及状态保持；分支运行后重新验证。"
+    },
+    "branch_changes": {
+      "removed_event_ids": [],
+      "added_event_ids": [],
+      "removed_action_ids": [],
+      "added_action_ids": [
+        "x3_close_dispatch_after_documentation"
+      ],
+      "replaced_action_ids": [],
+      "changed_event_ids": [
+        "emergency_documented"
+      ],
+      "changed_trigger_ids": []
+    }
+  },
+  "gates": {
+    "x_guard_uav_detection": {
+      "trigger_id": "x_guard_uav_detection",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_uav_detection",
+        "x_predecessor_uav_detection"
+      ]
+    },
+    "x_guard_ambulance_arrived": {
+      "trigger_id": "x_guard_ambulance_arrived",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_ambulance_arrived",
+        "x_predecessor_ambulance_arrived"
+      ]
+    }
+  },
+  "scope": {
+    "simulated_entity_ids": [
+      "ped_x3_fall",
+      "uav_x3_detect",
+      "ambulance_x3",
+      "police_tape_x3",
+      "u_inspect_x3_pedestrian_fall_to_emergency_response",
+      "bg_ped_x3_pedestrian_fall_to_emergency_response_02",
+      "bg_ped_x3_pedestrian_fall_to_emergency_response_03",
+      "bg_ped_x3_pedestrian_fall_to_emergency_response_04",
+      "bg_ped_x3_pedestrian_fall_to_emergency_response_05",
+      "bg_ped_x3_pedestrian_fall_to_emergency_response_06",
+      "contract_facility_x3_pedestrian_fall_to_emergency_response_01",
+      "contract_facility_x3_pedestrian_fall_to_emergency_response_02",
+      "uav_observer_x3_pedestrian_fall_to_emergency_response_3",
+      "pad_home_uav_x3_detect",
+      "corridor_x3_pedestrian_fall_to_emergency_response_uav_x3_detect_00",
+      "corridor_x3_pedestrian_fall_to_emergency_response_uav_x3_detect_01",
+      "corridor_x3_pedestrian_fall_to_emergency_response_uav_x3_detect_02",
+      "corridor_x3_pedestrian_fall_to_emergency_response_uav_x3_detect_03",
+      "corridor_x3_pedestrian_fall_to_emergency_response_uav_x3_detect_04",
+      "corridor_x3_pedestrian_fall_to_emergency_response_uav_x3_detect_05"
+    ],
+    "canonical_only_scene_entity_ids": [
+      "bg_vehicle_x3_pedestrian_fall_to_emergency_response_02",
+      "bg_vehicle_x3_pedestrian_fall_to_emergency_response_03"
+    ],
+    "background_policy": "Every canonical truth-frame entity outside the engine roster is retained unchanged. Background vehicles are not simulated or replaced.",
+    "interaction_limit": "Scripted participants, geometry triggers and runtime state are recomputed; no feedback from immutable background traffic is claimed."
+  },
+  "hypothesis": "实际派车、抵达和响应记录完成后关闭派车状态；伤情仍保留，不能宣称治愈。"
+}

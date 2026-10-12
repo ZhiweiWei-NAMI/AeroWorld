@@ -1,0 +1,73 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_entry_path_separated
+group_key: L4-9_v2/seed02/grp_vehicles_enter_intersection
+episode_id: L4-9_v2__seed02
+event_family: l4_intersection_braking_observed
+subject_class: vehicle
+mode: intervention
+entity_ids:
+- car_intersection_l4_9_v2_a
+- car_intersection_l4_9_v2_b
+predicate_ids:
+- l4_business.near_pair
+- l4_business.braking_active
+- l4_business.yielding_active
+- l4_business.braking_stopped
+window:
+  start_tick: 220
+  fork_tick: 230
+  end_tick: 320
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/collision/L4-9_v2/scene_setup.json
+  script: Dataset/scenarios/L4_agents/collision/L4-9_v2/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-9_v2__seed02/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-9_v2__seed02/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-9_v2__seed02/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-9_v2__seed02/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-9_v2__seed02/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-9_v2__seed02/event_outcomes.jsonl
+execution:
+  omit_action_ids:
+  - move_car_a_intersection
+  actions:
+  - tick: 230
+    action:
+      type: move_entity
+      action_id: arm_entry_path_separated_move_car_a
+      entity_id: car_intersection_l4_9_v2_a
+      velocity_mps: 8.0
+      waypoints_enu_m:
+      - [6306.97, 7104.238, 0.0]
+      - [6308.006, 7100.375, 0.0]
+      - [6309.095, 7096.526, 0.0]
+      - [6310.249, 7092.696, 0.0]
+      - [6316.0, 7098.0, 0.0]
+      - [6321.0, 7106.0, 0.0]
+      - [6326.0, 7114.0, 0.0]
+  trigger_rewrites: []
+expected:
+  target_event: absent_in_window
+  rationale: the rewrite targets the geometric proximity that near_pair reads; the separated
+    path shares A's start point and source speed 8.0 m/s from 230 but its first three
+    waypoints are the source prefix (7.9996 m) and the remaining four bend away south-east;
+    the planned polyline keeps >= 19.5203 m from B's source polyline (design-measured 5-tick-sampled
+    minimum 3d distance 29.450 m, above the 6.0 m threshold). Hypothesis near_pair false
+    all window, no onset; no typed braking and no visual braking are written,
+    braking_active / yielding_active / braking_stopped false all window.
+  falsified_if: near_pair turns true inside the window, or the intervention move's measured
+    displacement fails to leave the conflict corridor, or the pre-fork prefix differs
+    from factual.
+script: scripts/arms/L4-9_v2/seed02/grp_vehicles_enter_intersection/arm_entry_path_separated.py
+output: arms/L4-9_v2/seed02/grp_vehicles_enter_intersection/arm_entry_path_separated
+provenance:
+  experiment_ref: design/L4-9_v2/seed02/grp_vehicles_enter_intersection/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    omitted_action_id: move_car_a_intersection inside vehicles_enter_intersection of
+      Dataset/scenarios/L4_agents/collision/L4-9_v2/event_script.json
+    separated_route: design/L4-9_v2/seed02/grp_vehicles_enter_intersection/experiment.json#parameter_sources.per_value_sources.arm_entry_path_separated
+      route (route_length_m 38.6911, prefix_from_source_m 7.9996, polyline_min_distance_to_source_b_m
+      19.5203)

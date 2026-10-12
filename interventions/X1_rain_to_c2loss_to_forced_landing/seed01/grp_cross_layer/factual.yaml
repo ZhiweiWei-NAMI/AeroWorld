@@ -1,0 +1,93 @@
+{
+  "profile": "X1_rain_to_c2loss_to_forced_landing",
+  "seed": "seed01",
+  "episode_id": "X1_rain_to_c2loss_to_forced_landing__seed01",
+  "group": "X1_rain_to_c2loss_to_forced_landing/seed01/grp_cross_layer",
+  "arm_id": "factual",
+  "mode": "factual_observation",
+  "window": {
+    "start_tick": 170,
+    "fork_tick": 180,
+    "end_tick": 635,
+    "phase": "after_state_sample_before_actions"
+  },
+  "sources": {
+    "scene": "interventions/X1_rain_to_c2loss_to_forced_landing/seed01/grp_cross_layer/scene_setup.json",
+    "original_scene": "Dataset/scenarios/X_cross_layer/X1_rain_to_c2loss_to_forced_landing/scene_setup.json",
+    "script": "Dataset/scenarios/X_cross_layer/X1_rain_to_c2loss_to_forced_landing/event_script.json",
+    "canonical": "aw_data/render_ready_episodes_capture_filtered/X1_rain_to_c2loss_to_forced_landing__seed01",
+    "predicate_script": "interventions/X1_rain_to_c2loss_to_forced_landing/seed01/grp_cross_layer/factual_event_script.json"
+  },
+  "removed_event_ids": [],
+  "intervention_actions": [],
+  "definition": {
+    "entrypoint": "scripts/arms/X1_rain_to_c2loss_to_forced_landing/seed01/grp_cross_layer/factual.py",
+    "entrypoint_sha256": "75b28596322d363646d8c52b957bb09ee60804a4b0bd8fc6f5fe82f89c237a22",
+    "research_question": "降雨及通信失效是否引起安全保持、迫降和人群避让？",
+    "window_basis": "迫降及人群避让最后到达分别为621和608；最后运动停止的正式样本625，连续三样本至635。保留迫降本身，不扩大到普通飞行生命周期。",
+    "parameter_model": {
+      "parameter_changes": false,
+      "motion_model": "沿用源动作分段恒速与ceil(distance/speed*10)整tick计时；不改变速度、航点或语义阈值。",
+      "state_visibility": "先采样后动作；runtime补丁按声明delay_ticks生效。",
+      "recovery_model": "正式步长5，当前recovery_hold_samples=3；first_false_capture+(3-1)*5。",
+      "scope": "窗口推导来自源动作实际完成及状态保持；分支运行后重新验证。"
+    },
+    "branch_changes": {
+      "removed_event_ids": [],
+      "added_event_ids": [],
+      "removed_action_ids": [],
+      "added_action_ids": [],
+      "replaced_action_ids": [],
+      "changed_event_ids": [],
+      "changed_trigger_ids": []
+    }
+  },
+  "gates": {
+    "x_guard_crowd_reacts_to_landing": {
+      "trigger_id": "x_guard_crowd_reacts_to_landing",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_crowd_reacts_to_landing",
+        "x_predecessor_crowd_reacts_to_landing"
+      ]
+    }
+  },
+  "scope": {
+    "simulated_entity_ids": [
+      "tower_x1_c2",
+      "uav_x1_forced_landing",
+      "ped_x1_crowd_x1_08",
+      "ped_x1_crowd_x1_00",
+      "ped_x1_crowd_x1_01",
+      "ped_x1_crowd_x1_02",
+      "ped_x1_crowd_x1_03",
+      "ped_x1_crowd_x1_04",
+      "ped_x1_crowd_x1_05",
+      "ped_x1_crowd_x1_06",
+      "ped_x1_crowd_x1_07",
+      "u_inspect_x1_rain_to_c2loss_to_forced_landing",
+      "bg_ped_x1_rain_to_c2loss_to_forced_landing_10",
+      "contract_facility_x1_rain_to_c2loss_to_forced_landing_02",
+      "contract_facility_x1_rain_to_c2loss_to_forced_landing_03",
+      "uav_observer_x1_rain_to_c2loss_to_forced_landing_3",
+      "pad_home_uav_x1_forced_landing",
+      "corridor_x1_rain_to_c2loss_to_forced_landing_uav_x1_forced_landing_00",
+      "corridor_x1_rain_to_c2loss_to_forced_landing_uav_x1_forced_landing_01",
+      "corridor_x1_rain_to_c2loss_to_forced_landing_uav_x1_forced_landing_02",
+      "corridor_x1_rain_to_c2loss_to_forced_landing_uav_x1_forced_landing_03",
+      "corridor_x1_rain_to_c2loss_to_forced_landing_uav_x1_forced_landing_04",
+      "corridor_x1_rain_to_c2loss_to_forced_landing_uav_x1_forced_landing_05",
+      "corridor_x1_rain_to_c2loss_to_forced_landing_uav_x1_forced_landing_06",
+      "corridor_x1_rain_to_c2loss_to_forced_landing_uav_x1_forced_landing_07"
+    ],
+    "canonical_only_scene_entity_ids": [
+      "bg_vehicle_x1_rain_to_c2loss_to_forced_landing_01",
+      "bg_vehicle_x1_rain_to_c2loss_to_forced_landing_02",
+      "bg_vehicle_x1_rain_to_c2loss_to_forced_landing_03"
+    ],
+    "background_policy": "Every canonical truth-frame entity outside the engine roster is retained unchanged. Background vehicles are not simulated or replaced.",
+    "interaction_limit": "Scripted participants, geometry triggers and runtime state are recomputed; no feedback from immutable background traffic is claimed."
+  },
+  "hypothesis": "降雨后失联、迫降与人群避让实际发生；恢复链路不等于天气恢复。"
+}

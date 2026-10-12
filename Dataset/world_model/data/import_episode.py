@@ -15,6 +15,7 @@ Imported streams (episode L4-1_v1__seed00 engineering pilot):
 """
 from __future__ import annotations
 
+from Dataset.semantic_truth.provenance import open_artifact_text
 import json
 from collections import Counter
 from dataclasses import dataclass, field as dc_field
@@ -169,7 +170,8 @@ class CanonicalEpisode:
 
 
 def _open_lines(path: Path) -> tuple[list[str], int]:
-    text = path.read_text(encoding="utf-8")
+    with open_artifact_text(path) as stream:
+        text = stream.read()
     lines = text.splitlines()
     return lines, len(lines)
 

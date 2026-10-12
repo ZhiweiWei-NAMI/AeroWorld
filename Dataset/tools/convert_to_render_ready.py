@@ -3522,11 +3522,11 @@ def road_derived_sumo_vehicle_yaw_deg(
     vehicle_lane_projector: VehicleLaneProjector,
 ) -> float:
     del position_enu_m, vehicle_lane_projector
-    velocity = normalize_vector3(vehicle.get("velocity_enu_mps"))
     # SUMO truth exports vehicle body center position and the body-center lane
     # tangent yaw.  Reprojecting yaw from traffic-bundle samples here can rotate
     # vehicles differently from the overlap guard and from SUMO truth itself.
-    return float(vehicle.get("truth_yaw_deg") or heading_deg_from_velocity(velocity))
+    # truth_yaw_deg is a required SUMO field; 0.0 is a valid heading.
+    return float(vehicle["truth_yaw_deg"])
 
 
 def source_vehicle_truth_position(position: Sequence[float]) -> list[float]:

@@ -1,0 +1,51 @@
+schema_version: 1
+release:
+  suite_version: "0.3.0"
+  status: current
+  scope: objective_semantic_ontology
+  ontology_iri: "https://w3id.org/aeroworld/ontology/core"
+  version_iri: "https://w3id.org/aeroworld/ontology/core/0.3.0"
+  core_version: "0.3.0"
+  world_core_version: "0.3.0"
+  ontology_module_policy: stable_domain_modules
+  stable_domain_module_count: 12
+  stable_modules:
+    - airspace_operations
+    - ground_mobility
+    - mobility_regulation
+    - agent_interaction_safety
+    - facility_energy_service
+    - communication_process
+    - computation_process
+    - positioning_navigation
+    - environment_hazard
+    - digital_security
+    - operational_constraint_emergency
+    - utm
+  predicate_execution_partition:
+    declared: 79
+    executable_l1: 72
+    non_executable: 7
+  event_family_execution_partition:
+    declared: 32
+    executable: 22
+    non_executable: 10
+    registered_event_rules: 26
+  tbox_counts:
+    predicate_types: 79
+    event_types: 64
+  semantic_artifacts:
+    files:
+      - core.ttl
+      - core.shacl.ttl
+    triple_counts:
+      core.ttl: 742
+      core.shacl.ttl: 602
+    builder: Dataset/tools/build_semantic_ontologies.py
+    domain_catalog: Dataset/knowledge_graph/domain/catalog.yaml
+    event_catalog: Dataset/knowledge_graph/events/catalog.yaml
+    domain_release_manifest: Dataset/knowledge_graph/domain/release-manifest.yaml
+    episode_selection_manifest: Dataset/knowledge_graph/profiles/ontology_selection_manifest.json
+  validation:
+    predicate_registry: Dataset/tools/build_predicate_registry.py
+    event_contracts: Dataset/tools/build_event_contracts.py

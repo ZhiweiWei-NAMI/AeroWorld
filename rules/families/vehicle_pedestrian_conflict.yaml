@@ -1,0 +1,223 @@
+# ARM 生成规则 —— vehicle_pedestrian_conflict
+#
+# 命名约束：本文件名 vehicle_pedestrian_conflict.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 写定本规则时的机器实测基线（全部来自当前工作树）：
+#   arms/ 里 event_family_id == vehicle_pedestrian_conflict 的臂   564 条 / 84 个 group
+#   design/episodes/*/groups/*/group_manifest.json                 84 个族内 group
+#   raw/branch_manifest.json 带 *_authority 字段的臂                0 条 → agent_caused
+#
+# 本族的特殊处：干预对象是**地面车辆**，一半的替代臂通过 SUMO 命令实现。
+#   命名要分清两层：
+#     · 设计层（design/episodes/*/groups/*/arm_*.json）机制步写 action_types=["sumo_command"]
+#     · 物化层（arms/.../raw/event_realization.jsonl）动作 id 为 motion_grounded_N_sumo，
+#       其真实 action_type = **set_runtime_state**（state_families=["control_state"]），
+#       即落在 rules/README.md §8.4 的 generator 闭集之内。
+#   本规则按物化层的 action_type 声明 mechanism.generator。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: vehicle_pedestrian_conflict
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/vehicle_pedestrian_conflict
+  rule_id: event_family.vehicle_pedestrian_conflict.0
+  mapping_class: A_direct
+  event_type_id: safety.pedestrian_vehicle_conflict_event
+  trigger:
+    predicate_id: safety.vehicle_pedestrian_conflict
+    direction: rising
+  roles:
+    pedestrian: { kind: trigger_binding, ontology_class: Pedestrian }
+    vehicle:    { kind: trigger_binding, ontology_class: GroundVehicle }
+  support_conditions: []          # 权威侧本族没有支撑条件
+  terminal:
+    predicate_id: safety.vehicle_pedestrian_conflict
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [pedestrian, vehicle]
+  # 复查用（同族权威谓词，已在 registry 注册）：ground.vehicle_stopped_in_lane
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 这条族的干预对象是地面车辆（制动、避让、限速、让行），行人一侧是冲突对手方
+  intervention_subject: vehicle
+  # 判定证据（本会话实测）：
+  #   · 564 条臂的 raw/branch_manifest.json 无任何 *_authority 字段
+  #     （全库唯一带该字段的族是 rain_fog_environment，627 条，值为 scene_exogenous_*）
+  #   · 564 条 branch_event_ledger.jsonl 的 status 全为 applied，
+  #     repairs 只有 delay 重定时，没有 design_intent_conflict_* / *_exogenous_*
+  #   · 权威侧的语义是"车辆制动 + 行人退让"，是智能体响应，不是环境自变
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node
+  exclude_roles: [terminal]
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    臂名映射（rules/intents.yaml 的 arm_id_patterns + 本族实测计数）：
+#      suppress ← arm_no_op_suppress(84) / arm_hold_pair(60)
+#      delay    ← arm_delay_postpone(84)
+#      divert   ← arm_avoid_*(84) / arm_divert_lateral(84)
+#      tradeoff ← arm_tradeoff_*(84)
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：84 条 factual 台账 operation=reuse_factual_causal_event、factual_preserved=true、
+    #   generated_action_ids=[]
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger
+    # 实测：144 条 suppress 臂（arm_no_op_hold 84 + arm_hold_pair 60）的台账带
+    #   suppression_scope=whole_event_bundle_and_branch_ledger；
+    #   被抑制 bundle 规模实测 2~7（2:42 3:18 4:18 5:18 6:24 7:24）
+    #   arm_hold_pair 变体额外带 coupled_hold，把冲突车辆保持住
+    #   （例：L4-10_v1/seed00/grp_00_civilian_priority_lane_entry/arm_hold_pair 的
+    #     coupled_hold.entity_ids=[civilian_yield_l4_10_v1]，action_count=2）
+    #   抑制本身不产生 generated_action_ids
+
+  delay:
+    operation: delay_causal_event
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: rule
+        min: 10
+        max: 60
+        default: 30
+    # 实测：84 条 delay 臂的台账 delay_ticks 全部为 30（design 层同样是 postpone +30）；
+    #   repairs：delay_applied_to_authored_tick_trigger(42) /
+    #   delay_applied_to_authored_event_relative_trigger(24) /
+    #   delay_applied_after_measured_parent_dispatch(18)
+    #   delay_mechanism_evidence.action_type 实测全部为 sumo_command、actor 为冲突车辆
+    #   （即被推迟的事件动作本身就是 SUMO 命令；推迟写在事件脚本层，不产生干预动作）
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.vehicle
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: lateral_standoff_or_curb_pull    # 侧向让开/靠边停车点，从场景解析
+      physics_intent: lateral_standoff
+    # 实测：arm_divert_lateral 84/84 物化为 motion_grounded_0_move
+    #   （event_realization.jsonl → action_type=move_entity，actor 为冲突车辆，
+    #    例 civilian_yield_l4_10_v1，global_entity_roster 里 category=vehicle）——本段声明的就是这 84 条。
+    # TODO: 需确认 —— 同一 intent 的另一半 arm_avoid_*(84) 物化为 motion_grounded_0_sumo，
+    #   其真实 action_type 是 set_runtime_state（state_families=["control_state"]），
+    #   设计层机制步写的是 action_types=["sumo_command"]（generator_id 实测
+    #    generator::emergency_stop_before_crosswalk(24) / pull_to_curb_safe_stop(24) /
+    #    civilian_pull_to_shoulder(24) / emergency_stop_before_intersection(12)，
+    #   载荷 decel_mps2 / target_speed_mps / stop_distance_m / lane / hazard_lights）。
+    #   即本 intent 的 168 条臂里 84 条是 move_entity、84 条是 set_runtime_state，
+    #   一段 mechanism 只能声明一种；生成器需要按臂名（arm_divert_* vs arm_avoid_*）分流，
+    #   或把两类动作合并进模板。这里登记默认值 move_entity，另一条路径的完整性由
+    #   arms.tradeoff 的 set_runtime_state 声明覆盖。
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: set_runtime_state
+      actor: roles.vehicle
+      template:
+        - step_kind: state_patch
+          state_patch:
+            target_speed_mps: 2.0       # 蠕行通过，事件仍可发生，只改代价结构
+            hazard_flashers: true
+      physics_intent: creeping_yield
+    # 实测：arm_tradeoff_* 84/84 物化为 motion_grounded_0_sumo，其真实
+    #   action_type = set_runtime_state（event_realization.jsonl → state_families=["control_state"]，
+    #   actor 为冲突车辆），与本段声明一致；
+    #   design 层生成器：generator::creeping_crossing_at_2mps(60) / generator::creeping_lane_clearance(24)，
+    #   设计载荷 target_speed_mps=2.0 / decel_mps2 / duration_ticks / hazard_flashers，
+    #   即"降速蠕行通过"＝对车辆 actor 的运行状态改写，
+    #   与 rules/intents.yaml 对 tradeoff 的定义（不消除事件、改变代价结构）一致。
+    # TODO: 需确认 —— 设计层机制步把这类动作写成 action_types=["sumo_command"]，
+    #   与物化层的 set_runtime_state 不同名；两套命名需要统一，否则规则按哪一层读会不一致。
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick
+  duration_ticks:
+    source: design_declared
+  history_frames: 8
+  horizon_frames: 5
+  # 实测补充：
+  #   · 物化窗口还会被干预运动延长（window_end_basis.modeled_motion[].required_end_tick），
+  #     本族实测窗口长度 50~305 tick。
+  #   · 例外：18 条臂（L4-10_v2/grp_02_ambulance_priority_lane_entry）实测 fork_tick 比
+  #     原始 trigger tick 晚 2~4 tick（50 vs 48、135 vs 131）——生成器需显式处理这个偏差，
+  #     不能默默按 fork_tick 当触发 tick。
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— rubric，不是结论
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测：84 条 factual 臂里只有 24 条窗口内 observed，60 条 not_observed。
+    #   本族多数组的锚点事件在窗口内本就没发生，这些组必须判 not_intervenable。
+
+  suppress:
+    target_event: absent_in_window
+    # 实测：arm_no_op_hold 69/84 not_observed，arm_hold_pair 57/60 not_observed
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+    # 实测：24 个可配对组里 6 组 shift=30（= 台账 delay_ticks）、3 组 shift=45、15 组 shift=0。
+    #   shift=0 的组属延迟未兑现，判 ineffective；判定网格为 5 tick（capture_grid_step=5）。
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 实测：arm_avoid_* 69/84 not_observed；arm_divert_lateral 66/84 not_observed
+
+  tradeoff:
+    differs_from_factual: true
+    # 实测：arm_trade_off 69/84 not_observed、15 observed（蠕行通过，事件仍可能发生）
+
+  common:
+    intervention_must_change_engine_state: true
+    physically_valid: true
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 诚实边界
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "同一 divert 意图内部机制不一致：arm_divert_lateral(84) 物化为 move_entity，
+       arm_avoid_*(84) 物化为 motion_grounded_*_sumo（真实 action_type=set_runtime_state）。
+       规则一段 mechanism 只能声明一种，生成器必须按臂名分流"
+    - "设计层机制步 action_types=[sumo_command] 与物化层 action_type=set_runtime_state 命名不一致，
+       读规则的一方若按设计层取值会落空"
+    - "18 条臂 fork_tick 与原始 trigger tick 相差 2~4 tick，窗口切点需按实际 fork_tick 记录"
+    - "factual 里锚点事件本就没发生的组（实测 60/84）只能判 not_intervenable"
+  not_claimed:
+    - G10 整库发布审计（不在本规则范围内）

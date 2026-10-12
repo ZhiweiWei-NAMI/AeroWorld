@@ -1,0 +1,371 @@
+@prefix aw: <https://w3id.org/aeroworld/ontology/core#> .
+@prefix world: <https://w3id.org/aeroworld/ontology/world#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+@prefix dom: <https://w3id.org/aeroworld/ontology/domain/computation_process#> .
+@prefix shape: <https://w3id.org/aeroworld/ontology/domain/computation_process/shapes#> .
+
+<https://w3id.org/aeroworld/ontology/domain/computation_process/shapes>
+    a owl:Ontology ;
+    owl:imports <https://w3id.org/aeroworld/ontology/domain/computation_process> ;
+    owl:versionInfo "0.3.0" .
+
+shape:PredicateSignatureShape
+    a sh:NodeShape ;
+    sh:targetClass aw:PredicateType ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:predicateIdentifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:class aw:ArgumentRole ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:message "One predicate cannot declare duplicate argument-role keys."@en ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this aw:declaresArgumentRole ?left, ?right .
+                ?left aw:argumentRoleKey ?key .
+                ?right aw:argumentRoleKey ?key .
+                FILTER (?left != ?right)
+            }
+        """
+    ] .
+
+shape:ArgumentRoleShape
+    a sh:NodeShape ;
+    sh:targetObjectsOf aw:declaresArgumentRole ;
+    sh:closed true ;
+    sh:ignoredProperties ( rdf:type ) ;
+    sh:property [
+        sh:path aw:argumentRoleKey ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:argumentClass ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1
+    ] .
+
+shape:DomainClassShape
+    a sh:NodeShape ;
+    sh:targetSubjectsOf rdfs:subClassOf ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] .
+
+shape:DomainRelationShape
+    a sh:NodeShape ;
+    sh:targetClass owl:ObjectProperty ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] .
+
+shape:StateDatatypePropertyShape
+    a sh:NodeShape ;
+    sh:targetSubjectsOf world:stateFieldCategory ;
+    sh:property [
+        sh:path rdf:type ;
+        sh:hasValue owl:DatatypeProperty
+    ] ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 2 ;
+        sh:uniqueLang true
+    ] ;
+    sh:property [
+        sh:path world:unitSymbol ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path world:stateFieldCategory ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .
+
+shape:taskAssignedToNodeExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:taskAssignedToNode ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:ComputeTask
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeNode
+    ] .
+
+shape:taskConsumesResourceExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:taskConsumesResource ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:ComputeTask
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ProcessorResource
+    ] .
+
+shape:allocationUsesMemoryExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:allocationUsesMemory ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:ResourceAllocation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:MemoryResource
+    ] .
+
+shape:executionRunsTaskExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:executionRunsTask ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:TaskExecution
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeTask
+    ] .
+
+shape:executionRunsOnNodeExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:executionRunsOnNode ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:TaskExecution
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeNode
+    ] .
+
+shape:taskQueuedInQueueExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:taskQueuedInQueue ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:ComputeTask
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeQueue
+    ] .
+
+shape:queueServedByNodeExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:queueServedByNode ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:ComputeQueue
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeNode
+    ] .
+
+shape:allocationAssignedToTaskExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:allocationAssignedToTask ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:ResourceAllocation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeTask
+    ] .
+
+shape:allocationAssignedToNodeExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:allocationAssignedToNode ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:ResourceAllocation
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeNode
+    ] .
+
+shape:offloadMovesTaskExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:offloadMovesTask ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:TaskOffload
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeTask
+    ] .
+
+shape:offloadSourceNodeExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:offloadSourceNode ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:TaskOffload
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeNode
+    ] .
+
+shape:offloadTargetNodeExactDomainRangeShape
+    a sh:NodeShape ;
+    sh:targetNode dom:offloadTargetNode ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:hasValue dom:TaskOffload
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:hasValue dom:ComputeNode
+    ] .
+
+shape:ComputeNodeUnavailableExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:ComputeNodeUnavailable ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:ComputeNodeUnavailableArgument_node )
+    ] .
+
+shape:ComputeTaskQueuedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:ComputeTaskQueued ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 2 ;
+        sh:maxCount 2 ;
+        sh:in ( dom:ComputeTaskQueuedArgument_task dom:ComputeTaskQueuedArgument_queue )
+    ] .
+
+shape:ComputeResourceOverAllocatedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:ComputeResourceOverAllocated ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:ComputeResourceOverAllocatedArgument_node )
+    ] .
+
+shape:ComputeTaskOffloadedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:ComputeTaskOffloaded ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:ComputeTaskOffloadedArgument_task )
+    ] .
+
+shape:ComputeTaskMigratingExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:ComputeTaskMigrating ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:ComputeTaskMigratingArgument_task )
+    ] .
+
+shape:ComputeTaskExecutionFailedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:ComputeTaskExecutionFailed ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:ComputeTaskExecutionFailedArgument_task )
+    ] .
+
+shape:ComputeTaskDeadlineMissedExactArgumentRolesShape
+    a sh:NodeShape ;
+    sh:targetNode dom:ComputeTaskDeadlineMissed ;
+    sh:property [
+        sh:path aw:declaresArgumentRole ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( dom:ComputeTaskDeadlineMissedArgument_task )
+    ] .

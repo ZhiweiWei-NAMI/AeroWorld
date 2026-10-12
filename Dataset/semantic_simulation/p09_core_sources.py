@@ -23,8 +23,9 @@ GAP_CLASSES = {"source_unrecorded", "not_applicable", "wiring_missing",
 
 
 def json_rows(path: Path) -> Iterable[dict[str, Any]]:
-    opener = gzip.open if path.suffix == ".gz" else open
-    with opener(path, "rt", encoding="utf-8") as stream:
+    from Dataset.semantic_truth.provenance import open_artifact_text
+    reader = gzip.open(path, "rt", encoding="utf-8") if path.suffix == ".gz" else open_artifact_text(path)
+    with reader as stream:
         for line in stream:
             if line.strip():
                 yield json.loads(line)

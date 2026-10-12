@@ -1,0 +1,81 @@
+schema: aeroworld_l4_window_config
+version: 1
+group_key: L4-8_v2/seed01/grp_evacuation_triggered
+episode_id: L4-8_v2__seed01
+event_family: crowd_evacuation
+subject_class: pedestrian
+entity_ids:
+- ped_evac_l4_8_v2_00
+- ped_evac_l4_8_v2_01
+- ped_evac_l4_8_v2_02
+- ped_evac_l4_8_v2_03
+- ped_evac_l4_8_v2_04
+- ped_evac_l4_8_v2_05
+- ped_evac_l4_8_v2_06
+- ped_evac_l4_8_v2_07
+predicate_ids:
+- safety.crowd_evacuation_active
+window:
+  start_tick: 210
+  fork_tick: 220
+  end_tick: 640
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/interaction/L4-8_v2/scene_setup.json
+  script: Dataset/scenarios/L4_agents/interaction/L4-8_v2/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-8_v2__seed01/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-8_v2__seed01/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-8_v2__seed01/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-8_v2__seed01/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-8_v2__seed01/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-8_v2__seed01/event_outcomes.jsonl
+arm_id: arm_command_state_withheld
+mode: intervention
+execution:
+  omit_action_ids:
+  - move_crowd_evacuation_00
+  - move_crowd_evacuation_01
+  - move_crowd_evacuation_02
+  - move_crowd_evacuation_03
+  - move_crowd_evacuation_04
+  - move_crowd_evacuation_05
+  - move_crowd_evacuation_06
+  - move_crowd_evacuation_07
+  - set_runtime_state_l4_8_v2_evacuation_triggered_00
+  - set_runtime_state_l4_8_v2_evacuation_triggered_01
+  - set_runtime_state_l4_8_v2_evacuation_triggered_02
+  - set_runtime_state_l4_8_v2_evacuation_triggered_03
+  - set_runtime_state_l4_8_v2_evacuation_triggered_04
+  - set_runtime_state_l4_8_v2_evacuation_triggered_05
+  - set_runtime_state_l4_8_v2_evacuation_triggered_06
+  - set_runtime_state_l4_8_v2_evacuation_triggered_07
+  - capture_crowd_safe_zone
+  - set_runtime_state_l4_8_v2_crowd_safe_zone_reached_00
+  - set_runtime_state_l4_8_v2_crowd_safe_zone_reached_01
+  - set_runtime_state_l4_8_v2_crowd_safe_zone_reached_02
+  - set_runtime_state_l4_8_v2_crowd_safe_zone_reached_03
+  - set_runtime_state_l4_8_v2_crowd_safe_zone_reached_04
+  - set_runtime_state_l4_8_v2_crowd_safe_zone_reached_05
+  - set_runtime_state_l4_8_v2_crowd_safe_zone_reached_06
+  - set_runtime_state_l4_8_v2_crowd_safe_zone_reached_07
+  - capture_crowd_safe_hold
+  actions: []
+  trigger_rewrites: []
+expected:
+  target_event: absent_in_window
+  rationale: the eight activation patches and eight evacuation moves are cancelled, so all eight pedestrians
+    remain standing with evacuation_active=false and zero displacement. The ungrounded safe-zone state patches
+    and completion screenshots are also cancelled, while the UAV monitoring move and capture remain.
+  falsified_if: any pedestrian becomes evacuation_active or moves after the fork, any configured omission is
+    not applied, or the retained UAV monitoring actions do not execute.
+script: scripts/arms/L4-8_v2/seed01/grp_evacuation_triggered/arm_command_state_withheld.py
+output: arms/L4-8_v2/seed01/grp_evacuation_triggered/arm_command_state_withheld
+provenance:
+  experiment_ref: design/L4-8_v2/seed01/grp_evacuation_triggered/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    source_script: Dataset/scenarios/L4_agents/interaction/L4-8_v2/event_script.json
+    omitted_action_ids: the eight evacuation moves and eight activation patches inside evacuation_triggered,
+      the safe-zone screenshot and eight false-state patches inside crowd_safe_zone_reached, and the safe-hold
+      screenshot; UAV monitoring and landing actions remain

@@ -1,0 +1,304 @@
+# ARM 生成规则 —— uav_vehicle_conflict
+#
+# 命名约束：本文件名 uav_vehicle_conflict.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 本族实测规模：72 条臂 / 2 个 group × 2 profile（L4-4_v1 / L4-4_v2）× 3 seed。
+#   grp_01_crossing_trajectories：7 类臂 × 6 = 42
+#   grp_02_vehicle_roof_contact ：5 类臂 × 6 = 30
+# 真实臂**覆盖全部 5 类意图**：factual / suppress / delay / divert / tradeoff。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: uav_vehicle_conflict
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    真实来源 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里只登记“指针 + 关键字段快照”，快照仅用于生成期自检，改定义请改源头。
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/uav_vehicle_conflict
+  rule_id: event_family.uav_vehicle_conflict.0    # 与臂 objective/manifest.json 的 rule_id 逐字一致
+  mapping_class: B_composite                      # 复合：两个角色共同绑定同一谓词
+  event_type_id: safety.aircraft_ground_vehicle_conflict_event
+  trigger:
+    predicate_id: safety.aircraft_near_ground_vehicle
+    direction: rising
+  roles:
+    aircraft:
+      kind: trigger_binding
+      ontology_class: UnmannedAircraft
+      predicate_role: aircraft
+      background_allowed: false
+    vehicle:
+      kind: trigger_binding
+      ontology_class: GroundVehicle
+      predicate_role: vehicle
+      background_allowed: false
+  support_conditions:
+    - predicate_id: airspace.aircraft_airborne
+      value: "true"
+      at: after
+      hold_samples: 2
+      join_roles: [aircraft]
+  terminal:
+    predicate_id: safety.aircraft_near_ground_vehicle
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [aircraft, vehicle]
+  authoritative_predicates:                      # 快照；权威在 registry
+    - safety.aircraft_near_ground_vehicle
+    - airspace.aircraft_airborne
+    - ground.vehicle_stopped_in_lane
+  # 场景侧 authored 触发（Dataset/scenarios/L4_agents/collision/L4-4_v1/event_script.json）：
+  #   trig_crossing_trajectories  : type=tick, tick=240
+  #   trig_vehicle_roof_contact   : type=entity_proximity,
+  #                                 {metric: 3d, operator: lte, distance_m: 3.0,
+  #                                  entity_a: uav_falls_vehicle_l4_4_v*, entity_b: car_under_uav_l4_4_v*}
+  #   trig_after_vehicle_roof_contact_delay_80 : type=event_fired_after, delay_ticks=80
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  intervention_subject: aircraft_and_ground_vehicle   # 两个 trigger_binding 角色都是干预对象
+  # 判定证据（本会话实测，非推断）：
+  #   1) registry 里 mapping_class = B_composite。**B_composite 不是外生判据**：全库 6 个
+  #      B_composite 族里 5 个都有真实干预臂（本族 72 条即其一）；
+  #   2) 72/72 条臂的 raw/branch_manifest.json **没有** *_authority 字段。
+  #      全库 7,662 条臂扫描结果：只有 rain_fog_environment 带 rain_fog_authority =
+  #      scene_exogenous_weather_transition → 本族不是场景权威外生；
+  #   3) 72/72 条臂台账 status=applied、repairs 全部为 []，
+  #      没有任何 design_intent_conflict_exogenous_* 记录；
+  #   4) 2 个 group 上都真实生成了 suppress / delay / replace 三类干预臂。
+  # 实测干预实体（72 条臂 intervention_entity_ids 的并集）：
+  #   uav_falls_vehicle_l4_4_v1 / _v2    下落的无人机（aircraft 角色）
+  #   car_under_uav_l4_4_v1    / _v2     冲突车辆（vehicle 角色）
+  # 关键澄清：两个角色都是 trigger_binding，**都被真实干预过**
+  #   （avoid 只动车、divert 车与机都动、tradeoff 只动车、suppress 两者都 hold）。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # 实测锚点（raw/branch_manifest.json 的 group_id 与 fork_tick）：
+  #   grp_01_crossing_trajectories (fork 240，两个 profile 相同) → 锚点事件 crossing_trajectories
+  #   grp_02_vehicle_roof_contact  (fork 320 @L4-4_v1 / 315 @L4-4_v2) → 锚点事件 vehicle_roof_contact
+  # anchor_event_id 由事件链给出，不在此硬编码。
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图（全覆盖）
+#    operation 只能取已注册 4 值之一；键名是**意图**不是 arm_id。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：arm_factual × 12，台账 operation=reuse_factual_causal_event、
+    #       factual_preserved=true、suppressed_event_ids=[]、generated_action_ids=[]
+    #       grp_01：rising_tick=295（fork 240）；grp_02：fork 时已成立（315/320，无 rising）。
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 逐字一致
+    suppression_basis: authored_trigger_and_causal_predecessor_closure
+    # 实测两种形态（18 条 suppress 臂，二者 suppressed_event_ids 完全相同）：
+    variants:
+      - arm_id_pattern: arm_no_op_suppress   # arm_kind: no_op_hold  × 12（grp_01 6 + grp_02 6）
+        coupled_hold_injected: false         # 只有台账闭包，不注入延续事件
+      - arm_id_pattern: arm_hold_pair        # arm_kind: hold_pair    × 6（仅 grp_01）
+        coupled_hold_injected: true          # 闭包 + branch_coupled_hold_* 延续事件
+    coupled_hold:
+      applies_when: arm_kind == hold_pair
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.aircraft       # 先写被干预主体，耦合伙伴随后
+        partner_actor: roles.vehicle
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+      # 实测 coupled_hold.entity_ids = ('car_under_uav_l4_4_v{1,2}','uav_falls_vehicle_l4_4_v{1,2}')
+      #   action_count = 4（两个实体各 2 条：state_patch + 渲染层标注）
+    suppressed_event_ids_observed:       # 快照；2 组的并集
+      - crossing_trajectories
+      - vehicle_roof_contact
+      - lifecycle_landing_uav_falls_vehicle_l4_4_v1
+      - lifecycle_landing_uav_falls_vehicle_l4_4_v2
+    # 抑制的实现形态（实测 raw/event_script.json，两种触发各有一套写法）：
+    #   tick 触发（trig_crossing_trajectories, tick 240）→ 改写到 tick 901；
+    #   entity_proximity 触发（trig_vehicle_roof_contact）→ **整条替换成 tick 901 的 tick 触发**，
+    #     即“距离 ≤ 3 m”这个条件被抹掉，永远不会成立。
+    # 18 条 suppress 臂的 original_anchor_trigger.type 实测 tick × 12、entity_proximity × 6。
+
+  delay:
+    operation: delay_causal_event
+    mechanism: none                    # 只重定时触发，不派发新动作
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: rule                # rule | governed_default | scene
+        min: 30
+        max: 30
+        default: 30
+        # 实测：本族只有 arm_delay_postpone × 6（仅 grp_01），delay_ticks 恒为 30。
+        #       grp_02 没有 delay 臂。
+    repairs_observed: []               # 实测 6/6 条 repairs=[]（锚点是 tick 触发，无需改写修复）
+    # 实测：6/6 条 delay 臂 generated_action_ids=[]、delay_mechanism_evidence 缺失（无实体动作），
+    #       事件脚本里 trig_crossing_trajectories 由 tick 240 改写成 tick 270（= 240 + 30）。
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: anchor_authored_action_actor   # 实测：车（必动）+ 机（divert 时也动）
+      actor_role_binding: [roles.vehicle, roles.aircraft]
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: vertical_altitude_split   # 从场景解析“垂直分层错开”的落点
+          velocity_mps:
+            source: observed
+            value: 8.0
+      physics_intent: separate_vertically
+    # 实测两种形态，都归到 divert 意图：
+    #   arm_divert_vertical × 12（arm_kind: divert_vertical，grp_01/02 都有）
+    #     generated_action_ids=["motion_grounded_0_move","motion_grounded_1_move"]，
+    #     两个 move_entity：车辆 z 0.0 → 18.0 m、无人机 z 3.0 → 0.0 m，
+    #     双方 velocity_mps=8.0 —— 垂直分层，互不进入 3 m 包线。
+    #   arm_avoid_altitude_split_crossing × 12（arm_kind: avoid，grp_01/02 都有）
+    #     generated_action_ids=["motion_grounded_move_0"]，**只动车辆**：
+    #     grp_01 实测 waypoints z=60.0（原地零位移，两个航点同坐标）、velocity_mps=5.5；
+    #     grp_02 实测 waypoints z=60.0、位移约 3 m。航点原坐标取自父集当前机位。
+    # ⚠ 两种形态的动作数（1 vs 2）与被移动的角色不同，不能合并成同一个模板参数化。
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity          # ← 与 uav_takeoff 的 tradeoff 不同，本族不是状态补丁
+      actor: anchor_authored_action_actor   # 实测：只动车辆
+      actor_role_binding: roles.vehicle
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: lateral_detour_arc    # 从场景解析“横向绕行弧”的落点
+          velocity_mps:
+            source: observed
+            value: 5.0
+      physics_intent: bounded_lateral_detour
+    # 实测：arm_tradeoff_lateral_detour_arc × 12（arm_kind: trade_off，grp_01/02 都有），
+    #   operation=replace_causal_event、generated_action_ids=["motion_grounded_0_move"]，
+    #   单个 move_entity 落在车辆上，velocity_mps=5.0（低于 divert 的 8.0），
+    #   实测两点航点相距约 42 m、终点抬高到 z=25.0（grp_01）。
+    #   事件**仍然发生**（grp_01 实测 6/6 event_observed=false，但 grp_02 6/6 = true，
+    #   见 expect）—— 这正是 tradeoff 与 divert 的分界。
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+    # 实测：grp_01 fork=240（= trig_crossing_trajectories 的 tick）；
+    #       grp_02 fork=320 @L4-4_v1 / 315 @L4-4_v2
+    #       （= entity_proximity 触发首次成立的 tick，不是声明的 tick）。
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/L4-4_v*/manifest.json
+    # 实测：window_end_tick − fork_tick ∈ [95, 173]，无常数可写；
+    #       42/72 条 manifest 带 window_end_basis
+    #       {candidate_end_tick, modeled_motion[], parent_evidence_end_tick}
+    #       且 window_semantics_only=true（窗口只用于语义判定，不是物理终点）。
+    #       另 30 条是早期形态（见 limits），没有 window_end_basis。
+    #       生成器必须以 manifest 的实测 window_end_tick 为准，不能用 design end 反推。
+  history_frames: 8                 # Dataset/world_model/arm_rssm.py: HISTORY_FRAMES = 8
+  horizon_frames: 5                 # Dataset/world_model/arm_rssm.py: FUTURE_HORIZON = 5
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测：12/12 条 arm_factual event_observed=true。
+    #   grp_01 rising_tick=295；grp_02 无 rising（fork 时谓词已成立，first_true=fork_tick）。
+
+  suppress:
+    target_event: absent_in_window
+    # 实测分两组，**必须分开判**：
+    #   grp_01（fork 240）：arm_no_op_suppress 6/6 + arm_hold_pair 6/6 = 12 条全部
+    #     event_observed=false → 抑制成立。
+    #   grp_02（fork 315/320）：arm_no_op_suppress 6/6 event_observed=true
+    #     （first_true=fork_tick）→ 锚点就是接触瞬间，抑制窗口内已成立的事件不成立。
+    #   判定前必须先看 factual 的 rising_tick / first_true_tick。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5             # 采集步长 5 tick
+    # 实测：grp_01 factual rising_tick=295 → arm_delay_postpone rising_tick=325，
+    #       位移 30 = delay_ticks，与参数一致（该组内 6/6 条一致）。
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 实测：
+    #   grp_01 arm_avoid_altitude_split_crossing 6/6 event_observed=false → 事件消失；
+    #   grp_01 arm_divert_vertical 6/6 event_observed=true，但 rising_tick 从 295
+    #     提前到 255/265 —— 事件仍成立、时点被改。
+    #   grp_02 both 6/6 event_observed=true（first_true=fork_tick）。
+    #   → 不能用统一判据；底线是“状态轨迹与 factual 可辨”。
+
+  tradeoff:
+    target_event: occurs            # tradeoff 允许事件仍发生
+    differs_from_factual: true
+    # 实测：grp_01 6/6 event_observed=false（事件被消掉）、grp_02 6/6 true。
+    #   本族 tradeoff 在 grp_01 上“顺手”也消除了事件，
+    #   因此**不能**用 target_event 判 PASS；判据是 differs_from_factual + 物理合法性。
+
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+    # 实测：72/72 条 manifest delta_only=true；
+    #       42/72 条带 trajectory_scope=intervention_delta_only 与
+    #       artifact_scope=parent_reference_plus_local_delta，另 30 条缺这些字段。
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "**两个 group 的语义不同构**：grp_01 的锚点是 tick 触发的 crossing_trajectories（fork 240），
+       grp_02 的锚点是 entity_proximity 触发的 vehicle_roof_contact（fork 315/320）。
+       grp_02 的 30 条臂**全部** event_observed=true（含 suppress）——
+       在接触瞬间分叉，任何抑制作用都改不掉本窗口内已成立的事件。
+       跨组汇总会得出错误结论"
+    - "suppress 对两种触发的写法不同：tick 触发改写到 901；entity_proximity 触发是
+       **整条替换成 tick 901 的 tick 触发**（距离条件被抹掉）。
+       任何只做“tick + 901”的实现都会漏掉 grp_02 的 6 条 suppress 臂"
+    - "30/72 条臂是早期形态：objective_skipped=true 且 manifest 缺
+       artifact_scope / profile_id / seed_id / trajectory_scope / window_end_basis
+       （实测：avoid 12 / delay_postpone 6 / no_op_suppress 6 / tradeoff 6）。
+       它们的 objective/ 目录仍是 12 个文件（与本族其余臂相同），
+       所以不能用‘objective 是否存在’判断这些臂是否完成"
+    - "divert 的两形态动作数与角色不同：divert_vertical 动两方（车 + 机，各 1 条 move），
+       avoid_altitude_split_crossing 只动车（1 条 move，grp_01 实测是原地零位移航点）。
+       '零位移 move' 是否算有效干预需按 state 增量判，不能按航点数判"
+  not_claimed:
+    - "grp_02 的 delay / hold_pair —— 该组没有这两类臂（只有 5 类臂），
+       不能把 grp_01 的机制外推到它身上"
+    - "ground.vehicle_stopped_in_lane / airspace.aircraft_airborne 的独立可干预性
+       —— 它们是终态/支撑谓词，本族不作为锚点"
+    - "G10 整库发布审计（不在本规则范围内）"

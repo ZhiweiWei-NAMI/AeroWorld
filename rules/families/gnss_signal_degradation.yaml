@@ -1,0 +1,240 @@
+# ARM 生成规则 —— gnss_signal_degradation
+#
+# 命名约束：本文件名 gnss_signal_degradation.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 本文件只写"怎么干预"。事件与谓词的**定义**在下列冻结源里，本文件只引用：
+#   · 事件权威  Dataset/semantic_rules/profiles/event_family_authority_mapping.json#/families/gnss_signal_degradation
+#   · 谓词注册  Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json#/templates/positioning.gnss_quality_degraded
+#   · 执行器    Dataset/tools/run_motion_family_delta_grounding.py（通用 runner）
+#
+# 本文件的每一条 mechanism 都对着 arms/ 里的真实臂核过：
+#   138 条臂 / 8 个 group_id × 3 seed = 24 个 (episode, group) / 2 个 profile
+#   （L2-2_v1, L2-2_v2）
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: gnss_signal_degradation
+
+# ─────────────────────────────────────────────────────────────
+# ⓪ 生成路径
+# ─────────────────────────────────────────────────────────────
+generation:
+  runner: Dataset/tools/run_motion_family_delta_grounding.py
+  alternatives_source: Dataset/tools/rewrite_coupled_alternatives.py
+  alternatives_declared: [delay, hold]             # FAMILY_ALTERNATIVES['gnss_signal_degradation']，第 48 行
+  # 138/138 条臂实测：delta_only=true, trajectory_scope=intervention_delta_only,
+  # artifact_scope=parent_reference_plus_local_delta, window_semantics_only=true
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/gnss_signal_degradation
+  rule_id: event_family.gnss_signal_degradation.0
+  mapping_class: A_direct
+  event_type_id: positioning.gnss_signal_degradation_event
+  trigger:
+    predicate_id: positioning.gnss_quality_degraded
+    direction: rising
+  # 角色名逐字取自 authority 的 trigger.event_role_sources：
+  #   本族保留**服务方**（GnssService）作为绑定角色，不只是飞机
+  roles:
+    actor:   { kind: trigger_binding, ontology_class: UnmannedAircraft, predicate_role: actor }
+    service: { kind: trigger_binding, ontology_class: GnssService,      predicate_role: service }
+  support_conditions: []          # authority 里本族为空
+  terminal:                       # 快照：改定义请改源头
+    predicate_id: positioning.gnss_quality_degraded
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [actor, service]
+  authoritative_predicates:
+    - positioning.gnss_quality_degraded
+    - positioning.navigation_error_exceeds_tolerance
+    - positioning.aircraft_deviates_from_planned_route
+    - emergency.aircraft_in_safe_hold
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 干预对象是"飞机 + 它用的 GNSS 服务"，两者都在 intervention_entity_ids 里
+  intervention_subject: [actor, service]
+  # 证据（实测）：mapping_class=A_direct；138/138 条 manifest 都没有 *_authority 字段；
+  #   intervention_entity_ids 实测两类：
+  #     ["tower_l2_2_v1","uav_l2_2_v1"]（服务 + 飞机，grp_01）
+  #     ["uav_l2_2_v1"]（只有飞机，grp_02/03/04）
+  # → 降级是可用服务与飞控选择共同造成的可干预事件，5 类意图全部合法。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node
+  exclude_roles: []     # 本族**不排除终态/恢复节点**
+  # 实测恢复节点也在干预范围内：grp_03_visual_relocalization（15 条臂）、
+  # grp_04_route_corrected（18 条臂）
+  # anchor_event_id 由事件链给出，不在此硬编码
+
+# ─────────────────────────────────────────────────────────────
+# ④ 意图（本族交付 4 类，没有 divert —— 见 4.4 的说明）
+#    键名是**意图**，不是 arm_id。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  # 4.1 基线
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    arm_ids: [arm_factual]
+    evidence:
+      arms: 24
+      ledger_flag: "factual_preserved=true"
+      # 实测 event_window_state：active_at_window_entry 12 / local_onset_observed 6 / not_observed 6
+
+  # 4.2 抑制
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger
+    arm_ids: [arm_hold, arm_no_op_suppress]        # 两者都 → intent=suppress
+    evidence:
+      arms: 48                                     # arm_hold 24（arm_kind=hold）+ arm_no_op_suppress 24（arm_kind=no_op_hold）
+      suppression_basis: authored_trigger_and_causal_predecessor_closure
+      suppressed_event_ids_per_arm: { 2: 12, 3: 12, 4: 12, 5: 12 }   # 锚点 + 后继链
+      coupled_hold_injected: { arm_hold: true, arm_no_op_suppress: false }
+    coupled_hold:                                  # 仅 arm_hold / arm_delay 注入
+      # 实测按住集合（24 条 arm_hold）：{tower,uav} 2 个 6 条 · {uav} 1 个 18 条
+      entity_roles: [actor, service]
+      action:
+        - step_kind: visual_state                  # 无人机给可见 hold 姿态
+          visual_state: { mode: hold }
+        - step_kind: state_patch
+          state_patch: { control_state: { hold_active: true } }
+      injected_event_id_pattern: branch_coupled_hold_<arm_id>
+
+  # 4.3 推迟
+  delay:
+    operation: delay_causal_event
+    arm_ids: [arm_delay, arm_delay_postpone]
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: governed_default
+        min: 20
+        max: 30
+        default: 30
+    evidence:
+      arms: 42                                     # arm_delay 18 + arm_delay_postpone 24
+      delay_ticks_observed: { 20: 12, 29: 6, 30: 24 }
+      # arm_delay          ← clamp(window_duration_ticks // 3, 20, 60)   (rewrite_coupled_alternatives.py:506)
+      # arm_delay_postpone ← 设计层 authored 30                          (design/episodes/**/arm_delay_postpone.json)
+      coverage: "grp_01/grp_02/grp_04 有 arm_delay；grp_03_visual_relocalization 只有 arm_delay_postpone（该组 5 条臂）"
+      repairs:
+        delay_applied_to_authored_event_relative_trigger: 24
+        delay_applied_to_authored_tick_trigger: 12
+        delay_applied_after_measured_parent_dispatch: 6
+      coupled_hold_injected: { arm_delay: true, arm_delay_postpone: false }
+
+  # 4.4 绕开 —— 本族**没有**这类臂，故意不写。
+  #
+  # divert:
+  #   operation: replace_causal_event
+  #   → 交付库存里 0 条：138 条臂只有 arm_factual / arm_hold / arm_no_op_suppress /
+  #     arm_delay / arm_delay_postpone / arm_tradeoff_imu_dead_reckoning_speed_suppression。
+  #     设计层确实为全部 24 个 group 声明过 arm_avoid_switch_to_vio_odometry
+  #     （decision_arm.mechanism_steps = invoke_action_generator / set_runtime_state /
+  #      generator::switch_to_vio_odometry / runtime_state {subsystem_mode: vio_mode,
+  #      active_override: true}），但一条都没落地。
+  #     而且它就算落地也会走偏：subsystem_mode / active_override 在执行器的
+  #     RUNTIME_FIELD_ALIASES 里分别映射到 communication_state.mode 与
+  #     communication_state.backup_link_active（run_motion_family_delta_grounding.py:83-86），
+  #     即"切 VIO 导航"会被写进通信状态族，而不是 navigation_state。
+  #     → 规则不替它编一条；要生成必须先补别名/注册表（改代码，不是改规则）。
+
+  # 4.5 权衡：不消除降级，改代价结构（换成航位推算并压低速度）
+  tradeoff:
+    operation: replace_causal_event
+    arm_ids: [arm_tradeoff_imu_dead_reckoning_speed_suppression]
+    mechanism:
+      generator: move_entity
+      # 实测 actor 随 group 落在无人机（18/24）或绑 service 角色的基站实体（6/24，grp_01）
+      actor: coupled_movable_actor
+      template:
+        - step_kind: move
+          waypoints_enu_m: { source: generator_authored, mode: dead_reckoning_transit }
+          velocity_mps: { source: generator_authored, observed: 3.0 }
+      physics_intent: reduced_speed_dead_reckoning
+    evidence:
+      arms: 24
+      actions_per_arm: 1
+      action_type: move_entity                       # 24/24
+      waypoints_per_action: { 2: 18, 3: 6 }
+      velocity_mps: 3.0                              # 24/24
+      targets: { uav_l2_2_v1: 9, uav_l2_2_v2: 9, tower_l2_2_v1: 3, tower_l2_2_v2: 3 }
+      ledger_repairs: []                             # 24/24 无 repair
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick      # 实测 = 父代 dispatch_tick
+  duration_ticks:
+    source: design_declared          # 实测 50 / 59 / 87
+  history_frames: 8
+  horizon_frames: 5
+  # manifest.window_end_tick 是执行/证据地平线（window_semantics_only=true），不是观察窗口；
+  # 扩展规则见 run_motion_family_delta_grounding.py:1405-1467。
+  # 实测 138 条臂：84 条 == candidate_end_tick，其余延长 6 / 46 / 58 tick。
+  evidence_horizon:
+    semantics: execution_and_evidence_only
+    max_tick: 900
+    extension_observed_ticks: [0, 6, 46, 58]
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— rubric，不是结论
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测 event_window_state：active_at_window_entry 12 / local_onset_observed 6 / not_observed 6
+
+  suppress:
+    target_event: absent_in_window
+    # 实测 48 条抑制臂里 24 条是 active_at_window_entry（fork 时质量已降级），
+    # 这类组上"窗口内不发生"不可达；判定要看 coupled_hold 是否改变了引擎状态。
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift: { approx: delay_ticks, tolerance_ticks: 5 }
+    # runner 原文：delayed target event tick differs from factual
+
+  tradeoff:
+    differs_from_factual: true
+    generated_action_required: true
+    # tradeoff 允许降级仍在窗口内成立，但状态轨迹必须与 factual 可辨
+
+  # 4.4 已说明本族没有 divert 臂，故此处不写 divert 期望。
+
+  common:
+    intervention_must_change_engine_state: true
+    physically_valid: true                        # 交给 rules/physics.yaml
+    delta_rows_after_fork_only: true
+    no_pre_fork_delta: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "设计层的 arm_avoid_switch_to_vio_odometry（24 个 group 各一条）没有落地；就算落地，subsystem_mode→communication_state.mode、active_override→communication_state.backup_link_active 的别名字典会把导航切换写进通信状态族。"
+    - "grp_01_gnss_anomaly 的 6 条 tradeoff 臂（设计层就这么写）把绑 service 角色的基站实体 tower_l2_2_v1（label_class=radio_tower，asset=facility.radio.base_tower.v1）当作 actor 平移 10 m；动作与 'imu_dead_reckoning_speed_suppression'（压低飞机速度）的语义不符。这是设计层的既有事实，不是落地偏差。"
+    - "fork 时质量已降级的组上（实测 24/48 条抑制臂），suppress 无法判成 absent_in_window。"
+  not_claimed:
+    - "G10 整库发布审计（不在本规则范围内）"
+  open_questions:
+    - "TODO: 需确认——arm_avoid_switch_to_vio_odometry 是被有意剔除还是漏落地；补它需要先给 navigation_state 加别名。"

@@ -1,0 +1,92 @@
+{
+  "profile": "X5_comm_failure_to_pad_contention",
+  "seed": "seed02",
+  "episode_id": "X5_comm_failure_to_pad_contention__seed02",
+  "group": "X5_comm_failure_to_pad_contention/seed02/grp_cross_layer",
+  "arm_id": "factual",
+  "mode": "factual_observation",
+  "window": {
+    "start_tick": 210,
+    "fork_tick": 220,
+    "end_tick": 670,
+    "phase": "after_state_sample_before_actions"
+  },
+  "sources": {
+    "scene": "interventions/X5_comm_failure_to_pad_contention/seed02/grp_cross_layer/scene_setup.json",
+    "original_scene": "Dataset/scenarios/X_cross_layer/X5_comm_failure_to_pad_contention/scene_setup.json",
+    "script": "Dataset/scenarios/X_cross_layer/X5_comm_failure_to_pad_contention/event_script.json",
+    "canonical": "aw_data/render_ready_episodes_capture_filtered/X5_comm_failure_to_pad_contention__seed02",
+    "predicate_script": "interventions/X5_comm_failure_to_pad_contention/seed02/grp_cross_layer/factual_event_script.json"
+  },
+  "removed_event_ids": [],
+  "intervention_actions": [],
+  "definition": {
+    "entrypoint": "scripts/arms/X5_comm_failure_to_pad_contention/seed02/grp_cross_layer/factual.py",
+    "entrypoint_sha256": "63764d28d51cf7264059c807716c61afc8c2ae50dde2e1c1bc2c42d996e00cb7",
+    "research_question": "通信失效与备用停机坪故障后，双机请求、仲裁和改航是否发生？",
+    "window_basis": "优先机570到达，第二架647完成改航；655恢复通信，最后状态补丁660生效，恢复保持660/665/670。备用停机坪故障不随通信恢复自动清除；685以后返航不属于本窗口。",
+    "parameter_model": {
+      "parameter_changes": false,
+      "motion_model": "沿用源动作分段恒速与ceil(distance/speed*10)整tick计时；不改变速度、航点或语义阈值。",
+      "state_visibility": "先采样后动作；runtime补丁按声明delay_ticks生效。",
+      "recovery_model": "正式步长5，当前recovery_hold_samples=3；first_false_capture+(3-1)*5。",
+      "scope": "窗口推导来自源动作实际完成及状态保持；分支运行后重新验证。"
+    },
+    "branch_changes": {
+      "removed_event_ids": [],
+      "added_event_ids": [],
+      "removed_action_ids": [],
+      "added_action_ids": [],
+      "replaced_action_ids": [],
+      "changed_event_ids": [],
+      "changed_trigger_ids": []
+    }
+  },
+  "gates": {
+    "x_guard_pad_priority_arbitration": {
+      "trigger_id": "x_guard_pad_priority_arbitration",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_pad_priority_arbitration",
+        "x_predecessor_pad_priority_arbitration"
+      ]
+    }
+  },
+  "scope": {
+    "simulated_entity_ids": [
+      "tower_x5_comm",
+      "pad_x5_primary",
+      "pad_x5_backup",
+      "uav_x5_priority",
+      "uav_x5_second",
+      "u_inspect_x5_comm_failure_to_pad_contention",
+      "bg_ped_x5_comm_failure_to_pad_contention_01",
+      "bg_ped_x5_comm_failure_to_pad_contention_02",
+      "bg_ped_x5_comm_failure_to_pad_contention_03",
+      "bg_ped_x5_comm_failure_to_pad_contention_04",
+      "contract_facility_x5_comm_failure_to_pad_contention_04",
+      "contract_facility_x5_comm_failure_to_pad_contention_05",
+      "pad_home_uav_x5_priority",
+      "pad_home_uav_x5_second",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_00",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_01",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_02",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_03",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_04",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_05",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_06",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_07",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_08",
+      "corridor_x5_comm_failure_to_pad_contention_uav_x5_priority_09"
+    ],
+    "canonical_only_scene_entity_ids": [
+      "bg_vehicle_x5_comm_failure_to_pad_contention_01",
+      "bg_vehicle_x5_comm_failure_to_pad_contention_02",
+      "bg_vehicle_x5_comm_failure_to_pad_contention_03"
+    ],
+    "background_policy": "Every canonical truth-frame entity outside the engine roster is retained unchanged. Background vehicles are not simulated or replaced.",
+    "interaction_limit": "Scripted participants, geometry triggers and runtime state are recomputed; no feedback from immutable background traffic is claimed."
+  },
+  "hypothesis": "双机请求后仲裁和改航实际完成；通信恢复和主停机坪请求关闭，备用停机坪仍故障。"
+}

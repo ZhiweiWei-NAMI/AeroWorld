@@ -1,0 +1,125 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_hold_until_area_clear
+group_key: L4-5_v1/seed02/grp_uav_low_descent
+episode_id: L4-5_v1__seed02
+event_family: l4_uav_pedestrian_clearance_observed
+subject_class: uav
+mode: intervention
+entity_ids:
+- uav_ped_nearmiss_l4_5_v1
+- ped_nearmiss_l4_5_v1
+predicate_ids:
+- l4_business.uav_low_altitude
+- l4_business.aircraft_near_pedestrian
+- l4_business.landing_zone_occupied
+- l4_business.pedestrian_clear_of_landing_zone
+- l4_business.uav_hold_active
+- l4_business.uav_landed
+window:
+  start_tick: 225
+  fork_tick: 230
+  end_tick: 780
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/collision/L4-5_v1/scene_setup.json
+  script: Dataset/scenarios/L4_agents/collision/L4-5_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-5_v1__seed02/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-5_v1__seed02/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-5_v1__seed02/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-5_v1__seed02/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-5_v1__seed02/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-5_v1__seed02/event_outcomes.jsonl
+execution:
+  omit_action_ids:
+  - move_uav_ped_descent
+  actions:
+  - tick: 230
+    action:
+      type: move_entity
+      action_id: arm_hold_until_clear_descent
+      entity_id: uav_ped_nearmiss_l4_5_v1
+      velocity_mps: 4.5
+      waypoints_enu_m:
+      - - 6644.824
+        - 6513.9
+        - 30.0
+      - - 6645.521
+        - 6505.931
+        - 15.0
+      - - 6646.218
+        - 6497.961
+        - 10.0
+  - tick: 232
+    action:
+      type: set_runtime_state
+      action_id: arm_hold_until_clear_declare_hold
+      entity_id: uav_ped_nearmiss_l4_5_v1
+      state_patch:
+        control_state:
+          hold_active: true
+  - tick: 300
+    action:
+      type: move_entity
+      action_id: arm_hold_until_clear_pedestrian_move
+      entity_id: ped_nearmiss_l4_5_v1
+      velocity_mps: 1.5
+      waypoints_enu_m:
+      - - 6646.218
+        - 6497.961
+        - 0.0
+      - - 6642.124
+        - 6508.178
+        - 0.0
+  - tick: 560
+    action:
+      type: set_runtime_state
+      action_id: arm_hold_until_clear_release_hold
+      entity_id: uav_ped_nearmiss_l4_5_v1
+      state_patch:
+        control_state:
+          hold_active: false
+  - tick: 560
+    action:
+      type: move_entity
+      action_id: arm_hold_until_clear_land
+      entity_id: uav_ped_nearmiss_l4_5_v1
+      velocity_mps: 2.0
+      waypoints_enu_m:
+      - - 6646.218
+        - 6497.961
+        - 10.0
+      - - 6646.218
+        - 6497.961
+        - 5.0
+      - - 6646.218
+        - 6497.961
+        - 3.0
+      terminal_feasibility:
+        model: constant_speed_path_with_explicit_landing_reference_v2
+        landing_reference_enu_m:
+        - 6646.218
+        - 6497.961
+        - 3.0
+        home_pose_origin_z_m: 3.0
+        touchdown_altitude_tolerance_m: 1.5
+        touchdown_dwell_ticks: 5
+        max_speed_mps: 8.0
+  trigger_rewrites: []
+expected:
+  target_event: observe
+  rationale: Keep the existing descent ending at z=10 m, above the local near-pedestrian vertical band. The actual descent target defines the 8 m zone.
+    Move the pedestrian at tick 300 independently of the near-miss trigger, release the hold and descend at tick 560. A hold requires measured stationarity;
+    a hold declaration during motion does not count. Expect no local near-pedestrian event and touchdown only after the pedestrian leaves the zone; this
+    is not a general safety claim.
+  falsified_if: aircraft_near_pedestrian becomes true, or the UAV lands while the zone is still occupied, or it never lands inside the window.
+script: scripts/arms/L4-5_v1/seed02/grp_uav_low_descent/arm_hold_until_area_clear.py
+output: arms/L4-5_v1/seed02/grp_uav_low_descent/arm_hold_until_area_clear
+provenance:
+  experiment_ref: design/L4-5_v1/seed02/grp_uav_low_descent/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    business_rules: Dataset/semantic_rules/profiles/l4_arm_business_semantics.json
+    runtime_state_schedule: Dataset/semantic_rules/profiles/epi_runtime_state_schedules/l4_runtime_state_schedule.json
+    window: design window (start/fork/end on the 5-tick formal grid)

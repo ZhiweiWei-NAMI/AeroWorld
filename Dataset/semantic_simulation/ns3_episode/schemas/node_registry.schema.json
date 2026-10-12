@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposed node registry record, exact proposed field names",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "episode_id",
+    "node_id",
+    "ns3_node_id",
+    "owner_entity_id",
+    "infra_id",
+    "life_epoch",
+    "roles",
+    "position_authority",
+    "coordinate_contract",
+    "antenna_offset_enu_m",
+    "active_intervals_ns",
+    "radio_profile_ids",
+    "compute_profile_id",
+    "field_metadata"
+  ],
+  "properties": {
+    "episode_id": { "type": "string" },
+    "node_id": { "type": "string" },
+    "ns3_node_id": { "type": ["integer", "null"], "minimum": 0 },
+    "owner_entity_id": { "type": ["string", "null"] },
+    "infra_id": { "type": ["string", "null"] },
+    "life_epoch": { "type": "integer", "minimum": 0 },
+    "roles": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["vehicle_terminal", "uav_terminal", "authored_site", "wifi_gateway", "rsu", "wifi_ap", "lte_enb", "nr_gnb", "edge_server", "cloud_server", "ground_control"] }
+    },
+    "position_authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "source", "field", "site_position_enu_m"],
+      "properties": {
+        "kind": { "enum": ["truth_actor", "authored_station", "synthetic_site", "logical_no_radio"] },
+        "source": { "type": "string" },
+        "field": { "type": ["string", "null"] },
+        "site_position_enu_m": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/vector3" }] }
+      }
+    },
+    "coordinate_contract": { "const": "coord.external_enu_m.v1" },
+    "antenna_offset_enu_m": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/vector3" }] },
+    "active_intervals_ns": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["birth_ns", "death_ns", "observation_end_ns", "right_censored"],
+        "properties": {
+          "birth_ns": { "type": "integer", "minimum": 0, "maximum": 90000000000 },
+          "death_ns": { "type": ["integer", "null"], "minimum": 0, "maximum": 90000000000, "description": "实际观察到死亡才填；仍活跃到H不能伪填H" },
+          "observation_end_ns": { "type": "integer", "minimum": 0, "maximum": 90000000000 },
+          "right_censored": { "type": "boolean" }
+        },
+        "allOf": [{ "if": { "properties": { "right_censored": { "const": true } } }, "then": { "properties": { "death_ns": { "type": "null" } } } }]
+      }
+    },
+    "radio_profile_ids": { "type": "array", "items": { "type": "string" } },
+    "compute_profile_id": { "type": ["string", "null"] },
+    "field_metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": ["status", "source", "assumption", "calibration_need"],
+        "properties": {
+          "status": { "enum": ["observed_current", "derived_from_current", "proposal_assumption", "unknown_current", "proposed_policy"] },
+          "source": { "type": "array", "items": { "type": "string" } },
+          "assumption": { "type": ["string", "null"] },
+          "calibration_need": { "type": ["string", "null"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "vector3": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } }
+  },
+  "$comment": "Offline reference checks only; no data-level runtime validation. Exactly one owner_entity_id or infra_id for physical identity. Observed life intervals use [birth,death); right-censored intervals have death_ns=null and a separate observation_end_ns, so horizon never creates a death event. Type joins are explicit in binding_aliases.json. Other referential invariants are code-level tests/offline metrics."
+}

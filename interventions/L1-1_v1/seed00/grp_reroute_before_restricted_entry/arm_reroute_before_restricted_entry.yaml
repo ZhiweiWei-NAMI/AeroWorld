@@ -1,0 +1,53 @@
+schema: aeroworld_arm_config
+version: 4
+arm_id: arm_reroute_before_restricted_entry
+group_key: L1-1_v1/seed00/grp_reroute_before_restricted_entry
+episode_id: L1-1_v1__seed00
+event_family: restricted_region_intrusion
+mode: intervention
+entity_ids:
+- uav_l1_1_v1_primary
+predicate_ids:
+- airspace.aircraft_inside_restricted_airspace
+window:
+  start_tick: 245
+  fork_tick: 250
+  end_tick: 350
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L1_airspace/interaction/L1-1_v1/scene_setup.json
+  script: Dataset/scenarios/L1_airspace/interaction/L1-1_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L1-1_v1__seed00/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L1-1_v1__seed00/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L1-1_v1__seed00/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L1-1_v1__seed00/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L1-1_v1__seed00/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L1-1_v1__seed00/event_outcomes.jsonl
+execution:
+  omit_action_ids:
+  - move_boundary_approach
+  actions:
+  - tick: 250
+    action:
+      type: move_entity
+      action_id: arm_reroute_before_restricted_entry
+      entity_id: uav_l1_1_v1_primary
+      velocity_mps: 8.0
+      waypoints_enu_m:
+      - - 6622.401
+        - 6522.145
+        - 30.0
+      - - 6617.401
+        - 6547.145
+        - 30.0
+expected:
+  target_event: absent_in_window
+  rationale: 在接近段之前改为直飞源脚本自身的安全航点，使本机始终位于禁限区多边形之外。
+  falsified_if: 分支实测与该声明不符
+script: scripts/arms/L1-1_v1/seed00/grp_reroute_before_restricted_entry/arm_reroute_before_restricted_entry.py
+output: arms/L1-1_v1/seed00/grp_reroute_before_restricted_entry/arm_reroute_before_restricted_entry
+provenance:
+  experiment_ref: design/L1-1_v1/seed00/grp_reroute_before_restricted_entry/experiment.json
+  parameter_sources:
+    factual_root: aw_data

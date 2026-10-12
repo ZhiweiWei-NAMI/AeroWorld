@@ -1,0 +1,40 @@
+schema: aeroworld_arm_config
+version: 4
+arm_id: arm_remove_interrupting_hover
+group_key: L1-1_v1/seed02/grp_remove_interrupting_hover
+episode_id: L1-1_v1__seed02
+event_family: restricted_region_intrusion
+mode: intervention
+entity_ids:
+- uav_l1_1_v1_primary
+predicate_ids:
+- airspace.aircraft_inside_restricted_airspace
+window:
+  start_tick: 255
+  fork_tick: 280
+  end_tick: 350
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L1_airspace/interaction/L1-1_v1/scene_setup.json
+  script: Dataset/scenarios/L1_airspace/interaction/L1-1_v1/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L1-1_v1__seed02/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L1-1_v1__seed02/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L1-1_v1__seed02/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L1-1_v1__seed02/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L1-1_v1__seed02/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L1-1_v1__seed02/event_outcomes.jsonl
+execution:
+  omit_action_ids:
+  - hover_boundary_hold
+  actions: []
+expected:
+  target_event: occurs
+  rationale: 省略打断规避的 hover 停止命令，保留规避移动与后续返回动作，使恢复连续完成。
+  falsified_if: 分支实测与该声明不符
+script: scripts/arms/L1-1_v1/seed02/grp_remove_interrupting_hover/arm_remove_interrupting_hover.py
+output: arms/L1-1_v1/seed02/grp_remove_interrupting_hover/arm_remove_interrupting_hover
+provenance:
+  experiment_ref: design/L1-1_v1/seed02/grp_remove_interrupting_hover/experiment.json
+  parameter_sources:
+    factual_root: aw_data

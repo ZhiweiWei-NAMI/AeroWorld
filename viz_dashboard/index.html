@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="AERO WORLD 低空时序语义真值追溯系统">
+  <title>AERO WORLD · 低空时序语义真值系统</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="主导航">
+      <a class="brand" href="#/semantic" aria-label="AERO WORLD 场景语义检查">
+        <span class="brand__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>AERO WORLD</b><small>场景语义</small></span>
+      </a>
+      <nav class="nav-stack" id="primary-nav">
+        <div class="nav-group-label">语料与选择</div>
+        <a href="#/overview" data-route="overview"><span>⌂</span><b>语料总览</b><em>01</em></a>
+        <a href="#/episodes" data-route="episodes"><span>◫</span><b>场景选择</b><em>02</em></a>
+        <div class="nav-group-label">场景检查</div>
+        <a href="#/semantic" data-route="semantic"><span>↔</span><b>事件与状态</b><em>03</em></a>
+        <a href="#/arms" data-route="arms"><span>⇢</span><b>逻辑时间链</b><em>04</em></a>
+        <div class="nav-group-label">规则与验收</div>
+        <a href="#/interventions" data-route="interventions"><span>✎</span><b>干预配置</b><em>05</em></a>
+        <a href="#/predicates" data-route="predicates"><span>≡</span><b>状态目录</b><em>06</em></a>
+        <a href="#/event-rules" data-route="event-rules"><span>◇</span><b>事件规则目录</b><em>07</em></a>
+        <a href="#/closure" data-route="closure"><span>✓</span><b>场景验收</b><em>08</em></a>
+        <div class="nav-group-label">交付接口</div>
+        <a href="#/generate" data-route="generate"><span>⬡</span><b>生成与打包</b><em>09</em></a>
+        <a href="#/upload" data-route="upload"><span>⇧</span><b>上传状态</b><em>10</em></a>
+      </nav>
+      <div class="sidebar__footer">
+        <span class="status-dot"></span>
+        <div><b>只读真实数据</b><small>按来源窗口与记录</small></div>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="topbar__context">
+          <button class="mobile-menu" id="mobile-menu" aria-label="打开导航" aria-controls="primary-nav" aria-expanded="false">☰</button>
+          <div><span>当前场景</span><strong id="active-episode">L4-1_v1__seed00</strong></div>
+          <i></i>
+          <div><span>当前时刻</span><strong id="active-tick">385</strong></div>
+        </div>
+        <div class="topbar__system">
+          <span id="data-health"><i></i>数据已连接</span>
+          <time id="system-clock"></time>
+        </div>
+      </header>
+      <main id="view" tabindex="-1" aria-live="polite"></main>
+    </section>
+  </div>
+  <div id="toast-region" class="toast-region" aria-live="assertive"></div>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

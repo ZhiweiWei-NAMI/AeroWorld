@@ -1,0 +1,226 @@
+# ARM 生成规则 —— uav_landing
+#
+# 命名约束：本文件名 uav_landing.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 写定本规则时的机器实测基线（全部来自当前工作树，命令见各段注释）：
+#   arms/ 里 event_family_id == uav_landing 的臂        1,344 条 / 261 个 group
+#   design/episodes/*/groups/*/group_manifest.json      261 个族内 group
+#   raw/branch_manifest.json 带 *_authority 字段的臂      0 条 → agent_caused
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: uav_landing
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    内容真实来源是 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里登记的是"指针 + 关键字段快照"，快照仅用于生成期自检，改定义请改源头。
+#    rule_id 可在 registry 的 event_occurrence_types 里查到（core_semantic_predicate_templates.json）。
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/uav_landing
+  rule_id: event_family.uav_landing.0
+  mapping_class: A_direct
+  event_type_id: airspace.aircraft_landing_event
+  trigger:
+    predicate_id: airspace.aircraft_touchdown
+    direction: rising
+  roles:
+    aircraft:     { kind: trigger_binding, ontology_class: UnmannedAircraft }
+    landing_zone: { kind: support_binding, ontology_class: LandingArea }
+  support_conditions:
+    - predicate_id: airspace.aircraft_airborne
+      value: "false"
+      at: after
+      join_roles: [aircraft]
+    - predicate_id: airspace.aircraft_in_landing_zone
+      value: "true"
+      at: after
+      join_roles: [aircraft]
+  terminal:
+    predicate_id: airspace.aircraft_touchdown
+    value: "true"
+    hold_parameter: terminal_hold_samples
+    join_roles: [aircraft]
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别：这条事件"能不能被人为改变"
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 这条族的干预对象是降落中的智能体本身，不是环境
+  intervention_subject: aircraft
+  # 判定证据（本会话实测）：
+  #   · 1,344 条臂的 raw/branch_manifest.json 里没有任何 *_authority 字段；
+  #     全库唯一带该字段的族是 rain_fog_environment（627 条，值为 scene_exogenous_*）
+  #   · 1,344 条 branch_event_ledger.jsonl 的 status 全为 applied，
+  #     repairs 里没有 design_intent_conflict_* / *_exogenous_* 记录
+  #   · 事件本身是 aircraft 自己 touchdown 的落地实现，不是场景脚本的外生转移
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点：事件链上哪些节点能分叉
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # anchor_event_id 由事件链给出，不在此硬编码
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    通用骨架在 rules/intents.yaml；此处只写本族的差异。
+#    operation 只能取 4 个已注册值之一：
+#      reuse_factual_causal_event | suppress_causal_event
+#      delay_causal_event | replace_causal_event
+#
+#    键名是**意图**（factual/suppress/delay/divert/tradeoff），
+#    具体臂名由 rules/intents.yaml 的 arm_id_patterns 给出：
+#      suppress ← arm_no_op_suppress(75) / arm_hold(261)
+#      delay    ← arm_delay_postpone(75) / arm_delay(261)
+#      divert   ← arm_avoid_*(75) / arm_divert_altitude(261)
+#      tradeoff ← arm_tradeoff_*(75)
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：261 条 factual 台账 operation=reuse_factual_causal_event 且 factual_preserved=true，
+    #   generated_action_ids=[]（原样执行，不产生干预动作）
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 一致
+    # 实测：336 条 suppress 臂（arm_hold 261 + arm_no_op_suppress 75）的台账都带
+    #   suppression_scope=whole_event_bundle_and_branch_ledger，
+    #   且 suppressed_event_ids 覆盖锚点及其因果后继（bundle 规模实测 1:288 / 2:6 / 3:6 / 4:18 / 5:18）
+    #   例：L4-3_v1/seed00/grp_04_forced_landing_fault/arm_no_op_suppress 抑制
+    #       [crowd_proximity_response, descent_to_low_altitude, forced_landing_fault, safe_landing]
+    #   suppress 臂不产生 generated_action_ids（抑制写在事件脚本层）；
+    #   arm_hold 变体额外带 coupled_hold（注入 1 个耦合保持事件，实测 action_count=2）
+
+  delay:
+    operation: delay_causal_event
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: rule        # rule | governed_default | scene
+        min: 10
+        max: 60
+        default: 30
+    # 实测：336 条 delay 臂的台账 delay_ticks ∈ {20:42, 25:3, 26:135, 30:75, 43:6, 47:3, 50:72}
+    #   （design 层统一声明 postpone +30，物化时按触发结构重新定时）
+    #   repairs 记录的改写方式：delay_applied_to_authored_event_relative_trigger(294) /
+    #   delay_applied_to_authored_tick_trigger(36) / delay_applied_after_measured_parent_dispatch(6)
+    #   delay_mechanism_evidence.action_type = move_entity，actor 为被推迟事件的 actor
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.aircraft
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: divert_to_alternate_pad    # 备用起降点/绕飞航路，从场景解析
+      physics_intent: clear_of_landing_zone  # 声明意图，物理校验另算
+    # 实测（design 机制步 generator_id → 物化动作）：
+    #   generator::divert_to_alternate_pad(93) / generator::divert_alternate_pad(78) /
+    #   generator::wave_off_to_hover(66) / generator::go_around_climb(24)
+    #   物化台账 generated_action_ids = motion_grounded_N_move（± motion_grounded_N_runtime）：
+    #   arm_avoid_* 9 条仅 move、66 条 move+runtime；arm_divert_altitude 255 条仅 move、6 条 move+runtime
+    #   event_realization.jsonl 实测 action_type：motion_grounded_*_move = move_entity、
+    #   motion_grounded_*_runtime = set_runtime_state（都在 generator 闭集内）
+    #   伴生的 runtime patch 实测为 state_patch{touchdown_suppressed+wave_off_active} /
+    #   {flight_mode: landing_aborted} / {divert_active + target_vertipad_id}
+    # 被移动实体实测以 UAV 为主（arm_avoid_* 72/75、arm_divert_altitude 225/261 移动 UAV），
+    #   另一侧是行人/车辆（avoid 3/75；divert_altitude 21 行人 + 6 车辆），
+    #   divert_altitude 另有 9/261 条没有干预运动记录（window_end_basis.modeled_motion 为空）
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.aircraft
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: wave_off_loiter_pattern    # 复飞盘旋/等待航线
+        - step_kind: state_patch
+          state_patch:
+            touchdown_suppressed: true
+            wave_off_active: true
+      physics_intent: loiter_clear_of_landing_zone
+    # 实测：75 条 trade_off 臂全部产生 move（9 条仅 move，66 条 move+runtime）
+    #   event_realization.jsonl 实测 action_type：move → move_entity、
+    #   runtime → set_runtime_state（与本段两步模板一致）
+    #   design 机制步 generator_id：wave_off_loiter_pattern(93) / overhead_loiter_holding(78) /
+    #   divert_alternate_pad(66) / slow_cautious_touchdown(24)
+    #   与 divert 的差别不在动作类型，而在语义：tradeoff 不要求目标事件消失，只改变代价结构
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/*/manifest.json
+  history_frames: 8
+  horizon_frames: 5
+  # 实测补充：物化窗口还会被干预运动延长——
+  #   raw/branch_manifest.json → window_end_basis{ candidate_end_tick, modeled_motion[].required_end_tick,
+  #   parent_evidence_end_tick }；本族实测窗口长度 56~405 tick。
+  #   延长规则由 window_end_basis 承载，本段不重复声明。
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测：261 条 factual 臂里 231 条窗口内 observed、12 条 not_observed、18 条 unknown。
+    #   not_observed 的组按 rules/prompts/arm_audit.md 判 not_intervenable，不算干预成功。
+
+  suppress:
+    target_event: absent_in_window
+    # 实测：arm_hold 234/261 not_observed，arm_no_op_hold 75/75 not_observed
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+    # 实测：首次为真 tick 的后移量与台账 delay_ticks 对齐；
+    #   判定网格是 5 tick（event_realization.jsonl → capture_grid_step=5），
+    #   因此 26 → 30、47 → 50 这类取整是网格效应，不是延迟失败。
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 实测：arm_divert_altitude 231/261 not_observed，arm_avoid_* 63/75 not_observed
+
+  tradeoff:
+    differs_from_factual: true
+    # tradeoff 允许事件仍然发生，但状态轨迹必须与 factual 可辨
+
+  # 所有 alternative 臂共用的最低要求
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "factual 里锚点事件本就没发生的组（实测 12/261）不能判干预成功，只能判 not_intervenable"
+    - "suppress 臂不产生干预动作；若场景把降落写成纯脚本权威（script_scheduled），先例是 DESIGN_INTENT_CONFLICT，需按组判"
+  not_claimed:
+    - G10 整库发布审计（不在本规则范围内）

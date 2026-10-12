@@ -12,7 +12,20 @@
     "obstacle": 8,
     "traffic_control": 9,
     "facility": 10,
-    "hazard_trigger": 11
+    "hazard_trigger": 11,
+    "uav_corridor": 12,
+    "road_surface": 13,
+    "road_marking_white": 14,
+    "road_marking_yellow": 15,
+    "city_ground": 16,
+    "road_sidewalk": 17,
+    "road_green_median": 18,
+    "road_green_edge": 19,
+    "terrain_grass": 20
+  },
+  "capture": {
+    "encoding": "custom_stencil_grayscale_u8",
+    "post_process_material": "Material'/Game/AeroSemantic/M_CustomStencilClassId_U8.M_CustomStencilClassId_U8'"
   },
   "rules": [
     {
@@ -21,9 +34,69 @@
       "class": "ignore"
     },
     {
+      "priority": 995,
+      "actor_patterns": ["APIPCamera", "BP_PIPCamera", "PIPCamera"],
+      "class": "ignore"
+    },
+    {
+      "priority": 990,
+      "actor_patterns": ["WeatherActor"],
+      "class": "ignore"
+    },
+    {
+      "priority": 920,
+      "patterns": ["UAVCorridor", "HighAltitudeCorridor", "uav_corridor"],
+      "class": "uav_corridor"
+    },
+    {
       "priority": 900,
       "patterns": ["NoFly", "Hazard", "Trigger", "Geofence"],
       "class": "hazard_trigger"
+    },
+    {
+      "priority": 890,
+      "tag_patterns": ["AeroCityBaseSemanticProxy.WhiteLine", "AeroRoadSemanticProxy.WhiteLine"],
+      "class": "road_marking_white"
+    },
+    {
+      "priority": 889,
+      "tag_patterns": ["AeroCityBaseSemanticProxy.YellowLine", "AeroRoadSemanticProxy.YellowLine"],
+      "class": "road_marking_yellow"
+    },
+    {
+      "priority": 888,
+      "tag_patterns": ["AeroCityBaseSemanticProxy.RoadSurface", "AeroRoadSemanticProxy.RoadSurface"],
+      "class": "road_surface"
+    },
+    {
+      "priority": 887,
+      "tag_patterns": ["AeroCityBaseSemanticProxy.SideWalk", "AeroRoadSemanticProxy.SideWalk"],
+      "class": "road_sidewalk"
+    },
+    {
+      "priority": 886,
+      "tag_patterns": ["AeroCityBaseSemanticProxy.GreenMedian", "AeroRoadSemanticProxy.GreenMedian"],
+      "class": "road_green_median"
+    },
+    {
+      "priority": 885,
+      "tag_patterns": ["AeroCityBaseSemanticProxy.GreenEdge", "AeroRoadSemanticProxy.GreenEdge"],
+      "class": "road_green_edge"
+    },
+    {
+      "priority": 884,
+      "tag_patterns": ["AeroCityBaseSemanticProxy.Ground"],
+      "class": "city_ground"
+    },
+    {
+      "priority": 883,
+      "tag_patterns": ["AeroCityBaseSemanticProxy.Terrain"],
+      "class": "terrain_grass"
+    },
+    {
+      "priority": 882,
+      "tag_patterns": ["AeroCityBaseSemanticProxy.Water"],
+      "class": "water"
     },
     {
       "priority": 800,
@@ -41,14 +114,14 @@
       "class": "obstacle"
     },
     {
+      "priority": 720,
+      "patterns": ["CaptureUAV", "Quadrotor", "FlyingPawn", "Drone", "UAV"],
+      "class": "drone"
+    },
+    {
       "priority": 700,
       "patterns": ["Pedestrian", "Walker", "Crowd", "ped_"],
       "class": "pedestrian"
-    },
-    {
-      "priority": 680,
-      "patterns": ["CaptureUAV", "Quadrotor", "RuntimeMultirotor", "FlyingPawn", "Drone", "UAV"],
-      "class": "drone"
     },
     {
       "priority": 650,
@@ -59,6 +132,24 @@
       "priority": 600,
       "patterns": ["BP_Archi", "Building", "Architecture"],
       "class": "building"
+    },
+    {
+      "priority": 590,
+      "actor_patterns": ["BP_CityBaseGenerator"],
+      "component_patterns": ["Water"],
+      "class": "ignore"
+    },
+    {
+      "priority": 585,
+      "actor_patterns": ["BP_CityBaseGenerator"],
+      "component_patterns": ["Road"],
+      "class": "ignore"
+    },
+    {
+      "priority": 580,
+      "actor_patterns": ["BP_CityBaseGenerator"],
+      "component_patterns": ["Ground", "Terrain", "InstanceSegmentation"],
+      "class": "ignore"
     },
     {
       "priority": 500,

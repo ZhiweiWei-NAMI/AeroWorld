@@ -1,0 +1,223 @@
+# ARM 生成规则 —— uav_pedestrian_near_miss
+#
+# 命名约束：本文件名 uav_pedestrian_near_miss.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# 写定本规则时的机器实测基线（全部来自当前工作树）：
+#   arms/ 里 event_family_id == uav_pedestrian_near_miss 的臂   702 条 / 108 个 group
+#   design/episodes/*/groups/*/group_manifest.json              108 个族内 group
+#   raw/branch_manifest.json 带 *_authority 字段的臂              0 条 → agent_caused
+#
+# 因果类别特别说明（避免被 mapping_class 误导）：
+#   authority mapping 里本族是 B_composite。B_composite 描述的是"事件由触发谓词 +
+#   支撑条件 + 终止条件复合而成"，**不等于**环境外生：全库 6 个 B_composite 族
+#   （本族、uav_vehicle_conflict、c2_degradation_loss、signal_malfunction、
+#   rain_fog_environment、high_temp_battery_derating）里只有 rain_fog_environment 外生，
+#   其余 5 个在 arms/ 里都有 hold / no_op_hold / avoid / trade_off 一类真实干预臂。
+#   判定外生的可靠判据只有一个：臂的 raw/branch_manifest.json 里有 *_authority 字段
+#   且值为 scene_exogenous_*。全库只有 rain_fog_environment 命中（627 条臂）。
+#   本族不命中 → agent_caused。
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: uav_pedestrian_near_miss
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/uav_pedestrian_near_miss
+  rule_id: event_family.uav_pedestrian_near_miss.0
+  mapping_class: B_composite
+  event_type_id: safety.aircraft_pedestrian_near_miss_event
+  trigger:
+    predicate_id: safety.aircraft_near_pedestrian
+    direction: rising
+  roles:
+    aircraft:   { kind: trigger_binding, ontology_class: UnmannedAircraft }
+    pedestrian: { kind: trigger_binding, ontology_class: Pedestrian }
+  support_conditions:
+    - predicate_id: airspace.aircraft_airborne
+      value: "true"
+      at: after
+      hold_samples: 2
+      join_roles: [aircraft]
+  terminal:
+    predicate_id: safety.aircraft_near_pedestrian
+    value: "false"
+    hold_parameter: recovery_hold_samples
+    join_roles: [aircraft, pedestrian]
+  # 复查用（同族权威谓词，已在 registry 注册）：emergency.aircraft_in_safe_hold
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 事件由"飞行器"接近"行人"的接近过程构成；两侧都是可被驱动的实体（pair），
+  # 干预对象默认取触发绑定里的 aircraft，实操上也可作用在 pair 的另一端（见 arms.divert）
+  intervention_subject: aircraft
+  # 判定证据（本会话实测）：
+  #   · 702 条臂的 raw/branch_manifest.json 无任何 *_authority 字段（全库唯一带该字段的族是 rain_fog_environment）
+  #   · 702 条 branch_event_ledger.jsonl 的 status 全为 applied，
+  #     repairs 只有 delay 重定时与 waypoint 校验，没有 design_intent_conflict_* / *_exogenous_*
+  #   · 权威侧的 required_response 是智能体响应（飞行器拉升/清空行人暴露区），不是环境自变
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node
+  exclude_roles: [terminal]
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    臂名映射（rules/intents.yaml 的 arm_id_patterns + 本族实测计数）：
+#      suppress ← arm_no_op_suppress(108) / arm_hold_pair(81)
+#      delay    ← arm_delay_postpone(84)
+#      divert   ← arm_avoid_*(108) / arm_divert_vertical(105)
+#      tradeoff ← arm_tradeoff_*(108)
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：108 条 factual 台账 operation=reuse_factual_causal_event、factual_preserved=true、
+    #   generated_action_ids=[]
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger
+    # 实测：189 条 suppress 臂（arm_no_op_hold 108 + arm_hold_pair 81）的台账带
+    #   suppression_scope=whole_event_bundle_and_branch_ledger；
+    #   被抑制 bundle 规模实测 1~10（1:36 2:27 3:18 4:12 5:39 6:6 7:12 8:15 9:21 10:3）
+    #   arm_hold_pair 变体额外带 coupled_hold，同时保持 pair 两侧实体
+    #   （例：L4-3_v1/seed00/grp_03_crowd_present/arm_hold_pair 的 coupled_hold.entity_ids
+    #     = [ped_landing_l4_3_v1_a, ped_landing_l4_3_v1_b]，action_count=4）
+    #   抑制本身不产生 generated_action_ids
+
+  delay:
+    operation: delay_causal_event
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: rule
+        min: 10
+        max: 60
+        default: 30
+    # 实测：84 条 delay 臂的台账 delay_ticks 全部为 30（design 层同样是 postpone +30）；
+    #   repairs：delay_applied_to_authored_tick_trigger(39) /
+    #   delay_applied_to_authored_event_relative_trigger(24) /
+    #   delay_applied_after_measured_parent_dispatch(9)
+    #   delay_mechanism_evidence.action_type 实测 move_entity(69) / set_runtime_state(3)
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.aircraft      # 默认取触发绑定里的 aircraft
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: safe_altitude_ceiling   # 从场景解析"抬高/侧移脱离行人暴露区"的落点
+      physics_intent: clear_pedestrian_exposure_zone
+    # 实测（design 机制步 generator_id）：generator::maintain_safe_altitude_ceiling(36) /
+    #   generator::abort_descent_climb_30m(27) / generator::stationary_overhead_marker_loiter(24) /
+    #   generator::sidewalk_overhead_surveillance_offset(9)
+    #   物化台账：75 条仅 motion_grounded_N_move、30 条 move+runtime
+    #   event_realization.jsonl 实测 action_type：move → move_entity、runtime → set_runtime_state
+    #   （runtime patch 实测 {operational_mode: station_keep} / {incident_state} /
+    #    {pedestrian_state} / {casualty_marker_broadcast_hz + high_intensity_spotlight_active}）
+    # TODO: 需确认 —— 实际被移动的实体既可能是 UAV 也可能是行人：
+    #   design 机制步 actor 实测 行人 126 / UAV 78 / 救护车 12；
+    #   物化 window_end_basis.modeled_motion 实测 行人 441 / UAV 303 / 车辆 33（按运动记录计数），
+    #   臂级别上 avoid 27 条移动行人、6 条移动 UAV。生成器遇到行人一侧绑定时应改写 actor，
+    #   还是统一保持 aircraft，需要定一个口径。
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.aircraft
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: delayed_descent_post_passage   # 等行人通过后再下降，事件可仍发生
+        - step_kind: state_patch
+          state_patch:
+            operational_mode: station_keep
+      physics_intent: reduce_exposure_without_removing_event
+    # 实测：108 条 trade_off 臂里 63 条仅 move、45 条 move+runtime
+    #   event_realization.jsonl 实测 action_type：move → move_entity（± set_visual_state）、
+    #   runtime → set_runtime_state
+    #   design 机制步 generator_id：generator::delayed_descent_post_passage(36) /
+    #   generator::divert_unoccupied_rooftop_pad(27) /
+    #   generator::dispatch_ems_alert_high_patrol(24) /
+    #   generator::high_altitude_broad_observation(9)
+    #   tradeoff 允许事件仍然发生，只改变代价结构（等行人通过、换观测高度、调度 EMS）
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick
+  duration_ticks:
+    source: design_declared
+  history_frames: 8
+  horizon_frames: 5
+  # 实测补充：物化窗口还会被干预运动延长（window_end_basis.modeled_motion[].required_end_tick）；
+  #   本族实测窗口长度 50~355 tick。延长规则由 window_end_basis 承载，本段不重复声明。
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— rubric，不是结论
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+    # 实测：108 条 factual 臂里只有 36 条窗口内 observed，69 条 not_observed、3 条 unknown。
+    #   本族"factual 里事件本就没发生"的比例很高，这些组必须判 not_intervenable，
+    #   不能把替代臂的"事件未发生"当成干预成功的证据。
+
+  suppress:
+    target_event: absent_in_window
+    # 实测：arm_no_op_hold 75/108 not_observed，arm_hold_pair 36/81 not_observed + 36 unknown
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+    # 实测：18 个可配对组里 9 组 shift=30（= 台账 delay_ticks），9 组 shift=0（延迟未兑现）。
+    #   判定网格为 5 tick（capture_grid_step=5），所以容差取 5。
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 实测：arm_avoid_* 57/108 not_observed、45 observed；arm_divert_vertical 69/105 not_observed
+
+  tradeoff:
+    differs_from_factual: true
+    # 实测：arm_trade_off 75/108 not_observed、27 observed（事件仍可能发生，看轨迹差异）
+
+  common:
+    intervention_must_change_engine_state: true
+    physically_valid: true
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 诚实边界
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "实测有臂的窗口内窗口语义为 unknown（arm_hold_pair 36/81、arm_no_op_hold 15/108），
+       原因是缺少 aircraft_row 真值行；这类组只能判 insufficient_evidence，不许当通过"
+    - "干预实体可能是行人一侧；干扰行人轨迹属可接受干预，但不得与 MEDICAL/急救语义冲突"
+  not_claimed:
+    - G10 整库发布审计（不在本规则范围内）

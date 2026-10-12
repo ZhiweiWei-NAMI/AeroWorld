@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "domain_state_supplement_profile.schema.json",
+  "title": "AeroWorld domain-state supplement profile",
+  "type": "object",
+  "required": [
+    "schema_name",
+    "schema_version",
+    "profile_id",
+    "default_input_root",
+    "default_output_root",
+    "model",
+    "inputs",
+    "authoritative_tick_policy",
+    "source_policy",
+    "parameter_governance",
+    "domain_models",
+    "observation_families",
+    "validation"
+  ],
+  "properties": {
+    "schema_name": {
+      "const": "domain_state_supplement_profile"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "default_input_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "default_output_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "model_id",
+        "model_version",
+        "seed_namespace"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string"
+        },
+        "model_version": {
+          "type": "string"
+        },
+        "seed_namespace": {
+          "const": "domain_state_structured_input_digest_v2"
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "required": [
+        "episode_manifest",
+        "entity_roster",
+        "truth_frames",
+        "weather",
+        "scene_setup",
+        "charging_service_plan"
+      ]
+    },
+    "authoritative_tick_policy": {
+      "type": "object",
+      "required": [
+        "start",
+        "end",
+        "step"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        },
+        "step": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "source_policy": {
+      "type": "object",
+      "required": [
+        "authoritative_inputs",
+        "allowed_manifest_fields",
+        "forbidden_inputs",
+        "model_input_fields",
+        "missing_parameter_policy",
+        "authored_event_labels_are_fact_source"
+      ]
+    },
+    "parameter_governance": {
+      "type": "object",
+      "required": [
+        "review_status",
+        "measurement_provenance",
+        "source_class",
+        "parameter_groups"
+      ]
+    },
+    "domain_models": {
+      "type": "object"
+    },
+    "observation_families": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "validation": {
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+schema: aeroworld_window_family_rule
+version: 1
+family: l5_environment_local_candidate
+status: candidate_pending_owner_revalidation
+config_schema: rules/l5_arm_config.schema.json
+semantic_authority:
+  source: Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json
+  event_rules: current_get_core_event_occurrence_types
+  thresholds: parameter_governance.governed_defaults
+  ontology_and_registry_modified: false
+scope:
+  main_uav: exact_scene_lifecycle_binding
+  environment: episode_manifest_capture_boundary
+  interactions: selected_authored_payload_and_historically_bound_pedestrian
+  full_background: not_reconstructed
+window:
+  storage: inclusive_start_to_end
+  phase: after_state_sample_before_actions
+  action_order: source_actions_then_intervention
+  missing: unknown_not_false
+  unfinished: right_censored
+assets:
+  required:
+    - manifest.json
+    - raw/initial_state.json
+    - raw/fork_state.json
+    - raw/actions.jsonl
+    - raw/states.jsonl
+    - raw/trajectories.jsonl
+    - raw/weather.jsonl
+    - raw/geometry.jsonl
+    - raw/binding_catalog.json
+    - objective/predicate_truth.jsonl
+    - objective/predicate_truth_ticks.jsonl
+    - objective/predicate_transitions.jsonl
+    - objective/event_occurrences.jsonl
+    - objective/event_outcomes.jsonl
+    - objective/window_status.json
+    - objective/unresolved_predicates.jsonl
+    - objective/mechanism_observables.jsonl
+    - chain/events.jsonl
+    - chain/relations.jsonl
+  relation_policy: evidence_only_no_temporal_causal_edges

@@ -1,0 +1,120 @@
+{
+  "arm_id": "arm_region_deactivated_before_entry",
+  "entity_ids": [
+    "bg_ped_l3_2_v2_01",
+    "bg_ped_l3_2_v2_02",
+    "bg_vehicle_l3_2_v2_01",
+    "bg_vehicle_l3_2_v2_02",
+    "contract_facility_l3_2_v2_02",
+    "corridor_l3_2_v2_uav_l3_2_v2_00",
+    "corridor_l3_2_v2_uav_l3_2_v2_01",
+    "corridor_l3_2_v2_uav_l3_2_v2_02",
+    "corridor_l3_2_v2_uav_l3_2_v2_03",
+    "corridor_l3_2_v2_uav_l3_2_v2_04",
+    "pad_home_uav_l3_2_v2",
+    "temporary_nfz_l3_2_v2",
+    "u_inspect_l3_2_v2",
+    "uav_l3_2_v2",
+    "uav_observer_l3_2_v2_3"
+  ],
+  "event_family": "restricted_region_intrusion",
+  "falsified_if": "区域撤销后仍出现该区域告警、绕行动作、绕行状态或目标入侵，或与factual的共享分叉不一致。",
+  "fork_event_id": "uav_approaches_temporary_nfz",
+  "group_suffix": "repaired",
+  "hypothesis": "同状态分叉后撤销临时禁飞区并清除绕行要求；保留原接近动作，实测不得再触发该区域的邻近告警、绕行动作或入侵事件。",
+  "inject_actions": [
+    {
+      "action_id": "deactivate_region_before_entry",
+      "delay_ticks": 0,
+      "entity_id": "temporary_nfz_l3_2_v2",
+      "state_patch": {
+        "incident_state": {
+          "temporary_lockdown_active": false
+        }
+      },
+      "tick": 310,
+      "type": "set_runtime_state"
+    },
+    {
+      "action_id": "clear_reroute_requirement_before_entry",
+      "delay_ticks": 0,
+      "entity_id": "uav_l3_2_v2",
+      "state_patch": {
+        "control_state": {
+          "alternate_reroute_active": false
+        },
+        "incident_state": {
+          "requires_reroute": false
+        }
+      },
+      "tick": 310,
+      "type": "set_runtime_state"
+    },
+    {
+      "action_id": "show_deactivated_region",
+      "entity_id": "temporary_nfz_l3_2_v2",
+      "tick": 310,
+      "type": "set_visual_state",
+      "visual_state": {
+        "mode": "inactive"
+      }
+    }
+  ],
+  "mechanism": {
+    "actions": [
+      {
+        "action_id": "deactivate_region_before_entry",
+        "delay_ticks": 0,
+        "entity_id": "temporary_nfz_l3_2_v2",
+        "state_patch": {
+          "incident_state": {
+            "temporary_lockdown_active": false
+          }
+        },
+        "tick": 310,
+        "type": "set_runtime_state"
+      },
+      {
+        "action_id": "clear_reroute_requirement_before_entry",
+        "delay_ticks": 0,
+        "entity_id": "uav_l3_2_v2",
+        "state_patch": {
+          "control_state": {
+            "alternate_reroute_active": false
+          },
+          "incident_state": {
+            "requires_reroute": false
+          }
+        },
+        "tick": 310,
+        "type": "set_runtime_state"
+      },
+      {
+        "action_id": "show_deactivated_region",
+        "entity_id": "temporary_nfz_l3_2_v2",
+        "tick": 310,
+        "type": "set_visual_state",
+        "visual_state": {
+          "mode": "inactive"
+        }
+      }
+    ],
+    "consequence": "inactive region remains observable but does not participate in active-region proximity triggers",
+    "kind": "region_deactivation",
+    "retained_motion": "uav_approaches_temporary_nfz"
+  },
+  "mode": "intervention",
+  "omit_action_ids": [],
+  "primary_predicate": "airspace.aircraft_inside_restricted_airspace",
+  "profile": "L3-2_v2",
+  "retime": null,
+  "role": "region_deactivation",
+  "seed": "seed02",
+  "state_overrides": [],
+  "sumo_intervention": null,
+  "target_event_id": "objective_event:facc208d14b67feabf55e88b",
+  "window_basis": "共享分叉保持；跨起点事件携带真实前置生命周期。目标动作完成与正式恢复保持决定终点，其他未恢复事件显式截断。",
+  "window_end_tick": 540,
+  "window_fork_tick": 310,
+  "window_start_tick": 305
+}

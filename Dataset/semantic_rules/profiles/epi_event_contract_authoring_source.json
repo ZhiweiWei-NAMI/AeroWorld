@@ -1,0 +1,2551 @@
+{
+  "schema_name": "epi_event_contract_authoring_source",
+  "schema_version": "1.0.0",
+  "profile_id": "aeroworld_low_altitude_epi_event_contract_authoring_source_v1",
+  "description": "Authored V5 EPI/family prose source. Generated objective and stage contracts must be rebuilt from this file plus the event-family and stage authority mappings.",
+  "source_policy": {
+    "authored_event_labels_are_fact_source": false,
+    "forbidden_evidentiary_fields": [],
+    "permitted_source_classes": [
+      "engine_truth",
+      "deterministic_derived",
+      "simulated_derived",
+      "visual_derived"
+    ],
+    "unknown_policy": "emit_unknown_not_false_when_required_observable_missing"
+  },
+  "event_family_metadata": {
+    "uav_takeoff": {
+      "display_name": "uav_takeoff",
+      "required_state_fields": [
+        "z_agl_m",
+        "takeoff_ground_z_m",
+        "xy_distance_to_home_pad_m",
+        "home_pad_pose_enu_m"
+      ],
+      "required_response": "the aircraft becomes airborne after occupying its home pad",
+      "observable_dimensions": [
+        "pose_3d",
+        "home_pad_geometry"
+      ],
+      "unknown_policy": "unknown if aircraft height or home-pad geometry is absent"
+    },
+    "uav_landing": {
+      "display_name": "uav_landing",
+      "required_state_fields": [
+        "z_agl_m",
+        "takeoff_ground_z_m",
+        "xy_distance_to_home_pad_m",
+        "home_pad_pose_enu_m"
+      ],
+      "required_response": "touchdown occurs inside the aircraft landing zone",
+      "observable_dimensions": [
+        "pose_3d",
+        "landing_zone_geometry"
+      ],
+      "unknown_policy": "unknown if aircraft height or landing-zone geometry is absent"
+    },
+    "restricted_region_intrusion": {
+      "display_name": "restricted_region_intrusion",
+      "required_state_fields": [
+        "minimum_restricted_boundary_distance_m",
+        "restricted_region_active",
+        "boundary_margin_m",
+        "rth_mode_active"
+      ],
+      "required_response": "the aircraft is objectively detected crossing the governed restricted-airspace boundary margin",
+      "observable_dimensions": [
+        "pose_3d",
+        "restricted_region_geometry",
+        "region_activation",
+        "control_plan_window"
+      ],
+      "unknown_policy": "unknown if authoritative region geometry, activation, or boundary-margin evidence is absent"
+    },
+    "altitude_excursion": {
+      "display_name": "altitude_excursion",
+      "required_state_fields": [
+        "altitude_agl_m",
+        "altitude_min_m",
+        "altitude_max_m",
+        "corridor_geometry"
+      ],
+      "required_response": "UAV climbs or descends toward the assigned altitude band",
+      "observable_dimensions": [
+        "pose_3d",
+        "assigned_altitude_band",
+        "vertical_velocity"
+      ],
+      "unknown_policy": "unknown if assigned band is missing"
+    },
+    "uav_separation_conflict": {
+      "display_name": "uav_separation_conflict",
+      "required_state_fields": [
+        "pair_type",
+        "horizontal_separation_m",
+        "vertical_separation_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact"
+      ],
+      "required_response": "both affected UAVs execute deconfliction or one yields by hold/divert",
+      "observable_dimensions": [
+        "pose_3d",
+        "velocity_3d",
+        "uav_pair_identity",
+        "trajectory_prediction"
+      ],
+      "unknown_policy": "unknown if either UAV trajectory is missing"
+    },
+    "uav_pedestrian_near_miss": {
+      "display_name": "uav_pedestrian_near_miss",
+      "required_state_fields": [
+        "pair_type",
+        "distance_3d_m",
+        "uav_altitude_agl_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact"
+      ],
+      "required_response": "UAV pulls up or clears the pedestrian exposure zone",
+      "observable_dimensions": [
+        "uav_pose_3d",
+        "pedestrian_pose_3d",
+        "uav_velocity_3d",
+        "pedestrian_presence"
+      ],
+      "unknown_policy": "unknown if pedestrian pose or UAV altitude is missing"
+    },
+    "uav_vehicle_conflict": {
+      "display_name": "uav_vehicle_conflict",
+      "required_state_fields": [
+        "pair_type",
+        "distance_3d_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact"
+      ],
+      "required_response": "the bound ground vehicle brakes or enters emergency stop after the UAV-vehicle risk transition",
+      "observable_dimensions": [
+        "uav_pose",
+        "vehicle_pose",
+        "three_dimensional_clearance",
+        "relative_closing_speed",
+        "TTC",
+        "contact_or_near_miss_source",
+        "vehicle_response_state"
+      ],
+      "unknown_policy": "unknown when UAV pose, vehicle pose, pair distance, pair TTC, closing speed, or contact classification source is missing"
+    },
+    "vehicle_pedestrian_conflict": {
+      "display_name": "vehicle_pedestrian_conflict",
+      "required_state_fields": [
+        "pair_type",
+        "distance_2d_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact"
+      ],
+      "required_response": "vehicle brakes and pedestrian retreats or clears the conflict zone",
+      "observable_dimensions": [
+        "vehicle_pose",
+        "vehicle_velocity",
+        "pedestrian_pose",
+        "conflict_zone_geometry"
+      ],
+      "unknown_policy": "unknown if pedestrian or vehicle trajectory is incomplete"
+    },
+    "vehicle_intersection_conflict": {
+      "display_name": "vehicle_intersection_conflict",
+      "required_state_fields": [
+        "pair_type",
+        "distance_2d_m",
+        "time_to_conflict_s",
+        "closing_speed_mps",
+        "collision_contact",
+        "intersection_geometry"
+      ],
+      "required_response": "braking or yielding prevents collision",
+      "observable_dimensions": [
+        "vehicle_pose",
+        "vehicle_velocity",
+        "intersection_geometry",
+        "predicted_trajectory"
+      ],
+      "unknown_policy": "unknown if either vehicle trajectory is missing",
+      "participant_roles": [
+        {
+          "role": "first_vehicle",
+          "scope_type": "vehicle",
+          "binding": "documented_intent",
+          "background_allowed": false
+        },
+        {
+          "role": "second_vehicle",
+          "scope_type": "vehicle",
+          "binding": "documented_intent",
+          "background_allowed": false
+        }
+      ]
+    },
+    "corridor_congestion": {
+      "display_name": "corridor_congestion",
+      "required_state_fields": [
+        "corridor_geometry",
+        "occupancy",
+        "capacity"
+      ],
+      "required_response": "hold, resequence, or divert reduces demand",
+      "observable_dimensions": [
+        "corridor_geometry",
+        "uav_corridor_membership",
+        "corridor_capacity",
+        "uav_intent"
+      ],
+      "unknown_policy": "unknown if corridor capacity or membership cannot be enumerated"
+    },
+    "structure_near_miss": {
+      "display_name": "structure_near_miss",
+      "required_state_fields": [
+        "clearance_m",
+        "closing_speed_mps",
+        "structure_geometry",
+        "collision_contact"
+      ],
+      "required_response": "UAV performs evasion away from structure",
+      "observable_dimensions": [
+        "pose_3d",
+        "velocity_3d",
+        "building_geometry",
+        "trajectory_prediction"
+      ],
+      "unknown_policy": "unknown if structure geometry is absent"
+    },
+    "forced_landing": {
+      "display_name": "forced_landing",
+      "required_state_fields": [
+        "vertical_speed_mps",
+        "fault_active",
+        "failsafe_active",
+        "at_landing_zone",
+        "touchdown_contact",
+        "speed_mps"
+      ],
+      "required_response": "safe landing zone is established, cleared, and used for touchdown",
+      "observable_dimensions": [
+        "uav_state",
+        "pose_3d",
+        "vertical_velocity",
+        "landing_zone_geometry",
+        "crowd_or_obstacle_presence"
+      ],
+      "unknown_policy": "unknown if descent driver or landing-zone validity is absent"
+    },
+    "c2_degradation_loss": {
+      "display_name": "c2_degradation_loss",
+      "required_state_fields": [
+        "link_available",
+        "packet_loss_ratio",
+        "latency_ms",
+        "link_degraded_duration_samples",
+        "link_unavailable_duration_samples",
+        "backup_link_active",
+        "handover_complete"
+      ],
+      "required_response": "UAV enters safe-hold or RTH",
+      "observable_dimensions": [
+        "latency_series",
+        "packet_loss_series",
+        "heartbeat_series",
+        "station_status",
+        "uav_control_state"
+      ],
+      "unknown_policy": "unknown if link metrics are absent and no governed simulation model is available"
+    },
+    "gnss_signal_degradation": {
+      "display_name": "gnss_signal_degradation",
+      "required_state_fields": [
+        "true_pose_3d",
+        "reported_pose_3d",
+        "gnss_quality",
+        "gnss_pose_error_m",
+        "route_error_m"
+      ],
+      "required_response": "relocalization, safe hold, or route correction starts after a real GNSS service degradation",
+      "observable_dimensions": [
+        "true_pose_3d",
+        "reported_pose_3d",
+        "gnss_quality",
+        "navigation_mode"
+      ],
+      "unknown_policy": "unknown if true and reported pose cannot both be recovered"
+    },
+    "gnss_spoofing_effect": {
+      "display_name": "gnss_spoofing_effect",
+      "required_state_fields": [
+        "true_pose_3d",
+        "reported_pose_3d",
+        "spoof_mode",
+        "gnss_pose_error_m",
+        "route_error_m"
+      ],
+      "required_response": "a typed spoofing signal and exact navigation-effect relation are available before claiming the spoofing event",
+      "observable_dimensions": [
+        "true_pose_3d",
+        "reported_pose_3d",
+        "gnss_quality",
+        "navigation_mode"
+      ],
+      "unknown_policy": "unknown if true and reported pose cannot both be recovered"
+    },
+    "charger_unavailable": {
+      "display_name": "charger_unavailable",
+      "required_state_fields": [
+        "facility_kind",
+        "available",
+        "alternate_accepted",
+        "reservation_state"
+      ],
+      "required_response": "route planner selects an alternate charger or rejects the task safely",
+      "observable_dimensions": [
+        "facility_status",
+        "reservation_state",
+        "uav_energy_state",
+        "planner_assignment"
+      ],
+      "unknown_policy": "unknown if facility availability or reservation state is absent"
+    },
+    "pad_contention": {
+      "display_name": "pad_contention",
+      "required_state_fields": [
+        "facility_kind",
+        "active_requests",
+        "capacity",
+        "priority_granted",
+        "allocation_resolved"
+      ],
+      "required_response": "arbitration grants priority and diverts non-priority UAVs",
+      "observable_dimensions": [
+        "pad_geometry",
+        "pad_occupancy",
+        "reservation_state",
+        "uav_request_state",
+        "priority_policy"
+      ],
+      "unknown_policy": "unknown if requesters or pad capacity cannot be enumerated"
+    },
+    "signal_malfunction": {
+      "display_name": "signal_malfunction",
+      "required_state_fields": [
+        "controller_mode",
+        "phase_valid",
+        "fault_duration_samples",
+        "queue_length",
+        "queue_threshold",
+        "manual_control_active",
+        "flow_safe"
+      ],
+      "required_response": "vehicle queues form and police/manual control becomes active",
+      "observable_dimensions": [
+        "signal_state",
+        "controller_health",
+        "lane_queue_length",
+        "manual_control_state"
+      ],
+      "unknown_policy": "unknown if controller health or signal state is absent"
+    },
+    "road_closure": {
+      "display_name": "road_closure",
+      "required_state_fields": [
+        "barrier_active",
+        "lane_passable",
+        "affected_vehicles_clear",
+        "inspection_complete",
+        "road_geometry"
+      ],
+      "required_response": "affected vehicles take detour and leave the closed segment",
+      "observable_dimensions": [
+        "road_segment_geometry",
+        "barrier_state",
+        "vehicle_pose",
+        "vehicle_route"
+      ],
+      "unknown_policy": "unknown if segment geometry or barrier state is absent"
+    },
+    "ambulance_priority": {
+      "display_name": "ambulance_priority",
+      "required_state_fields": [
+        "priority_active",
+        "approaching_junction",
+        "civilian_yielding",
+        "ambulance_cleared",
+        "junction_geometry"
+      ],
+      "required_response": "civilian vehicles yield and ambulance passes the conflict zone",
+      "observable_dimensions": [
+        "vehicle_pose",
+        "vehicle_velocity",
+        "emergency_priority_state",
+        "lane_geometry"
+      ],
+      "unknown_policy": "unknown if priority state or vehicle class is absent"
+    },
+    "av_safe_stop": {
+      "display_name": "av_safe_stop",
+      "required_state_fields": [
+        "sensor_fault",
+        "mrm_active",
+        "speed_mps",
+        "in_safe_area"
+      ],
+      "required_response": "AV reaches and holds a safe stopped position with warning active",
+      "observable_dimensions": [
+        "vehicle_pose",
+        "vehicle_velocity",
+        "sensor_health",
+        "mrm_state",
+        "warning_state"
+      ],
+      "unknown_policy": "unknown if sensor fault or MRM state is absent",
+      "participant_roles": [
+        {
+          "role": "vehicle",
+          "scope_type": "vehicle",
+          "binding": "documented_intent",
+          "background_allowed": false
+        }
+      ]
+    },
+    "pedestrian_medical": {
+      "display_name": "pedestrian_medical",
+      "required_state_fields": [
+        "injury_flag",
+        "posture_fallen",
+        "fallen_duration_samples",
+        "detected",
+        "dispatched",
+        "arrived",
+        "handoff_complete"
+      ],
+      "required_response": "detection, dispatch, arrival, handoff, and resolution are evidenced",
+      "observable_dimensions": [
+        "pedestrian_pose",
+        "pedestrian_posture",
+        "pedestrian_activity",
+        "health_state",
+        "dispatch_state",
+        "responder_pose"
+      ],
+      "unknown_policy": "unknown if posture or response state is absent"
+    },
+    "crowd_evacuation": {
+      "display_name": "crowd_evacuation",
+      "required_state_fields": [
+        "required_member_count",
+        "moving_to_safe_zone_ratio",
+        "safe_member_count",
+        "hazard_zone_geometry",
+        "safe_zone_geometry"
+      ],
+      "required_response": "crowd members move continuously from hazard zone to safe zone",
+      "observable_dimensions": [
+        "pedestrian_pose",
+        "hazard_zone_geometry",
+        "safe_zone_geometry",
+        "crowd_membership"
+      ],
+      "unknown_policy": "unknown if crowd membership or zones are incomplete"
+    },
+    "temporary_airspace_lockdown": {
+      "display_name": "temporary_airspace_lockdown",
+      "required_state_fields": [
+        "region_active",
+        "region_kind",
+        "region_geometry",
+        "reroute_complete",
+        "affected_uav_count",
+        "rerouted_uav_count"
+      ],
+      "required_response": "the controlled region isolates the hazardous area while affected UAVs reroute or hold outside it",
+      "observable_dimensions": [
+        "hazard_source_state",
+        "hazard_concentration",
+        "hazard_radius",
+        "region_activation",
+        "lockdown_geometry",
+        "uav_pose_3d",
+        "uav_route_state"
+      ],
+      "unknown_policy": "unknown if hazardous-release measurements, lockdown state, or controlled-region geometry are absent"
+    },
+    "rain_fog_environment": {
+      "display_name": "rain_fog_environment",
+      "required_state_fields": [
+        "rain_rate_mm_h",
+        "rain_duration_samples",
+        "visibility_m",
+        "fog_duration_samples",
+        "illumination_lux",
+        "exposure_score",
+        "ir_mode_active"
+      ],
+      "required_response": "only an environment event is emitted directly; UAV or traffic consequences require independent rules",
+      "observable_dimensions": [
+        "weather_state",
+        "visibility",
+        "precipitation_rate",
+        "duration"
+      ],
+      "unknown_policy": "unknown if weather parameters are absent"
+    },
+    "crosswind_payload_swing": {
+      "display_name": "crosswind_payload_swing",
+      "required_state_fields": [
+        "crosswind_mps",
+        "payload_swing_deg",
+        "attitude_error_deg",
+        "safe_terminal"
+      ],
+      "required_response": "attitude recovery reduces swing or mission terminates safely",
+      "observable_dimensions": [
+        "wind_vector",
+        "uav_attitude",
+        "payload_state",
+        "uav_pose_3d"
+      ],
+      "unknown_policy": "unknown if wind vector or payload state is absent"
+    },
+    "high_temp_battery_derating": {
+      "display_name": "high_temp_battery_derating",
+      "required_state_fields": [
+        "temperature_c",
+        "power_derated",
+        "remaining_range_m",
+        "required_range_m",
+        "safe_terminal"
+      ],
+      "required_response": "planner replans, aborts, returns home, or lands safely",
+      "observable_dimensions": [
+        "temperature",
+        "battery_state",
+        "power_limit",
+        "mission_plan",
+        "predicted_range"
+      ],
+      "unknown_policy": "unknown if battery or temperature is absent"
+    },
+    "jamming_gcs_intrusion": {
+      "display_name": "jamming_gcs_intrusion",
+      "required_state_fields": [
+        "jamming_active",
+        "communication_station_id",
+        "gcs_compromised",
+        "safe_terminal"
+      ],
+      "required_response": "channel protection, safe hold, or control-station recovery starts from exact station evidence",
+      "observable_dimensions": [
+        "spectrum_state",
+        "command_source",
+        "command_integrity",
+        "authentication_state",
+        "control_station_state"
+      ],
+      "unknown_policy": "unknown if security telemetry or governed simulation state is absent"
+    },
+    "unauthorized_command": {
+      "display_name": "unauthorized_command",
+      "required_state_fields": [
+        "unauthorized_command",
+        "command_source",
+        "authentication_state"
+      ],
+      "required_response": "typed command provenance is available and rejected before claiming an unauthorized-command event",
+      "observable_dimensions": [
+        "command_source",
+        "authentication_state",
+        "receiver_state"
+      ],
+      "unknown_policy": "unknown if security telemetry or governed simulation state is absent"
+    },
+    "control_command_integrity_violation": {
+      "display_name": "control_command_integrity_violation",
+      "required_state_fields": [
+        "command_stream_id",
+        "command_integrity_ok",
+        "authentication_state"
+      ],
+      "required_response": "a typed command stream and exact integrity failure are available before claiming the event",
+      "observable_dimensions": [
+        "command_stream",
+        "command_integrity",
+        "authentication_state"
+      ],
+      "unknown_policy": "unknown if security telemetry or governed simulation state is absent"
+    },
+    "security_control_unavailability": {
+      "display_name": "security_control_unavailability",
+      "required_state_fields": [
+        "security_control_id",
+        "lockout_active",
+        "security_recovered"
+      ],
+      "required_response": "a typed security control and exact unavailability relation are available before claiming the event",
+      "observable_dimensions": [
+        "security_control_state",
+        "authentication_state",
+        "control_station_state"
+      ],
+      "unknown_policy": "unknown if security telemetry or governed simulation state is absent"
+    }
+  },
+  "epi_contracts": {
+    "L1-1_v1": {
+      "motivation": "验证接近禁飞边界后的风险识别和RTH",
+      "required_chain": [
+        {
+          "stage_goal": "takeoff",
+          "event_family_id": "uav_takeoff"
+        },
+        {
+          "stage_goal": "approach boundary",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "boundary conflict",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "return to safe airspace",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landing",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "boundary geometry",
+        "route state",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when boundary or route evidence is missing"
+    },
+    "L1-1_v2": {
+      "motivation": "验证另一边界几何下的侵入风险和返航",
+      "required_chain": [
+        {
+          "stage_goal": "takeoff",
+          "event_family_id": "uav_takeoff"
+        },
+        {
+          "stage_goal": "approach boundary",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "boundary conflict",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "return to safe airspace",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landing",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "alternate boundary geometry",
+        "route state",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when boundary geometry is not authoritative"
+    },
+    "L1-2_v1": {
+      "motivation": "验证指派高度带偏离检测",
+      "required_chain": [
+        {
+          "stage_goal": "altitude excursion",
+          "event_family_id": "altitude_excursion"
+        },
+        {
+          "stage_goal": "corrective maneuver",
+          "event_family_id": "altitude_excursion"
+        },
+        {
+          "stage_goal": "altitude restored",
+          "event_family_id": "altitude_excursion"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "uav altitude",
+        "assigned altitude band",
+        "vertical speed"
+      ],
+      "unknown_policy": "unknown when assigned band is missing"
+    },
+    "L1-3_v1": {
+      "motivation": "验证非合作UAV侵入与双机解冲突",
+      "required_chain": [
+        {
+          "stage_goal": "intruder detected",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "pair conflict",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "deconfliction",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "dual safe landing",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "two-uav trajectories",
+        "separation",
+        "TTC",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when either UAV trajectory is incomplete"
+    },
+    "L1-3_v2": {
+      "motivation": "验证高速穿越UAV的提前冲突判定",
+      "required_chain": [
+        {
+          "stage_goal": "fast crossing risk",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "separation response",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "conflict cleared",
+          "event_family_id": "uav_separation_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "two-uav trajectories",
+        "closing speed",
+        "TTC"
+      ],
+      "unknown_policy": "unknown when speed or trajectory prediction is unavailable"
+    },
+    "L1-4_v1": {
+      "motivation": "验证多UAV走廊容量与优先级重排",
+      "required_chain": [
+        {
+          "stage_goal": "over-capacity",
+          "event_family_id": "corridor_congestion"
+        },
+        {
+          "stage_goal": "resequence or divert",
+          "event_family_id": "corridor_congestion"
+        },
+        {
+          "stage_goal": "capacity restored",
+          "event_family_id": "corridor_congestion"
+        }
+      ],
+      "observable_dimensions": [
+        "corridor occupancy",
+        "capacity",
+        "UAV routing"
+      ],
+      "unknown_policy": "unknown when corridor capacity is missing"
+    },
+    "L1-4_v2": {
+      "motivation": "验证高密度拥堵下的分阶段恢复",
+      "required_chain": [
+        {
+          "stage_goal": "dense congestion",
+          "event_family_id": "corridor_congestion"
+        },
+        {
+          "stage_goal": "hold or divert",
+          "event_family_id": "corridor_congestion"
+        },
+        {
+          "stage_goal": "staged landings",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "corridor occupancy",
+        "capacity",
+        "hold state",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when membership enumeration is incomplete"
+    },
+    "L2-1_v1": {
+      "motivation": "验证通信站故障后的备份链路恢复",
+      "required_chain": [
+        {
+          "stage_goal": "station failure",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "C2 degraded or lost",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "backup link",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "safe landing",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "station status",
+        "link metrics",
+        "control state",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when link metrics are not available"
+    },
+    "L2-1_v2": {
+      "motivation": "验证替代布局下的C2恢复策略",
+      "required_chain": [
+        {
+          "stage_goal": "link degradation",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "hold or reroute",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "restored",
+          "event_family_id": "c2_degradation_loss"
+        }
+      ],
+      "observable_dimensions": [
+        "link metrics",
+        "uav control state",
+        "route state"
+      ],
+      "unknown_policy": "unknown when link degradation cannot be computed"
+    },
+    "L2-2_v1": {
+      "motivation": "验证城市峡谷GNSS漂移与视觉重定位",
+      "required_chain": [
+        {
+          "stage_goal": "GNSS degraded",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "navigation error",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "relocalization",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "route recovered",
+          "event_family_id": "gnss_signal_degradation"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "GNSS quality",
+        "navigation mode"
+      ],
+      "unknown_policy": "unknown when true/reported pose pair is unavailable"
+    },
+    "L2-2_v2": {
+      "motivation": "验证更长漂移窗口下的纠偏",
+      "required_chain": [
+        {
+          "stage_goal": "sustained drift",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "correction",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "navigation recovered",
+          "event_family_id": "gnss_signal_degradation"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "drift duration",
+        "navigation mode"
+      ],
+      "unknown_policy": "unknown when drift duration cannot be measured"
+    },
+    "L2-3_v1": {
+      "motivation": "验证主充电站不可用后的备选设施选择",
+      "required_chain": [
+        {
+          "stage_goal": "charger unavailable",
+          "event_family_id": "charger_unavailable"
+        },
+        {
+          "stage_goal": "replanning",
+          "event_family_id": "charging_queue_over_capacity"
+        },
+        {
+          "stage_goal": "backup charger accepted",
+          "event_family_id": "charger_unavailable"
+        }
+      ],
+      "observable_dimensions": [
+        "charger availability",
+        "reservation",
+        "planner assignment"
+      ],
+      "unknown_policy": "unknown when facility state is missing"
+    },
+    "L2-3_v2": {
+      "motivation": "验证不同设施位置下的重新规划",
+      "required_chain": [
+        {
+          "stage_goal": "unavailable facility",
+          "event_family_id": "charger_unavailable"
+        },
+        {
+          "stage_goal": "alternate selection",
+          "event_family_id": "charging_queue_over_capacity"
+        },
+        {
+          "stage_goal": "terminal resolution",
+          "event_family_id": "charger_unavailable"
+        }
+      ],
+      "observable_dimensions": [
+        "facility availability",
+        "facility geometry",
+        "planner assignment"
+      ],
+      "unknown_policy": "unknown when alternate facility cannot be identified"
+    },
+    "L2-4_v1": {
+      "motivation": "验证应急停机坪争用和优先级仲裁",
+      "required_chain": [
+        {
+          "stage_goal": "simultaneous requests",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "contention",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "priority grant",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "diversion",
+          "event_family_id": "pad_contention"
+        }
+      ],
+      "observable_dimensions": [
+        "pad requests",
+        "pad occupancy",
+        "priority policy",
+        "uav routing"
+      ],
+      "unknown_policy": "unknown when requester set is incomplete"
+    },
+    "L2-4_v2": {
+      "motivation": "验证不同几何下的优先着陆",
+      "required_chain": [
+        {
+          "stage_goal": "contention",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "arbitration",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "contention cleared",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "priority landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "pad geometry",
+        "pad occupancy",
+        "priority request",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when pad geometry is missing"
+    },
+    "L2-5_v1": {
+      "motivation": "验证信号灯全红故障和人工交通接管",
+      "required_chain": [
+        {
+          "stage_goal": "signal malfunction",
+          "event_family_id": "signal_malfunction"
+        },
+        {
+          "stage_goal": "queue formation",
+          "event_family_id": "signal_malfunction"
+        },
+        {
+          "stage_goal": "police manual control",
+          "event_family_id": "signal_malfunction"
+        },
+        {
+          "stage_goal": "restored",
+          "event_family_id": "signal_malfunction"
+        }
+      ],
+      "observable_dimensions": [
+        "signal state",
+        "controller health",
+        "queue length",
+        "manual control state"
+      ],
+      "unknown_policy": "unknown when manual control state is missing"
+    },
+    "L3-1_v1": {
+      "motivation": "验证道路施工封闭、绕行及UAV检查",
+      "required_chain": [
+        {
+          "stage_goal": "barrier activation",
+          "event_family_id": "road_closure"
+        },
+        {
+          "stage_goal": "road closed",
+          "event_family_id": "road_closure"
+        },
+        {
+          "stage_goal": "vehicle detour",
+          "event_family_id": "road_closure"
+        },
+        {
+          "stage_goal": "inspection complete",
+          "event_family_id": "road_closure"
+        }
+      ],
+      "observable_dimensions": [
+        "barrier state",
+        "road segment geometry",
+        "vehicle route",
+        "uav inspection state"
+      ],
+      "unknown_policy": "unknown when closure state has no physical barrier/segment evidence"
+    },
+    "L3-2_v1": {
+      "motivation": "验证飞行过程中临时禁飞区激活",
+      "required_chain": [
+        {
+          "stage_goal": "NFZ active",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "boundary risk",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "reroute",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "safe separation",
+          "event_family_id": "restricted_region_intrusion"
+        }
+      ],
+      "observable_dimensions": [
+        "NFZ activation",
+        "region geometry",
+        "uav pose",
+        "route state"
+      ],
+      "unknown_policy": "unknown when temporary region activation is absent"
+    },
+    "L3-2_v2": {
+      "motivation": "验证另一禁飞区几何下的绕行",
+      "required_chain": [
+        {
+          "stage_goal": "NFZ activation",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "conflict",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "alternate reroute",
+          "event_family_id": "temporary_airspace_lockdown"
+        }
+      ],
+      "observable_dimensions": [
+        "NFZ geometry",
+        "region activation",
+        "uav pose",
+        "route state"
+      ],
+      "unknown_policy": "unknown when active region membership cannot be computed"
+    },
+    "L3-3_v1": {
+      "motivation": "验证危化品泄漏、隔离和疏散协同",
+      "required_chain": [
+        {
+          "stage_goal": "leak detected",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "isolation active",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "evacuation",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe zone reached",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "responder arrived",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "responder handoff",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "resolved",
+          "event_family_id": "crowd_evacuation"
+        }
+      ],
+      "observable_dimensions": [
+        "hazard_source_active",
+        "hazard_concentration_ppm",
+        "hazard_radius_m",
+        "crowd pose",
+        "safe zone",
+        "responder state",
+        "handoff state"
+      ],
+      "unknown_policy": "unknown when numeric hazard or hazmat response state is missing",
+      "required_state_fields": [
+        "hazard_source_active",
+        "hazard_concentration_ppm",
+        "hazard_radius_m",
+        "hazmat_isolation_active",
+        "hazmat_responder_arrived",
+        "hazmat_handoff_complete",
+        "hazmat_resolved"
+      ]
+    },
+    "L3-3_v2": {
+      "motivation": "验证扩大泄漏范围后的应急交接",
+      "required_chain": [
+        {
+          "stage_goal": "hazard spread",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "isolation active",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "evacuation",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe zone reached",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "responder arrived",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "responder handoff",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "resolved",
+          "event_family_id": "pedestrian_medical"
+        }
+      ],
+      "observable_dimensions": [
+        "hazard_source_active",
+        "hazard_concentration_ppm",
+        "hazard_radius_m",
+        "crowd pose",
+        "responder state",
+        "handoff state",
+        "resolved state"
+      ],
+      "unknown_policy": "unknown when responder handoff is not represented as hazmat response state",
+      "required_state_fields": [
+        "hazard_source_active",
+        "hazard_concentration_ppm",
+        "hazard_radius_m",
+        "hazmat_isolation_active",
+        "hazmat_responder_arrived",
+        "hazmat_handoff_complete",
+        "hazmat_resolved"
+      ]
+    },
+    "L4-1_v1": {
+      "motivation": "验证双UAV会聚冲突和分离",
+      "required_chain": [
+        {
+          "stage_goal": "convergence",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "separation breach",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "evasion",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "separation restored",
+          "event_family_id": "uav_separation_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "two-uav pose",
+        "velocity",
+        "separation",
+        "TTC"
+      ],
+      "unknown_policy": "unknown when pair trajectory is incomplete"
+    },
+    "L4-1_v2": {
+      "motivation": "验证替代航线下的双机解冲突",
+      "required_chain": [
+        {
+          "stage_goal": "convergence risk",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "deconfliction",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "recovered",
+          "event_family_id": "uav_separation_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "two-uav pose",
+        "alternate route",
+        "separation"
+      ],
+      "unknown_policy": "unknown when alternate route evidence is missing"
+    },
+    "L4-2_v1": {
+      "motivation": "验证建筑立面近撞和紧急规避",
+      "required_chain": [
+        {
+          "stage_goal": "structure clearance breach",
+          "event_family_id": "structure_near_miss"
+        },
+        {
+          "stage_goal": "evasion",
+          "event_family_id": "structure_near_miss"
+        },
+        {
+          "stage_goal": "clearance restored",
+          "event_family_id": "structure_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "velocity",
+        "building geometry",
+        "clearance"
+      ],
+      "unknown_policy": "unknown when building geometry is absent"
+    },
+    "L4-2_v2": {
+      "motivation": "验证另一立面几何下的近失恢复",
+      "required_chain": [
+        {
+          "stage_goal": "near-strike",
+          "event_family_id": "structure_near_miss"
+        },
+        {
+          "stage_goal": "recovery maneuver",
+          "event_family_id": "structure_near_miss"
+        },
+        {
+          "stage_goal": "safe clearance",
+          "event_family_id": "structure_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "facade geometry",
+        "clearance"
+      ],
+      "unknown_policy": "unknown when clearance cannot be computed"
+    },
+    "L4-3_v1": {
+      "motivation": "验证人群附近UAV故障迫降",
+      "required_chain": [
+        {
+          "stage_goal": "UAV fault",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "forced descent",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "crowd evacuation",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe touchdown",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "uav fault",
+        "descent",
+        "crowd pose",
+        "landing zone"
+      ],
+      "unknown_policy": "unknown when fault or evacuation state is missing"
+    },
+    "L4-3_v2": {
+      "motivation": "验证另一迫降区的人群清场",
+      "required_chain": [
+        {
+          "stage_goal": "forced landing risk",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "clear zone",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "descent",
+        "landing zone",
+        "crowd pose",
+        "touchdown"
+      ],
+      "unknown_policy": "unknown when landing zone clearance is not observable"
+    },
+    "L4-3_v3": {
+      "motivation": "验证第三种故障轨迹的迫降结果",
+      "required_chain": [
+        {
+          "stage_goal": "fault",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "descent",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "touchdown success or failure",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "fault state",
+        "descent",
+        "landing zone",
+        "touchdown"
+      ],
+      "unknown_policy": "unknown when outcome cannot be classified"
+    },
+    "L4-4_v1": {
+      "motivation": "验证UAV与移动车辆碰撞或近失",
+      "required_chain": [
+        {
+          "stage_goal": "UAV-vehicle trajectory conflict",
+          "event_family_id": "uav_vehicle_conflict"
+        },
+        {
+          "stage_goal": "UAV-vehicle contact or near-miss classification",
+          "event_family_id": "uav_vehicle_conflict"
+        },
+        {
+          "stage_goal": "vehicle emergency response",
+          "event_family_id": "uav_vehicle_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "vehicle pose",
+        "3D clearance",
+        "TTC",
+        "closing speed",
+        "contact or near-miss source",
+        "vehicle braking state"
+      ],
+      "unknown_policy": "unknown when UAV/vehicle trajectories, 3D distance, TTC, closing speed, or classification source are incomplete"
+    },
+    "L4-4_v2": {
+      "motivation": "验证替代道路下的同类事故",
+      "required_chain": [
+        {
+          "stage_goal": "UAV-vehicle crossing risk",
+          "event_family_id": "uav_vehicle_conflict"
+        },
+        {
+          "stage_goal": "UAV-vehicle contact or safe avoidance",
+          "event_family_id": "uav_vehicle_conflict"
+        },
+        {
+          "stage_goal": "vehicle braking outcome",
+          "event_family_id": "uav_vehicle_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "vehicle pose",
+        "road geometry",
+        "3D clearance",
+        "TTC",
+        "closing speed",
+        "contact or near-miss source",
+        "braking state"
+      ],
+      "unknown_policy": "unknown when UAV/vehicle trajectories, 3D distance, TTC, closing speed, classification source, or braking outcome are absent"
+    },
+    "L4-5_v1": {
+      "motivation": "验证低空巡检中的行人近失",
+      "required_chain": [
+        {
+          "stage_goal": "unsafe clearance",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "near-miss",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "pull-up",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "pedestrian clear",
+          "event_family_id": "uav_pedestrian_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "pedestrian pose",
+        "altitude",
+        "separation"
+      ],
+      "unknown_policy": "unknown when pedestrian presence is missing"
+    },
+    "L4-5_v2": {
+      "motivation": "验证带上下文行人的近失",
+      "required_chain": [
+        {
+          "stage_goal": "pedestrian exposure",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "near-miss",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "zone cleared",
+          "event_family_id": "uav_pedestrian_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav pose",
+        "pedestrian pose",
+        "exposure zone"
+      ],
+      "unknown_policy": "unknown when exposure zone cannot be computed"
+    },
+    "L4-5_v3": {
+      "motivation": "验证另一低空高度下的恢复",
+      "required_chain": [
+        {
+          "stage_goal": "low-altitude risk",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "recovery maneuver",
+          "event_family_id": "uav_pedestrian_near_miss"
+        },
+        {
+          "stage_goal": "safe separation",
+          "event_family_id": "uav_pedestrian_near_miss"
+        }
+      ],
+      "observable_dimensions": [
+        "uav altitude",
+        "pedestrian pose",
+        "separation"
+      ],
+      "unknown_policy": "unknown when altitude or pedestrian pose is absent"
+    },
+    "L4-6_v1": {
+      "motivation": "验证行人横穿和车辆紧急制动",
+      "required_chain": [
+        {
+          "stage_goal": "jaywalk",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "TTC conflict",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "braking",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "pedestrian retreat",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "vehicle pose",
+        "pedestrian pose",
+        "TTC",
+        "braking state"
+      ],
+      "unknown_policy": "unknown when pedestrian/vehicle trajectory is incomplete"
+    },
+    "L4-6_v2": {
+      "motivation": "验证另一车道几何下的冲突解除",
+      "required_chain": [
+        {
+          "stage_goal": "crosswalk conflict",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "braking",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        },
+        {
+          "stage_goal": "safe clearance",
+          "event_family_id": "vehicle_pedestrian_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "crosswalk geometry",
+        "vehicle pose",
+        "pedestrian pose",
+        "braking state"
+      ],
+      "unknown_policy": "unknown when crosswalk conflict zone is absent"
+    },
+    "L4-7_v1": {
+      "motivation": "验证行人跌倒、UAV发现与救护响应",
+      "required_chain": [
+        {
+          "stage_goal": "fall",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "detection",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "dispatch",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "arrival",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "handoff",
+          "event_family_id": "pedestrian_medical"
+        }
+      ],
+      "observable_dimensions": [
+        "pedestrian posture",
+        "static duration",
+        "uav detection",
+        "dispatch",
+        "responder arrival"
+      ],
+      "unknown_policy": "unknown when posture or response state is missing"
+    },
+    "L4-7_v2": {
+      "motivation": "验证另一位置下的医疗响应链",
+      "required_chain": [
+        {
+          "stage_goal": "medical emergency",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "response",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "documented resolution",
+          "event_family_id": "pedestrian_medical"
+        }
+      ],
+      "observable_dimensions": [
+        "pedestrian posture",
+        "health",
+        "response state",
+        "handoff state"
+      ],
+      "unknown_policy": "unknown when resolution state is missing"
+    },
+    "L4-8_v1": {
+      "motivation": "验证人群完整疏散和UAV监控",
+      "required_chain": [
+        {
+          "stage_goal": "evacuation start",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "continuous movement",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe zone reached",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "safe hold",
+          "event_family_id": "crowd_evacuation"
+        }
+      ],
+      "observable_dimensions": [
+        "crowd membership",
+        "hazard zone",
+        "safe zone",
+        "uav hold state"
+      ],
+      "unknown_policy": "unknown when crowd membership is incomplete"
+    },
+    "L4-8_v2": {
+      "motivation": "验证另一人群布局下的疏散",
+      "required_chain": [
+        {
+          "stage_goal": "crowd evacuation",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "monitored clearance",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "crowd membership",
+        "safe zone",
+        "uav monitoring",
+        "landing state"
+      ],
+      "unknown_policy": "unknown when monitored clearance cannot be measured"
+    },
+    "L4-9_v1": {
+      "motivation": "验证车辆路口轨迹冲突",
+      "required_chain": [
+        {
+          "stage_goal": "simultaneous intersection occupancy",
+          "event_family_id": "vehicle_intersection_conflict"
+        },
+        {
+          "stage_goal": "risk",
+          "event_family_id": "vehicle_intersection_conflict"
+        },
+        {
+          "stage_goal": "braking or yielding",
+          "event_family_id": "vehicle_intersection_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "vehicle pose",
+        "intersection occupancy",
+        "TTC",
+        "braking/yielding"
+      ],
+      "unknown_policy": "unknown when intersection geometry is missing"
+    },
+    "L4-9_v2": {
+      "motivation": "验证替代车道下的碰撞风险解除",
+      "required_chain": [
+        {
+          "stage_goal": "intersection conflict",
+          "event_family_id": "vehicle_intersection_conflict"
+        },
+        {
+          "stage_goal": "avoidance response",
+          "event_family_id": "vehicle_intersection_conflict"
+        },
+        {
+          "stage_goal": "safe passage",
+          "event_family_id": "vehicle_intersection_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "vehicle pose",
+        "lane geometry",
+        "avoidance state",
+        "clearance"
+      ],
+      "unknown_policy": "unknown when avoidance state is missing"
+    },
+    "L4-10_v1": {
+      "motivation": "验证救护车路权和民车让行",
+      "required_chain": [
+        {
+          "stage_goal": "priority active",
+          "event_family_id": "ambulance_priority"
+        },
+        {
+          "stage_goal": "civilian yielding",
+          "event_family_id": "ambulance_priority"
+        },
+        {
+          "stage_goal": "ambulance clears intersection",
+          "event_family_id": "ambulance_priority"
+        }
+      ],
+      "observable_dimensions": [
+        "emergency priority",
+        "civilian vehicle pose",
+        "ambulance pose",
+        "right-of-way"
+      ],
+      "unknown_policy": "unknown when civilian yielding state is absent"
+    },
+    "L4-10_v2": {
+      "motivation": "验证另一通行方向下的优先放行",
+      "required_chain": [
+        {
+          "stage_goal": "priority approach",
+          "event_family_id": "ambulance_priority"
+        },
+        {
+          "stage_goal": "clearance",
+          "event_family_id": "ambulance_priority"
+        },
+        {
+          "stage_goal": "passage completed",
+          "event_family_id": "ambulance_priority"
+        }
+      ],
+      "observable_dimensions": [
+        "ambulance pose",
+        "lane geometry",
+        "yielding",
+        "intersection clearance"
+      ],
+      "unknown_policy": "unknown when passage completion cannot be computed"
+    },
+    "L4-11_v1": {
+      "motivation": "验证AV传感器故障和最小风险停车",
+      "required_chain": [
+        {
+          "stage_goal": "sensor fault",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "MRM active",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "stopped_safe",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "UAV report or hazard hold",
+          "event_family_id": "av_safe_stop"
+        }
+      ],
+      "observable_dimensions": [
+        "sensor fault",
+        "MRM state",
+        "vehicle stop",
+        "warning/hold state"
+      ],
+      "unknown_policy": "unknown when sensor or MRM state is absent"
+    },
+    "L4-11_v2": {
+      "motivation": "验证另一道路条件下的安全停车",
+      "required_chain": [
+        {
+          "stage_goal": "fault",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "safe-stop achieved or failed",
+          "event_family_id": "av_safe_stop"
+        },
+        {
+          "stage_goal": "hazard managed",
+          "event_family_id": "av_safe_stop"
+        }
+      ],
+      "observable_dimensions": [
+        "sensor fault",
+        "vehicle pose",
+        "stop state",
+        "hazard management"
+      ],
+      "unknown_policy": "unknown when outcome cannot be classified"
+    },
+    "L5-1_v1": {
+      "motivation": "验证降雨对UAV和车辆策略的真实影响",
+      "required_chain": [
+        {
+          "stage_goal": "rain active",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "visibility or road effect",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "slowdown policy",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "recovery",
+          "event_family_id": "rain_fog_environment"
+        }
+      ],
+      "observable_dimensions": [
+        "rain rate",
+        "visibility",
+        "road effect",
+        "vehicle/uav policy state"
+      ],
+      "unknown_policy": "unknown when weather effect model is missing"
+    },
+    "L5-1_v2": {
+      "motivation": "验证另一雨强下的降级航线",
+      "required_chain": [
+        {
+          "stage_goal": "rain threshold",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "degraded route",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "restored",
+          "event_family_id": "rain_fog_environment"
+        }
+      ],
+      "observable_dimensions": [
+        "rain rate",
+        "visibility",
+        "route state"
+      ],
+      "unknown_policy": "unknown when rain-to-route mechanism is absent"
+    },
+    "L5-1_v3": {
+      "motivation": "验证强降雨下的安全终止",
+      "required_chain": [
+        {
+          "stage_goal": "heavy rain",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "mission unsafe",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "abort or RTH",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "rain rate",
+        "visibility",
+        "mission safety state",
+        "RTH route",
+        "landing"
+      ],
+      "unknown_policy": "unknown when mission unsafe state is not derivable"
+    },
+    "L5-2_v1": {
+      "motivation": "验证突发雾导致的视觉导航失败",
+      "required_chain": [
+        {
+          "stage_goal": "fog active",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "visibility low",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "navigation degraded",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "abort",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "fog state",
+        "visibility",
+        "navigation mode",
+        "route state",
+        "landing"
+      ],
+      "unknown_policy": "unknown when visibility or navigation mode is absent"
+    },
+    "L5-2_v2": {
+      "motivation": "验证另一雾强下的恢复策略",
+      "required_chain": [
+        {
+          "stage_goal": "fog threshold",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "visual failure",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "recovery or abort",
+          "event_family_id": "gnss_signal_degradation"
+        }
+      ],
+      "observable_dimensions": [
+        "fog state",
+        "visibility",
+        "navigation mode",
+        "route state"
+      ],
+      "unknown_policy": "unknown when visual failure cannot be derived"
+    },
+    "L5-3_v1": {
+      "motivation": "验证横风、载荷摆动与姿态异常",
+      "required_chain": [
+        {
+          "stage_goal": "crosswind high",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "payload swing",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "attitude anomaly",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "recovered",
+          "event_family_id": "crosswind_payload_swing"
+        }
+      ],
+      "observable_dimensions": [
+        "wind vector",
+        "payload angle",
+        "uav attitude",
+        "mission state"
+      ],
+      "unknown_policy": "unknown when wind or payload state is absent"
+    },
+    "L5-3_v2": {
+      "motivation": "验证阵风变体下的安全着陆",
+      "required_chain": [
+        {
+          "stage_goal": "gust",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "swing",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "mission termination",
+          "event_family_id": "crosswind_payload_swing"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "wind vector",
+        "payload state",
+        "mission state",
+        "landing"
+      ],
+      "unknown_policy": "unknown when gust or swing state is absent"
+    },
+    "L5-4_v1": {
+      "motivation": "验证黄昏欠曝与红外模式切换",
+      "required_chain": [
+        {
+          "stage_goal": "illumination low",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "underexposed",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "IR active",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "exposure recovered",
+          "event_family_id": "rain_fog_environment"
+        }
+      ],
+      "observable_dimensions": [
+        "illumination",
+        "image exposure",
+        "sensor mode",
+        "visibility"
+      ],
+      "unknown_policy": "unknown when image exposure or sensor mode is absent"
+    },
+    "L5-5_v1": {
+      "motivation": "验证高温电池降额和航程不足",
+      "required_chain": [
+        {
+          "stage_goal": "temperature high",
+          "event_family_id": "high_temp_battery_derating"
+        },
+        {
+          "stage_goal": "power derated",
+          "event_family_id": "high_temp_battery_derating"
+        },
+        {
+          "stage_goal": "range insufficient",
+          "event_family_id": "high_temp_battery_derating"
+        },
+        {
+          "stage_goal": "abort or land",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "temperature",
+        "battery state",
+        "power limit",
+        "predicted range",
+        "landing"
+      ],
+      "unknown_policy": "unknown when battery model or range estimate is absent"
+    },
+    "L6-1_v1": {
+      "motivation": "验证C2完全丢失后的RTH",
+      "required_chain": [
+        {
+          "stage_goal": "link unavailable",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "failsafe",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "RTH active",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "landed",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "link metrics",
+        "failsafe state",
+        "RTH route",
+        "landing"
+      ],
+      "unknown_policy": "unknown when failsafe state is absent"
+    },
+    "L6-1_v2": {
+      "motivation": "验证长航线链路丢失的恢复",
+      "required_chain": [
+        {
+          "stage_goal": "C2 loss",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "RTH or recovery",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "safe terminal",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "link metrics",
+        "control state",
+        "route state",
+        "landing"
+      ],
+      "unknown_policy": "unknown when recovery state cannot be derived"
+    },
+    "L6-2_v1": {
+      "motivation": "验证间歇性链路退化和备份链路",
+      "required_chain": [
+        {
+          "stage_goal": "packet loss or latency",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "slowdown",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "handover",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "nominal",
+          "event_family_id": "c2_degradation_loss"
+        }
+      ],
+      "observable_dimensions": [
+        "packet loss",
+        "latency",
+        "speed policy",
+        "handover state"
+      ],
+      "unknown_policy": "unknown when handover or link metrics are absent"
+    },
+    "L6-2_v2": {
+      "motivation": "验证另一退化参数下的恢复",
+      "required_chain": [
+        {
+          "stage_goal": "intermittent degradation",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "backup link",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "recovered",
+          "event_family_id": "c2_degradation_loss"
+        }
+      ],
+      "observable_dimensions": [
+        "latency",
+        "packet loss",
+        "backup link state",
+        "control state"
+      ],
+      "unknown_policy": "unknown when backup link state is absent"
+    },
+    "L6-3_v1": {
+      "motivation": "验证GNSS欺骗、路径劫持和纠正",
+      "required_chain": [
+        {
+          "stage_goal": "spoofing",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "navigation error",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "abnormal path",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "lock or correction",
+          "event_family_id": "gnss_spoofing_effect"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "path deviation",
+        "lockout/correction"
+      ],
+      "unknown_policy": "unknown when reported pose or path evidence is absent"
+    },
+    "L6-3_v2": {
+      "motivation": "验证另一欺骗强度下的恢复",
+      "required_chain": [
+        {
+          "stage_goal": "spoofing",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "offset",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "relocalization",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "recovered",
+          "event_family_id": "gnss_spoofing_effect"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "offset",
+        "relocalization state"
+      ],
+      "unknown_policy": "unknown when relocalization state is absent"
+    },
+    "L6-4_v1": {
+      "motivation": "验证宽带干扰对多UAV的影响",
+      "required_chain": [
+        {
+          "stage_goal": "jamming",
+          "event_family_id": "jamming_gcs_intrusion"
+        },
+        {
+          "stage_goal": "multi-UAV link degradation",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "safe hold",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "channel recovery",
+          "event_family_id": "jamming_gcs_intrusion"
+        }
+      ],
+      "observable_dimensions": [
+        "spectrum state",
+        "multi-uav link metrics",
+        "safe hold state",
+        "channel state"
+      ],
+      "unknown_policy": "unknown when spectrum or link metrics are absent"
+    },
+    "L6-4_v2": {
+      "motivation": "验证另一干扰场景下的安全终止",
+      "required_chain": [
+        {
+          "stage_goal": "jamming",
+          "event_family_id": "jamming_gcs_intrusion"
+        },
+        {
+          "stage_goal": "safe hold",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "alternate channel or landing",
+          "event_family_id": "jamming_gcs_intrusion"
+        }
+      ],
+      "observable_dimensions": [
+        "spectrum state",
+        "link metrics",
+        "safe hold",
+        "landing"
+      ],
+      "unknown_policy": "unknown when alternate channel state is absent"
+    },
+    "L6-5_v1": {
+      "motivation": "验证GCS入侵和异常命令路径",
+      "required_chain": [
+        {
+          "stage_goal": "GCS compromised",
+          "event_family_id": "jamming_gcs_intrusion"
+        },
+        {
+          "stage_goal": "unauthorized command",
+          "event_family_id": "unauthorized_command"
+        },
+        {
+          "stage_goal": "path deviation",
+          "event_family_id": "gnss_signal_degradation"
+        },
+        {
+          "stage_goal": "lockout",
+          "event_family_id": "security_control_unavailability"
+        }
+      ],
+      "observable_dimensions": [
+        "command source",
+        "authentication",
+        "path deviation",
+        "lockout state"
+      ],
+      "unknown_policy": "unknown when command provenance is absent"
+    },
+    "L6-5_v2": {
+      "motivation": "验证另一入侵路径下的安全恢复",
+      "required_chain": [
+        {
+          "stage_goal": "intrusion",
+          "event_family_id": "jamming_gcs_intrusion"
+        },
+        {
+          "stage_goal": "command integrity violation",
+          "event_family_id": "control_command_integrity_violation"
+        },
+        {
+          "stage_goal": "secure recovery",
+          "event_family_id": "jamming_gcs_intrusion"
+        }
+      ],
+      "observable_dimensions": [
+        "command integrity",
+        "authentication",
+        "control station state"
+      ],
+      "unknown_policy": "unknown when secure recovery state is absent"
+    },
+    "X1_rain_to_c2loss_to_forced_landing": {
+      "motivation": "验证天气、通信和迫降之间的真实机制链",
+      "required_chain": [
+        {
+          "stage_goal": "rain effect",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "C2 degradation or loss",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "failsafe",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "forced landing",
+          "event_family_id": "forced_landing"
+        },
+        {
+          "stage_goal": "outcome",
+          "event_family_id": "uav_landing"
+        }
+      ],
+      "observable_dimensions": [
+        "rain rate",
+        "attenuation parameters",
+        "link metrics",
+        "failsafe state",
+        "descent",
+        "touchdown"
+      ],
+      "unknown_policy": "unknown or precedes unless every rain-to-link-to-failsafe-to-descent transition is evidenced"
+    },
+    "X2_gnss_spoof_to_geofence_violation": {
+      "motivation": "验证欺骗定位如何导致空域风险",
+      "required_chain": [
+        {
+          "stage_goal": "spoofing",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "navigation error",
+          "event_family_id": "gnss_spoofing_effect"
+        },
+        {
+          "stage_goal": "boundary approach or entry",
+          "event_family_id": "restricted_region_intrusion"
+        },
+        {
+          "stage_goal": "correction",
+          "event_family_id": "gnss_spoofing_effect"
+        }
+      ],
+      "observable_dimensions": [
+        "true pose",
+        "reported pose",
+        "geofence geometry",
+        "boundary distance",
+        "correction state"
+      ],
+      "unknown_policy": "unknown or precedes unless spoofing explains boundary approach with continuity"
+    },
+    "X3_pedestrian_fall_to_emergency_response": {
+      "motivation": "验证跌倒到医疗交接的完整过程",
+      "required_chain": [
+        {
+          "stage_goal": "fall",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "UAV detection",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "ambulance dispatch and arrival",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "isolation",
+          "event_family_id": "pedestrian_medical"
+        },
+        {
+          "stage_goal": "handoff",
+          "event_family_id": "pedestrian_medical"
+        }
+      ],
+      "observable_dimensions": [
+        "posture",
+        "health",
+        "detection",
+        "ambulance pose",
+        "isolation region",
+        "handoff"
+      ],
+      "unknown_policy": "unknown or precedes unless response chain is fully evidenced"
+    },
+    "X4_fog_to_uav_conflict": {
+      "motivation": "验证雾导致导航退化和双机冲突",
+      "required_chain": [
+        {
+          "stage_goal": "fog",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "visibility loss",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "route uncertainty",
+          "event_family_id": "rain_fog_environment"
+        },
+        {
+          "stage_goal": "convergence conflict",
+          "event_family_id": "uav_separation_conflict"
+        },
+        {
+          "stage_goal": "evasion",
+          "event_family_id": "uav_separation_conflict"
+        }
+      ],
+      "observable_dimensions": [
+        "fog visibility",
+        "navigation mode",
+        "two-uav pose",
+        "separation",
+        "evasion state"
+      ],
+      "unknown_policy": "unknown or precedes unless fog-to-navigation-to-conflict mechanism is evidenced"
+    },
+    "X5_comm_failure_to_pad_contention": {
+      "motivation": "验证通信故障如何导致停机坪争用",
+      "required_chain": [
+        {
+          "stage_goal": "station failure",
+          "event_family_id": "c2_degradation_loss"
+        },
+        {
+          "stage_goal": "stale or failed allocation",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "simultaneous request",
+          "event_family_id": "pad_contention"
+        },
+        {
+          "stage_goal": "arbitration",
+          "event_family_id": "pad_contention"
+        }
+      ],
+      "observable_dimensions": [
+        "station status",
+        "link metrics",
+        "allocation state",
+        "pad requests",
+        "arbitration state"
+      ],
+      "unknown_policy": "unknown or precedes unless failed allocation bridges link failure to contention"
+    },
+    "X6_crowd_evacuation_to_airspace_lockdown": {
+      "motivation": "验证地面疏散如何触发低空封控",
+      "required_chain": [
+        {
+          "stage_goal": "evacuation threshold",
+          "event_family_id": "crowd_evacuation"
+        },
+        {
+          "stage_goal": "lockdown active",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "UAV reroute",
+          "event_family_id": "temporary_airspace_lockdown"
+        },
+        {
+          "stage_goal": "clearance",
+          "event_family_id": "temporary_airspace_lockdown"
+        }
+      ],
+      "observable_dimensions": [
+        "crowd count",
+        "hazard zone",
+        "lockdown activation",
+        "uav route",
+        "clearance"
+      ],
+      "unknown_policy": "unknown unless the safe-zone population threshold transition and lockdown transition are both observed in strict temporal order"
+    }
+  },
+  "stage_acceptance": {
+    "stage_key_format": "{epi_id}::{stage_index}",
+    "evidence_type_catalog": [
+      "declared_not_applicable",
+      "dwell_window",
+      "event_occurrence_record",
+      "event_outcome_record",
+      "numeric_state_after",
+      "numeric_state_before",
+      "participant_identity",
+      "predicate_truth_after",
+      "predicate_truth_before",
+      "source_refs",
+      "strict_adjacent_transition",
+      "terminal_numeric_state",
+      "tuple_binding_continuity"
+    ],
+    "validation": {
+      "expected_epi_count": 70,
+      "expected_stage_count": 262,
+      "requires_exact_source_stage_match": true,
+      "runtime_keyword_matching_permitted": false
+    }
+  },
+  "validation": {
+    "expected_epi_count": 70,
+    "expected_event_family_count": 31,
+    "scenario_source": "Dataset/scenarios/**/event_script.json"
+  }
+}

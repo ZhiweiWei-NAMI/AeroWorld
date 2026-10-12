@@ -1,0 +1,48 @@
+schema: "aeroworld_l4_window_config"
+version: 1
+arm_id: "arm_factual"
+group_key: "L4-3_v2/seed00/grp_descent_to_low_altitude"
+episode_id: "L4-3_v2__seed00"
+event_family: "forced_landing"
+subject_class: "uav"
+mode: "factual_observation"
+entity_ids:
+  - "uav_forced_landing_l4_3_v2"
+  - "ped_landing_l4_3_v2_a"
+  - "ped_landing_l4_3_v2_b"
+predicate_ids:
+  - "airspace.aircraft_touchdown"
+  - "airspace.aircraft_in_landing_zone"
+  - "emergency.mission_aborted"
+  - "safety.forced_landing_in_populated_area"
+window:
+  start_tick: 255
+  fork_tick: 260
+  end_tick: 400
+  phase: "after_state_sample_before_actions"
+  intervention_order: "source_actions_then_intervention"
+sources:
+  scene: "Dataset/scenarios/L4_agents/failure/L4-3_v2/scene_setup.json"
+  script: "Dataset/scenarios/L4_agents/failure/L4-3_v2/event_script.json"
+  trajectories: "aw_data/render_ready_episodes_capture_filtered/L4-3_v2__seed00/trajectories.jsonl"
+  weather: "aw_data/render_ready_episodes_capture_filtered/L4-3_v2__seed00/weather_meta.jsonl"
+  roster: "aw_data/render_ready_episodes_capture_filtered/L4-3_v2__seed00/global_entity_roster.json"
+  event_realization: "aw_data/render_ready_episodes_capture_filtered/L4-3_v2__seed00/event_realization.jsonl"
+  predicate_transitions: "aw_data/objective_semantic_truth/L4-3_v2__seed00/predicate_transitions.jsonl"
+  event_outcomes: "aw_data/objective_semantic_truth/L4-3_v2__seed00/event_outcomes.jsonl"
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites: []
+expected:
+  target_event: "observe"
+  rationale: "factual 对照：forced_landing_fault@230 → descent_to_low_altitude@260 → crowd_proximity_response@310（trace 三 seed 实测一致）→ 行人 a/b 撤离移动 → touchdown@360，实测窗口内 UAV z 最低 0.8 m@368。本族 forced_landing 为 C_non_executable：不声明族谓词结果，只记录链过程与锚点后继。"
+  falsified_if: "不适用：对照臂。"
+script: "scripts/arms/L4-3_v2/seed00/grp_descent_to_low_altitude/arm_factual.py"
+output: "arms/L4-3_v2/seed00/grp_descent_to_low_altitude/arm_factual"
+provenance:
+  experiment_ref: "design/L4-3_v2/seed00/grp_descent_to_low_altitude/experiment.json"
+  parameter_sources:
+    factual_root: "aw_data"
+    anchor: "l4_chain_truth fragment(L4-3_v2, seed00).fork_event_id = descent_to_low_altitude（blocked_non_executable_family）"
+    trace: "aw_data/render_ready_episodes_capture_filtered/L4-3_v2__seed00/event_trace.jsonl"

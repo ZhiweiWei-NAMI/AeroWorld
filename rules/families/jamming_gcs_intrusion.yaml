@@ -1,0 +1,286 @@
+# ARM 生成规则 —— jamming_gcs_intrusion
+#
+# 命名约束：本文件名 jamming_gcs_intrusion.yaml 必须逐字等于 event_family_id。
+# 生成器按此约定查找，不做模糊匹配；找不到就拒绝生成（fail-closed）。
+#
+# ─────────────────────────────────────────────────────────────
+# 本文件的事实来源（全部在本机实测，可复跑）
+# ─────────────────────────────────────────────────────────────
+#   臂：330 条，分布在 48 个 (profile, seed, group) 三元组（16 组 × 3 seed）
+#       profile：L6-4_v1/v2（宽带干扰链）· L6-5_v1/v2（地面站入侵/失陷链）
+#     arm_id 分布：
+#       arm_factual            48  → 意图 factual
+#       arm_no_op_suppress     48  → 意图 suppress
+#       arm_hold               48  → 意图 suppress
+#       arm_delay_postpone     48  → 意图 delay（delay_ticks 恒为 30）
+#       arm_delay              42  → 意图 delay（delay_ticks 取自场景：20/26/33/50）
+#       arm_avoid_*            48  → 意图 divert（6 个变体）
+#       arm_tradeoff_*         48  → 意图 tradeoff（6 个变体）
+#
+#   证据命令：
+#     grep -rl '"event_family_id":"jamming_gcs_intrusion"' \
+#       --include=branch_manifest.json arms/ | wc -l
+#     python 读 arms/L6-4_v1/seed00/grp_02_wideband_jamming/*/raw/branch_event_ledger.jsonl
+
+schema: aeroworld_arm_generation_rule
+version: 1
+family: jamming_gcs_intrusion
+
+# ─────────────────────────────────────────────────────────────
+# ① 事件权威：只引用，不复制
+#    内容真实来源是 Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+#    这里登记的是"指针 + 关键字段快照"，快照仅用于生成期自检，改定义请改源头。
+#    谓词注册表：Dataset/semantic_rules/predicates/core_semantic_predicate_templates.json
+# ─────────────────────────────────────────────────────────────
+event_authority:
+  source: Dataset/semantic_rules/profiles/event_family_authority_mapping.json
+  pointer: /families/jamming_gcs_intrusion
+  # 复合事件：两个 rule_id 都在谓词注册表的 /event_occurrence_types 里
+  rule_ids:
+    - event_family.jamming_gcs_intrusion.0   # 干扰影响
+    - event_family.jamming_gcs_intrusion.1   # 地面站失陷
+  mapping_class: A_direct
+  event_type_ids:
+    - security.communication_jamming_impact_event
+    - security.ground_control_station_compromise_event
+  trigger:
+    any_of:
+      - { predicate_id: security.communication_jamming_impact_active, direction: rising, event_type_id: security.communication_jamming_impact_event }
+      - { predicate_id: security.ground_control_station_compromised,  direction: rising, event_type_id: security.ground_control_station_compromise_event }
+  # 两个分支的角色集合不同，故按 event_type 列出（= authority 的
+  # .trigger.any_of[].event_role_sources 快照）。合并成一张扁平表会丢掉差异。
+  roles:
+    security.communication_jamming_impact_event:
+      actor:   { kind: trigger_binding, ontology_class: UnmannedAircraft }
+      station: { kind: trigger_binding, ontology_class: CommunicationStation }
+    security.ground_control_station_compromise_event:
+      station: { kind: trigger_binding, ontology_class: GroundControlStation }
+  support_conditions: []          # authority 两个分支都是空表
+  # terminal（快照，仅供自检）：任一触发谓词 = false，
+  #   hold_parameter = recovery_hold_samples，join_roles = [actor, station] / [station]
+
+# ─────────────────────────────────────────────────────────────
+# ② 因果类别：决定这条事件"能不能被人为改变"
+# ─────────────────────────────────────────────────────────────
+causality:
+  class: agent_caused
+  intervenable: true
+  # 实测回答"干预对象是谁"：**链路的两个端点**，不是干扰源。
+  #   station（CommunicationStation / GroundControlStation，即 tower_*/gcs_*）= 主端；
+  #   actor（UnmannedAircraft，即 uav_*）= 被绑定的另一端，随主端一起被 patch。
+  intervention_subject: station
+  intervention_subject_bound: actor
+  # 实测依据（不是推断）：
+  #   330 条 manifest 的 intervention_entity_ids 只出现 tower_* / gcs_* / uav_* 三类；
+  #   96 条 hold 臂与 42 条 delay 臂的 coupled_hold.entity_ids 同样只有这三类；
+  #   **0 条** manifest 含 `*_authority` 字段（无 scene_exogenous_* 声明）。
+  #   干扰源本身不是引擎实体 —— 没有任何臂（也无法）去改变它；臂只能改变受害端。
+  #   这不影响 agent_caused：被干预的是引擎状态，且台账 operation
+  #   =suppress/delay/replace 且 status=applied 的臂共 282 条。
+
+# ─────────────────────────────────────────────────────────────
+# ③ 可干预节点：事件链上哪些节点能分叉
+# ─────────────────────────────────────────────────────────────
+nodes:
+  selector: chain_node          # chain_node | explicit
+  exclude_roles: [terminal]     # 终态节点不干预
+  # anchor_event_id 由事件链给出，不在此硬编码。
+  # 本族实测的链节点（96 组的 anchor_event_id）：
+  #   L6-4：wideband_jamming · multi_uav_hold_entry · multi_uav_safe_hold · alternate_channel
+  #   L6-5：gcs_intrusion · abnormal_uav_behavior · command_lockout · secure_recovery
+
+# ─────────────────────────────────────────────────────────────
+# ④ 5 类意图
+#    通用骨架在 rules/intents.yaml；此处只写本族的差异。
+#    operation 只能取 4 个已注册值之一：
+#      reuse_factual_causal_event | suppress_causal_event
+#      delay_causal_event | replace_causal_event
+#
+#    键名是**意图**（factual/suppress/delay/divert/tradeoff），
+#    具体臂名由 rules/intents.yaml 的 arm_id_patterns 给出。
+# ─────────────────────────────────────────────────────────────
+arms:
+
+  factual:
+    operation: reuse_factual_causal_event
+    mechanism: none
+    # 实测：arm_factual × 48，台账 operation=reuse_factual_causal_event、
+    #       factual_preserved=true、suppressed_event_ids=[]、generated_action_ids=[]
+
+  suppress:
+    operation: suppress_causal_event
+    scope: whole_event_bundle_and_branch_ledger   # 与台账 suppression_scope 一致
+    # 实测：两个臂名都归到本意图 ——
+    #   arm_no_op_suppress × 48：只抑制锚点（suppressed 1 / 3 / 4 / 5 / 6 条），
+    #     无 coupled_hold，不注入动作。
+    #   arm_hold × 48：抑制锚点的因果前驱闭包（suppressed 2~6 条），并注入
+    #     branch_coupled_hold_<arm> 事件。
+    #     台账：suppression_basis=authored_trigger_and_causal_predecessor_closure、
+    #           suppression_scope=whole_event_bundle_and_branch_ledger、
+    #           coupled_hold.injected=true。
+    #     注入动作实测全部是 set_runtime_state：
+    #       state_patch: {control_state: {hold_active: true}}
+    #     （动作 id 里可能带 "_move" 后缀，但 type 实测仍是 set_runtime_state ——
+    #      耦合闭包对 facility 类实体只发运行时补丁，不发视觉模式。）
+    coupled_hold:
+      required: true
+      mechanism:
+        generator: set_runtime_state
+        actor: roles.station
+        actor_bound: roles.actor
+        template:
+          - step_kind: state_patch
+            state_patch:
+              control_state:
+                hold_active: true
+
+  delay:
+    operation: delay_causal_event
+    # 实测两条臂名，参数来源不同，都归本意图：
+    #   arm_delay_postpone × 48：delay_ticks 恒为 30（authority=rule）。
+    #   arm_delay × 42：delay_ticks ∈ {20×18, 26×6, 33×12, 50×6}（authority=scene）。
+    #   两条臂名都不派发实体动作：generated_action_ids 恒为空，
+    #   重定时对象是锚点自己的触发（tick / event_fired_after 两种形态）。
+    #   42 条 arm_delay 另带 coupled_hold（在 fork tick 注入停住动作）；
+    #   48 条 arm_delay_postpone 不带。
+    mechanism: none
+    parameters:
+      delay_ticks:
+        type: integer
+        authority: rule        # rule（arm_delay_postpone）| scene（arm_delay）
+        min: 20
+        max: 50
+        default: 30
+        by_arm_id_pattern:
+          arm_delay_postpone: { authority: rule,  value: 30 }
+          arm_delay:          { authority: scene }
+
+  divert:
+    operation: replace_causal_event
+    mechanism:
+      generator: move_entity
+      actor: roles.actor
+      template:
+        - step_kind: move
+          waypoints_enu_m:
+            source: scene
+            mode: exit_jam_footprint_path   # 抬高/中继/离开干扰覆盖区
+      physics_intent: exit_jam_or_relay_footprint
+      # 诚实快照：本意图 48 条臂**两种 generator 都真实存在**，规则只能声明一个：
+      #   30 条含 move_entity（uav 18 / gcs 12）
+      #   24 条含 set_runtime_state（uav 12 / tower 6 / gcs 6）
+      #     state_patch: {control_state: {hold_active: true}}
+      #    6 条同时含两者
+      # 上表的 generator 取多数派（move_entity）；生成新臂时必须显式选一种，
+      # 不允许两种混写进同一条臂而不声明。
+      # 注意 observed_variants 是**动作类型快照**（每项都是已注册 generator 的列表），
+      # 不是可选的 generator 值本身。
+      observed_variants:
+        - { generators: [set_runtime_state], arms: 24 }
+        - { generators: [move_entity],       arms: 30 }
+        - { generators: [move_entity, set_runtime_state], arms: 6 }
+    # 实测：arm_avoid_* × 48，operation=replace_causal_event。6 个变体：
+    #   arm_avoid_vertical_altitude_stacking(12) · arm_avoid_hardware_killswitch_glide(12)
+    #   arm_avoid_relay_via_airborne_mesh_node(6) · arm_avoid_immediate_flight_envelope_clamp(6)
+    #   arm_avoid_direct_optical_laser_uplink(6) · arm_avoid_cryptographic_lockout_rth(6)
+
+  tradeoff:
+    operation: replace_causal_event
+    mechanism:
+      generator: set_runtime_state
+      actor: roles.station
+      actor_bound: roles.actor
+      template:
+        - step_kind: state_patch
+          state_patch:
+            communication_state:
+              mode: alternate_link          # 换链路 / 降功率 / 隔离受损遥测
+      physics_intent: alternate_link_or_degraded_capability
+      # 诚实快照：本意图 48 条臂的 generator 分布如下（多数派 = set_runtime_state）：
+      #   24 条含 set_runtime_state（tower 6 / gcs 6 / uav 12）
+      #   12 条含 move_entity（gcs 6 / uav 6）
+      #   12 条**什么动作都不派发** —— arm_tradeoff_spatial_dispersal_orbit（12 条）。
+      #     台账对它们写下的 repairs 是
+      #       [{kind: stationary_hold_omits_zero_length_move, omitted_steps: 1}]
+      #     即"该臂唯一的步骤是零长度位移，被显式省略"——这是执行器的**已知省略**，
+      #     不是丢动作；但引擎状态确实没被改动，判定时按 no_effect 风险处理。
+      observed_variants:
+        - { generators: [],            arms: 12 }
+        - { generators: [move_entity], arms: 12 }
+    # 实测：arm_tradeoff_* × 48，operation=replace_causal_event。6 个变体：
+    #   arm_tradeoff_spatial_dispersal_orbit(12) · arm_tradeoff_safe_corridor_escort_rth(12)
+    #   arm_tradeoff_switch_to_secondary_air_marshal_station(6) ·
+    #   arm_tradeoff_low_power_burst_telemetry(6) · arm_tradeoff_isolate_corrupted_telemetry_pipe(6) ·
+    #   arm_tradeoff_frequency_hopping_spread_spectrum(6)
+
+# ─────────────────────────────────────────────────────────────
+# ⑤ 窗口
+# ─────────────────────────────────────────────────────────────
+window:
+  fork_tick:
+    source: anchor_trigger_tick     # 用锚点事件的实际触发 tick，不用声明 tick
+  duration_ticks:
+    source: design_declared         # 取自 design/episodes/*/manifest.json
+    # 实测：window_end_tick − fork_tick ∈ [50, 178]（按臂型分档，每档内一致），
+    #       无全局常数可写。
+    #       234/330 条 manifest 带 window_end_basis
+    #         {candidate_end_tick, modeled_motion[], parent_evidence_end_tick}
+    #       且 window_semantics_only=true；96/330 条是早期形态，没有该字段。
+  history_frames: 8
+  horizon_frames: 5
+
+# ─────────────────────────────────────────────────────────────
+# ⑥ 判定期望 —— 给校验器与 LLM 审查员当 rubric，**不是结论**
+# ─────────────────────────────────────────────────────────────
+expect:
+
+  factual:
+    target_event: occurs
+
+  suppress:
+    target_event: absent_in_window
+    # 若 factual 里该事件本就没发生，这组标 not_intervenable，而不是干预成功
+
+  delay:
+    target_event: occurs
+    first_true_tick_shift:
+      approx: delay_ticks
+      tolerance_ticks: 5
+
+  divert:
+    target_event: absent_in_window
+    differs_from_factual: true
+    # 「让干扰失效」在本族只能表现为：受害端离开干扰覆盖 / 换链路后触发谓词不再上升，
+    # 不能表现为「干扰源被关掉」——没有这种臂。
+
+  tradeoff:
+    differs_from_factual: true
+    # tradeoff 允许事件仍然发生（链路仍降级），但状态轨迹必须与 factual 可辨
+
+  # 所有 alternative 臂共用的最低要求
+  common:
+    intervention_must_change_engine_state: true   # 空操作直接判 no_effect
+    physically_valid: true                        # 交给 rules/physics.yaml 校验
+    delta_rows_after_fork_only: true
+
+# ─────────────────────────────────────────────────────────────
+# ⑦ 这条族做不到的事（诚实声明，避免生成器编造）
+# ─────────────────────────────────────────────────────────────
+limits:
+  known_conflicts:
+    - "arm_tradeoff_spatial_dispersal_orbit（12 条）generated_action_ids 为空，
+       台账 repairs=[{kind: stationary_hold_omits_zero_length_move, omitted_steps: 1}]：
+       执行器显式省略了零长度位移，所以引擎状态未被改动 → 有被判 no_effect 的风险。
+       判定前应确认该省略是否等价于'不做干预'。"
+    - "12 条 arm_avoid_* 只做位移、24 条只做运行时补丁，两者不在同一条臂里同时出现；
+       规则声明单一 generator，跨 generator 的混写必须由执行器显式选择。"
+    - "arm_avoid_cryptographic_lockout_rth / arm_tradeoff_switch_to_secondary_air_marshal_station
+       在 L6-5 的臂里出现对 **地面站** gcs_anchor_l6_5_v1 的 move_entity
+       （velocity_mps=6.0，waypoints 为 [[6600,6500,30],[6585,6485,25]]）。
+       把地面站当移动平台是可疑的落点来源。是否应改为纯 set_runtime_state 切换，
+       # TODO: 需确认（本规则不替执行器改判，只登记事实）。"
+  not_claimed:
+    - G10 整库发布审计（不在本规则范围内）
+    - "干扰源 / 攻击者本身：本族没有任何臂可以寻址它，规则也不允许为它编造干预臂。"
+    - "GCS 失陷（branch .1）之后的处置策略：本规则只描述事件触发与干预机制，
+       不声称已覆盖入侵者的行为模型。"

@@ -1,0 +1,394 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://w3id.org/aeroworld/schema/epi_objective_semantic_contract.schema.json",
+  "title": "AeroWorld EPI Objective Semantic Contract",
+  "type": "object",
+  "required": [
+    "schema_name",
+    "schema_version",
+    "profile_id",
+    "source_policy",
+    "event_family_mapping",
+    "event_families",
+    "epi_contracts",
+    "validation"
+  ],
+  "properties": {
+    "schema_name": {
+      "const": "epi_objective_semantic_contract"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_policy": {
+      "type": "object",
+      "required": [
+        "authored_event_labels_are_fact_source",
+        "forbidden_evidentiary_fields",
+        "permitted_source_classes",
+        "unknown_policy"
+      ],
+      "properties": {
+        "authored_event_labels_are_fact_source": {
+          "const": false
+        },
+        "forbidden_evidentiary_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "permitted_source_classes": {
+          "$ref": "#/$defs/sourceClassSet"
+        },
+        "unknown_policy": {
+          "const": "emit_unknown_not_false_when_required_observable_missing"
+        }
+      },
+      "additionalProperties": false
+    },
+    "event_family_mapping": {
+      "type": "object",
+      "required": [
+        "path",
+        "digest"
+      ],
+      "properties": {
+        "path": {
+          "const": "Dataset/semantic_rules/profiles/event_family_authority_mapping.json"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "event_families": {
+      "type": "object",
+      "minProperties": 32,
+      "maxProperties": 32,
+      "additionalProperties": {
+        "$ref": "#/$defs/eventFamily"
+      }
+    },
+    "epi_contracts": {
+      "type": "object",
+      "minProperties": 70,
+      "additionalProperties": {
+        "$ref": "#/$defs/epiContract"
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "expected_epi_count",
+        "expected_event_family_count",
+        "scenario_source"
+      ],
+      "properties": {
+        "expected_epi_count": {
+          "const": 70
+        },
+        "expected_event_family_count": {
+          "const": 32
+        },
+        "scenario_source": {
+          "const": "Dataset/scenarios/**/event_script.json"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "eventFamily": {
+      "type": "object",
+      "required": [
+        "display_name",
+        "required_predicates",
+        "required_state_fields",
+        "start_condition",
+        "required_response",
+        "terminal_condition",
+        "observable_dimensions",
+        "permitted_source_classes",
+        "unknown_policy",
+        "mapping_class",
+        "executable",
+        "ontology_event_type_ids",
+        "participant_roles"
+      ],
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_predicates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.(?:[a-z][a-z0-9_]*|\\{[a-z][a-z0-9_]*\\}))*$"
+          }
+        },
+        "required_state_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+          }
+        },
+        "start_condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_response": {
+          "type": "string",
+          "minLength": 1
+        },
+        "terminal_condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observable_dimensions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "permitted_source_classes": {
+          "$ref": "#/$defs/sourceClassSet"
+        },
+        "unknown_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mapping_class": {
+          "enum": [
+            "A_direct",
+            "B_composite",
+            "C_non_executable"
+          ]
+        },
+        "executable": {
+          "type": "boolean"
+        },
+        "ontology_event_type_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+          }
+        },
+        "participant_roles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/participantRole"
+          }
+        },
+        "semantic_rationale": {
+          "type": "string"
+        },
+        "trigger_expression": {
+          "type": "object",
+          "minProperties": 1
+        },
+        "terminal_expression": {
+          "type": "object",
+          "minProperties": 1
+        },
+        "non_executable_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "closure_statement": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "executable": {
+                "const": true
+              }
+            },
+            "required": [
+              "executable"
+            ]
+          },
+          "then": {
+            "required": [
+              "trigger_expression",
+              "terminal_expression",
+              "semantic_rationale"
+            ],
+            "properties": {
+              "required_predicates": {
+                "minItems": 1
+              },
+              "ontology_event_type_ids": {
+                "minItems": 1
+              }
+            }
+          },
+          "else": {
+            "required": [
+              "non_executable_reason",
+              "closure_statement"
+            ],
+            "properties": {
+              "mapping_class": {
+                "const": "C_non_executable"
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "participantRole": {
+      "type": "object",
+      "required": [
+        "role",
+        "scope_type",
+        "binding",
+        "background_allowed"
+      ],
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope_type": {
+          "enum": [
+            "uav",
+            "vehicle",
+            "pedestrian",
+            "facility",
+            "compute_node",
+            "scene"
+          ]
+        },
+        "binding": {
+          "type": "string",
+          "minLength": 1
+        },
+        "background_allowed": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "epiContract": {
+      "type": "object",
+      "required": [
+        "motivation",
+        "required_chain",
+        "observable_dimensions",
+        "permitted_source_classes",
+        "unknown_policy"
+      ],
+      "properties": {
+        "motivation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_chain": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/stage"
+          }
+        },
+        "required_state_fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+          }
+        },
+        "observable_dimensions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "permitted_source_classes": {
+          "$ref": "#/$defs/sourceClassSet"
+        },
+        "unknown_policy": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "sourceClassSet": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "engine_truth"
+        },
+        {
+          "const": "deterministic_derived"
+        },
+        {
+          "const": "simulated_derived"
+        },
+        {
+          "const": "visual_derived"
+        }
+      ],
+      "items": false
+    },
+    "stage": {
+      "type": "object",
+      "required": [
+        "stage_goal",
+        "event_family_id"
+      ],
+      "properties": {
+        "stage_goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event_family_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "alternative_event_family_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "const": "restricted_region_intrusion"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

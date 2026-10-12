@@ -1,0 +1,157 @@
+{
+  "anchor_event": "dual_pad_approach",
+  "arm_id": "arm_staggered_pad_admission",
+  "entity_ids": [
+    "pad_shared_l2_4_v1",
+    "uav_divert_l2_4_v1",
+    "uav_priority_l2_4_v1"
+  ],
+  "episode_id": "L2-4_v1__seed00",
+  "execution": {
+    "actions": [
+      {
+        "action": {
+          "action_id": "l2_arm_staggered_single_request",
+          "delay_ticks": 0,
+          "entity_id": "pad_shared_l2_4_v1",
+          "state_patch": {
+            "facility_state": {
+              "arbitration_active": false,
+              "request_count": 1,
+              "requester_ids": [
+                "uav_priority_l2_4_v1"
+              ]
+            }
+          },
+          "type": "set_runtime_state"
+        },
+        "tick": 230
+      },
+      {
+        "action": {
+          "action_id": "l2_arm_staggered_second_hold",
+          "entity_id": "uav_divert_l2_4_v1",
+          "type": "set_visual_state",
+          "visual_state": {
+            "mode": "hold"
+          }
+        },
+        "tick": 250
+      },
+      {
+        "action": {
+          "action_id": "l2_arm_staggered_resource_handover",
+          "delay_ticks": 0,
+          "entity_id": "pad_shared_l2_4_v1",
+          "state_patch": {
+            "facility_state": {
+              "arbitration_active": false,
+              "priority_granted": false,
+              "priority_granted_to": "none",
+              "request_count": 1,
+              "requester_ids": [
+                "uav_divert_l2_4_v1"
+              ]
+            }
+          },
+          "type": "set_runtime_state"
+        },
+        "tick": 670
+      },
+      {
+        "action": {
+          "action_id": "l2_arm_staggered_second_pad_assigned",
+          "delay_ticks": 0,
+          "entity_id": "uav_divert_l2_4_v1",
+          "state_patch": {
+            "navigation_state": {
+              "landing_pad_assigned": true
+            }
+          },
+          "type": "set_runtime_state"
+        },
+        "tick": 670
+      },
+      {
+        "action": {
+          "action_id": "l2_arm_staggered_second_approach",
+          "activity_type": "return_to_pad",
+          "entity_id": "uav_divert_l2_4_v1",
+          "post_activity_type": "landed",
+          "terminal_feasibility": {
+            "landing_reference_enu_m": [
+              7782.789,
+              6185.716,
+              0.0
+            ]
+          },
+          "type": "move_entity",
+          "velocity_mps": 5.0,
+          "waypoints_enu_m": [
+            [
+              7838.884,
+              6145.837,
+              30.0
+            ],
+            [
+              7782.789,
+              6185.716,
+              0.0
+            ]
+          ]
+        },
+        "tick": 675
+      }
+    ],
+    "omit_action_ids": [
+      "move_second_uav_to_pad_hold",
+      "move_second_uav_diversion",
+      "set_runtime_state_l2_4_v1_second_uav_diverted_00",
+      "set_runtime_state_l2_4_v1_second_uav_diverted_01",
+      "move_uav_divert_l2_4_v1_landing_return"
+    ]
+  },
+  "expected": {
+    "falsified_if": "窗口内出现 landing_pad_contention，或两架 UAV 再次同时接近共享停机坪。",
+    "rationale": "错峰进场与资源移交：第二架 UAV 请求推迟并外围 hold；优先 UAV 实际触地释放后，停机坪请求权移交第二架，其再进场触地；争用与二次接近全程不发生。",
+    "target_event": "absent_in_window"
+  },
+  "experiment": "design/L2-4_v1/seed00/grp_lifecycle_takeoff_uav_divert_l2_4_v1__dual_pad_approach/experiment.json",
+  "group_key": "L2-4_v1/seed00/grp_lifecycle_takeoff_uav_divert_l2_4_v1__dual_pad_approach",
+  "mode": "intervention",
+  "output": "arms/L2-4_v1/seed00/grp_lifecycle_takeoff_uav_divert_l2_4_v1__dual_pad_approach/arm_staggered_pad_admission",
+  "predicate_ids": [
+    "facility.landing_pad_contention",
+    "safety.aircraft_pair_below_separation"
+  ],
+  "profile": "L2-4_v1",
+  "provenance": {
+    "experiment_ref": "design/L2-4_v1/seed00/grp_lifecycle_takeoff_uav_divert_l2_4_v1__dual_pad_approach/experiment.json",
+    "parameter_sources": {
+      "factual_root": "aw_data",
+      "window_basis": "闭区间 [225,835]；230 为动作前共享检查点。观察 dual_pad_approach → priority_arbitration 的局部过程和分支直接后果；终点保留实跑观察范围，恢复、无事件或截断按实际谓词与事件判定，不声称覆盖完整生命周期。factual 由当前引擎无干预执行，冻结 episode 仅作来源及背景引用。"
+    }
+  },
+  "schema": "aeroworld_l2_window_config",
+  "script": "scripts/arms/L2-4_v1/seed00/grp_lifecycle_takeoff_uav_divert_l2_4_v1__dual_pad_approach/arm_staggered_pad_admission.py",
+  "seed": "seed00",
+  "sources": {
+    "roster": "aw_data/render_ready_episodes_capture_filtered/L2-4_v1__seed00/global_entity_roster.json",
+    "scene": "Dataset/scenarios/L2_infrastructure/failure/L2-4_v1/scene_setup.json",
+    "script": "Dataset/scenarios/L2_infrastructure/failure/L2-4_v1/event_script.json",
+    "trajectories": "aw_data/render_ready_episodes_capture_filtered/L2-4_v1__seed00/trajectories.jsonl",
+    "weather": "aw_data/render_ready_episodes_capture_filtered/L2-4_v1__seed00/weather_meta.jsonl"
+  },
+  "target_families": [
+    "pad_contention",
+    "uav_separation_conflict"
+  ],
+  "version": 1,
+  "window": {
+    "end_tick": 835,
+    "fork_tick": 230,
+    "intervention_order": "source_actions_then_intervention",
+    "phase": "after_state_sample_before_actions",
+    "start_tick": 225
+  }
+}

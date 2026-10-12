@@ -1,0 +1,56 @@
+schema: aeroworld_l4_window_config
+version: 1
+arm_id: arm_factual
+group_key: L4-9_v2/seed01/grp_vehicles_enter_intersection
+episode_id: L4-9_v2__seed01
+event_family: l4_intersection_braking_observed
+subject_class: vehicle
+mode: factual_observation
+entity_ids:
+- car_intersection_l4_9_v2_a
+- car_intersection_l4_9_v2_b
+predicate_ids:
+- l4_business.near_pair
+- l4_business.braking_active
+- l4_business.yielding_active
+- l4_business.braking_stopped
+window:
+  start_tick: 220
+  fork_tick: 230
+  end_tick: 320
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/collision/L4-9_v2/scene_setup.json
+  script: Dataset/scenarios/L4_agents/collision/L4-9_v2/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-9_v2__seed01/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-9_v2__seed01/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-9_v2__seed01/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-9_v2__seed01/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-9_v2__seed01/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-9_v2__seed01/event_outcomes.jsonl
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites: []
+expected:
+  target_event: occurs
+  rationale: source process runs unchanged; the two cars enter the same intersection from
+    230, measured 3d distance 45.910589 m at tick 231 narrowing monotonically to
+    4.478185 m at 275; A reaches zero speed at 269 and B at 273. Hypothesis near_pair true
+    from 275; once both typed braking and zero speed hold, braking_active / yielding_active /
+    braking_stopped are true from 280, terminal phase 280, outcome confirmed 285 (two
+    consecutive formal samples), so this profile's observed business response holds.
+  falsified_if: the measured prefix disagrees with the same seed's frozen aw_data
+    trajectories (design-measured position difference 0.0 m, velocity difference
+    <= 7e-6 m/s), or braking_stopped is not confirmed within two consecutive formal
+    samples after onset.
+script: scripts/arms/L4-9_v2/seed01/grp_vehicles_enter_intersection/arm_factual.py
+output: arms/L4-9_v2/seed01/grp_vehicles_enter_intersection/arm_factual
+provenance:
+  experiment_ref: design/L4-9_v2/seed01/grp_vehicles_enter_intersection/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    anchor: l4_chain_truth fragment(L4-9_v2, seed00).fork_event_id = vehicles_enter_intersection,
+      dispatch tick 230
+    measured_facts: design/L4-9_v2/seed01/grp_vehicles_enter_intersection/experiment.json#design_time_verification.per_arm_measured.arm_factual

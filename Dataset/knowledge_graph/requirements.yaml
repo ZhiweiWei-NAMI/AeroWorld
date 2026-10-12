@@ -1,0 +1,132 @@
+version: 1
+description: "Requirement-to-vocabulary traceability for AeroWorld core ontology 0.3.0."
+requirements:
+  - id: CORE-R01
+    statement_en: "Scope stable entity identity to one authoritative episode."
+    statement_zh: "将稳定实体身份限定在一个权威仿真回合内。"
+    competency_questions:
+      - stable_entity_identity
+    terms:
+      - Episode
+      - Entity
+      - inEpisode
+      - episodeIdentifier
+      - entityIdentifier
+
+  - id: CORE-R02
+    statement_en: "Represent exact simulation ticks, bounded or open tick intervals, and objective temporal order."
+    statement_zh: "表示精确仿真时刻、有界或开放的 tick 区间，以及客观时间顺序。"
+    competency_questions:
+      - stable_entity_identity
+      - rise_and_fall_transitions
+      - authoritative_tick_predecessors
+    terms:
+      - TemporalExtent
+      - TickInstant
+      - TickInterval
+      - atInstant
+      - previousAuthoritativeInstant
+      - validDuring
+      - occursDuring
+      - tickValue
+      - startTick
+      - endTick
+      - temporallyPrecedes
+
+  - id: CORE-R03
+    statement_en: "Represent versionable objective predicate types and arbitrary-arity argument tuples without domain-specific assumptions."
+    statement_zh: "在不引入领域假设的前提下，表示可版本化的客观谓词类型及任意元参数元组。"
+    competency_questions:
+      - predicate_argument_bindings
+      - four_valued_objective_evaluation
+    terms:
+      - PredicateType
+      - ArgumentRole
+      - PredicateArgumentBinding
+      - ObjectivePredicateAssertion
+      - declaresArgumentRole
+      - assertsPredicate
+      - hasArgumentBinding
+      - bindsArgumentRole
+      - bindsEntity
+      - predicateIdentifier
+      - argumentRoleKey
+      - assertionIdentifier
+
+  - id: CORE-R04
+    statement_en: "Keep objective predicate evaluation explicit and four-valued; candidate closure and total coverage belong to the external executable predicate specification."
+    statement_zh: "使客观谓词求值保持显式四值表达；候选闭包和完整覆盖由外部可执行谓词规范负责。"
+    competency_questions:
+      - four_valued_objective_evaluation
+      - rise_and_fall_transitions
+    terms:
+      - TruthValue
+      - TrueValue
+      - FalseValue
+      - UnknownValue
+      - OutOfScopeValue
+      - hasTruthValue
+
+  - id: CORE-R05
+    statement_en: "Represent predicate truth changes as explicit rising or falling transitions over one stable argument tuple."
+    statement_zh: "将同一稳定参数元组上的谓词真值变化表示为显式上升或下降切换。"
+    competency_questions:
+      - rise_and_fall_transitions
+    terms:
+      - PredicateTransition
+      - RisingTransition
+      - FallingTransition
+      - transitionOfPredicate
+      - fromAssertion
+      - toAssertion
+      - fromTruthValue
+      - toTruthValue
+      - transitionIdentifier
+
+  - id: CORE-R06
+    statement_en: "Represent typed event occurrences and arbitrary-arity participant bindings initiated or terminated by objective transitions."
+    statement_zh: "表示由客观切换启动或终止的类型化事件实例及任意元参与者绑定。"
+    competency_questions:
+      - event_occurrence_participants
+      - provenance_and_derivation_rule
+      - event_termination_boundary
+    terms:
+      - EventType
+      - ParticipantRole
+      - EventParticipantBinding
+      - EventOccurrence
+      - declaresParticipantRole
+      - instantiatesEventType
+      - hasParticipantBinding
+      - bindsParticipantRole
+      - initiatedByTransition
+      - terminatedByTransition
+      - eventTypeIdentifier
+      - participantRoleKey
+      - eventOccurrenceIdentifier
+
+  - id: CORE-R07
+    statement_en: "Trace every derived assertion, transition, and event to deterministic versioned rules and authoritative source records."
+    statement_zh: "将每个派生断言、切换和事件追溯到确定性的版本化规则与权威源记录。"
+    competency_questions:
+      - provenance_and_derivation_rule
+    terms:
+      - DerivationRule
+      - SourceRecord
+      - generatedByRule
+      - derivedFromSource
+      - ruleIdentifier
+      - ruleVersion
+      - sourceIdentifier
+      - sourceLocator
+
+  - id: CORE-R08
+    statement_en: "Distinguish asserted direct causality, transitive causal ancestry, and temporal precedence."
+    statement_zh: "区分显式直接因果、传递性因果先后关系与时间先后关系。"
+    competency_questions:
+      - direct_causality_positive
+      - transitive_causality_positive
+      - direct_causality_not_transitive
+    terms:
+      - directlyCauses
+      - causallyPrecedes

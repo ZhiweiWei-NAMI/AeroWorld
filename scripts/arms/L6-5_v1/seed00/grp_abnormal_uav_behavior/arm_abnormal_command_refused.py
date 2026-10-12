@@ -1,0 +1,107 @@
+"""Dedicated ARM entry for L6-5_v1 / seed00 / grp_abnormal_uav_behavior / arm_abnormal_command_refused.
+
+窗口为 [265,395]，fork=270，采用 after_state_sample_before_actions。
+机制：abnormal_command_and_dependent_correction_move_omitted。
+
+实验假设：gcs_intrusion 保留；abnormal_uav_behavior@270 的异常位移、异常视觉态和未授权状态补丁全部省略，并同时省略依赖异常终点的 move_uav_command_lock。UAV 从 270 至 395 保持 [6633.368,6538.678,32.0]，unauthorized_command 始终为 false。command_lockout@305 仍作为防护响应，GCS 锁定在 306 生效，UAV 指令通道隔离在 310 生效；安全状态在 381/385 清零。v1 原恢复动作被 security-only 补丁替换，navigation_state.route_recovered 保持 false。普通 landing@460 在窗外。
+
+时间与运动模型：仿真为 10 Hz 分段线性运动，事件依赖在 5 tick 网格派发。abnormal_uav_behavior@270 的两段位移时长为 ceil(2/9×10)=3 tick 和 ceil(23.3238076/9×10)=26 tick，故异常航段在 299 完成；command_lockout 的依赖候选为 270+31=301，向上对齐到 305；25.4950976 m 的 factual 纠偏按 4 m/s 需 ceil(25.4950976/4×10)=64 tick，在 369 完成；secure_recovery 的候选为 305+71=376，向上对齐到 380。GCS/UAV 恢复补丁分别在 381/385 生效；正式谓词首个 false 样本为 385，三样本恢复保持为 385/390/395，所以共同闭窗 tick 为 395。
+
+证伪条件：若任一配置省略动作实际执行，UAV 离开 [6633.368,6538.678,32.0]、出现异常视觉态或unauthorized_command=true，GCS 防护 lockout 未在 306 生效，UAV 通道隔离未在 310 生效，或 381/385 后安全状态未清零，或 navigation_state.route_recovered 变为 true，则分支被证伪。
+"""
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[5]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Dataset.tools.l6_v2.arm_runtime import ArmSpec, run_arm
+
+PROFILE = "L6-5_v1"
+SEED = "seed00"
+ANCHOR_EVENT_ID = "abnormal_uav_behavior"
+ARM_ID = "arm_abnormal_command_refused"
+MODE = "intervention"
+ROLE = "narrative_branch"
+UAV = "uav_digital_l6_5_v1"
+GCS = "gcs_anchor_l6_5_v1"
+
+# 四个机制位来自本臂配置；动作 ID 均已逐项核对当前 source script。
+CANCEL_EVENT_IDS = ()
+
+OMIT_ACTION_IDS = ('move_uav_intrusion_abnormal',
+ 'set_uav_abnormal_commanded',
+ 'set_runtime_state_l6_5_v1_abnormal_uav_behavior_00',
+ 'move_uav_command_lock',
+ 'set_runtime_state_l6_5_v1_secure_recovery_01')
+
+INJECTIONS = ({'tick': 380,
+  'action_id': 'set_runtime_state_l6_5_v1_secure_recovery_security_only',
+  'type': 'set_runtime_state',
+  'entity_id': 'uav_digital_l6_5_v1',
+  'delay_ticks': 5,
+  'state_patch': {'security_state': {'command_integrity_violation': False,
+                                     'command_lockout': False,
+                                     'unauthorized_command': False}}},)
+
+RETIME = None
+
+MECHANISM = {'kind': 'abnormal_command_and_dependent_correction_move_omitted',
+ 'cancel_event_ids': [],
+ 'omit_action_ids': ['move_uav_intrusion_abnormal',
+                     'set_uav_abnormal_commanded',
+                     'set_runtime_state_l6_5_v1_abnormal_uav_behavior_00',
+                     'move_uav_command_lock',
+                     'set_runtime_state_l6_5_v1_secure_recovery_01'],
+ 'injections': [{'tick': 380,
+                 'action_id': 'set_runtime_state_l6_5_v1_secure_recovery_security_only',
+                 'type': 'set_runtime_state',
+                 'entity_id': 'uav_digital_l6_5_v1',
+                 'delay_ticks': 5,
+                 'state_patch': {'security_state': {'command_integrity_violation': False,
+                                                    'command_lockout': False,
+                                                    'unauthorized_command': False}}}]}
+
+SPEC = ArmSpec(
+    profile=PROFILE,
+    seed=SEED,
+    anchor_event_id=ANCHOR_EVENT_ID,
+    arm_id=ARM_ID,
+    mode=MODE,
+    role=ROLE,
+    window_start_tick=265,
+    window_fork_tick=270,
+    window_end_tick=395,
+    primary_predicate='security.ground_control_station_compromised',
+    subject_entity_ids=(UAV,),
+    mechanism=MECHANISM,
+    retime=RETIME,
+    omit_action_ids=OMIT_ACTION_IDS,
+    inject_actions=INJECTIONS,
+    cancel_event_ids=CANCEL_EVENT_IDS,
+    hypothesis='gcs_intrusion 保留；abnormal_uav_behavior@270 的异常位移、异常视觉态和未授权状态补丁全部省略，并同时省略依赖异常终点的 move_uav_command_lock。UAV 从 270 至 395 保持 [6633.368,6538.678,32.0]，unauthorized_command 始终为 false。command_lockout@305 仍作为防护响应，GCS 锁定在 306 生效，UAV 指令通道隔离在 310 生效；安全状态在 381/385 清零。v1 原恢复动作被 security-only 补丁替换，navigation_state.route_recovered 保持 false。普通 landing@460 在窗外。',
+    falsified_if='若任一配置省略动作实际执行，UAV 离开 [6633.368,6538.678,32.0]、出现异常视觉态或unauthorized_command=true，GCS 防护 lockout 未在 306 生效，UAV 通道隔离未在 310 生效，或 381/385 后安全状态未清零，或 navigation_state.route_recovered 变为 true，则分支被证伪。',
+    window_basis='闭区间 [265,395]，fork=270，phase=after_state_sample_before_actions。窗口从异常事件前一正式采样点开始；根事件作为带来源摘要的窗前事实引用。仿真为 10 Hz 分段线性运动，事件依赖在 5 tick 网格派发。abnormal_uav_behavior@270 的两段位移时长为 ceil(2/9×10)=3 tick 和 ceil(23.3238076/9×10)=26 tick，故异常航段在 299 完成；command_lockout 的依赖候选为 270+31=301，向上对齐到 305；25.4950976 m 的 factual 纠偏按 4 m/s 需 ceil(25.4950976/4×10)=64 tick，在 369 完成；secure_recovery 的候选为 305+71=376，向上对齐到 380。GCS/UAV 恢复补丁分别在 381/385 生效；正式谓词首个 false 样本为 385，三样本恢复保持为 385/390/395，所以共同闭窗 tick 为 395。普通 landing@460 不属于 needed nodes，也不参与成功或证伪判断。',
+    window_needed_nodes=({'event_id': 'gcs_intrusion',
+  'tick': 240,
+  'entity_id': 'gcs_anchor_l6_5_v1',
+  'role': 'authored_root_kept_before_window'},
+ {'event_id': 'abnormal_uav_behavior',
+  'tick': 270,
+  'entity_id': 'uav_digital_l6_5_v1',
+  'role': 'anchor_event_with_actions_omitted'},
+ {'event_id': 'command_lockout',
+  'tick': 305,
+  'entity_id': 'gcs_anchor_l6_5_v1',
+  'role': 'security_response_retained_without_correction_move'},
+ {'event_id': 'secure_recovery',
+  'tick': 380,
+  'entity_id': 'gcs_anchor_l6_5_v1',
+  'role': 'authored_security_recovery_retained'}),
+    window_censored=False,
+    group_suffix='',
+)
+
+if __name__ == "__main__":
+    run_arm(SPEC)

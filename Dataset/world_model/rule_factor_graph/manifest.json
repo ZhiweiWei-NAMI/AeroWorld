@@ -1,0 +1,29 @@
+{
+  "schema": "aeroworld.rule-factor-graph.phase1.v1",
+  "scope": "aircraft_corridor_stop",
+  "predicate_order": [
+    "airspace.aircraft_occupies_airspace_corridor",
+    "airspace.aircraft_moving_in_corridor",
+    "airspace.aircraft_stationary_in_corridor"
+  ],
+  "authority": {
+    "predicate_contract": "Dataset/semantic_rules/predicates/world_truth_predicate_contracts.yaml",
+    "ontology": "Dataset/knowledge_graph/domain/airspace_operations.ttl",
+    "candidate": {"kind": "domain_observation", "source": "predicate_contract_aircraft_corridor_geometry"}
+  },
+  "roles": {
+    "actor": {"record_path": "values.aircraft_id", "class_path": "values.aircraft_ontology_class_id", "ontology_class": "world:UnmannedAircraft"},
+    "corridor": {"record_path": "values.corridor_id", "class_path": "values.corridor_ontology_class_id", "ontology_class": "world:AirspaceCorridor"}
+  },
+  "state_fields": {
+    "geometry.aircraft_inside_corridor": {"record_path": "values.aircraft_inside_corridor", "owner_roles": ["actor", "corridor"], "value_type": "bool"},
+    "geometry.speed_mps": {"record_path": "values.speed_mps", "owner_roles": ["actor"], "value_type": "nonnegative_mps"}
+  },
+  "threshold": {"field": "aircraft_stationary_speed_threshold_mps", "summary_path": "governed_parameters.aircraft_stationary_speed_threshold_mps"},
+  "templates": [
+    {"template_id": "corridor.occupancy", "factor_type": "deterministic_rule", "predicate_id": "airspace.aircraft_occupies_airspace_corridor", "input_fields": ["geometry.aircraft_inside_corridor"], "ontology_node": "AircraftOccupiesAirspaceCorridor", "evaluation": {"op": "truthy", "field": "geometry.aircraft_inside_corridor"}},
+    {"template_id": "corridor.moving", "factor_type": "deterministic_rule", "predicate_id": "airspace.aircraft_moving_in_corridor", "input_fields": ["geometry.aircraft_inside_corridor", "geometry.speed_mps", "aircraft_stationary_speed_threshold_mps"], "ontology_node": "AircraftMovingInCorridor", "evaluation": {"op": "all", "args": [{"op": "truthy", "field": "geometry.aircraft_inside_corridor"}, {"op": "gt", "field": "geometry.speed_mps", "threshold": "aircraft_stationary_speed_threshold_mps"}]}},
+    {"template_id": "corridor.stationary", "factor_type": "deterministic_rule", "predicate_id": "airspace.aircraft_stationary_in_corridor", "input_fields": ["geometry.aircraft_inside_corridor", "geometry.speed_mps", "aircraft_stationary_speed_threshold_mps"], "ontology_node": "AircraftStationaryInCorridor", "evaluation": {"op": "all", "args": [{"op": "truthy", "field": "geometry.aircraft_inside_corridor"}, {"op": "lte", "field": "geometry.speed_mps", "threshold": "aircraft_stationary_speed_threshold_mps"}]}}
+  ],
+  "state_interface": {"q": "detached_shared_state_samples", "sample_shape": "[N] or [K,N]", "key_fields": ["owner_id", "field", "episode_id", "tick", "branch_id"]}
+}

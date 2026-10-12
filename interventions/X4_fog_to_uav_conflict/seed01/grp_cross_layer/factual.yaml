@@ -1,0 +1,136 @@
+{
+  "profile": "X4_fog_to_uav_conflict",
+  "seed": "seed01",
+  "episode_id": "X4_fog_to_uav_conflict__seed01",
+  "group": "X4_fog_to_uav_conflict/seed01/grp_cross_layer",
+  "arm_id": "factual",
+  "mode": "factual_observation",
+  "window": {
+    "start_tick": 210,
+    "fork_tick": 220,
+    "end_tick": 415,
+    "phase": "after_state_sample_before_actions"
+  },
+  "sources": {
+    "scene": "interventions/X4_fog_to_uav_conflict/seed01/grp_cross_layer/scene_setup.json",
+    "original_scene": "Dataset/scenarios/X_cross_layer/X4_fog_to_uav_conflict/scene_setup.json",
+    "script": "Dataset/scenarios/X_cross_layer/X4_fog_to_uav_conflict/event_script.json",
+    "canonical": "aw_data/render_ready_episodes_capture_filtered/X4_fog_to_uav_conflict__seed01",
+    "predicate_script": "interventions/X4_fog_to_uav_conflict/seed01/grp_cross_layer/factual_event_script.json"
+  },
+  "removed_event_ids": [],
+  "intervention_actions": [
+    {
+      "event_id": "fog_conflict_recovered",
+      "trigger_ref": "trig_after_fog_uav_conflict_delay_30",
+      "action": {
+        "type": "set_runtime_state",
+        "action_id": "set_runtime_state_x4_fog_to_uav_conflict_fog_conflict_recovered_00",
+        "delay_ticks": 1,
+        "entity_id": "uav_x4_a",
+        "runtime_state_schedule_profile_id": "l5_l6_x_runtime_state_schedule",
+        "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick",
+        "state_patch": {
+          "control_state": {
+            "deconfliction_active": false,
+            "evasion_active": false
+          },
+          "mission_state": {
+            "unsafe": false
+          }
+        }
+      }
+    },
+    {
+      "event_id": "fog_conflict_recovered",
+      "trigger_ref": "trig_after_fog_uav_conflict_delay_30",
+      "action": {
+        "type": "set_runtime_state",
+        "action_id": "set_runtime_state_x4_fog_to_uav_conflict_fog_conflict_recovered_01",
+        "delay_ticks": 5,
+        "entity_id": "uav_x4_b",
+        "runtime_state_schedule_profile_id": "l5_l6_x_runtime_state_schedule",
+        "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick",
+        "state_patch": {
+          "control_state": {
+            "deconfliction_active": false
+          },
+          "mission_state": {
+            "unsafe": false
+          }
+        }
+      }
+    }
+  ],
+  "definition": {
+    "entrypoint": "scripts/arms/X4_fog_to_uav_conflict/seed01/grp_cross_layer/factual.py",
+    "research_question": "雾中汇聚是否进入正式安全间隔范围，避让能否解除间隔违例？",
+    "window_basis": "最后相关续航移动作404到达，正式停止样本405/410/415；避让控制已退出，但雾和视觉导航降级持续。445以后普通返航不属于直接后果。",
+    "parameter_model": {
+      "parameter_changes": false,
+      "motion_model": "沿用源动作分段恒速与ceil(distance/speed*10)整tick计时；不改变速度、航点或语义阈值。",
+      "state_visibility": "先采样后动作；runtime补丁按声明delay_ticks生效。",
+      "recovery_model": "正式步长5，当前recovery_hold_samples=3；first_false_capture+(3-1)*5。",
+      "scope": "窗口推导来自源动作实际完成及状态保持；分支运行后重新验证。"
+    },
+    "branch_changes": {
+      "removed_event_ids": [],
+      "added_event_ids": [],
+      "removed_action_ids": [],
+      "added_action_ids": [],
+      "replaced_action_ids": [
+        "set_runtime_state_x4_fog_to_uav_conflict_fog_conflict_recovered_00",
+        "set_runtime_state_x4_fog_to_uav_conflict_fog_conflict_recovered_01"
+      ],
+      "changed_event_ids": [
+        "fog_conflict_recovered",
+        "fog_uav_conflict"
+      ],
+      "changed_trigger_ids": []
+    }
+  },
+  "gates": {
+    "x_guard_fog_uav_conflict": {
+      "trigger_id": "x_guard_fog_uav_conflict",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_fog_uav_conflict",
+        "x_predecessor_fog_uav_conflict"
+      ]
+    }
+  },
+  "scope": {
+    "simulated_entity_ids": [
+      "uav_x4_a",
+      "uav_x4_b",
+      "u_inspect_x4_fog_to_uav_conflict",
+      "bg_ped_x4_fog_to_uav_conflict_01",
+      "bg_ped_x4_fog_to_uav_conflict_02",
+      "bg_ped_x4_fog_to_uav_conflict_03",
+      "bg_ped_x4_fog_to_uav_conflict_04",
+      "contract_facility_x4_fog_to_uav_conflict_01",
+      "contract_facility_x4_fog_to_uav_conflict_02",
+      "pad_home_uav_x4_a",
+      "pad_home_uav_x4_b",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_00",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_01",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_02",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_03",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_04",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_05",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_06",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_07",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_08",
+      "corridor_x4_fog_to_uav_conflict_uav_x4_a_09"
+    ],
+    "canonical_only_scene_entity_ids": [
+      "bg_vehicle_x4_fog_to_uav_conflict_01",
+      "bg_vehicle_x4_fog_to_uav_conflict_02",
+      "bg_vehicle_x4_fog_to_uav_conflict_03"
+    ],
+    "background_policy": "Every canonical truth-frame entity outside the engine roster is retained unchanged. Background vehicles are not simulated or replaced.",
+    "interaction_limit": "Scripted participants, geometry triggers and runtime state are recomputed; no feedback from immutable background traffic is claimed."
+  },
+  "hypothesis": "正式水平与垂直安全间隔违例触发避让；避让完成后雾和导航降级仍持续。"
+}

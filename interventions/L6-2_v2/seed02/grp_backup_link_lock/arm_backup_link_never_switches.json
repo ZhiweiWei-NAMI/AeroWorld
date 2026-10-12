@@ -1,0 +1,172 @@
+{
+ "schema": "aero_l6_explicit_arm_v3",
+ "version": 1,
+ "spec": {
+  "profile": "L6-2_v2",
+  "seed": "seed02",
+  "anchor_event_id": "backup_link_lock",
+  "arm_id": "arm_backup_link_never_switches",
+  "mode": "intervention",
+  "role": "narrative_branch",
+  "window_start_tick": 455,
+  "window_fork_tick": 460,
+  "window_end_tick": 510,
+  "primary_predicate": "communication.link_degraded",
+  "subject_entity_ids": [
+   "uav_digital_l6_2_v2"
+  ],
+  "mechanism": {
+   "kind": "backup_success_effects_omitted_with_independent_nominal_recovery",
+   "cancel_event_ids": [
+    "nominal_c2_restore"
+   ],
+   "omit_action_ids": [
+    "set_tower_backup_lock",
+    "move_uav_backup_resume",
+    "set_runtime_state_l6_2_v2_backup_link_lock_00",
+    "set_runtime_state_l6_2_v2_backup_link_lock_01"
+   ],
+   "injections": [
+    {
+     "tick": 495,
+     "type": "set_visual_state",
+     "action_id": "branch_l6_2_v2_backup_failure_independent_nominal_tower_visual",
+     "entity_id": "tower_l6_2_v2",
+     "visual_state": {
+      "mode": "online"
+     }
+    },
+    {
+     "tick": 495,
+     "type": "set_visual_state",
+     "action_id": "branch_l6_2_v2_backup_failure_independent_nominal_uav_visual",
+     "entity_id": "uav_digital_l6_2_v2",
+     "visual_state": {
+      "mode": "airborne"
+     }
+    },
+    {
+     "tick": 495,
+     "type": "set_runtime_state",
+     "action_id": "branch_l6_2_v2_backup_failure_independent_nominal_tower_state",
+     "entity_id": "tower_l6_2_v2",
+     "delay_ticks": 5,
+     "state_patch": {
+      "communication_state": {
+       "mode": "online"
+      }
+     }
+    },
+    {
+     "tick": 495,
+     "type": "set_runtime_state",
+     "action_id": "branch_l6_2_v2_backup_failure_independent_nominal_uav_state",
+     "entity_id": "uav_digital_l6_2_v2",
+     "delay_ticks": 5,
+     "state_patch": {
+      "communication_state": {
+       "handover_active": false,
+       "backup_link_active": false
+      },
+      "control_state": {
+       "slowdown_active": false
+      }
+     }
+    }
+   ]
+  },
+  "retime": null,
+  "omit_action_ids": [
+   "set_tower_backup_lock",
+   "move_uav_backup_resume",
+   "set_runtime_state_l6_2_v2_backup_link_lock_00",
+   "set_runtime_state_l6_2_v2_backup_link_lock_01"
+  ],
+  "inject_actions": [
+   {
+    "tick": 495,
+    "type": "set_visual_state",
+    "action_id": "branch_l6_2_v2_backup_failure_independent_nominal_tower_visual",
+    "entity_id": "tower_l6_2_v2",
+    "visual_state": {
+     "mode": "online"
+    }
+   },
+   {
+    "tick": 495,
+    "type": "set_visual_state",
+    "action_id": "branch_l6_2_v2_backup_failure_independent_nominal_uav_visual",
+    "entity_id": "uav_digital_l6_2_v2",
+    "visual_state": {
+     "mode": "airborne"
+    }
+   },
+   {
+    "tick": 495,
+    "type": "set_runtime_state",
+    "action_id": "branch_l6_2_v2_backup_failure_independent_nominal_tower_state",
+    "entity_id": "tower_l6_2_v2",
+    "delay_ticks": 5,
+    "state_patch": {
+     "communication_state": {
+      "mode": "online"
+     }
+    }
+   },
+   {
+    "tick": 495,
+    "type": "set_runtime_state",
+    "action_id": "branch_l6_2_v2_backup_failure_independent_nominal_uav_state",
+    "entity_id": "uav_digital_l6_2_v2",
+    "delay_ticks": 5,
+    "state_patch": {
+     "communication_state": {
+      "handover_active": false,
+      "backup_link_active": false
+     },
+     "control_state": {
+      "slowdown_active": false
+     }
+    }
+   }
+  ],
+  "cancel_event_ids": [
+   "nominal_c2_restore"
+  ],
+  "hypothesis": "backup_link_lock@460 仍作为切换尝试派发，但它的 visual、5.5 m/s move 和全部 typed success patch 均被省略。tower_l6_2_v2 的 visual/typed mode 因而保持 degraded；uav_digital_l6_2_v2 从 457 起速度0，activity=command_delay，handover_active=false、backup_link_active=false、slowdown_active=true。源 nominal_c2_restore 被显式取消；495 的四项 intervention 独立恢复 tower visual、UAV visual 及双方 typed 状态。visual 从496可见，typed从500可见；communication.link_degraded 到495为true，500/505/510为false，c2 outcome在510 succeeded。普通landing@575在窗外。",
+  "falsified_if": "若 tower_l6_2_v2 在失败区间出现 backup_link visual/typed mode，或 uav_digital_l6_2_v2 出现 461–489 的恢复运动、handover/backup为true、或源 nominal_c2_restore 未记录取消，或495独立注入缺项，或500前主谓词已false、500/505/510未连续false、terminal_tick不为510，则该分支被证伪。",
+  "window_basis": "闭区间 [455,510]；455 是 fork 前一个正式样本，460 是切换尝试。end=510 覆盖失败保持、495独立恢复、500 typed恢复及三个正式false样本；575 landing和其后高度事件不在目标范围。",
+  "window_needed_nodes": [
+   {
+    "event_id": "backup_link_lock",
+    "kind": "authored_event",
+    "tick": 460,
+    "entity_id": "tower_l6_2_v2",
+    "role": "attempt_anchor_success_effects_omitted"
+   },
+   {
+    "event_id": "nominal_c2_restore",
+    "kind": "cancelled_authored_event",
+    "tick": 495,
+    "entity_id": "tower_l6_2_v2",
+    "role": "explicitly_cancelled_dependent_restore"
+   },
+   {
+    "event_id": "branch_l6_2_v2_backup_failure_independent_nominal",
+    "kind": "injected_recovery_bundle",
+    "tick": 495,
+    "entity_id": "tower_l6_2_v2",
+    "role": "independent_nominal_recovery"
+   },
+   {
+    "event_id": "c2_degradation_loss_terminal",
+    "kind": "expected_formal_outcome",
+    "tick": 510,
+    "entity_id": "uav_digital_l6_2_v2",
+    "role": "three_sample_recovery_hold"
+   }
+  ],
+  "window_censored": false,
+  "group_suffix": ""
+ }
+}

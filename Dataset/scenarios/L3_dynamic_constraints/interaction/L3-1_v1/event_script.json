@@ -3,13 +3,912 @@
   "scenario_id": "L3-1_v1",
   "description": "Road construction lane closure with vehicle detour",
   "parameters": {
-    "incident_tick": 220
+    "incident_tick": 220,
+    "semantic_event_contract": {
+      "schema": "low_altitude_event_chain_contract_v1",
+      "scenario_id": "L3-1_v1",
+      "exact_counts": {
+        "uav": 3,
+        "vehicle": 3,
+        "pedestrian": 3,
+        "facility": 2,
+        "logical": 14
+      },
+      "capture_boundary": {
+        "boundary_id": "capture_boundary_l3_1_v1",
+        "geometry_source": "event_entity",
+        "anchor_entity_roles": [
+          "capture_boundary",
+          "hazard_zone",
+          "airspace_constraint"
+        ],
+        "boundary_role": "capture_boundary",
+        "z_policy": "ground_to_event_altitude",
+        "source": "event_entity_envelope",
+        "source_entity_id": "uav_roadwork_inspector_l3_1",
+        "center_enu_m": [
+          8033.572,
+          7439.511,
+          0.0
+        ],
+        "polygon_enu_m": [
+          [
+            7998.694,
+            7395.375
+          ],
+          [
+            8068.449,
+            7395.375
+          ],
+          [
+            8068.449,
+            7483.647
+          ],
+          [
+            7998.694,
+            7483.647
+          ]
+        ],
+        "geometry_authority": "minimal_rebuilt_roi_contract_v1",
+        "uav_boundary_crossing_required": true,
+        "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+        "inspect_fov_coverage_required": true,
+        "inspect_entity_role": "U_inspect"
+      },
+      "inspect": {
+        "role": "U_inspect",
+        "altitude_code": "I18",
+        "altitude_m": 18.0,
+        "min_path_length_m": 80.0,
+        "required_presence": "episode_full_duration",
+        "motion_policy": "fixed_altitude_closed_loop",
+        "corridor_policy": "inspect_capture_corridor",
+        "fov_coverage_required": true,
+        "sensor_profile_required": true
+      },
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": []
+      },
+      "uav_boundary_crossing_required": true,
+      "inspect_fov_coverage_required": true,
+      "required_event": "roadwork closure > detour > inspect",
+      "required_intents": [
+        "traffic_or_facility_incident",
+        "detour",
+        "inspect"
+      ],
+      "background_semantics": {
+        "vehicle_role": "detour/blocked/slow vehicles",
+        "pedestrian_role": "pedestrians reroute around barriers",
+        "policy": "semantic_context_not_decoration"
+      },
+      "weather": "clear",
+      "determinism": {
+        "fallback": "forbidden",
+        "guessing": "forbidden",
+        "compatibility_paths": "forbidden"
+      }
+    },
+    "target_uav_count": 3,
+    "target_vehicle_count": 3,
+    "target_pedestrian_count": 3,
+    "target_facility_count": 2,
+    "target_logical_count": 14,
+    "deterministic_sumo_traffic_template": {
+      "source_policy": "explicit_episode_plan_only_v1",
+      "min_vehicle_count": 12,
+      "seed_profiles": {
+        "seed00": {
+          "name": "morning_peak",
+          "direction_bias": "inbound_to_roi",
+          "direction_weights": {
+            "inbound": 0.7,
+            "outbound": 0.2,
+            "cross": 0.1
+          }
+        },
+        "seed01": {
+          "name": "midday",
+          "direction_bias": "balanced_cross_traffic",
+          "direction_weights": {
+            "inbound": 0.34,
+            "outbound": 0.33,
+            "cross": 0.33
+          }
+        },
+        "seed02": {
+          "name": "evening_peak",
+          "direction_bias": "outbound_from_roi",
+          "direction_weights": {
+            "inbound": 0.2,
+            "outbound": 0.7,
+            "cross": 0.1
+          }
+        }
+      },
+      "semantic_vehicle_roles": [
+        "semantic_event_vehicle",
+        "deterministic_background_vehicle"
+      ],
+      "route_source": "sumo_explicit_vehicle_plan"
+    },
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 29,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "uav_roadwork_inspector_l3_1": 30.0,
+      "u_inspect_l3_1_v1": 18.0,
+      "uav_observer_l3_1_v1_3": 80.0
+    },
+    "uav_lateral_bypass_used": {
+      "uav_roadwork_inspector_l3_1": false,
+      "u_inspect_l3_1_v1": false,
+      "uav_observer_l3_1_v1_3": false
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "uav_roadwork_inspector_l3_1",
+        "point_count": 9,
+        "assigned_altitude_m": 30.0,
+        "used_lateral_bypass": false
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "point_count": 21,
+        "assigned_altitude_m": 18.0,
+        "used_lateral_bypass": false
+      },
+      {
+        "entity_id": "uav_observer_l3_1_v1_3",
+        "point_count": 3,
+        "assigned_altitude_m": 80.0,
+        "used_lateral_bypass": false
+      }
+    ],
+    "uav_corridor_segment_details": [
+      {
+        "entity_id": "uav_roadwork_inspector_l3_1",
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          8057.816,
+          7450.932,
+          3.0
+        ],
+        "segment_end_enu_m": [
+          8057.816,
+          7450.932,
+          24.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_roadwork_inspector_l3_1",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          8057.816,
+          7450.932,
+          24.0
+        ],
+        "segment_end_enu_m": [
+          8062.443,
+          7450.312,
+          32.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_roadwork_inspector_l3_1",
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          8062.443,
+          7450.312,
+          32.0
+        ],
+        "segment_end_enu_m": [
+          8062.443,
+          7450.312,
+          30.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_roadwork_inspector_l3_1",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          8062.443,
+          7450.312,
+          30.0
+        ],
+        "segment_end_enu_m": [
+          8040.122,
+          7457.367,
+          30.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_roadwork_inspector_l3_1",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          8040.122,
+          7457.367,
+          30.0
+        ],
+        "segment_end_enu_m": [
+          8027.134,
+          7458.515,
+          30.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_roadwork_inspector_l3_1",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          8027.134,
+          7458.515,
+          30.0
+        ],
+        "segment_end_enu_m": [
+          8027.134,
+          7458.515,
+          36.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_roadwork_inspector_l3_1",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          8027.134,
+          7458.515,
+          36.0
+        ],
+        "segment_end_enu_m": [
+          8057.816,
+          7450.932,
+          36.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "uav_roadwork_inspector_l3_1",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          8057.816,
+          7450.932,
+          36.0
+        ],
+        "segment_end_enu_m": [
+          8057.816,
+          7450.932,
+          3.0
+        ],
+        "assigned_altitude_m": 30.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          7998.694,
+          7395.375,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7998.694,
+          7395.875,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          7998.694,
+          7395.875,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7998.694,
+          7394.875,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          7998.694,
+          7394.875,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7998.694,
+          7395.375,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          7998.694,
+          7395.375,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8056.486,
+          7395.14,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          8056.486,
+          7395.14,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8056.476,
+          7395.64,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          8056.476,
+          7395.64,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8056.496,
+          7394.64,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          8056.496,
+          7394.64,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8056.486,
+          7395.14,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          8056.486,
+          7395.14,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8056.486,
+          7483.412,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          8056.486,
+          7483.412,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8056.476,
+          7483.912,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 9,
+        "segment_start_enu_m": [
+          8056.476,
+          7483.912,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8056.496,
+          7482.912,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 10,
+        "segment_start_enu_m": [
+          8056.496,
+          7482.912,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8056.486,
+          7483.412,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 11,
+        "segment_start_enu_m": [
+          8056.486,
+          7483.412,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7998.694,
+          7483.647,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 12,
+        "segment_start_enu_m": [
+          7998.694,
+          7483.647,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7998.694,
+          7484.147,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 13,
+        "segment_start_enu_m": [
+          7998.694,
+          7484.147,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7998.694,
+          7483.147,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 14,
+        "segment_start_enu_m": [
+          7998.694,
+          7483.147,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7998.694,
+          7483.647,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 15,
+        "segment_start_enu_m": [
+          7998.694,
+          7483.647,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8033.572,
+          7439.511,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 16,
+        "segment_start_enu_m": [
+          8033.572,
+          7439.511,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8033.572,
+          7440.011,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 17,
+        "segment_start_enu_m": [
+          8033.572,
+          7440.011,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8033.572,
+          7439.011,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 18,
+        "segment_start_enu_m": [
+          8033.572,
+          7439.011,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          8033.572,
+          7439.511,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l3_1_v1",
+        "segment_index": 19,
+        "segment_start_enu_m": [
+          8033.572,
+          7439.511,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          7998.694,
+          7395.375,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "uav_observer_l3_1_v1_3",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          8011.045,
+          7378.489,
+          80.0
+        ],
+        "segment_end_enu_m": [
+          8033.572,
+          7439.511,
+          80.0
+        ],
+        "assigned_altitude_m": 80.0
+      }
+    ],
+    "utm_service_plan": {
+      "schema_name": "utm_service_plan",
+      "schema_version": "1.0.0",
+      "model_id": "aeroworld_deterministic_utm_service",
+      "model_version": "1.0.0",
+      "global_uav_flow_policy": {
+        "source_contract": "uav_global_flow",
+        "intent_start_tick": 0,
+        "intent_end_tick": 900,
+        "authorization_status": "active",
+        "flight_plan_approval_status": "approved"
+      },
+      "uav_plans": [
+        {
+          "uav_id": "u_inspect_l3_1_v1",
+          "corridor_id": "utm_corridor:L3-1_v1:uav_00",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_observer_l3_1_v1_3",
+          "corridor_id": "utm_corridor:L3-1_v1:uav_01",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_roadwork_inspector_l3_1",
+          "corridor_id": "utm_corridor:L3-1_v1:uav_02",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        }
+      ]
+    },
+    "capture_boundary": {
+      "boundary_id": "capture_boundary_l3_1_v1",
+      "source": "event_entity_envelope",
+      "source_entity_id": "uav_roadwork_inspector_l3_1",
+      "center_enu_m": [
+        8033.572,
+        7439.511,
+        0.0
+      ],
+      "polygon_enu_m": [
+        [
+          7998.694,
+          7395.375
+        ],
+        [
+          8068.449,
+          7395.375
+        ],
+        [
+          8068.449,
+          7483.647
+        ],
+        [
+          7998.694,
+          7483.647
+        ]
+      ],
+      "geometry_authority": "minimal_rebuilt_roi_contract_v1",
+      "uav_boundary_crossing_required": true,
+      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "inspect_fov_coverage_required": true,
+      "inspect_entity_role": "U_inspect"
+    },
+    "spatial_grid_assignment": {
+      "scenario_id": "L3-1_v1",
+      "event_space_class": "traffic_incident_grid",
+      "target_center_enu_m": [
+        8033.572,
+        7439.511,
+        0.0
+      ],
+      "grid_cell": {
+        "cell_id": "grid_009_006",
+        "center_enu_m": [
+          8036.504207,
+          7421.523074,
+          0.0
+        ],
+        "representative_enu_m": [
+          8036.765,
+          7421.28,
+          0.0
+        ],
+        "edge_ids": [
+          "cg_edge_481_f_pl2",
+          "cg_edge_481_f_pl3",
+          "cg_edge_481_r_pl0",
+          "cg_edge_481_r_pl1"
+        ],
+        "main_edge_count": 4,
+        "total_main_edge_length_m": 161.084154,
+        "max_speed_mps": 11.11,
+        "incident_count": 0
+      },
+      "source": "minimal_rebuilt_roi_contract_v1",
+      "traffic_incident_id": "",
+      "accident_class": "",
+      "exclusion_radius_m": 180.0,
+      "policy": "city_grid_main_road_event_coverage_v1",
+      "provisional_capture_center_enu_m": [
+        7041.993,
+        6242.181,
+        9.1
+      ],
+      "applied_world_origin_enu_m": [
+        7991.579,
+        7397.33,
+        0.0
+      ],
+      "actual_capture_center_enu_m": [
+        8035.622,
+        7454.381,
+        5.81
+      ],
+      "expanded_capture_center_enu_m": [
+        8033.572,
+        7439.511,
+        0.0
+      ],
+      "target_error_m": 15.010643
+    },
+    "roi_contract": {
+      "policy": "minimal_rebuilt_roi_contract_v1",
+      "source_root": "aw_data/render_ready_episodes_capture_filtered",
+      "scenario_id": "L3-1_v1",
+      "map_id": "donghu_road_topo",
+      "active_site_id": "site.intersection_a",
+      "active_roi_id": "roi.intersection_a.v1",
+      "capture_boundary_id": "capture_boundary_l3_1_v1",
+      "capture_polygon_enu_m": [
+        [
+          7998.694,
+          7395.375
+        ],
+        [
+          8068.449,
+          7395.375
+        ],
+        [
+          8068.449,
+          7483.647
+        ],
+        [
+          7998.694,
+          7483.647
+        ]
+      ],
+      "baseline_capture_polygon_enu_m": [
+        [
+          7993.715,
+          7369.358
+        ],
+        [
+          8063.47,
+          7369.358
+        ],
+        [
+          8063.47,
+          7457.63
+        ],
+        [
+          7993.715,
+          7457.63
+        ]
+      ],
+      "runtime_crop_bbox_enu_m": [
+        7938.694,
+        7335.375,
+        8128.449,
+        7543.647
+      ],
+      "expanded_boundary_padding_m": 60.0,
+      "runtime_crop_policy": "roi_polygon_expanded_60m_runtime_truth_crop_v1",
+      "tick_start": 0,
+      "tick_end": 900,
+      "capture_step_ticks": 5,
+      "capture_frames_per_episode": 181,
+      "seed_consistency": "exact_across_seed00_seed01_seed02",
+      "full_chain_rebuild_required": true,
+      "minimal_change_evidence": {
+        "preserved_dimensions_m": [
+          69.755,
+          88.272
+        ],
+        "center_translation_enu_m": [
+          4.979,
+          26.017
+        ],
+        "center_translation_norm_m": 26.489144,
+        "search_step_m": 1.0,
+        "event_stage_interior_margin_m": 6.0,
+        "chosen_ue_lane_edge_id": "cg_edge_701_r_pl0",
+        "lane_geometry_authority": "road_geojson_topology_plus_ue_roadway_mesh",
+        "roadway_mesh_hash": "fnv1a64:75f4b53c5218a3fb",
+        "roadwork_anchor_s_m": 4.0,
+        "semantic_stage_span_m": 44.0,
+        "entry_edge_path": [
+          "cg_edge_481_r_pl0",
+          "cg_edge_701_r_pl0"
+        ],
+        "entry_route_length_m": 84.107727,
+        "entry_capture_boundary_clearance_m": 6.469,
+        "entry_ticks_at_speed_ceiling": 90,
+        "ground_vehicle_speed_ceiling_mps": 10.0,
+        "unsearched_edge_translation_lower_bound_m": 239.246765,
+        "selection": "minimum_same_size_axis_aligned_translation_with_complete_stage_and_legal_directed_entry"
+      }
+    },
+    "release_spatial_authority": {
+      "policy": "minimal_rebuilt_roi_contract_v1",
+      "source_root": "aw_data/render_ready_episodes_capture_filtered",
+      "roi_contract_center_enu_m": [
+        8033.572,
+        7439.511,
+        0.0
+      ],
+      "actual_assignment_center_enu_m": [
+        8035.622,
+        7454.381,
+        5.81
+      ],
+      "assignment_outside_roi_m": 0.0,
+      "attempts": [
+        {
+          "attempt": 1,
+          "target_assignment_center_enu_m": [
+            8033.572,
+            7439.511,
+            0.0
+          ],
+          "actual_assignment_center_enu_m": [
+            8035.622,
+            7454.381,
+            5.81
+          ],
+          "roi_contract_center_enu_m": [
+            8033.572,
+            7439.511,
+            0.0
+          ],
+          "assignment_outside_roi_m": 0.0,
+          "polygon_matches_roi_contract": true
+        }
+      ]
+    }
   },
   "triggers": [
     {
       "trigger_id": "trig_lifecycle_takeoff_uav_roadwork_inspector_l3_1",
       "type": "tick",
       "tick": 30
+    },
+    {
+      "trigger_id": "trig_roadwork_vehicle_entry",
+      "type": "tick",
+      "tick": 21
     },
     {
       "trigger_id": "trig_roadwork_barriers_spawn",
@@ -29,16 +928,22 @@
       "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_vehicle_detour_delay_63",
+      "trigger_id": "trig_after_vehicle_detour_delay_48",
       "type": "event_fired_after",
       "event_id": "vehicle_detour",
-      "delay_ticks": 63
+      "delay_ticks": 48
     },
     {
-      "trigger_id": "trig_after_uav_inspection_report_delay_81",
+      "trigger_id": "trig_after_uav_inspection_report_delay_78",
       "type": "event_fired_after",
       "event_id": "uav_inspection_report",
-      "delay_ticks": 81
+      "delay_ticks": 78
+    },
+    {
+      "trigger_id": "trig_after_roadwork_vehicle_leaves_delay_80",
+      "type": "event_fired_after",
+      "event_id": "roadwork_vehicle_leaves",
+      "delay_ticks": 80
     }
   ],
   "events": [
@@ -54,23 +959,55 @@
           "entity_id": "uav_roadwork_inspector_l3_1",
           "waypoints_enu_m": [
             [
-              7021.797,
-              6212.305,
+              8057.816,
+              7450.932,
               3.0
             ],
             [
-              7021.797,
-              6212.305,
+              8057.816,
+              7450.932,
               24.0
             ],
             [
-              7018.0,
-              6232.0,
-              32
+              8062.443,
+              7450.312,
+              32.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "activity_type": "takeoff",
+          "post_activity_type": "cruise",
+          "uav_corridor_validation": {
+            "status": "low_altitude_waypoints_preserved_and_building_clear",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                8057.816,
+                7450.932,
+                3.0
+              ],
+              [
+                8057.816,
+                7450.932,
+                24.0
+              ],
+              [
+                8062.443,
+                7450.312,
+                32.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         }
+      ],
+      "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+      "causal_chain_id": "L3-1_v1.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L3-1_v1_lifecycle_takeoff_uav_roadwork_inspector_l3_1",
@@ -81,6 +1018,188 @@
         "target_ids": [
           "uav_roadwork_inspector_l3_1",
           "pad_home_uav_roadwork_inspector_l3_1"
+        ],
+        "intent": "uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "intent_stage": "00.uav_takes_off_from_visible_home_pad_and_enters_mission_airspace",
+        "causal_chain_id": "L3-1_v1.semantic_event_chain",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
+        ]
+      }
+    },
+    {
+      "event_id": "roadwork_vehicle_entry",
+      "trigger_ref": "trig_roadwork_vehicle_entry",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_blocked_car_l3_1_entry",
+          "entity_id": "blocked_car_l3_1",
+          "asset_id": "vehicle.ground.boxcar.v1",
+          "position_enu_m": [
+            8019.005,
+            7387.27,
+            0.0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 70.423
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_blocked_car_l3_1_entry",
+          "entity_id": "blocked_car_l3_1",
+          "waypoints_enu_m": [
+            [
+              8019.005,
+              7387.27,
+              0.0
+            ],
+            [
+              8020.347,
+              7391.039,
+              0.0
+            ],
+            [
+              8021.688,
+              7394.802,
+              0.0
+            ],
+            [
+              8023.036,
+              7398.573,
+              0.0
+            ],
+            [
+              8024.384,
+              7402.266,
+              0.0
+            ],
+            [
+              8026.1,
+              7405.657,
+              0.0
+            ],
+            [
+              8028.086,
+              7409.122,
+              0.0
+            ],
+            [
+              8030.068,
+              7412.602,
+              0.0
+            ],
+            [
+              8032.05,
+              7416.075,
+              0.0
+            ],
+            [
+              8034.039,
+              7419.547,
+              0.0
+            ],
+            [
+              8036.038,
+              7422.946,
+              0.0
+            ],
+            [
+              8038.356,
+              7426.03,
+              0.0
+            ],
+            [
+              8040.773,
+              7429.215,
+              0.0
+            ],
+            [
+              8043.187,
+              7432.41,
+              0.0
+            ],
+            [
+              8045.607,
+              7435.591,
+              0.0
+            ],
+            [
+              8048.051,
+              7438.668,
+              0.0
+            ],
+            [
+              8048.325,
+              7443.191,
+              0.0
+            ],
+            [
+              8047.021,
+              7446.794,
+              0.0
+            ],
+            [
+              8044.04,
+              7449.34,
+              0.0
+            ],
+            [
+              8041.491,
+              7451.269,
+              0.0
+            ],
+            [
+              8038.952,
+              7453.215,
+              0.0
+            ],
+            [
+              8036.404,
+              7455.152,
+              0.0
+            ],
+            [
+              8033.855,
+              7457.086,
+              0.0
+            ],
+            [
+              8031.313,
+              7459.03,
+              0.0
+            ]
+          ],
+          "velocity_mps": 3.999847,
+          "activity_type": "moving",
+          "post_activity_type": "moving"
+        }
+      ],
+      "intent": "context",
+      "intent_stage": "00.context",
+      "causal_chain_id": "L3-1_v1.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "semantic_context"
+      ],
+      "log_event": {
+        "topic": "evt_L3-1_v1_roadwork_vehicle_entry",
+        "category": "scene_context",
+        "title": "Event actor enters continuously on its legal lane before the semantic event",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "blocked_car_l3_1"
+        ],
+        "intent": "context",
+        "intent_stage": "00.context",
+        "causal_chain_id": "L3-1_v1.semantic_event_chain",
+        "target_roles": [
+          "semantic_context"
         ]
       }
     },
@@ -96,12 +1215,12 @@
           "entity_id": "barrier_l3_1_01",
           "asset_id": "prop.roadwork.barrier.v1",
           "position_enu_m": [
-            7043.482,
-            6245.831,
+            8038.797,
+            7449.054,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 142.667
           }
         },
         {
@@ -110,12 +1229,12 @@
           "entity_id": "barrier_l3_1_02",
           "asset_id": "prop.roadwork.barrier.v1",
           "position_enu_m": [
-            7044.793,
-            6241.043,
+            8034.828,
+            7452.08,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 142.809
           }
         },
         {
@@ -124,12 +1243,12 @@
           "entity_id": "barrier_l3_1_03",
           "asset_id": "prop.roadwork.barrier.v1",
           "position_enu_m": [
-            7046.104,
-            6236.254,
+            8030.84,
+            7455.112,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 142.667
           }
         },
         {
@@ -138,12 +1257,12 @@
           "entity_id": "fence_l3_1_01",
           "asset_id": "prop.roadwork.construction_fence.v1",
           "position_enu_m": [
-            7042.957,
-            6247.747,
+            8040.26,
+            7447.886,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 140.517
           }
         },
         {
@@ -152,12 +1271,12 @@
           "entity_id": "fence_l3_1_02",
           "asset_id": "prop.roadwork.construction_fence.v1",
           "position_enu_m": [
-            7047.677,
-            6230.508,
+            8026.076,
+            7458.743,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 142.809
           }
         },
         {
@@ -166,12 +1285,12 @@
           "entity_id": "cone_l3_1_01",
           "asset_id": "prop.roadwork.traffic_cone.v1",
           "position_enu_m": [
-            7042.433,
-            6249.662,
+            8042.189,
+            7446.488,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 147.019
           }
         },
         {
@@ -180,12 +1299,12 @@
           "entity_id": "cone_l3_1_02",
           "asset_id": "prop.roadwork.traffic_cone.v1",
           "position_enu_m": [
-            7043.482,
-            6245.831,
+            8038.797,
+            7449.054,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 142.667
           }
         },
         {
@@ -194,12 +1313,12 @@
           "entity_id": "cone_l3_1_03",
           "asset_id": "prop.roadwork.traffic_cone.v1",
           "position_enu_m": [
-            7044.53,
-            6242.0,
+            8035.624,
+            7451.475,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 142.809
           }
         },
         {
@@ -208,12 +1327,12 @@
           "entity_id": "cone_l3_1_04",
           "asset_id": "prop.roadwork.traffic_cone.v1",
           "position_enu_m": [
-            7045.579,
-            6238.17,
+            8032.437,
+            7453.892,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 142.809
           }
         },
         {
@@ -222,14 +1341,21 @@
           "entity_id": "cone_l3_1_05",
           "asset_id": "prop.roadwork.traffic_cone.v1",
           "position_enu_m": [
-            7046.628,
-            6234.339,
+            8029.259,
+            7456.321,
             0.0
           ],
           "rotation_deg": {
-            "yaw_deg": -74.688
+            "yaw_deg": 142.809
           }
         }
+      ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "01.traffic_or_facility_incident",
+      "causal_chain_id": "L3-1_v1.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "semantic_context"
       ],
       "log_event": {
         "topic": "evt_L3-1_v1_roadwork_barriers_spawn",
@@ -242,6 +1368,13 @@
           "barrier_l3_1_02",
           "barrier_l3_1_03",
           "fence_l3_1_01"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "01.traffic_or_facility_incident",
+        "causal_chain_id": "L3-1_v1.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "semantic_context"
         ]
       }
     },
@@ -265,6 +1398,13 @@
           "camera_id": "demo_high_overview"
         }
       ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "02.traffic_or_facility_incident",
+      "causal_chain_id": "L3-1_v1.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "semantic_context"
+      ],
       "log_event": {
         "topic": "evt_L3-1_v1_lane_closure_active",
         "category": "vehicle",
@@ -273,6 +1413,13 @@
         "overlay": "vehicle",
         "target_ids": [
           "blocked_car_l3_1"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "02.traffic_or_facility_incident",
+        "causal_chain_id": "L3-1_v1.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "semantic_context"
         ]
       }
     },
@@ -288,23 +1435,30 @@
           "entity_id": "blocked_car_l3_1",
           "waypoints_enu_m": [
             [
-              7043.349,
-              6233.441,
+              8031.313,
+              7459.03,
               0.0
             ],
             [
-              7039.617,
-              6224.781,
+              8021.767,
+              7466.302,
               0.0
             ],
             [
-              7062.192,
-              6214.996,
+              8009.004,
+              7475.932,
               0.0
             ]
           ],
           "velocity_mps": 6.0
         }
+      ],
+      "intent": "detour",
+      "intent_stage": "03.detour",
+      "causal_chain_id": "L3-1_v1.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "semantic_context"
       ],
       "log_event": {
         "topic": "evt_L3-1_v1_vehicle_detour",
@@ -314,12 +1468,19 @@
         "overlay": "vehicle",
         "target_ids": [
           "blocked_car_l3_1"
+        ],
+        "intent": "detour",
+        "intent_stage": "03.detour",
+        "causal_chain_id": "L3-1_v1.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "semantic_context"
         ]
       }
     },
     {
       "event_id": "uav_inspection_report",
-      "trigger_ref": "trig_after_vehicle_detour_delay_63",
+      "trigger_ref": "trig_after_vehicle_detour_delay_48",
       "priority": 4,
       "max_fire_count": 1,
       "actions": [
@@ -329,28 +1490,75 @@
           "entity_id": "uav_roadwork_inspector_l3_1",
           "waypoints_enu_m": [
             [
-              7018.0,
-              6232.0,
-              32
+              8062.443,
+              7450.312,
+              32.0
             ],
             [
-              7040.0,
-              6240.0,
-              28
+              8062.443,
+              7450.312,
+              30.0
             ],
             [
-              7051.0,
-              6247.0,
-              28
+              8040.122,
+              7457.367,
+              30.0
+            ],
+            [
+              8027.134,
+              7458.515,
+              30.0
             ]
           ],
-          "velocity_mps": 5.0
+          "velocity_mps": 5.0,
+          "uav_corridor_validation": {
+            "status": "waypoints_repaired_for_building_clearance",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                8062.443,
+                7450.312,
+                32.0
+              ],
+              [
+                8040.122,
+                7457.367,
+                28.0
+              ],
+              [
+                8027.134,
+                7458.515,
+                28.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          }
         },
         {
           "type": "capture_screenshot",
           "action_id": "capture_roadwork_report",
           "camera_id": "demo_high_overview"
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l3_1_v1_uav_inspection_report_00",
+          "entity_id": "uav_roadwork_inspector_l3_1",
+          "delay_ticks": 0,
+          "state_patch": {
+            "mission_state": {
+              "inspection_complete": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
         }
+      ],
+      "intent": "inspect",
+      "intent_stage": "04.inspect",
+      "causal_chain_id": "L3-1_v1.semantic_event_chain",
+      "causal_predecessor_intent": "detour",
+      "target_roles": [
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L3-1_v1_uav_inspection_report",
@@ -360,12 +1568,56 @@
         "overlay": "uav_mission",
         "target_ids": [
           "uav_roadwork_inspector_l3_1"
+        ],
+        "intent": "inspect",
+        "intent_stage": "04.inspect",
+        "causal_chain_id": "L3-1_v1.semantic_event_chain",
+        "causal_predecessor_intent": "detour",
+        "target_roles": [
+          "mission_uav"
+        ]
+      }
+    },
+    {
+      "event_id": "roadwork_vehicle_leaves",
+      "trigger_ref": "trig_after_uav_inspection_report_delay_78",
+      "priority": 7,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "remove_entity",
+          "action_id": "remove_blocked_car_after_detour",
+          "entity_id": "blocked_car_l3_1"
+        }
+      ],
+      "intent": "context",
+      "intent_stage": "00.context",
+      "causal_chain_id": "L3-1_v1.semantic_event_chain",
+      "causal_predecessor_intent": "inspect",
+      "target_roles": [
+        "semantic_context"
+      ],
+      "log_event": {
+        "topic": "evt_L3-1_v1_roadwork_vehicle_leaves",
+        "category": "scene_context",
+        "title": "Detoured vehicle leaves the event stage after the inspection evidence is captured",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "blocked_car_l3_1"
+        ],
+        "intent": "context",
+        "intent_stage": "00.context",
+        "causal_chain_id": "L3-1_v1.semantic_event_chain",
+        "causal_predecessor_intent": "inspect",
+        "target_roles": [
+          "semantic_context"
         ]
       }
     },
     {
       "event_id": "lifecycle_landing_uav_roadwork_inspector_l3_1",
-      "trigger_ref": "trig_after_uav_inspection_report_delay_81",
+      "trigger_ref": "trig_after_roadwork_vehicle_leaves_delay_80",
       "priority": 9,
       "max_fire_count": 1,
       "actions": [
@@ -375,23 +1627,81 @@
           "entity_id": "uav_roadwork_inspector_l3_1",
           "waypoints_enu_m": [
             [
-              7051.0,
-              6247.0,
-              28.0
+              8027.134,
+              7458.515,
+              30.0
             ],
             [
-              7021.797,
-              6212.305,
-              22.0
+              8027.134,
+              7458.515,
+              36.0
             ],
             [
-              7021.797,
-              6212.305,
+              8057.816,
+              7450.932,
+              36.0
+            ],
+            [
+              8057.816,
+              7450.932,
               3.0
             ]
           ],
-          "velocity_mps": 4.0
+          "velocity_mps": 4.0,
+          "activity_type": "return_to_pad",
+          "post_activity_type": "landed",
+          "uav_corridor_validation": {
+            "status": "low_altitude_waypoints_preserved_and_building_clear",
+            "assigned_altitude_m": 30.0,
+            "original_waypoints_enu_m": [
+              [
+                8027.134,
+                7458.515,
+                28.0
+              ],
+              [
+                8027.134,
+                7458.515,
+                36.0
+              ],
+              [
+                8057.816,
+                7450.932,
+                36.0
+              ],
+              [
+                8057.816,
+                7450.932,
+                3.0
+              ]
+            ],
+            "preserved_action_type": "move_entity"
+          },
+          "terminal_feasibility": {
+            "model": "constant_speed_path_with_explicit_landing_reference_v2",
+            "dispatch_upper_bound_tick": 490,
+            "route_length_m": 70.605174,
+            "available_ticks": 400,
+            "required_speed_mps": 1.765129,
+            "max_speed_mps": 8.0,
+            "home_pose_origin_z_m": 3.0,
+            "landing_reference_enu_m": [
+              8057.816,
+              7450.932,
+              3.0
+            ],
+            "touchdown_altitude_tolerance_m": 1.5,
+            "touchdown_dwell_ticks": 5
+          }
         }
+      ],
+      "intent": "landing_or_terminal_resolution",
+      "intent_stage": "09.landing_or_terminal_resolution",
+      "causal_chain_id": "L3-1_v1.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "landing_pad",
+        "mission_uav"
       ],
       "log_event": {
         "topic": "evt_L3-1_v1_lifecycle_landing_uav_roadwork_inspector_l3_1",
@@ -402,6 +1712,14 @@
         "target_ids": [
           "uav_roadwork_inspector_l3_1",
           "pad_home_uav_roadwork_inspector_l3_1"
+        ],
+        "intent": "landing_or_terminal_resolution",
+        "intent_stage": "09.landing_or_terminal_resolution",
+        "causal_chain_id": "L3-1_v1.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "landing_pad",
+          "mission_uav"
         ]
       }
     }

@@ -1,0 +1,132 @@
+{
+  "profile": "X6_crowd_evacuation_to_airspace_lockdown",
+  "seed": "seed02",
+  "episode_id": "X6_crowd_evacuation_to_airspace_lockdown__seed02",
+  "group": "X6_crowd_evacuation_to_airspace_lockdown/seed02/grp_cross_layer",
+  "arm_id": "suppress_direct_consequence",
+  "mode": "intervention",
+  "window": {
+    "start_tick": 210,
+    "fork_tick": 220,
+    "end_tick": 690,
+    "phase": "after_state_sample_before_actions"
+  },
+  "sources": {
+    "scene": "interventions/X6_crowd_evacuation_to_airspace_lockdown/seed02/grp_cross_layer/scene_setup.json",
+    "original_scene": "Dataset/scenarios/X_cross_layer/X6_crowd_evacuation_to_airspace_lockdown/scene_setup.json",
+    "script": "Dataset/scenarios/X_cross_layer/X6_crowd_evacuation_to_airspace_lockdown/event_script.json",
+    "canonical": "aw_data/render_ready_episodes_capture_filtered/X6_crowd_evacuation_to_airspace_lockdown__seed02",
+    "predicate_script": "interventions/X6_crowd_evacuation_to_airspace_lockdown/seed02/grp_cross_layer/factual_event_script.json"
+  },
+  "removed_event_ids": [
+    "airspace_lockdown",
+    "lifecycle_landing_uav_x6_monitor",
+    "lockdown_cleared",
+    "uav_reroute_lockdown",
+    "x6_uav_at_reroute_exit"
+  ],
+  "intervention_actions": [],
+  "definition": {
+    "entrypoint": "scripts/arms/X6_crowd_evacuation_to_airspace_lockdown/seed02/grp_cross_layer/suppress_direct_consequence.py",
+    "entrypoint_sha256": "0b66a55edbd058c2a7c8f00f0466983af97b312efa24f1b264e34f382ebda503",
+    "research_question": "人群到达安全区后是否启用临时限制、执行绕飞并实际停用限制？",
+    "window_basis": "人群最后517到达路径终点；绕飞669到达，675宣布停用；实体standdown及控制状态在680正式样本均成立，恢复保持至690。735以后的返航不属于窗口。",
+    "parameter_model": {
+      "parameter_changes": false,
+      "motion_model": "沿用源动作分段恒速与ceil(distance/speed*10)整tick计时；不改变速度、航点或语义阈值。",
+      "state_visibility": "先采样后动作；runtime补丁按声明delay_ticks生效。",
+      "recovery_model": "正式步长5，当前recovery_hold_samples=3；first_false_capture+(3-1)*5。",
+      "scope": "窗口推导来自源动作实际完成及状态保持；分支运行后重新验证。"
+    },
+    "branch_changes": {
+      "removed_event_ids": [
+        "airspace_lockdown",
+        "lifecycle_landing_uav_x6_monitor",
+        "lockdown_cleared",
+        "uav_reroute_lockdown",
+        "x6_uav_at_reroute_exit"
+      ],
+      "added_event_ids": [],
+      "removed_action_ids": [
+        "capture_x6_lockdown",
+        "move_uav_x6_monitor_landing_return",
+        "move_x6_uav_avoid_nfz",
+        "set_runtime_state_x6_crowd_evacuation_to_airspace_lockdown_airspace_lockdown_00",
+        "set_runtime_state_x6_crowd_evacuation_to_airspace_lockdown_lockdown_cleared_00",
+        "set_runtime_state_x6_crowd_evacuation_to_airspace_lockdown_uav_reroute_lockdown_00",
+        "set_x6_nfz_standdown",
+        "spawn_x6_nfz"
+      ],
+      "added_action_ids": [],
+      "replaced_action_ids": [],
+      "changed_event_ids": [],
+      "changed_trigger_ids": []
+    }
+  },
+  "gates": {
+    "trig_crowd_safe_zone_move": {
+      "trigger_id": "trig_crowd_safe_zone_move",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_x6_safe_zone_member_00",
+        "trig_x6_safe_zone_member_01",
+        "trig_x6_safe_zone_member_02",
+        "trig_x6_safe_zone_member_03",
+        "trig_x6_safe_zone_member_04",
+        "trig_x6_safe_zone_member_05",
+        "trig_x6_safe_zone_member_06",
+        "trig_x6_safe_zone_member_07"
+      ]
+    },
+    "x_guard_crowd_safe_zone_move": {
+      "trigger_id": "x_guard_crowd_safe_zone_move",
+      "type": "composite",
+      "operator": "AND",
+      "children": [
+        "trig_crowd_safe_zone_move",
+        "x_predecessor_crowd_safe_zone_move"
+      ]
+    }
+  },
+  "scope": {
+    "simulated_entity_ids": [
+      "uav_x6_monitor",
+      "crowd_anchor_x6",
+      "ped_x6_evac_x6_00",
+      "ped_x6_evac_x6_01",
+      "ped_x6_evac_x6_02",
+      "ped_x6_evac_x6_03",
+      "ped_x6_evac_x6_04",
+      "ped_x6_evac_x6_05",
+      "ped_x6_evac_x6_06",
+      "ped_x6_evac_x6_07",
+      "safe_zone_anchor_x6",
+      "reroute_exit_anchor_x6",
+      "nfz_x6_lockdown",
+      "u_inspect_x6_crowd_evacuation_to_airspace_lockdown",
+      "bg_ped_x6_crowd_evacuation_to_airspace_lockdown_09",
+      "bg_ped_x6_crowd_evacuation_to_airspace_lockdown_10",
+      "contract_facility_x6_crowd_evacuation_to_airspace_lockdown_02",
+      "contract_facility_x6_crowd_evacuation_to_airspace_lockdown_03",
+      "uav_observer_x6_crowd_evacuation_to_airspace_lockdown_3",
+      "pad_home_uav_x6_monitor",
+      "corridor_x6_crowd_evacuation_to_airspace_lockdown_uav_x6_monitor_00",
+      "corridor_x6_crowd_evacuation_to_airspace_lockdown_uav_x6_monitor_01",
+      "corridor_x6_crowd_evacuation_to_airspace_lockdown_uav_x6_monitor_02",
+      "corridor_x6_crowd_evacuation_to_airspace_lockdown_uav_x6_monitor_03",
+      "corridor_x6_crowd_evacuation_to_airspace_lockdown_uav_x6_monitor_04",
+      "corridor_x6_crowd_evacuation_to_airspace_lockdown_uav_x6_monitor_05",
+      "corridor_x6_crowd_evacuation_to_airspace_lockdown_uav_x6_monitor_06",
+      "corridor_x6_crowd_evacuation_to_airspace_lockdown_uav_x6_monitor_07"
+    ],
+    "canonical_only_scene_entity_ids": [
+      "bg_vehicle_x6_crowd_evacuation_to_airspace_lockdown_01",
+      "bg_vehicle_x6_crowd_evacuation_to_airspace_lockdown_02",
+      "bg_vehicle_x6_crowd_evacuation_to_airspace_lockdown_03"
+    ],
+    "background_policy": "Every canonical truth-frame entity outside the engine roster is retained unchanged. Background vehicles are not simulated or replaced.",
+    "interaction_limit": "Scripted participants, geometry triggers and runtime state are recomputed; no feedback from immutable background traffic is claimed."
+  },
+  "hypothesis": "疏散及实际抵达继续，取消封锁与绕飞，区域不存在且没有解除声明。"
+}

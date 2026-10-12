@@ -6,9 +6,952 @@
     "failure_tick": 260,
     "resolution_tick": 520,
     "primary_id": "traffic_signal_l2_5_v1",
-    "secondary_id": "police_unit_l2_5_v1"
+    "secondary_id": "police_unit_l2_5_v1",
+    "semantic_event_contract": {
+      "schema": "low_altitude_event_chain_contract_v1",
+      "scenario_id": "L2-5_v1",
+      "exact_counts": {
+        "uav": 3,
+        "vehicle": 5,
+        "pedestrian": 4,
+        "facility": 2,
+        "logical": 3
+      },
+      "capture_boundary": {
+        "boundary_id": "capture_boundary_l2_5_v1",
+        "geometry_source": "event_entity",
+        "anchor_entity_roles": [
+          "capture_boundary",
+          "hazard_zone",
+          "airspace_constraint"
+        ],
+        "boundary_role": "capture_boundary",
+        "z_policy": "ground_to_event_altitude",
+        "source": "event_entity_envelope",
+        "source_entity_id": "civilian_car_l2_5_a",
+        "center_enu_m": [
+          6251.814,
+          7959.736,
+          0.0
+        ],
+        "polygon_enu_m": [
+          [
+            6196.66,
+            7841.702
+          ],
+          [
+            6306.968,
+            7841.702
+          ],
+          [
+            6306.968,
+            8077.77
+          ],
+          [
+            6196.66,
+            8077.77
+          ]
+        ],
+        "geometry_authority": "formal_release_roi_exact_v1",
+        "uav_boundary_crossing_required": true,
+        "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+        "inspect_fov_coverage_required": true,
+        "inspect_entity_role": "U_inspect"
+      },
+      "inspect": {
+        "role": "U_inspect",
+        "altitude_code": "I18",
+        "altitude_m": 18.0,
+        "min_path_length_m": 80.0,
+        "required_presence": "episode_full_duration",
+        "motion_policy": "fixed_altitude_closed_loop",
+        "corridor_policy": "inspect_capture_corridor",
+        "fov_coverage_required": true,
+        "sensor_profile_required": true
+      },
+      "pad_boundary_policy": {
+        "default": "outside_allowed",
+        "inside_required_for": []
+      },
+      "uav_boundary_crossing_required": true,
+      "inspect_fov_coverage_required": true,
+      "required_event": "signal fault > queue > manual flow",
+      "required_intents": [
+        "traffic_or_facility_incident"
+      ],
+      "background_semantics": {
+        "vehicle_role": "queue/yield/manual-control traffic",
+        "pedestrian_role": "crosswalk wait/cross",
+        "policy": "semantic_context_not_decoration"
+      },
+      "weather": "clear",
+      "determinism": {
+        "fallback": "forbidden",
+        "guessing": "forbidden",
+        "compatibility_paths": "forbidden"
+      }
+    },
+    "target_uav_count": 3,
+    "target_vehicle_count": 5,
+    "target_pedestrian_count": 4,
+    "target_facility_count": 2,
+    "target_logical_count": 3,
+    "deterministic_sumo_traffic_template": {
+      "source_policy": "explicit_episode_plan_only_v1",
+      "min_vehicle_count": 12,
+      "seed_profiles": {
+        "seed00": {
+          "name": "morning_peak",
+          "direction_bias": "inbound_to_roi",
+          "direction_weights": {
+            "inbound": 0.7,
+            "outbound": 0.2,
+            "cross": 0.1
+          }
+        },
+        "seed01": {
+          "name": "midday",
+          "direction_bias": "balanced_cross_traffic",
+          "direction_weights": {
+            "inbound": 0.34,
+            "outbound": 0.33,
+            "cross": 0.33
+          }
+        },
+        "seed02": {
+          "name": "evening_peak",
+          "direction_bias": "outbound_from_roi",
+          "direction_weights": {
+            "inbound": 0.2,
+            "outbound": 0.7,
+            "cross": 0.1
+          }
+        }
+      },
+      "semantic_vehicle_roles": [
+        "semantic_event_vehicle",
+        "deterministic_background_vehicle"
+      ],
+      "route_source": "sumo_explicit_vehicle_plan"
+    },
+    "uav_corridor_policy": "repair_waypoints_then_visualize_corridors_v1",
+    "allow_building_impact": false,
+    "uav_corridor_segment_count": 33,
+    "uav_altitude_layers_m": [
+      30.0,
+      50.0,
+      80.0
+    ],
+    "uav_assigned_altitudes_m": {
+      "u_inspect_l2_5_v1": 18.0,
+      "uav_observer_l2_5_v1_2": 50.0,
+      "uav_observer_l2_5_v1_3": 80.0
+    },
+    "uav_lateral_bypass_used": {
+      "u_inspect_l2_5_v1": false,
+      "uav_observer_l2_5_v1_2": false,
+      "uav_observer_l2_5_v1_3": false
+    },
+    "uav_corridor_segments": [
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "point_count": 32,
+        "assigned_altitude_m": 18.0,
+        "used_lateral_bypass": false
+      },
+      {
+        "entity_id": "uav_observer_l2_5_v1_2",
+        "point_count": 3,
+        "assigned_altitude_m": 50.0,
+        "used_lateral_bypass": false
+      },
+      {
+        "entity_id": "uav_observer_l2_5_v1_3",
+        "point_count": 3,
+        "assigned_altitude_m": 80.0,
+        "used_lateral_bypass": false
+      }
+    ],
+    "uav_corridor_segment_details": [
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 0,
+        "segment_start_enu_m": [
+          6182.921,
+          7840.868,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6182.891,
+          7841.367,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          6182.891,
+          7841.367,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6182.951,
+          7840.368,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 2,
+        "segment_start_enu_m": [
+          6182.951,
+          7840.368,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6182.921,
+          7840.868,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 3,
+        "segment_start_enu_m": [
+          6182.921,
+          7840.868,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6196.921,
+          7828.868,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 4,
+        "segment_start_enu_m": [
+          6196.921,
+          7828.868,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6254.921,
+          7846.868,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 5,
+        "segment_start_enu_m": [
+          6254.921,
+          7846.868,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6272.921,
+          7840.868,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 6,
+        "segment_start_enu_m": [
+          6272.921,
+          7840.868,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6306.968,
+          7841.702,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 7,
+        "segment_start_enu_m": [
+          6306.968,
+          7841.702,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6306.968,
+          7842.202,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 8,
+        "segment_start_enu_m": [
+          6306.968,
+          7842.202,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6306.968,
+          7841.202,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 9,
+        "segment_start_enu_m": [
+          6306.968,
+          7841.202,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6306.968,
+          7841.702,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 10,
+        "segment_start_enu_m": [
+          6306.968,
+          7841.702,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6294.969,
+          7841.525,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 11,
+        "segment_start_enu_m": [
+          6294.969,
+          7841.525,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6291.739,
+          8060.589,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 12,
+        "segment_start_enu_m": [
+          6291.739,
+          8060.589,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6303.738,
+          8060.766,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 13,
+        "segment_start_enu_m": [
+          6303.738,
+          8060.766,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6303.268,
+          8060.596,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 14,
+        "segment_start_enu_m": [
+          6303.268,
+          8060.596,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6304.209,
+          8060.936,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 15,
+        "segment_start_enu_m": [
+          6304.209,
+          8060.936,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6303.738,
+          8060.766,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 16,
+        "segment_start_enu_m": [
+          6303.738,
+          8060.766,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6196.66,
+          8060.014,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 17,
+        "segment_start_enu_m": [
+          6196.66,
+          8060.014,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6196.23,
+          8059.759,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 18,
+        "segment_start_enu_m": [
+          6196.23,
+          8059.759,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6197.09,
+          8060.269,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 19,
+        "segment_start_enu_m": [
+          6197.09,
+          8060.269,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6196.66,
+          8060.014,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 20,
+        "segment_start_enu_m": [
+          6196.66,
+          8060.014,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6251.814,
+          7959.736,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 21,
+        "segment_start_enu_m": [
+          6251.814,
+          7959.736,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6251.814,
+          7960.236,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 22,
+        "segment_start_enu_m": [
+          6251.814,
+          7960.236,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6251.814,
+          7959.236,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 23,
+        "segment_start_enu_m": [
+          6251.814,
+          7959.236,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6251.814,
+          7959.736,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 24,
+        "segment_start_enu_m": [
+          6251.814,
+          7959.736,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6181.814,
+          7925.736,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 25,
+        "segment_start_enu_m": [
+          6181.814,
+          7925.736,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6177.814,
+          7921.736,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 26,
+        "segment_start_enu_m": [
+          6177.814,
+          7921.736,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6173.814,
+          7865.736,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 27,
+        "segment_start_enu_m": [
+          6173.814,
+          7865.736,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6163.814,
+          7855.736,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 28,
+        "segment_start_enu_m": [
+          6163.814,
+          7855.736,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6163.814,
+          7849.736,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 29,
+        "segment_start_enu_m": [
+          6163.814,
+          7849.736,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6171.814,
+          7839.736,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "u_inspect_l2_5_v1",
+        "segment_index": 30,
+        "segment_start_enu_m": [
+          6171.814,
+          7839.736,
+          18.0
+        ],
+        "segment_end_enu_m": [
+          6182.921,
+          7840.868,
+          18.0
+        ],
+        "assigned_altitude_m": 18.0
+      },
+      {
+        "entity_id": "uav_observer_l2_5_v1_2",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          6304.934,
+          7824.956,
+          50.0
+        ],
+        "segment_end_enu_m": [
+          6251.814,
+          7959.736,
+          50.0
+        ],
+        "assigned_altitude_m": 50.0
+      },
+      {
+        "entity_id": "uav_observer_l2_5_v1_3",
+        "segment_index": 1,
+        "segment_start_enu_m": [
+          6285.353,
+          7824.229,
+          80.0
+        ],
+        "segment_end_enu_m": [
+          6251.814,
+          7959.736,
+          80.0
+        ],
+        "assigned_altitude_m": 80.0
+      }
+    ],
+    "utm_service_plan": {
+      "schema_name": "utm_service_plan",
+      "schema_version": "1.0.0",
+      "model_id": "aeroworld_deterministic_utm_service",
+      "model_version": "1.0.0",
+      "global_uav_flow_policy": {
+        "source_contract": "uav_global_flow",
+        "intent_start_tick": 0,
+        "intent_end_tick": 900,
+        "authorization_status": "active",
+        "flight_plan_approval_status": "approved"
+      },
+      "uav_plans": [
+        {
+          "uav_id": "u_inspect_l2_5_v1",
+          "corridor_id": "utm_corridor:L2-5_v1:uav_00",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_observer_l2_5_v1_2",
+          "corridor_id": "utm_corridor:L2-5_v1:uav_01",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        },
+        {
+          "uav_id": "uav_observer_l2_5_v1_3",
+          "corridor_id": "utm_corridor:L2-5_v1:uav_02",
+          "intent_start_tick": 0,
+          "intent_end_tick": 900,
+          "authorization_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "status": "active"
+            }
+          ],
+          "flight_plan_schedule": [
+            {
+              "start_tick": 0,
+              "end_tick": 900,
+              "approval_status": "approved"
+            }
+          ]
+        }
+      ]
+    },
+    "capture_boundary": {
+      "boundary_id": "capture_boundary_l2_5_v1",
+      "source": "event_entity_envelope",
+      "source_entity_id": "civilian_car_l2_5_a",
+      "center_enu_m": [
+        6251.814,
+        7959.736,
+        0.0
+      ],
+      "polygon_enu_m": [
+        [
+          6196.66,
+          7841.702
+        ],
+        [
+          6306.968,
+          7841.702
+        ],
+        [
+          6306.968,
+          8077.77
+        ],
+        [
+          6196.66,
+          8077.77
+        ]
+      ],
+      "geometry_authority": "formal_release_roi_exact_v1",
+      "uav_boundary_crossing_required": true,
+      "pad_boundary_policy": "pads_may_be_outside_capture_boundary",
+      "inspect_fov_coverage_required": true,
+      "inspect_entity_role": "U_inspect"
+    },
+    "spatial_grid_assignment": {
+      "scenario_id": "L2-5_v1",
+      "event_space_class": "traffic_incident_grid",
+      "target_center_enu_m": [
+        6251.814,
+        7959.736,
+        0.0
+      ],
+      "grid_cell": {
+        "cell_id": "grid_000_008",
+        "center_enu_m": [
+          6235.234376,
+          7975.990934,
+          0.0
+        ],
+        "representative_enu_m": [
+          6247.954,
+          7981.218,
+          0.0
+        ],
+        "edge_ids": [
+          "cg_edge_145_f_pl1",
+          "cg_edge_145_r_pl0",
+          "cg_edge_293_f_pl4",
+          "cg_edge_293_f_pl5",
+          "cg_edge_293_r_pl0",
+          "cg_edge_293_r_pl1",
+          "cg_edge_293_r_pl2",
+          "cg_edge_293_r_pl3",
+          "cg_edge_403_f_pl1",
+          "cg_edge_403_r_pl0",
+          "cg_edge_4_f_pl1",
+          "cg_edge_4_r_pl0"
+        ],
+        "main_edge_count": 12,
+        "total_main_edge_length_m": 510.961803,
+        "max_speed_mps": 13.89,
+        "incident_count": 0
+      },
+      "source": "formal_release_roi_exact_v1",
+      "traffic_incident_id": "",
+      "accident_class": "",
+      "exclusion_radius_m": 180.0,
+      "policy": "city_grid_main_road_event_coverage_v1",
+      "provisional_capture_center_enu_m": [
+        7120.29,
+        6314.332,
+        0.471
+      ],
+      "applied_world_origin_enu_m": [
+        6131.524,
+        7845.404,
+        0.0
+      ],
+      "actual_capture_center_enu_m": [
+        6279.336,
+        7894.875,
+        0.471
+      ],
+      "expanded_capture_center_enu_m": [
+        6251.814,
+        7959.736,
+        0.0
+      ],
+      "target_error_m": 70.458568
+    },
+    "roi_contract": {
+      "policy": "formal_release_roi_exact_v1",
+      "source_root": "aw_data/render_ready_episodes_capture_filtered",
+      "scenario_id": "L2-5_v1",
+      "map_id": "donghu_road_topo",
+      "active_site_id": "site.intersection_a",
+      "active_roi_id": "roi.intersection_a.v1",
+      "capture_boundary_id": "capture_boundary_l2_5_v1",
+      "capture_polygon_enu_m": [
+        [
+          6196.66,
+          7841.702
+        ],
+        [
+          6306.968,
+          7841.702
+        ],
+        [
+          6306.968,
+          8077.77
+        ],
+        [
+          6196.66,
+          8077.77
+        ]
+      ],
+      "baseline_capture_polygon_enu_m": [
+        [
+          6196.66,
+          7841.702
+        ],
+        [
+          6306.968,
+          7841.702
+        ],
+        [
+          6306.968,
+          8077.77
+        ],
+        [
+          6196.66,
+          8077.77
+        ]
+      ],
+      "runtime_crop_bbox_enu_m": [
+        6136.66,
+        7781.702,
+        6366.968,
+        8137.77
+      ],
+      "expanded_boundary_padding_m": 60.0,
+      "runtime_crop_policy": "roi_polygon_expanded_60m_runtime_truth_crop_v1",
+      "tick_start": 0,
+      "tick_end": 900,
+      "capture_step_ticks": 5,
+      "capture_frames_per_episode": 181,
+      "seed_consistency": "exact_across_seed00_seed01_seed02",
+      "full_chain_rebuild_required": false,
+      "minimal_change_evidence": null
+    },
+    "release_spatial_authority": {
+      "policy": "formal_release_roi_exact_v1",
+      "source_root": "aw_data/render_ready_episodes_capture_filtered",
+      "roi_contract_center_enu_m": [
+        6251.814,
+        7959.736,
+        0.0
+      ],
+      "actual_assignment_center_enu_m": [
+        6279.336,
+        7894.875,
+        0.471
+      ],
+      "assignment_outside_roi_m": 0.0,
+      "attempts": [
+        {
+          "attempt": 1,
+          "target_assignment_center_enu_m": [
+            6251.814,
+            7959.736,
+            0.0
+          ],
+          "actual_assignment_center_enu_m": [
+            6279.336,
+            7894.875,
+            0.471
+          ],
+          "roi_contract_center_enu_m": [
+            6251.814,
+            7959.736,
+            0.0
+          ],
+          "assignment_outside_roi_m": 0.0,
+          "polygon_matches_roi_contract": true
+        }
+      ]
+    }
   },
   "triggers": [
+    {
+      "trigger_id": "trig_civilian_car_a_fault_entry",
+      "type": "tick",
+      "tick": 142
+    },
+    {
+      "trigger_id": "trig_civilian_car_b_fault_entry",
+      "type": "tick",
+      "tick": 170
+    },
     {
       "trigger_id": "trig_signal_all_red_fault",
       "type": "tick",
@@ -21,19 +964,272 @@
       "delay_ticks": 30
     },
     {
-      "trigger_id": "trig_after_traffic_confusion_delay_74",
+      "trigger_id": "trig_after_traffic_confusion_delay_96",
       "type": "event_fired_after",
       "event_id": "traffic_confusion",
-      "delay_ticks": 74
+      "delay_ticks": 96
     },
     {
       "trigger_id": "trig_after_police_arrival_delay_30",
       "type": "event_fired_after",
       "event_id": "police_arrival",
       "delay_ticks": 30
+    },
+    {
+      "trigger_id": "trig_after_manual_flow_restore_delay_60",
+      "type": "event_fired_after",
+      "event_id": "manual_flow_restore",
+      "delay_ticks": 60
+    },
+    {
+      "trigger_id": "trig_after_manual_flow_restore_delay_100",
+      "type": "event_fired_after",
+      "event_id": "manual_flow_restore",
+      "delay_ticks": 100
     }
   ],
   "events": [
+    {
+      "event_id": "civilian_car_a_fault_entry",
+      "trigger_ref": "trig_civilian_car_a_fault_entry",
+      "priority": 1,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_civilian_car_l2_5_a_entry",
+          "entity_id": "civilian_car_l2_5_a",
+          "asset_id": "vehicle.ground.boxcar.v1",
+          "position_enu_m": [
+            6297.184,
+            7834.473,
+            0.0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 108.544
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_civilian_car_l2_5_a_entry",
+          "entity_id": "civilian_car_l2_5_a",
+          "waypoints_enu_m": [
+            [
+              6297.184,
+              7834.473,
+              0.0
+            ],
+            [
+              6295.911,
+              7838.27,
+              0.0
+            ],
+            [
+              6294.636,
+              7842.057,
+              0.0
+            ],
+            [
+              6293.365,
+              7845.849,
+              0.0
+            ],
+            [
+              6292.097,
+              7849.64,
+              0.0
+            ],
+            [
+              6290.822,
+              7853.439,
+              0.0
+            ],
+            [
+              6289.545,
+              7857.227,
+              0.0
+            ],
+            [
+              6288.276,
+              7861.013,
+              0.0
+            ],
+            [
+              6287.006,
+              7864.806,
+              0.0
+            ],
+            [
+              6285.732,
+              7868.61,
+              0.0
+            ],
+            [
+              6284.456,
+              7872.393,
+              0.0
+            ],
+            [
+              6283.187,
+              7876.182,
+              0.0
+            ],
+            [
+              6281.916,
+              7879.977,
+              0.0
+            ],
+            [
+              6280.644,
+              7883.772,
+              0.0
+            ],
+            [
+              6279.367,
+              7887.56,
+              0.0
+            ]
+          ],
+          "velocity_mps": 6.000014,
+          "activity_type": "moving",
+          "post_activity_type": "moving"
+        }
+      ],
+      "intent": "context",
+      "intent_stage": "00.context",
+      "causal_chain_id": "L2-5_v1.semantic_event_chain",
+      "causal_predecessor_intent": "",
+      "target_roles": [
+        "semantic_context"
+      ],
+      "log_event": {
+        "topic": "evt_L2-5_v1_civilian_car_a_fault_entry",
+        "category": "scene_context",
+        "title": "Event actor enters continuously on its legal lane before the semantic event",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "civilian_car_l2_5_a"
+        ],
+        "intent": "context",
+        "intent_stage": "00.context",
+        "causal_chain_id": "L2-5_v1.semantic_event_chain",
+        "target_roles": [
+          "semantic_context"
+        ]
+      }
+    },
+    {
+      "event_id": "civilian_car_b_fault_entry",
+      "trigger_ref": "trig_civilian_car_b_fault_entry",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_civilian_car_l2_5_b_entry",
+          "entity_id": "civilian_car_l2_5_b",
+          "asset_id": "vehicle.ground.boxcar.v1",
+          "position_enu_m": [
+            6300.027,
+            7835.429,
+            0.0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 108.544
+          }
+        },
+        {
+          "type": "move_entity",
+          "action_id": "move_civilian_car_l2_5_b_entry",
+          "entity_id": "civilian_car_l2_5_b",
+          "waypoints_enu_m": [
+            [
+              6300.027,
+              7835.429,
+              0.0
+            ],
+            [
+              6298.757,
+              7839.221,
+              0.0
+            ],
+            [
+              6297.479,
+              7843.012,
+              0.0
+            ],
+            [
+              6296.208,
+              7846.805,
+              0.0
+            ],
+            [
+              6294.938,
+              7850.602,
+              0.0
+            ],
+            [
+              6293.667,
+              7854.39,
+              0.0
+            ],
+            [
+              6292.39,
+              7858.18,
+              0.0
+            ],
+            [
+              6291.119,
+              7861.973,
+              0.0
+            ],
+            [
+              6289.847,
+              7865.769,
+              0.0
+            ],
+            [
+              6288.577,
+              7869.56,
+              0.0
+            ],
+            [
+              6287.3,
+              7873.349,
+              0.0
+            ]
+          ],
+          "velocity_mps": 5.99991,
+          "activity_type": "moving",
+          "post_activity_type": "moving"
+        }
+      ],
+      "intent": "context",
+      "intent_stage": "00.context",
+      "causal_chain_id": "L2-5_v1.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "semantic_context"
+      ],
+      "log_event": {
+        "topic": "evt_L2-5_v1_civilian_car_b_fault_entry",
+        "category": "scene_context",
+        "title": "Event actor enters continuously on its legal lane before the semantic event",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "civilian_car_l2_5_b"
+        ],
+        "intent": "context",
+        "intent_stage": "00.context",
+        "causal_chain_id": "L2-5_v1.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "semantic_context"
+        ]
+      }
+    },
     {
       "event_id": "signal_all_red_fault",
       "trigger_ref": "trig_signal_all_red_fault",
@@ -47,7 +1243,27 @@
           "visual_state": {
             "mode": "all_red_fault"
           }
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l2_5_v1_signal_all_red_fault_00",
+          "entity_id": "traffic_signal_l2_5_v1",
+          "delay_ticks": 0,
+          "state_patch": {
+            "facility_state": {
+              "fault": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
         }
+      ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "01.traffic_or_facility_incident",
+      "causal_chain_id": "L2-5_v1.semantic_event_chain",
+      "causal_predecessor_intent": "context",
+      "target_roles": [
+        "semantic_context"
       ],
       "log_event": {
         "topic": "evt_L2-5_v1_signal_all_red_fault",
@@ -57,6 +1273,13 @@
         "overlay": "infrastructure",
         "target_ids": [
           "traffic_signal_l2_5_v1"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "01.traffic_or_facility_incident",
+        "causal_chain_id": "L2-5_v1.semantic_event_chain",
+        "causal_predecessor_intent": "context",
+        "target_roles": [
+          "semantic_context"
         ]
       }
     },
@@ -72,14 +1295,34 @@
           "entity_id": "civilian_car_l2_5_a",
           "waypoints_enu_m": [
             [
-              7079.0,
-              6226.0,
-              0
+              6279.367,
+              7887.56,
+              0.0
             ],
             [
-              7099.0,
-              6226.0,
-              0
+              6278.097,
+              7891.351,
+              0.0
+            ],
+            [
+              6276.825,
+              7895.146,
+              0.0
+            ],
+            [
+              6275.551,
+              7898.944,
+              0.0
+            ],
+            [
+              6274.277,
+              7902.729,
+              0.0
+            ],
+            [
+              6273.005,
+              7906.527,
+              0.0
             ]
           ],
           "velocity_mps": 3.0
@@ -90,18 +1333,45 @@
           "entity_id": "civilian_car_l2_5_b",
           "waypoints_enu_m": [
             [
-              7108.0,
-              6202.0,
-              0
+              6287.3,
+              7873.349,
+              0.0
             ],
             [
-              7106.0,
-              6222.0,
-              0
+              6285.397,
+              7879.04,
+              0.0
+            ],
+            [
+              6283.488,
+              7884.727,
+              0.0
+            ],
+            [
+              6281.581,
+              7890.409,
+              0.0
+            ],
+            [
+              6279.668,
+              7896.106,
+              0.0
+            ],
+            [
+              6278.397,
+              7899.892,
+              0.0
             ]
           ],
           "velocity_mps": 3.0
         }
+      ],
+      "intent": "traffic_or_facility_incident",
+      "intent_stage": "02.traffic_or_facility_incident",
+      "causal_chain_id": "L2-5_v1.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "semantic_context"
       ],
       "log_event": {
         "topic": "evt_L2-5_v1_traffic_confusion",
@@ -113,52 +1383,100 @@
           "civilian_car_l2_5_a",
           "civilian_car_l2_5_b",
           "traffic_signal_l2_5_v1"
+        ],
+        "intent": "traffic_or_facility_incident",
+        "intent_stage": "02.traffic_or_facility_incident",
+        "causal_chain_id": "L2-5_v1.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "semantic_context"
         ]
       }
     },
     {
       "event_id": "police_arrival",
-      "trigger_ref": "trig_after_traffic_confusion_delay_74",
+      "trigger_ref": "trig_after_traffic_confusion_delay_96",
       "priority": 3,
       "max_fire_count": 1,
       "actions": [
+        {
+          "type": "spawn_entity",
+          "action_id": "spawn_police_unit_l2_5_v1_at_dispatch",
+          "entity_id": "police_unit_l2_5_v1",
+          "asset_id": "vehicle.emergency.police_suv.v1",
+          "position_enu_m": [
+            6296.058,
+            7842.534,
+            0.0
+          ],
+          "rotation_deg": {
+            "yaw_deg": 108.525
+          }
+        },
         {
           "type": "move_entity",
           "action_id": "move_police_to_intersection",
           "entity_id": "police_unit_l2_5_v1",
           "waypoints_enu_m": [
             [
-              7068.0,
-              6210.0,
-              0
+              6297.48,
+              7843.01,
+              0.0
             ],
             [
-              7097.0,
-              6222.0,
-              0
+              6296.208,
+              7846.806,
+              0.0
+            ],
+            [
+              6294.939,
+              7850.6,
+              0.0
+            ],
+            [
+              6293.669,
+              7854.385,
+              0.0
+            ],
+            [
+              6292.389,
+              7858.184,
+              0.0
+            ],
+            [
+              6289.847,
+              7865.77,
+              0.0
             ]
           ],
           "velocity_mps": 12.0
-        },
-        {
-          "type": "set_visual_state",
-          "action_id": "set_police_manual_control",
-          "entity_id": "police_unit_l2_5_v1",
-          "visual_state": {
-            "mode": "manual_directing",
-            "lights_on": true
-          }
         }
+      ],
+      "intent": "police_departs_toward_manual_control_point",
+      "intent_stage": "03.police_departs_toward_manual_control_point",
+      "causal_chain_id": "L2-5_v1.semantic_event_chain",
+      "causal_predecessor_intent": "traffic_or_facility_incident",
+      "target_roles": [
+        "semantic_context",
+        "vehicle"
       ],
       "log_event": {
         "topic": "evt_L2-5_v1_police_arrival",
         "category": "vehicle",
-        "title": "Police arrives for manual traffic control",
+        "title": "Police starts driving to the manual traffic-control point",
         "severity": "warning",
         "overlay": "vehicle",
         "target_ids": [
           "police_unit_l2_5_v1",
           "traffic_signal_l2_5_v1"
+        ],
+        "intent": "police_departs_toward_manual_control_point",
+        "intent_stage": "03.police_departs_toward_manual_control_point",
+        "causal_chain_id": "L2-5_v1.semantic_event_chain",
+        "causal_predecessor_intent": "traffic_or_facility_incident",
+        "target_roles": [
+          "semantic_context",
+          "vehicle"
         ]
       }
     },
@@ -169,19 +1487,61 @@
       "max_fire_count": 1,
       "actions": [
         {
+          "type": "set_visual_state",
+          "action_id": "set_police_manual_control",
+          "entity_id": "police_unit_l2_5_v1",
+          "visual_state": {
+            "mode": "manual_directing",
+            "lights_on": true
+          }
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l2_5_v1_manual_flow_restore_00",
+          "entity_id": "police_unit_l2_5_v1",
+          "delay_ticks": 0,
+          "state_patch": {
+            "incident_state": {
+              "manual_control_active": true
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+        },
+        {
           "type": "move_entity",
           "action_id": "move_car_a_released",
           "entity_id": "civilian_car_l2_5_a",
           "waypoints_enu_m": [
             [
-              7099.0,
-              6226.0,
-              0
+              6273.005,
+              7906.527,
+              0.0
             ],
             [
-              7120.0,
-              6227.0,
-              0
+              6271.736,
+              7910.312,
+              0.0
+            ],
+            [
+              6270.462,
+              7914.11,
+              0.0
+            ],
+            [
+              6269.192,
+              7917.907,
+              0.0
+            ],
+            [
+              6267.916,
+              7921.691,
+              0.0
+            ],
+            [
+              6266.647,
+              7925.483,
+              0.0
             ]
           ],
           "velocity_mps": 6.0
@@ -192,18 +1552,46 @@
           "entity_id": "civilian_car_l2_5_b",
           "waypoints_enu_m": [
             [
-              7106.0,
-              6222.0,
-              0
+              6278.397,
+              7899.892,
+              0.0
             ],
             [
-              7106.0,
-              6241.0,
-              0
+              6277.119,
+              7903.689,
+              0.0
+            ],
+            [
+              6275.85,
+              7907.477,
+              0.0
+            ],
+            [
+              6274.578,
+              7911.276,
+              0.0
+            ],
+            [
+              6273.307,
+              7915.063,
+              0.0
+            ],
+            [
+              6272.04,
+              7918.853,
+              0.0
             ]
           ],
           "velocity_mps": 5.5
         }
+      ],
+      "intent": "recovery_or_restore",
+      "intent_stage": "04.recovery_or_restore",
+      "causal_chain_id": "L2-5_v1.semantic_event_chain",
+      "causal_predecessor_intent": "police_departs_toward_manual_control_point",
+      "target_roles": [
+        "semantic_context",
+        "vehicle"
       ],
       "log_event": {
         "topic": "evt_L2-5_v1_manual_flow_restore",
@@ -215,6 +1603,118 @@
           "police_unit_l2_5_v1",
           "civilian_car_l2_5_a",
           "civilian_car_l2_5_b"
+        ],
+        "intent": "recovery_or_restore",
+        "intent_stage": "04.recovery_or_restore",
+        "causal_chain_id": "L2-5_v1.semantic_event_chain",
+        "causal_predecessor_intent": "police_departs_toward_manual_control_point",
+        "target_roles": [
+          "semantic_context",
+          "vehicle"
+        ]
+      }
+    },
+    {
+      "event_id": "signal_infrastructure_repair",
+      "trigger_ref": "trig_after_manual_flow_restore_delay_60",
+      "priority": 2,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "set_visual_state",
+          "action_id": "set_signal_nominal_after_repair",
+          "entity_id": "traffic_signal_l2_5_v1",
+          "visual_state": {
+            "mode": "nominal"
+          }
+        },
+        {
+          "type": "set_runtime_state",
+          "action_id": "set_runtime_state_l2_5_v1_signal_infrastructure_repair_00",
+          "entity_id": "traffic_signal_l2_5_v1",
+          "delay_ticks": 0,
+          "state_patch": {
+            "facility_state": {
+              "fault": false
+            }
+          },
+          "runtime_state_schedule_profile_id": "l1_l3_runtime_state_schedule",
+          "runtime_state_schedule_semantics": "queued_after_event_actions_delay_ticks_0_next_tick"
+        }
+      ],
+      "intent": "infrastructure_repair",
+      "intent_stage": "07.infrastructure_repair",
+      "causal_chain_id": "L2-5_v1.semantic_event_chain",
+      "causal_predecessor_intent": "recovery_or_restore",
+      "target_roles": [
+        "facility"
+      ],
+      "log_event": {
+        "topic": "evt_L2-5_v1_signal_infrastructure_repair",
+        "category": "infrastructure_layer",
+        "title": "Traffic signal hardware repaired after manual control established",
+        "severity": "info",
+        "overlay": "infrastructure_layer",
+        "target_ids": [
+          "traffic_signal_l2_5_v1"
+        ],
+        "intent": "infrastructure_repair",
+        "intent_stage": "07.infrastructure_repair",
+        "causal_chain_id": "L2-5_v1.semantic_event_chain",
+        "causal_predecessor_intent": "recovery_or_restore",
+        "target_roles": [
+          "facility"
+        ]
+      }
+    },
+    {
+      "event_id": "signal_response_actors_leave",
+      "trigger_ref": "trig_after_manual_flow_restore_delay_100",
+      "priority": 8,
+      "max_fire_count": 1,
+      "actions": [
+        {
+          "type": "remove_entity",
+          "action_id": "remove_civilian_car_a_after_restore",
+          "entity_id": "civilian_car_l2_5_a"
+        },
+        {
+          "type": "remove_entity",
+          "action_id": "remove_civilian_car_b_after_restore",
+          "entity_id": "civilian_car_l2_5_b"
+        },
+        {
+          "type": "remove_entity",
+          "action_id": "remove_police_after_restore",
+          "entity_id": "police_unit_l2_5_v1"
+        }
+      ],
+      "intent": "context",
+      "intent_stage": "00.context",
+      "causal_chain_id": "L2-5_v1.semantic_event_chain",
+      "causal_predecessor_intent": "recovery_or_restore",
+      "target_roles": [
+        "semantic_context",
+        "vehicle"
+      ],
+      "log_event": {
+        "topic": "evt_L2-5_v1_signal_response_actors_leave",
+        "category": "scene_context",
+        "title": "Traffic and police leave the event stage after restored flow is observed",
+        "severity": "info",
+        "overlay": "scene_context",
+        "target_ids": [
+          "police_unit_l2_5_v1",
+          "civilian_car_l2_5_a",
+          "civilian_car_l2_5_b"
+        ],
+        "intent": "context",
+        "intent_stage": "00.context",
+        "causal_chain_id": "L2-5_v1.semantic_event_chain",
+        "causal_predecessor_intent": "recovery_or_restore",
+        "target_roles": [
+          "semantic_context",
+          "vehicle"
         ]
       }
     }

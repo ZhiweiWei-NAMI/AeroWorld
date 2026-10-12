@@ -1,597 +1,878 @@
-"""Actual frozen Qwen/Sonata -> trained typed laws/features -> cached rollout."""
+"""Authentic typed graph and spatial modalities through a frozen shared Qwen."""
 from __future__ import annotations
+
 import argparse
-from collections import Counter
+import copy
 import json
+import os
 from pathlib import Path
 import time
-import copy
-import bisect
+
 import numpy as np
-from scipy.spatial import cKDTree
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch.utils.checkpoint import checkpoint
 
-from Dataset.world_model.data.observations import load_observation_frame
-from .causal_input import load_index, semantic_text, query_tensors, labels, dumps, MODEL_INPUT_EXCLUDED
-from .distributions import SharedDistributionHead, typed_loss, predictions
-from .multimodal import (prepare_frame, load_sonata, sonata_features, ModalityProjectors,
-    FutureEmbeddingHead, CoarseLidarDecoder, image_grid, angular_grid, native_prefix,
-    appended_positions, cloned_cache, prefill_embeddings, ungroup_fine, ray_grid,
-    IMAGE_ROWS, IMAGE_COLS, COARSE_EL, COARSE_AZ)
-from .multimodal import configure_sensor_layout, MODALITY_IDS, cache_backward_values, SAVED_ATTENTION_LAYOUTS
+from Dataset.world_model.data.geometry import WORLD_FROM_NED, transform_points
+from Dataset.world_model.data.observations import (load_observation_frame,
+                                                   load_observation_inventory,
+                                                   observation_token_bindings,
+                                                   source_entity_association)
+from .causal_input import (TypedGraphEncoder, STATUS, cell, dumps, fit_observation_scales, fit_state_normalization,
+                           forecast_anchor, labels, load_index, query_tensors, restrict_query_fields,
+                           read_tick_seconds, MODEL_INPUT_EXCLUDED)
+from .distributions import SharedDistributionHead, predictions, typed_loss
+from .query_head import AddressQueryAttention, QueryAddress, fit_feature_scale
+from . import derivations
+from . import multimodal as mm
 
 
 def device_tensors(values, device):
     return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in values.items()}
 
 
-def span_tokens(spans, offsets):
-    starts, ends = [x[0] for x in offsets], [x[1] for x in offsets]
-    out = {}
-    for key, (lo, hi) in spans.items():
-        start, end = bisect.bisect_right(ends, lo), bisect.bisect_left(starts, hi)
-        if end <= start: raise ValueError(f"empty native-token binding for {key}")
-        out[key] = (start, end)
-    return out
+def floats(values):
+    return {name: float(value.detach()) for name, value in values.items()}
 
 
-def contexts(queries, hidden, token_spans):
-    means = {k: hidden[0, lo:hi].float().mean(0) for k, (lo, hi) in token_spans.items()}
-    entity = torch.stack([means["entity", a.entity_id] for a in queries["addresses"]])
-    field = torch.stack([means["field", a.field_family] for a in queries["addresses"]])
-    return entity, field
+def normalize_features(values, scales):
+    return {name: scales[name].transform(value) if name in scales else value
+            for name, value in values.items()}
 
 
-def feature_scales(values, masks):
+def predicted_sensor_transform(observer_pose, calibration):
+    """Build the world transform solely from the derived observer body pose and cutoff mount."""
+    if observer_pose is None:
+        return None
+    position = np.array(observer_pose["observer.capture_position_world_enu_m"], dtype=np.float64)
+    orientation = np.array(observer_pose["observer.body_orientation_ned_6d"], dtype=np.float64)
+    a, b = orientation[:3], orientation[3:]
+    an = np.linalg.norm(a)
+    if not np.isfinite(an) or an == 0:
+        raise ValueError("predicted orientation has an undefined first axis")
+    a = a/an
+    b = b-a*np.dot(a, b)
+    bn = np.linalg.norm(b)
+    if not np.isfinite(bn) or bn == 0:
+        raise ValueError("predicted orientation has an undefined second axis")
+    b = b/bn
+    rotation = np.column_stack((a, b, np.cross(a, b)))
+    body = np.eye(4)
+    body[:3, :3] = WORLD_FROM_NED @ rotation
+    body[:3, 3] = position
+    return body @ calibration.sensor_to_body
+
+
+def complete_constant_feedback(feedback, index, constant, target_tick):
+    """Add TRAIN-constant components (never queried) to rollout feedback at their latest present value.
+
+    Every TRAIN residual of these components is zero, so the latest present
+    value is their TRAIN-supported prediction; vector consumers need all components.
+    """
+    for entity, cells in feedback.items():
+        for family, component in constant:
+            if (family, component) in cells or not any(key[0] == family for key in cells):
+                continue
+            anchor, _, observed = forecast_anchor(index, QueryAddress(index.episode, entity, family, target_tick, component))
+            if not observed:
+                raise ValueError(f"constant component {family}[{component}] of {entity} has no present history")
+            cells[family, component] = {"value": anchor, "kind": "present", "record_probability": 1.}
+    return feedback
+
+
+def derived_observer_pose(feedback, index, observer):
+    """Camera pose derived from the observer UAV's predicted position and velocity.
+
+    The camera position equals the UAV position and the level body follows the
+    derived yaw (derivations.py); None when a predicted primary is not present.
+    """
+    cells = feedback[observer]
+    def vector(family):
+        rows = [cells.get((family, i)) for i in range(3)]
+        return None if any(r is None or r["kind"] != "present" or r["value"] is None for r in rows) else [r["value"] for r in rows]
+    primary = {family: vector(family) for family in ("pose.position_enu_m", "pose.velocity_enu_mps")}
+    if any(v is None for v in primary.values()):
+        return None
+    yaws = [cell(state["pose.yaw_deg"], None) for (t, entity), state in sorted(index.states.items())
+            if entity == observer and t <= index.cutoff and "pose.yaw_deg" in state]
+    context = {"observer": True, "latest_yaw": next((v for kind, v in reversed(yaws) if kind == "present"), None)}
+    derived = derivations.derive(primary, context)
+    return {family: derived[family] for family in ("observer.capture_position_world_enu_m", "observer.body_orientation_ned_6d")}
+
+
+def configure_qwen_checkpointing(qwen):
+    """Keep native layer metadata while explicitly checkpointing each block."""
+    layers = qwen.language_model.layers
+    if not isinstance(layers, nn.ModuleList):
+        raise TypeError("Qwen language_model.layers must be its native ModuleList")
+    for layer in layers:
+        original = layer.forward
+        def forward(*args, _original=original, _layer=layer, **kwargs):
+            if _layer.training and torch.is_grad_enabled():
+                return checkpoint(_original, *args, use_reentrant=False, **kwargs)
+            return _original(*args, **kwargs)
+        layer.forward = forward
+    qwen.requires_grad_(False)
+    return len(layers)
+
+
+def native_rgb_block(qwen, features, grid, token_start, rope_start):
+    """Use the native visual marker/grid positions without clock-bearing text."""
+    ids = torch.tensor([[qwen.config.vision_start_token_id,
+                         *([qwen.config.image_token_id]*len(features)),
+                         qwen.config.vision_end_token_id]], device=features.device)
+    types = (ids == qwen.config.image_token_id).long()
+    native, _ = qwen.get_rope_index(ids, image_grid_thw=grid, mm_token_type_ids=types)
+    positions = torch.cat((torch.arange(ids.shape[1], device=ids.device).view(1, 1, -1)+token_start,
+                           native+rope_start), dim=0)
+    marker = qwen.get_input_embeddings()(ids).detach()
+    mask = (ids == qwen.config.image_token_id).unsqueeze(-1)
+    embeddings = marker.masked_scatter(mask, features.to(marker.dtype))
+    return embeddings, positions, int(native.max())+rope_start+1
+
+
+def scalar_positions(length, token_start, rope_start, device):
+    seq = torch.arange(length, device=device).view(1, 1, -1)
+    return torch.cat((seq+token_start, (seq+rope_start).expand(3, 1, length)), dim=0)
+
+
+def chronological_prefix(qwen, structure, modal_blocks, *, token_start=0, rope_start=0):
+    """Interleave emitted records and available capture blocks by relative time."""
+    embeddings, positions, entities, fields, binding = [], [], [], [], []
+    times = structure["times"]
+    unique = sorted(set(times.detach().cpu().tolist()) | set(modal_blocks))
+    for tau in unique:
+        selected = torch.where(times == tau)[0]
+        if len(selected):
+            block = structure["embeddings"][:, selected].to(qwen.dtype)
+            embeddings.append(block)
+            positions.append(scalar_positions(len(selected), token_start, rope_start, block.device))
+            entities.extend(structure["token_entities"][int(i)] for i in selected)
+            fields.extend(structure["token_fields"][int(i)] for i in selected)
+            binding.append({"kind": "structure", "relative_time_s": tau,
+                            "token_start": token_start, "token_end": token_start+len(selected)})
+            token_start += len(selected); rope_start += len(selected)
+        if tau in modal_blocks:
+            for name, value, grid, owners in modal_blocks[tau]:
+                start = token_start
+                if name == "rgb":
+                    block, pos, rope_start = native_rgb_block(qwen, value, grid, token_start, rope_start)
+                    owners = [[], *owners, []]
+                else:
+                    block = value.to(qwen.dtype)[None]
+                    pos = scalar_positions(len(value), token_start, rope_start, value.device)
+                    rope_start += len(value)
+                embeddings.append(block); positions.append(pos)
+                entities.extend(owners); fields.extend([[] for _ in owners])
+                token_start += block.shape[1]
+                binding.append({"kind": "modality", "modality": name, "relative_time_s": tau,
+                                "token_start": start, "token_end": token_start})
+    return {"embeddings": torch.cat(embeddings, dim=1), "positions": torch.cat(positions, dim=2),
+            "token_entities": entities, "token_fields": fields, "bindings": binding,
+            "next_token": token_start, "next_rope": rope_start}
+
+
+def cached_forward(qwen, prefix, chunk_size, cache=None):
+    hidden = []
+    for start in range(0, prefix["embeddings"].shape[1], chunk_size):
+        out = qwen(inputs_embeds=prefix["embeddings"][:, start:start+chunk_size],
+                   position_ids=prefix["positions"][:, :, start:start+chunk_size],
+                   past_key_values=cache, use_cache=True)
+        hidden.append(out.last_hidden_state)
+        cache = out.past_key_values
+    return torch.cat(hidden, dim=1), cache
+
+
+def typed_read(head, attention, query, hidden, prefix):
+    global_context = hidden[0].float().mean(0)
+    entity, field = attention(query, hidden[0], prefix["token_entities"], prefix["token_fields"], global_context)
+    return head(query, entity, field, global_context), global_context
+
+
+def typed_metrics(index, rows, anchor_rows=None):
+    fields = {(field.family, field.component): field for field in index.fields}
+    groups = {}
+    for position, row in enumerate(rows):
+        name, component, entity = row["field"], row["component"], row["entity"]
+        state = index.states.get((row["target_tick"], entity))
+        if state is None or name not in state:
+            continue
+        kind, truth = cell(state[name], component)
+        if kind != "present":
+            continue
+        field = fields[name, component]
+        past = sorted((tick, cell(value[name], component)) for (tick, actor), value in index.states.items()
+                      if tick <= index.cutoff and actor == entity and name in value)
+        past = [(tick, value) for tick, (status, value) in past if status == "present"]
+        if name not in groups:
+            groups[name] = {"model": [], "persistence": [], "constant_velocity": [], "anchor": [], "selected": [],
+                            "unit": field.unit, "circular": field.circular, "categorical": field.logical_dtype != "real"}
+        group = groups[name]
+        def error(prediction):
+            if field.logical_dtype != "real":
+                return float(prediction == truth)
+            if field.circular:
+                return abs((float(prediction)-float(truth)+180)%360-180)
+            return abs(float(prediction)-float(truth))
+        group["model"].append(error(row["conditional_point"]))
+        if anchor_rows is not None:
+            group["anchor"].append(error(anchor_rows[position]["conditional_point"]))
+        group["selected"].append(row["predicted_cell_kind"] == "present" and row["record_probability"] >= .5)
+        if past:
+            group["persistence"].append(error(past[-1][1]))
+        if name == "pose.position_enu_m" and past:
+            velocity = sorted((tick, cell(value["pose.velocity_enu_mps"], component))
+                              for (tick, actor), value in index.states.items()
+                              if tick <= index.cutoff and actor == entity and "pose.velocity_enu_mps" in value)
+            velocity = [value for _, (status, value) in velocity if status == "present"]
+            if velocity:
+                group["constant_velocity"].append(error(float(past[-1][1])+float(velocity[-1])*
+                                                       (row["target_tick"]-past[-1][0])*index.tick_seconds))
     result = {}
-    for modality, v in values.items():
-        mask = masks[modality]
-        if mask.ndim == 1: mask = mask[:,None].expand_as(v)
-        count = mask.sum(0)
-        mean = (v*mask).sum(0)/count.clamp_min(1)
-        observed_std = (((v-mean).square()*mask).sum(0)/count.clamp_min(1)).sqrt()
-        std = torch.where(observed_std > 0, observed_std, torch.ones_like(observed_std))
-        result[modality] = mean.detach(), std.detach(), count.detach()
+    for name, group in groups.items():
+        selected = [value for value, include in zip(group["model"], group["selected"]) if include]
+        result[name] = {"unit": group["unit"], "metric": "accuracy" if group["categorical"] else
+                        "circular_absolute_error" if group["circular"] else "mean_absolute_error",
+                        "present_component_count": len(group["model"]), "model": float(np.mean(group["model"])),
+                        "selected_present_count": len(selected), "selected_present_metric": float(np.mean(selected)) if selected else None,
+                        "persistence": float(np.mean(group["persistence"])) if group["persistence"] else None,
+                        "persistence_count": len(group["persistence"]),
+                        "constant_velocity": float(np.mean(group["constant_velocity"])) if group["constant_velocity"] else None,
+                        "constant_velocity_count": len(group["constant_velocity"]),
+                        "anchor_only": float(np.mean(group["anchor"])) if group["anchor"] else None,
+                        "anchor_only_count": len(group["anchor"])}
     return result
 
 
-def normalize(values, scales):
-    # Exact constant-feature scale=1 is a mathematical representation, not
-    # a missing-value repair. Empty cells carry explicit separate masks.
-    result = {m: (v-scales[m][0])/scales[m][1] for m, v in values.items()}
-    if "lidar" in values:
-        result["lidar"][:,519:583] = torch.where(values["lidar"][:,583:647].bool(), result["lidar"][:,519:583], torch.zeros_like(result["lidar"][:,519:583]))
+def anchor_output(query, device):
+    """Zero learned residual: the hand-coded CV anchor law is the whole model."""
+    n = len(query["addresses"])
+    classes = F.one_hot(query["category_prior"], 5).float()*4.
+    status = torch.zeros((n, len(STATUS)), device=device)
+    status[:, 0] = 4.
+    return {"parameters": torch.zeros((n, 6), device=device), "classes": classes,
+            "status": status.masked_fill(~query["allowed_status"].to(device), -torch.inf),
+            "recorded": torch.full((n,), 4., device=device)}
+
+
+def common_metrics(predicted, target, previous, target_mask=None, previous_mask=None):
+    target_mask = torch.ones_like(target, dtype=torch.bool) if target_mask is None else target_mask
+    previous_mask = torch.ones_like(target, dtype=torch.bool) if previous_mask is None else previous_mask
+    common = target_mask & previous_mask
+    def mean(values, mask):
+        return float(values[mask].mean()) if bool(mask.any()) else None
+    return {"model_mae_target_support": mean((predicted-target).abs(), target_mask),
+            "model_mae_common_support": mean((predicted-target).abs(), common),
+            "persistence_mae_common_support": mean((previous-target).abs(), common),
+            "target_support_count": int(target_mask.sum()), "common_support_count": int(common.sum())}
+
+
+def gradient_report(modules):
+    result = {}
+    for name, module in modules.items():
+        named = list(module.named_parameters())
+        gradients = [parameter.grad for _, parameter in named if parameter.grad is not None]
+        if any(not bool(torch.isfinite(gradient).all()) for gradient in gradients):
+            raise FloatingPointError(f"non-finite participating gradient: {name}")
+        result[name] = {"parameter_tensors": len(named), "participating_tensors": len(gradients),
+                        "nonparticipating_tensors": sum(1 for _, parameter in named if parameter.grad is None),
+                        "gradient_norm": float(torch.sqrt(sum(gradient.square().sum() for gradient in gradients))) if gradients else None}
     return result
 
 
-def suffix(qwen, tokenizer, projectors, values, layouts, tick, binding, token_start, rope_start):
-    blocks, bindings = [], []
-    offset = token_start
-    for modality, value in values.items():
-        if modality == "rgb": continue  # Native RGB is already in the prefix.
-        sensor = binding["modality"][modality]["sensor_id"]
-        text = f"\nOBSERVED {modality} tick={tick}; sensor={sensor}; fixed_region_grid;\n"
-        ids = tokenizer(text, add_special_tokens=False, return_tensors="pt")["input_ids"].to(value.device)
-        header = qwen.get_input_embeddings()(ids).detach()
-        region = projectors.project(modality, value)+projectors.position(layouts[modality])+projectors.modality.weight[MODALITY_IDS[modality]]
-        blocks.extend((header, region.to(qwen.dtype).unsqueeze(0)))
-        start = offset+header.shape[1]
-        bindings.append({"modality": modality, "tick": tick, "sensor": sensor,
-                         "token_start": start, "token_end": start+len(value), "positions": layouts[modality].tolist(),
-                         "source": binding["modality"][modality]})
-        offset = start+len(value)
-    embeddings = torch.cat(blocks, 1)
-    positions = appended_positions(embeddings.device, embeddings.shape[1], token_start, rope_start)
-    return embeddings, positions, bindings
+def modality_data(features, frame):
+    return {**features, "depth_codes": frame.depth_codes, "seg_codes": frame.seg_codes,
+            "depth_normalization": frame.depth.new_tensor([frame.depth_normalization["mean_m"], frame.depth_normalization["std_m"]])}
 
 
-def loss_values(output, query, target, future, target_features, masks, decoder, scales, target_frame):
-    losses = typed_loss(output, query, target)
-    feature_losses = {}
-    for m in future:
-        feature_losses[m] = F.mse_loss(future[m][masks[m]], target_features[m][masks[m]])
-    lidar_components = {}
-    for name, lo, hi in (("sonata",0,512),("geometry",512,519),("conditional_distance_logit",519,583),("return_marker",583,647)):
-        mask = masks["lidar"][:,lo:hi]
-        lidar_components[name] = F.mse_loss(future["lidar"][:,lo:hi][mask], target_features["lidar"][:,lo:hi][mask])
-    feature_losses["lidar"] = sum(lidar_components.values())/len(lidar_components)
-    decoded_input = future["lidar"]*scales["lidar"][1]+scales["lidar"][0]
-    ranges, logits = decoder(decoded_input)
-    hits = target_frame.hits.bool()
-    range_loss = F.smooth_l1_loss(ranges[hits]/decoder.range_scale, target_frame.ranges[hits]/decoder.range_scale)
-    hit_loss = F.binary_cross_entropy_with_logits(logits[target_frame.scanned_cells], target_frame.hits[target_frame.scanned_cells])
-    losses.update({"future_"+m: v for m, v in feature_losses.items()})
-    losses.update({"future_lidar_"+m:v for m,v in lidar_components.items()})
-    losses.update({"coarse_range_huber": range_loss, "captured_return_bce": hit_loss})
-    losses["total"] = losses["typed"]+sum(feature_losses.values())+range_loss+hit_loss
+def modality_inputs(projectors, features, prepared, ticks, layouts, index, scales, token_bindings):
+    """Project each capture's modality tensors under observer/entity ownership.
+
+    ``token_bindings[tick]`` maps each modality token to its owning observer
+    and the entities projected into that region (``observation_token_bindings``).
+    Every token therefore keeps its source observer and capture tau.
+    """
+    contexts, blocks = {}, {}
+    for tick in ticks:
+        tau = (tick-index.cutoff)*index.tick_seconds
+        binding = token_bindings[tick]
+        values, owners, row_blocks = [], [], []
+        for name in ("rgb", "depth", "seg", "lidar"):
+            value = features[tick][name]
+            owners_now = binding[name]
+            values.append(projectors.project_graph(name, value, layouts[name], tau)); owners.extend(owners_now)
+            native_value = scales["rgb"].inverse(value) if name == "rgb" else value
+            projected = projectors.project(name, native_value, layouts[name], tau)
+            row_blocks.append((name, projected, prepared[tick].image_grid_thw if name == "rgb" else None, owners_now))
+        for name in ("rgb","depth","seg","lidar"):
+            observer=prepared[tick].binding["observer"]
+            descriptor,graph_descriptor=projectors.descriptor(name,prepared[tick].descriptors[name],tau,index.local_identities[observer])
+            values.append(graph_descriptor);owners.append([observer])
+            row_blocks.append((name+"_descriptor",descriptor,None,[[observer]]))
+        norm = prepared[tick].depth.new_tensor([prepared[tick].depth_normalization["mean_m"], prepared[tick].depth_normalization["std_m"]])
+        # Physical normalization is numerical capture context, never source-clock text.
+        norm_feature = prepared[tick].depth.new_zeros((1,32)); norm_feature[0,:2] = norm/200.
+        values.append(projectors.project_graph("depth",norm_feature,layouts["depth"].mean(0,keepdim=True),tau))
+        owners.append([prepared[tick].binding["observer"]])
+        contexts[tick] = {"features": torch.cat(values), "entity_ids": owners}
+        row_blocks.append(("depth",projectors.project("depth",norm_feature,layouts["depth"].mean(0,keepdim=True),tau),None,
+                           [[prepared[tick].binding["observer"]]]))
+        blocks[tau] = row_blocks
+    return contexts, blocks
+
+
+def forecast_loss(output, query, truth, future, teacher, prepared_target, decoder, prior_ranges, prior_probability, transition):
+    losses = typed_loss(output,query,truth)
+    for name in ("rgb","lidar"):
+        losses[name+"_feature_mse"] = F.mse_loss(future[name],teacher[name])
+    losses["depth_code_ce"] = F.cross_entropy(future["depth_codes"],teacher["depth_codes"])
+    losses["semantic_code_ce"] = F.cross_entropy(future["seg_codes"],teacher["seg_codes"])
+    losses["depth_normalization_mse"] = F.mse_loss(future["depth_normalization"]/200.,teacher["depth_normalization"]/200.)
+    losses.update(decoder.training_losses(future["lidar"],prior_ranges,prior_probability,
+                                          prepared_target.ray_ranges,prepared_target.ray_hits,transition))
+    losses["total"] = (losses["typed"]+losses["rgb_feature_mse"]+losses["lidar_feature_mse"]+
+                       losses["depth_code_ce"]+losses["semantic_code_ce"]+losses["depth_normalization_mse"]+
+                       losses["dense_range_nll"]+losses["dense_return_bce"])
     return losses
 
 
-def floats(values): return {k: float(v.detach()) for k, v in values.items()}
-
-
-def feature_metrics(predicted, target, target_masks, previous, previous_masks):
-    result = {}
-    for m in predicted:
-        mask, prior_mask = target_masks[m], previous_masks[m]
-        if mask.ndim == 1: mask = mask[:,None].expand_as(predicted[m])
-        if prior_mask.ndim == 1: prior_mask = prior_mask[:,None].expand_as(predicted[m])
-        overlap = mask & prior_mask
-        result[m] = {"model_mse_on_target_support":float((predicted[m][mask]-target[m][mask]).square().mean()),
-                     "model_mse_on_common_support":float((predicted[m][overlap]-target[m][overlap]).square().mean()),
-                     "persistence_mse_on_common_support":float((previous[m][overlap]-target[m][overlap]).square().mean()),
-                     "target_scalar_count":int(mask.sum()),"common_scalar_count":int(overlap.sum()),
-                     "unit":"squared frozen TRAIN-normalized feature units"}
+def feedback_features(future, codecs):
+    result={name:future[name] for name in ("rgb","lidar")}
+    for name in ("depth","seg"):
+        codes=future[name+"_codes"].argmax(-1)
+        result[name+"_codes"]=codes
+        result[name]=codecs.code_features(name,codes)
+    result["depth_normalization"]=future["depth_normalization"]
     return result
 
 
-def typed_metrics(index, rows):
-    """Same-address physical errors and causal persistence/constant velocity."""
-    fields = {(f.family, f.component): f for f in index.fields}
-    groups = {}
-    for row in rows:
-        e, name, component, tick = row["entity"], row["field"], row["component"], row["target_tick"]
-        f = fields[name, component]
-        state = index.states.get((tick, e))
-        if state is None or name not in state: continue
-        from .causal_input import cell
-        kind, truth = cell(state[name], component)
-        if kind != "present": continue
-        past = [(t, cell(s[name], component)) for (t, actor), s in index.states.items()
-                if t <= index.cutoff and actor == e and name in s]
-        past.sort()
-        past = [(t, value) for t, (k, value) in past if k == "present"]
-        if name not in groups: groups[name] = {"model": [], "persistence": [], "constant_velocity": [], "selected_present": [], "unit": f.unit, "categorical": f.logical_dtype != "real"}
-        group = groups[name]; value = row["conditional_point"]
-        group["selected_present"].append(row["predicted_cell_kind"] == "present" and row["record_probability"] >= .5)
-        def error(predicted):
-            if f.logical_dtype != "real": return float(predicted == truth)
-            if f.circular: return abs((float(predicted)-float(truth)+180.)%360.-180.)
-            return abs(float(predicted)-float(truth))
-        group["model"].append(error(value))
-        if past: group["persistence"].append(error(past[-1][1]))
-        if name == "pose.position_enu_m":
-            vhist = [(t, cell(s["pose.velocity_enu_mps"], component)) for (t, actor), s in index.states.items()
-                     if t <= index.cutoff and actor == e and "pose.velocity_enu_mps" in s]
-            vhist.sort(); vhist = [(t, v) for t, (k, v) in vhist if k == "present"]
-            if past and vhist:
-                group["constant_velocity"].append(error(float(past[-1][1])+float(vhist[-1][1])*(tick-past[-1][0])*.1))
-    return {name: {"unit": g["unit"], "metric": "accuracy" if g["categorical"] else ("circular_absolute_error" if (name, None) in fields and fields[name, None].circular else "mean_absolute_error"),
-                   "present_component_count": len(g["model"]), "model": float(np.mean(g["model"])),
-                   "selected_present_count": sum(g["selected_present"]), "selected_present_coverage": float(np.mean(g["selected_present"])),
-                   "selected_present_model_metric": float(np.mean([v for v,selected in zip(g["model"],g["selected_present"]) if selected])) if any(g["selected_present"]) else None,
-                   "persistence": float(np.mean(g["persistence"])) if g["persistence"] else None,
-                   "persistence_count": len(g["persistence"]),
-                   "constant_velocity": float(np.mean(g["constant_velocity"])) if g["constant_velocity"] else None,
-                   "constant_velocity_count": len(g["constant_velocity"])} for name, g in groups.items()}
+def active_parameter_state(modules):
+    """The trained head, saved once at the end of the run."""
+    return {name:parameter.detach().cpu() for name,parameter in modules.named_parameters() if parameter.requires_grad}
 
 
-def lidar_metrics(ranges, logits, target_frame, reference_frame):
-    predicted_range = ungroup_fine(ranges.detach().cpu().numpy())
-    probability = ungroup_fine(logits.detach().sigmoid().cpu().numpy())
-    target_range = ungroup_fine(target_frame.ranges.cpu().numpy())
-    truth = ungroup_fine(target_frame.hits.cpu().numpy()).astype(bool)
-    scanned = ungroup_fine(target_frame.scanned_cells.cpu().numpy()).astype(bool)
-    previous_range = ungroup_fine(reference_frame.ranges.cpu().numpy())
-    previous_hits = ungroup_fine(reference_frame.hits.cpu().numpy()).astype(bool)
-    selected = (probability >= .5) & scanned
-    rays = ray_grid()
-    predicted_cloud = rays[selected]*predicted_range[selected, None]
-    actual_coarse_cloud = rays[truth]*target_range[truth, None]
-    if len(predicted_cloud):
-        d1 = cKDTree(target_frame.raw_hit_points).query(predicted_cloud)[0]
-        d2 = cKDTree(predicted_cloud).query(target_frame.raw_hit_points)[0]
-        chamfer = float(d1.mean()+d2.mean())
-    else:
-        chamfer = None  # An empty reconstruction has no finite Chamfer score.
-    overlap = truth & previous_hits
-    return {"range_mae_on_target_hit_cells_m": float(np.abs(predicted_range[truth]-target_range[truth]).mean()),
-            "captured_cell_occupancy_accuracy": float((selected[scanned] == truth[scanned]).mean()),
-            "captured_cell_brier": float(((probability[scanned]-truth[scanned])**2).mean()),
-            "captured_cell_bce": float(F.binary_cross_entropy_with_logits(logits[target_frame.scanned_cells], target_frame.hits[target_frame.scanned_cells])),
-            "scanned_cell_count": int(scanned.sum()),
-            "predicted_occupied_cells": int(selected.sum()), "target_occupied_cells": int(truth.sum()),
-            "symmetric_raw_cloud_chamfer_sum_m": chamfer,
-            "persistence_range_mae_on_common_hit_cells_m": float(np.abs(previous_range[overlap]-target_range[overlap]).mean()),
-            "model_range_mae_on_common_hit_cells_m": float(np.abs(predicted_range[overlap]-target_range[overlap]).mean()),
-            "common_hit_cell_count": int(overlap.sum()), "newly_hit_cell_count": int((truth & ~previous_hits).sum()),
-            "persistence_occupancy_accuracy": float((previous_hits[scanned] == truth[scanned]).mean()),
-            "persistence_brier": float(((previous_hits[scanned].astype(np.float32)-truth[scanned].astype(np.float32))**2).mean()),
-            "target_cell_hit_count": ungroup_fine(target_frame.cell_counts.cpu().numpy()).tolist(),
-            "target_cell_range_std_m": ungroup_fine(target_frame.cell_range_std.cpu().numpy()).tolist(),
-            "range_evaluation": "64x32 angular captured-return cells within the loaded uniform ray FOV, conditional mean range; not emitted-beam probability",
-            "chamfer_evaluation": "coarse prediction vs every actual target acquired hit, two directional mean distances added"}, predicted_cloud, actual_coarse_cloud
-
-
-def plot_clouds(path, clouds, target_tick):
+def cloud_view(path,clouds,tick):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    predicted, previous, target = clouds
-    all_points = np.concatenate([p for p in clouds if len(p)])
-    lo, hi = all_points.min(0), all_points.max(0)
-    center = (lo+hi)/2.; extent = float((hi-lo).max())/2.
-    color_max = float(np.linalg.norm(all_points, axis=1).max())
-    fig = plt.figure(figsize=(15, 4.5))
-    for i, (points, title) in enumerate(((predicted, "Predicted coarse returns"), (previous, "Historical persistence"), (target, "Actual future angular means")), 1):
-        ax = fig.add_subplot(1, 3, i, projection="3d")
-        if len(points): ax.scatter(points[:, 0], points[:, 1], points[:, 2], s=6, c=np.linalg.norm(points, axis=1), cmap="viridis", vmin=0., vmax=color_max)
-        ax.set_xlim(center[0]-extent,center[0]+extent); ax.set_ylim(center[1]-extent,center[1]+extent); ax.set_zlim(center[2]-extent,center[2]+extent)
-        ax.set_box_aspect((1,1,1)); ax.view_init(elev=25.,azim=-60.)
-        ax.set(xlabel="Sensor forward (m)", ylabel="Sensor right (m)", zlabel="Sensor down (m)", title=title)
-    fig.suptitle(f"tick {target_tick}; fixed 64x32 scan-FOV grid; conditional range/occupancy decoder")
-    fig.tight_layout(); fig.savefig(path, dpi=140); plt.close(fig)
+    names=("Prediction","Causal persistence","Future truth")
+    occupied=[value for value in clouds if len(value)]
+    if not occupied:
+        raise ValueError("point-cloud visualization has no acquired support")
+    points=np.concatenate(occupied)
+    lo,hi=points.min(0),points.max(0);center=(lo+hi)/2;radius=max(float((hi-lo).max()/2),.1)
+    fig=plt.figure(figsize=(15,4.5))
+    for number,(name,value) in enumerate(zip(names,clouds),1):
+        ax=fig.add_subplot(1,3,number,projection="3d")
+        if len(value):
+            # Drawing stride affects visualization only; metrics/cloud files retain every selected ray.
+            shown=value[::max(1,len(value)//12000)]
+            ax.scatter(*shown.T,s=1,c=np.linalg.norm(shown,axis=1),cmap="viridis")
+        ax.set_xlim(center[0]-radius,center[0]+radius);ax.set_ylim(center[1]-radius,center[1]+radius)
+        ax.set_zlim(center[2]-radius,center[2]+radius);ax.set_box_aspect((1,1,1));ax.set_title(name)
+    fig.suptitle(f"Full-scan reconstruction, target tick {tick}");fig.tight_layout();fig.savefig(path,dpi=140);plt.close(fig)
+
+
+def evaluate_prediction(args,name,tick,future,observer_pose,law,codecs,frames,prepared,current,persistence_cloud_metrics=None):
+    from PIL import Image
+    from Dataset.world_model.data.observations import _class_rgb
+    print(dumps({"phase":"evaluate_start","branch":name,"target_tick":tick}),flush=True)
+    target=prepared[tick]
+    hits=target.ray_hits.bool();previous_hits=current.ray_hits.bool();selected=law["return_probability"]>=.5
+    ranges=law["expected_range_m"]
+    point_ranges=law["median_range_m"]
+    sensor=(law["direction"][selected]*point_ranges[selected,None]).cpu().numpy()
+    target_sensor=frames[tick].points_sensor_ned_m[frames[tick].hit_mask.astype(bool)]
+    previous_sensor=frames[args.cutoff].points_sensor_ned_m[frames[args.cutoff].hit_mask.astype(bool)]
+    transform=predicted_sensor_transform(observer_pose,frames[args.cutoff].calibration)
+    world=transform_points(sensor,transform) if transform is not None else None
+    target_world=transform_points(target_sensor,frames[tick].calibration.sensor_to_world)
+    previous_world=transform_points(previous_sensor,frames[args.cutoff].calibration.sensor_to_world)
+    metrics={"acquired_rays":len(hits),"target_hits":int(hits.sum()),"predicted_returns":int(selected.sum()),
+             "return_brier":float((law["return_probability"]-target.ray_hits).square().mean()),
+             "return_accuracy":float((selected==hits).float().mean()),
+             "persistence_return_accuracy":float((previous_hits==hits).float().mean()),
+             "range_m":common_metrics(ranges,target.ray_ranges,current.ray_ranges,hits,previous_hits),
+             "median_range_m":common_metrics(point_ranges,target.ray_ranges,current.ray_ranges,hits,previous_hits),
+             "sensor_cloud":mm.pointcloud_metrics(sensor,target_sensor),
+             "persistence_sensor_cloud":mm.pointcloud_metrics(previous_sensor,target_sensor) if persistence_cloud_metrics is None else persistence_cloud_metrics["persistence_sensor_cloud"],
+             "world_cloud":mm.pointcloud_metrics(world,target_world) if world is not None else None,
+             "persistence_world_cloud":mm.pointcloud_metrics(previous_world,target_world) if persistence_cloud_metrics is None else persistence_cloud_metrics["persistence_world_cloud"],
+             "predicted_pose_available":transform is not None,"cloud_point_rule":"conditional range median and return probability>=0.5"}
+    arrays={"predicted_sensor_m":sensor,"target_sensor_m":target_sensor,"persistence_sensor_m":previous_sensor,
+            "target_world_m":target_world,"persistence_world_m":previous_world,
+            "range_mean_m":ranges.cpu().numpy(),"range_median_m":point_ranges.cpu().numpy(),"return_probability":law["return_probability"].cpu().numpy()}
+    if world is not None: arrays["predicted_world_m"]=world
+    np.savez_compressed(args.output/f"{name}_tick_{tick:06d}_clouds.npz",**arrays)
+    cloud_view(args.output/f"{name}_tick_{tick:06d}_sensor.png",(sensor,previous_sensor,target_sensor),tick)
+    if world is not None:
+        cloud_view(args.output/f"{name}_tick_{tick:06d}_world.png",(world,previous_world,target_world),tick)
+    print(dumps({"phase":"geometry_complete","branch":name,"target_tick":tick}),flush=True)
+    norm={"mean_m":float(future["depth_normalization"][0]),"std_m":float(future["depth_normalization"][1])}
+    depth_codes=future["depth_codes"].argmax(-1)
+    decoded_standardized=codecs.decode_depth_standardized(depth_codes,generator=torch.Generator(device="cpu").manual_seed(args.seed+tick))
+    decoded_depth=(decoded_standardized*norm["std_m"]+norm["mean_m"]).clamp_min(0.)
+    decoded_seg,_=codecs.decode_seg(future["seg_codes"].argmax(-1))
+    height,width=frames[tick].depth_m.shape
+    depth=F.interpolate(decoded_depth[None,None],size=(height,width),mode="bilinear",align_corners=False)[0,0]
+    seg=F.interpolate(decoded_seg[None,None].float(),size=(height,width),mode="nearest")[0,0].long()
+    truth_depth=torch.tensor(np.array(frames[tick].depth_m,copy=True),device=depth.device)
+    previous_depth=torch.tensor(np.array(frames[args.cutoff].depth_m,copy=True),device=depth.device)
+    depth_valid=torch.isfinite(truth_depth)&(truth_depth>0);previous_valid=torch.isfinite(previous_depth)&(previous_depth>0)
+    metrics["decoded_depth_m"]=common_metrics(depth,truth_depth,previous_depth,depth_valid,previous_valid)
+    target_norm=target.depth_normalization
+    supervised_norm_depth=(decoded_standardized*target_norm["std_m"]+target_norm["mean_m"]).clamp_min(0.)
+    oracle_depth=codecs.decode_depth(target.depth_codes,target_norm,generator=torch.Generator(device="cpu").manual_seed(args.seed+tick))
+    supervised_norm_depth=F.interpolate(supervised_norm_depth[None,None],size=(height,width),mode="bilinear",align_corners=False)[0,0]
+    oracle_depth=F.interpolate(oracle_depth[None,None],size=(height,width),mode="bilinear",align_corners=False)[0,0]
+    metrics["depth_diagnostics"]={"predicted_normalization_m":norm,"target_normalization_m":{key:target_norm[key] for key in ("mean_m","std_m")},
+                                  "predicted_codes_target_agreement":float((depth_codes==target.depth_codes).float().mean()),
+                                  "persistence_codes_target_agreement":float((current.depth_codes==target.depth_codes).float().mean()),
+                                  "predicted_codes_true_normalization_mae_m":float((supervised_norm_depth-truth_depth).abs()[depth_valid].mean()),
+                                  "target_codes_true_normalization_mae_m":float((oracle_depth-truth_depth).abs()[depth_valid].mean()),
+                                  "scope":"target normalization/codes used only for decoder diagnosis; forecast arrays use predicted normalization"}
+    truth_seg=torch.tensor(np.array(frames[tick].segmentation_class_ids,copy=True),device=seg.device)
+    previous_seg=torch.tensor(np.array(frames[args.cutoff].segmentation_class_ids,copy=True),device=seg.device)
+    metrics["decoded_semantic"]={"full_resolution_pixels":truth_seg.numel(),"model_accuracy":float((seg==truth_seg).float().mean()),
+                                 "persistence_accuracy":float((previous_seg==truth_seg).float().mean()),"instance_supervision":False}
+    np.savez_compressed(args.output/f"{name}_tick_{tick:06d}_spatial.npz",depth_m=depth.cpu().numpy(),
+                        segmentation_ue_ids=seg.cpu().numpy().astype(np.uint8),
+                        depth_normalization_m=np.array([norm["mean_m"],norm["std_m"]]),depth_standardized=decoded_standardized.cpu().numpy(),
+                        rgb_features=future["rgb"].cpu().numpy(),lidar_features=future["lidar"].cpu().numpy(),
+                        depth_codes=future["depth_codes"].argmax(-1).cpu().numpy(),seg_codes=future["seg_codes"].argmax(-1).cpu().numpy())
+    Image.fromarray(_class_rgb(seg.cpu().numpy().astype(np.uint8))).save(args.output/f"{name}_tick_{tick:06d}_seg.png")
+    print(dumps({"phase":"evaluate_complete","branch":name,"target_tick":tick}),flush=True)
+    return metrics
 
 
 def run(args):
-    started = time.perf_counter()
-    torch.manual_seed(args.seed); np.random.seed(args.seed); torch.set_num_threads(4)
-    device = torch.device("cuda:0")
-    target_ticks = (args.cutoff+args.step, args.cutoff+2*args.step)
-    index = load_index(args.canonical, args.communication, args.episode, args.cutoff, target_ticks, args.graph_base)
-    text, character_spans = semantic_text(index)
-    from transformers import AutoTokenizer, AutoConfig, Qwen3_5Model, Qwen2VLImageProcessor
-    tokenizer = AutoTokenizer.from_pretrained(args.model, local_files_only=True)
-    text_tokens = len(tokenizer(text, add_special_tokens=False)["input_ids"])
-    original_lines = text.splitlines()
-    wire_symbols = json.loads(original_lines[1].split("=", 1)[1])
-    original_lines[1] = "STRINGS="+dumps([index.identity_aliases.get(v, v) for v in wire_symbols])
-    unaliased_tokens = len(tokenizer("\n".join(original_lines)+"\n", add_special_tokens=False)["input_ids"])
-    print(dumps({"phase": "semantic_input", "characters": len(text), "tokens": text_tokens,
-                 "history_ticks": sorted({r["tick"] for r in index.semantic_records if isinstance(r["tick"], int)}),
-                 "records": dict(Counter(r["kind"] for r in index.semantic_records)), "causal_actor_count": len(index.entities)}), flush=True)
-    historical_ticks = tuple(range(5, args.cutoff+1, 5))
-    if not historical_ticks: raise ValueError("actual multimodal pilot requires at least capture tick5")
-    frames = {tick: load_observation_frame(args.observations, args.episode, tick, args.observer,
-                                          branch="historical" if tick <= args.cutoff else "target", cutoff=args.cutoff)
-              for tick in (*historical_ticks, *target_ticks)}
-    sensor_settings = configure_sensor_layout(args.lidar_settings, frames[args.cutoff].binding["modality"]["lidar"]["sensor_id"])
-    # Only historical geometry reaches Qwen. Future calibration remains on
-    # the target branch and is not used by sensor-frame forecasting.
-    static_text = ""
-    for tick in historical_ticks:
-        frame = frames[tick]
-        sensor_template = {"episode": args.episode, "tick": tick, "observer": args.observer,
-                           "calibration": frame.calibration.as_dict(), "source_pose_agl_m": frame.binding["source_pose_agl_m"],
-                           "capture_position_world_m": frame.binding["capture_position_world_m"],
-                           "ground_reference": frame.binding["ground_reference"],
-                           "depth_semantics": frame.binding["depth"], "sensor_settings": sensor_settings,
-                           "geometry_policy": "source AGL and capture world altitude differ; no calibrated instance visibility; independent sensor-frame forecasts"}
-        static_text += "SENSOR_TEMPLATE="+dumps(sensor_template)+"\n"
-    aliases = {source: alias for alias, source in index.identity_aliases.items()}
-    static_text += "GRAPH_IDENTITIES="+dumps([[aliases.get(identity, identity), node["ontology_classes"]] for identity, node in sorted(index.graph_nodes.items())])+"\n"
-    static_text += "PREDICATE_VOCABULARY="+dumps(index.graph_predicates)+"\n"
-    character_spans = {k:(lo+len(static_text),hi+len(static_text)) for k,(lo,hi) in character_spans.items()}
-    text = static_text+text
-    final_text_tokens = len(tokenizer(text, add_special_tokens=False)["input_ids"])
-    config = AutoConfig.from_pretrained(args.model, local_files_only=True)
-    # Reserve explicit future state/latent capacity before model allocation.
-    # Exact final length is checked again before append; no truncation.
-    append_reserve = 40000  # Explicit predicted-append token capacity.
-    token_ceiling = final_text_tokens+len(historical_ticks)*600+append_reserve
-    if token_ceiling > config.text_config.max_position_embeddings:
-        raise ValueError(f"full input+declared append budget {token_ceiling} exceeds native context {config.text_config.max_position_embeddings}")
-    kv_bytes = token_ceiling*6*2*2*256*2
-    expanded_kv_saved_bytes = token_ceiling*6*2*8*256*2
-    print(dumps({"phase": "resource_budget", "final_structured_text_tokens": final_text_tokens,
-                 "max_tokens_including_append_reserve": token_ceiling, "native_context": config.text_config.max_position_embeddings,
-                 "kv_theoretical_bytes": kv_bytes, "frozen_weight_bytes": 4548144832,
-                 "cpu_expanded_kv_saved_estimate_bytes": expanded_kv_saved_bytes,
-                 "training_memory_ceiling_estimate_bytes": 4548144832+2*kv_bytes+token_ceiling*4096+6*1024**3,
-                 "assumptions": "BF16;6full attention layers,2KVheads,256head dim;2cachecopies;chunk1024;6GiBactivation/workspace reserve;contiguous expanded8head savedK/V on CPU, padded bias stays GPU;no LM logits"}), flush=True)
-    qwen = Qwen3_5Model.from_pretrained(args.model, local_files_only=True, dtype=torch.bfloat16,
-                                      attn_implementation="sdpa").to(device).eval().requires_grad_(False)
-    image_processor = Qwen2VLImageProcessor(patch_size=16, temporal_patch_size=2, merge_size=2,
-                                          min_pixels=256*448, max_pixels=256*448)
-    prepared = {tick: prepare_frame(frame, qwen, image_processor, device) for tick, frame in frames.items()}
-    sonata, sonata_config = load_sonata(args.sonata, device)
-    projectors = ModalityProjectors().to(device)
-    teacher_adapter = copy.deepcopy(projectors.geometry_adapter).eval().requires_grad_(False)
-    raw_features, masks = {}, {}
+    started=time.perf_counter();torch.manual_seed(args.seed);np.random.seed(args.seed);torch.set_num_threads(4)
+    if args.step<=0 or args.steps<=0 or args.chunk<=0:
+        raise ValueError("step, training steps and cache chunk must be positive")
+    device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # Relative time comes from the authentic source clock, never a literal.
+    tick_seconds=read_tick_seconds(args.canonical)
+    train_targets=(args.cutoff+args.step,)
+    eval_targets=(args.eval_cutoff+args.step,args.eval_cutoff+2*args.step)
+    left=args.cutoff-round(args.history_s/tick_seconds)
+    eval_left=args.eval_cutoff-round(args.history_s/tick_seconds)
+    selected=load_observation_inventory(args.observations)["selected_ticks"]
+    historical=tuple(t for t in selected if left<=t<=args.cutoff)
+    eval_historical=tuple(t for t in selected if eval_left<=t<=args.eval_cutoff)
+    train_ticks=tuple(historical)+train_targets
+    eval_ticks=tuple(eval_historical)+eval_targets
+    all_ticks=tuple(sorted(set(train_ticks)|set(eval_ticks)))
+    def load(tick):
+        in_train=tick in train_ticks
+        cutoff=args.cutoff if in_train else args.eval_cutoff
+        return load_observation_frame(args.observations,args.episode,tick,args.observer,
+                                      branch="historical" if tick<=cutoff else "target",cutoff=cutoff)
+    frames={tick:load(tick) for tick in all_ticks}
+    index=load_index(args.canonical,args.communication,args.episode,args.cutoff,train_targets,args.graph_base,
+                     history_s=args.history_s,observer_ids=(args.observer,))
+    eval_index=load_index(args.canonical,args.communication,args.episode,args.eval_cutoff,eval_targets,args.graph_base,
+                          history_s=args.history_s,observer_ids=(args.observer,))
+    # All fitted statistics are training-window authority; the held-out window
+    # reuses them unchanged.
+    _,_,constant_targets=fit_state_normalization([index])
+    restrict_query_fields(index,constant_targets);restrict_query_fields(eval_index,constant_targets)
+    eval_index.scales=index.scales
+    eval_index.forecast_scales=index.forecast_scales
+    settings=mm.configure_sensor_layout(frames[args.cutoff].binding["lidar"],
+                                        frames[args.cutoff].binding["modality"]["lidar"]["sensor_id"])
+    from transformers import Qwen3_5Model,AutoImageProcessor
+    qwen=Qwen3_5Model.from_pretrained(args.model,local_files_only=True,dtype=torch.bfloat16,attn_implementation="sdpa").to(device).eval().requires_grad_(False)
+    checkpointed_layers=configure_qwen_checkpointing(qwen)
+    processor=AutoImageProcessor.from_pretrained(args.model,local_files_only=True,min_pixels=256*448,max_pixels=256*448)
+    codecs=mm.SpatialCodecs(args.codecs,device)
+    codecs.register_ue_classes(frames[args.cutoff].binding["segmentation"]["class_by_id"])
     with torch.no_grad():
-        for tick, frame in prepared.items():
-            lidar, occupied = sonata_features(frame, sonata, teacher_adapter)
-            raw_features[tick] = {"rgb": frame.rgb, "depth": frame.depth, "seg": frame.seg, "lidar": lidar}
-            masks[tick] = {"rgb": torch.ones(len(frame.rgb), dtype=torch.bool, device=device),
-                           "depth": frame.depth[:, 4] > 0, "seg": torch.ones(len(frame.seg), dtype=torch.bool, device=device),
-                           "lidar": torch.cat((occupied[:,None].expand(-1,519), frame.hits.reshape(32,64).bool(), frame.scanned_cells.reshape(32,64)), -1)}
-    # Fit once on complete declared historical TRAIN observations only.
-    fitted = {m: torch.cat([raw_features[t][m] for t in historical_ticks]) for m in raw_features[args.cutoff]}
-    fit_masks = {m: torch.cat([masks[t][m] for t in historical_ticks]) for m in masks[args.cutoff]}
-    scales = feature_scales(fitted, fit_masks)
-    target_features = {t: normalize(raw_features[t], scales) for t in target_ticks}
-    current_features = normalize(raw_features[args.cutoff], scales)
-    current_features["lidar"] = current_features["lidar"].clone()
-    # Unknown conditional ranges use the frozen TRAIN conditional-distance
-    # prior (normalized mean0), with the separate acquired-return plane kept.
-    current_features["lidar"][:,519:583] = torch.where(prepared[args.cutoff].hits.reshape(32,64).bool(), current_features["lidar"][:,519:583], torch.zeros_like(current_features["lidar"][:,519:583]))
-    prefix_embeddings, prefix_positions, prefix_hidden, prefix_cache, rgb_bindings, offsets, next_rope = native_prefix(
-        qwen, tokenizer, text, [prepared[t] for t in historical_ticks], args.chunk)
-    if prefix_embeddings.shape[1] > qwen.config.text_config.max_position_embeddings:
-        raise ValueError("complete declared input exceeds native model context; no truncation is performed")
-    token_spans = span_tokens(character_spans, offsets)
-    query = device_tensors(query_tensors(index, target_ticks[0]), device)
-    target = device_tensors(labels(index, query), device)
-    entity_context, field_context = contexts(query, prefix_hidden, token_spans)
-    del prefix_hidden
-    current = prepared[args.cutoff]
-    rgb_shape = current.image_grid_thw[0].cpu().tolist()
-    layouts = {"rgb": image_grid(rgb_shape[1]//2, rgb_shape[2]//2).to(device),
-               "depth": image_grid(IMAGE_ROWS, IMAGE_COLS).to(device), "seg": image_grid(IMAGE_ROWS, IMAGE_COLS).to(device),
-               "lidar": angular_grid(COARSE_EL, COARSE_AZ).to(device)}
-    typed_head = SharedDistributionHead().to(device)
-    future_head = FutureEmbeddingHead({m: v.shape[-1] for m, v in raw_features[args.cutoff].items()}).to(device)
-    decoder = CoarseLidarDecoder(float(current.ranges[current.hits.bool()].mean()), sensor_settings["Range"]).to(device)
-    trainables = nn.ModuleDict({"projectors": projectors, "typed": typed_head, "future": future_head, "decoder": decoder})
-    optimizer = torch.optim.AdamW(trainables.parameters(), lr=args.lr)
-    history = []; gradient_norms = {}; gradient_presence = {}; first_rows = None
-    if args.resume_head is not None:
-        saved = torch.load(args.resume_head, map_location=device, weights_only=False)
-        if saved["seed"] != args.seed or saved["steps"] != args.steps:
-            raise ValueError("resume checkpoint has different declared training seed/steps")
-        trainables.load_state_dict(saved["trainable_state"], strict=True)
-        history = saved["loss_history"]
-        first_rows = saved["initial_predictions"]
-
-    def forward_current():
-        values, binding_rows = [], []
-        # All declared historical modalities are consumed, never just the
-        # current frame. Each suffix branch starts from an isolated cache.
-        cache = cloned_cache(prefix_cache); token_start = prefix_embeddings.shape[1]; rope_start = next_rope
-        suffix_embs, suffix_positions = [], []
-        last_hidden = None
-        for tick in historical_ticks:
-            lidar, _ = sonata_features(prepared[tick], sonata, projectors.geometry_adapter)
-            raw = {**raw_features[tick], "lidar": lidar}
-            value = normalize(raw, scales)
-            emb, pos, binding = suffix(qwen, tokenizer, projectors, value, layouts, tick, prepared[tick].binding, token_start, rope_start)
-            with cache_backward_values(cache):
-                out = qwen(inputs_embeds=emb, position_ids=pos, past_key_values=cache, use_cache=True)
-            cache, last_hidden = out.past_key_values, out.last_hidden_state
-            suffix_embs.append(emb); suffix_positions.append(pos); binding_rows.extend(binding)
-            token_start += emb.shape[1]; rope_start += emb.shape[1]
-        context = last_hidden[0, -1].float()
-        output = typed_head(query, entity_context, field_context, context)
-        future = future_head(context, layouts, args.step*.1, current_features)
-        return output, future, context, cache, torch.cat(suffix_embs, 1), torch.cat(suffix_positions, 2), binding_rows
-
-    print(dumps({"phase": "training_launch", "prefix_tokens": int(prefix_embeddings.shape[1]),
-                 "queries": len(query["addresses"]), "trainable_parameters": sum(p.numel() for p in trainables.parameters()),
-                 "steps": args.steps, "native_cache": type(prefix_cache).__name__}), flush=True)
-    for step in range(1 if args.resume_head is not None else args.steps):
-        optimizer.zero_grad(set_to_none=True)
-        # Native cache-specific saved-tensor hooks in forward_current protect
-        # only mutable initial recurrent/conv values needed by backward.
-        with torch.enable_grad():
-            output, future, _, _, _, _, _ = forward_current()
-            losses = loss_values(output, query, target, future, target_features[target_ticks[0]], masks[target_ticks[0]], decoder, scales, prepared[target_ticks[0]])
-            if not bool(torch.isfinite(losses["total"])): raise FloatingPointError("actual loss is non-finite")
-            if step == 0 and args.resume_head is None:
-                first_rows, _ = predictions(output, query)
-            losses["total"].backward()
-            for name, module in trainables.items():
-                grads = [p.grad for p in module.parameters() if p.grad is not None]
-                if not all(bool(torch.isfinite(g).all()) for g in grads): raise FloatingPointError(f"non-finite {name} gradient")
-                gradient_norms[name] = float(torch.sqrt(sum(g.square().sum() for g in grads))) if grads else None
-                gradient_presence[name] = {"parameter_tensors_with_grad": len(grads), "parameter_tensors": len(list(module.parameters()))}
-            for name in ("geometry_adapter", "depth", "class_embeddings", "seg", "lidar", "position", "modality"):
-                grads = [p.grad for p in getattr(projectors, name).parameters() if p.grad is not None]
-                gradient_norms["projectors."+name] = float(torch.sqrt(sum(g.square().sum() for g in grads))) if grads else None
-                gradient_presence["projectors."+name] = {"parameter_tensors_with_grad": len(grads), "parameter_tensors": len(list(getattr(projectors, name).parameters()))}
-            global_gradient = nn.utils.clip_grad_norm_(trainables.parameters(), args.grad_clip)
-            if args.resume_head is None:
-                history.append({"step": step, **floats(losses), "gradient_global_norm_before_clip":float(global_gradient), "gradient_clip_norm":args.grad_clip})
-                optimizer.step()
-        print(dumps({"phase": "gradient_replay" if args.resume_head is not None else "optimizer", **floats(losses), "step": step, "gradient_global_norm_before_clip":float(global_gradient), "gradient_clip_norm":args.grad_clip}), flush=True)
+        prepared={tick:mm.prepare_frame(frame,qwen,processor,device,codecs,settings) for tick,frame in frames.items()}
+    # Observer/entity/region association with an explicit geometric consistency
+    # test, and per-token ownership (observer source + projected entities).
+    association={tick:source_entity_association(frames[tick]) for tick in all_ticks}
+    token_bindings={tick:observation_token_bindings(frames[tick],association[tick]) for tick in all_ticks}
     with torch.no_grad():
-        output, future, context, full_cache, suffix_embeddings, suffix_positions, suffix_bindings = forward_current()
-        final_losses = loss_values(output, query, target, future, target_features[target_ticks[0]], masks[target_ticks[0]], decoder, scales, prepared[target_ticks[0]])
-        first_predictions, rollout = predictions(output, query)
-        args.output.mkdir(parents=True, exist_ok=True)
-        torch.save({"trainable_state": trainables.state_dict(), "seed": args.seed, "steps": args.steps,
-                    "loss_history": history, "initial_predictions": first_rows}, args.output/"head.pt")
-        (args.output/"predictions.json").write_text(json.dumps({"initial": first_rows, "first_step": first_predictions}, indent=2, allow_nan=False)+"\n")
-        # Append explicit predicted cells/recording probabilities, not a
-        # fabricated observed frame. Future truth remains only in labels.
-        predicted_entity_ids = sorted(index.entities)
-        predicted_field_ids = sorted({f.family for f in index.fields})
-        parameter_names = {"normal":["location","scale"],"von_mises":["location_deg","concentration"],
-                           "boundary_inflated_gamma":["boundary_mass","concentration","rate"],
-                           "endpoint_inflated_beta":["endpoint_masses","alpha","beta"]}
-        compact_rows = [[predicted_entity_ids.index(r["entity"]), predicted_field_ids.index(r["field"]), r["component"],
-                         r["conditional_point"], r["record_probability"],
-                         [r["cell_kind_probabilities"][k] for k,legal in zip(r["cell_kind_probabilities"],query["allowed_status"][i].tolist()) if legal],
-                         [r["parameters"][name] for name in parameter_names[r["law"]]] if r["law"] != "categorical" else r["probabilities"]]
-                        for i,r in enumerate(first_predictions)]
-        predicted_header = "PREDICTED_STATE entity_ids="+dumps(predicted_entity_ids)+"; field_ids="+dumps(predicted_field_ids)+"; columns=[entity_index,field_index,component,conditional_point,record_probability,probabilities_for_legal_cell_kinds_in_schema_order,law_parameters]; law_parameter_names="+dumps(parameter_names)+"; bounds/classes/legal_kinds come from FIELD declarations; categorical law_parameters=class probabilities\n"
-        predicted_text = predicted_header+"\n".join(dumps(r) for r in compact_rows)+"\n"
-        state_tokens = tokenizer(predicted_text, add_special_tokens=False, return_tensors="pt")["input_ids"].to(device)
-        append_start = prefix_embeddings.shape[1]+suffix_embeddings.shape[1]
-        rgb_header = tokenizer(f"PREDICTED RGB tick={target_ticks[0]}; fixed native grid\n", add_special_tokens=False)["input_ids"]
-        image_ids = [*rgb_header, qwen.config.vision_start_token_id, *([qwen.config.image_token_id]*len(future["rgb"])), qwen.config.vision_end_token_id]
-        native_append_ids = torch.cat((state_tokens, torch.tensor([image_ids], device=device)), 1)
-        native_append_embeddings = qwen.get_input_embeddings()(native_append_ids)
-        predicted_rgb = (future["rgb"]*scales["rgb"][1]+scales["rgb"][0]).to(qwen.dtype)
-        image_mask = (native_append_ids == qwen.config.image_token_id).unsqueeze(-1)
-        native_append_embeddings = native_append_embeddings.masked_scatter(image_mask, predicted_rgb)
-        predicted_bindings = [{"modality":"rgb","tick":target_ticks[0],"role":"predicted_append",
-                               "token_start":append_start+state_tokens.shape[1]+len(rgb_header)+1,
-                               "token_end":append_start+state_tokens.shape[1]+len(rgb_header)+1+len(predicted_rgb),
-                               "sensor":current.binding["modality"]["rgb"]["sensor_id"],"positions":layouts["rgb"].cpu().tolist()}]
-        mm_types = torch.zeros_like(native_append_ids); mm_types[native_append_ids == qwen.config.image_token_id] = 1
-        native_positions, _ = qwen.get_rope_index(native_append_ids, image_grid_thw=current.image_grid_thw, mm_token_type_ids=mm_types)
-        native_positions += next_rope+suffix_embeddings.shape[1]
-        native_append_positions = torch.cat((torch.arange(native_append_ids.shape[1], device=device).view(1, 1, -1)+append_start, native_positions), 0)
-        blocks = [native_append_embeddings]; pos_blocks = [native_append_positions]
-        token_offset = append_start+native_append_ids.shape[1]; rope_offset = int(native_positions.max())+1
-        for m in ("depth", "seg", "lidar"):
-            header_ids = tokenizer(f"PREDICTED {m} tick={target_ticks[0]}; sensor={current.binding['modality'][m]['sensor_id']}; fixed_region_grid\n",
-                                   add_special_tokens=False, return_tensors="pt")["input_ids"].to(device)
-            block = torch.cat((qwen.get_input_embeddings()(header_ids),
-                               (projectors.project(m, future[m])+projectors.position(layouts[m])+projectors.modality.weight[MODALITY_IDS[m]]).to(qwen.dtype).unsqueeze(0)), 1)
-            blocks.append(block); pos_blocks.append(appended_positions(device, block.shape[1], token_offset, rope_offset))
-            predicted_bindings.append({"modality":m,"tick":target_ticks[0],"role":"predicted_append",
-                                       "token_start":token_offset+header_ids.shape[1],"token_end":token_offset+block.shape[1],
-                                       "sensor":current.binding["modality"][m]["sensor_id"],"positions":layouts[m].cpu().tolist()})
-            token_offset += block.shape[1]; rope_offset += block.shape[1]
-        append_embeddings, append_positions = torch.cat(blocks, 1), torch.cat(pos_blocks, 2)
-        if append_embeddings.shape[1] > append_reserve:
-            raise ValueError("actual predicted append exceeds reserved token capacity; no truncation")
-        if append_start+append_embeddings.shape[1] > config.text_config.max_position_embeddings:
-            raise ValueError("actual predicted append exceeds native context; no truncation")
-        append_started = time.perf_counter()
-        appended_hidden, rollout_cache = prefill_embeddings(qwen, append_embeddings, append_positions, args.chunk, cache=cloned_cache(full_cache))
-        torch.cuda.synchronize(); cache_seconds = time.perf_counter()-append_started
-        query2 = device_tensors(query_tensors(index, target_ticks[1], rollout_values=rollout, cutoff=target_ticks[0]), device)
-        target2 = device_tensors(labels(index, query2), device)
-        # Address identity stays causal. Updated entity context reads that
-        # entity's own predicted-state rows, not target-frame rows.
-        state_offsets = tokenizer(predicted_text, add_special_tokens=False, return_offsets_mapping=True)["offset_mapping"]
-        cursor = len(predicted_header); predicted_spans = {}
-        for row, compact in zip(first_predictions, compact_rows):
-            line = dumps(compact); predicted_spans["entity", row["entity"]] = (cursor, cursor+len(line)); cursor += len(line)+1
-        predicted_token_spans = span_tokens(predicted_spans, state_offsets)
-        entity2 = torch.stack([appended_hidden[0, slice(*predicted_token_spans["entity", a.entity_id])].float().mean(0) for a in query2["addresses"]])
-        context2 = appended_hidden[0, -1].float()
-        output2 = typed_head(query2, entity2, field_context, context2)
-        future2 = future_head(context2, layouts, args.step*.1, future)
-        second_predictions, _ = predictions(output2, query2)
-        second_losses = loss_values(output2, query2, target2, future2, target_features[target_ticks[1]], masks[target_ticks[1]], decoder, scales, prepared[target_ticks[1]])
-        direct_query = device_tensors(query_tensors(index, target_ticks[1]), device)
-        direct_output = typed_head(direct_query, entity_context, field_context, context)
-        direct_future = future_head(context, layouts, args.step*.2, current_features)
-        direct_losses = loss_values(direct_output, direct_query, target2, direct_future, target_features[target_ticks[1]], masks[target_ticks[1]], decoder, scales, prepared[target_ticks[1]])
-        direct_predictions, _ = predictions(direct_output, direct_query)
-        rollout_cache_metadata = {"native_cache": type(rollout_cache).__name__, "cache_layers": [type(layer).__name__ for layer in rollout_cache.layers],
-                                  "cache_length": rollout_cache.get_seq_length()}
-        del prefix_cache, full_cache, rollout_cache
-        # Re-execute identical complete input with one independent native
-        # cache; the full history and projections are unchanged.
-        recompute_started = time.perf_counter()
-        _, recomputed_cache = prefill_embeddings(qwen, prefix_embeddings, prefix_positions, args.chunk, collect_hidden=False)
-        frame_endpoints = [max(b["token_end"] for b in suffix_bindings if b["tick"] == tick)-prefix_embeddings.shape[1] for tick in historical_ticks]
-        begin = 0
-        for end in frame_endpoints:
-            repeated = qwen(inputs_embeds=suffix_embeddings[:,begin:end], position_ids=suffix_positions[:,:,begin:end],
-                            past_key_values=recomputed_cache, use_cache=True)
-            recomputed_cache = repeated.past_key_values; begin = end
-        recomputed_hidden, recomputed_cache = prefill_embeddings(qwen, append_embeddings, append_positions, args.chunk, cache=recomputed_cache)
-        torch.cuda.synchronize(); recompute_seconds = time.perf_counter()-recompute_started
-        cache_difference = float((appended_hidden-recomputed_hidden[:, -append_embeddings.shape[1]:]).abs().max())
-        cache_rms = float((appended_hidden.float()-recomputed_hidden.float()).square().mean().sqrt())
-        recomputed_entity2 = torch.stack([recomputed_hidden[0,slice(*predicted_token_spans["entity",a.entity_id])].float().mean(0) for a in query2["addresses"]])
-        recomputed_output2 = typed_head(query2,recomputed_entity2,field_context,recomputed_hidden[0,-1].float())
-        cache_head_difference = {"parameters_max_abs":float((output2["parameters"]-recomputed_output2["parameters"]).abs().max()),
-                                 "class_probabilities_max_abs":float((output2["classes"].softmax(-1)-recomputed_output2["classes"].softmax(-1)).abs().max()),
-                                 "cell_kind_probabilities_max_abs":float((output2["status"].softmax(-1)-recomputed_output2["status"].softmax(-1)).abs().max()),
-                                 "record_probability_max_abs":float((output2["recorded"].sigmoid()-recomputed_output2["recorded"].sigmoid()).abs().max())}
-        reconstructed = []
-        reconstruction_metrics = {}
-        for tick, features in ((target_ticks[0], future), (target_ticks[1], future2)):
-            physical_lidar = features["lidar"]*scales["lidar"][1]+scales["lidar"][0]
-            ranges, logits = decoder(physical_lidar)
-            metrics, predicted_cloud, target_cloud = lidar_metrics(ranges, logits, prepared[tick], current)
-            reconstruction_metrics[str(tick)] = metrics
-            previous_hits = ungroup_fine(current.hits.cpu().numpy()).astype(bool)
-            previous_ranges = ungroup_fine(current.ranges.cpu().numpy())
-            previous_cloud = ray_grid()[previous_hits]*previous_ranges[previous_hits,None]
-            reconstructed.append((tick, (predicted_cloud, previous_cloud, target_cloud)))
-    args.output.mkdir(parents=True, exist_ok=True)
-    for tick, clouds in reconstructed: plot_clouds(args.output/f"lidar_tick_{tick:06d}.png", clouds, tick)
-    result = {"episode": args.episode, "cutoff": args.cutoff, "targets": target_ticks,
-              "scope": "one authentic TRAIN episode, frozen Qwen and Sonata, shared heads and sensor projections; gradient path only, not generalization/calibration",
-              "numerical_workflow": "TRAIN prefix-only frozen scales; one canonical/communication index; future labels separate; no provenance/source/catalog scans in numerical hot path",
-              "canonical": str(args.canonical), "communication": str(args.communication), "model": str(args.model), "observations": str(args.observations),
-              "input": {"graph_semantic_tokens": text_tokens, "unaliased_full_graph_tokens_measured": unaliased_tokens,
-                        "final_structured_text_tokens": final_text_tokens, "prefix_tokens": int(prefix_embeddings.shape[1]), "suffix_tokens": int(suffix_embeddings.shape[1]),
-                        "predicted_append_tokens": int(append_embeddings.shape[1]), "history_ticks": list(range(args.cutoff+1)), "historical_capture_ticks": historical_ticks,
-                        "semantic_records": dict(Counter(r["kind"] for r in index.semantic_records)), "semantic_roundtrip_exact": True,
-                        "semantic_roundtrip_scope": "retained model-input semantic projection; archive bookkeeping and renderer hardcoded network defaults excluded; complete causal worldtruth retained",
-                        "excluded_model_fields": sorted(MODEL_INPUT_EXCLUDED),
-                        "communication_replacement_source": str(args.communication),
-                        "provenance_in_model_text": False, "causal_actor_count": len(index.entities), "query_count": len(query["addresses"]),
-                        "native_rgb_grid": rgb_shape, "modal_feature_shapes": {m: list(v.shape) for m, v in raw_features[args.cutoff].items()},
-                        "static_sensor_settings": sensor_settings, "sensor_settings_source": str(args.lidar_settings),
-                        "codec": "static frozen-prefix reversible symbol/change text; re-encoding an extended real prefix is not cache-preserving",
-                        "graph_scope": "complete tick0 initial worldtruth assertions and all causal delta operations; graph identities from causal references; query actors remain frame-prefix scoped",
-                        "graph_identity_count": len(index.graph_nodes), "kv_theoretical_budget_bytes": kv_bytes, "max_context_budget_tokens": token_ceiling,
-                        "predicted_append_reserved_capacity_tokens": append_reserve},
-              "training": {"seed": args.seed, "steps": args.steps, "lr": args.lr, "loss_history": history, "loss_after": floats(final_losses), "gradient_norms": gradient_norms,
-                           "parameterization":"shared contextual trunk, zero-initialized separate continuous-type outputs; causal constant-velocity position prior; TRAIN temporal increment RMS scales; latest-anchored gamma/Beta means; feature persistence plus learned residual",
-                           "gradient_clip_norm":args.grad_clip,
-                           "gradient_evaluation": "post-training replay, no optimizer update" if args.resume_head is not None else "last optimizer step",
-                           "resumed_trained_head": args.resume_head is not None,
-                           "gradient_presence": gradient_presence,
-                           "trainable_parameters": sum(p.numel() for p in trainables.parameters()), "qwen_parameters": sum(p.numel() for p in qwen.parameters()),
-                           "sonata_parameters": sum(p.numel() for p in sonata.parameters()), "qwen_frozen": True, "sonata_frozen": True,
-                           "sonata_geometry_adapter": "learned3geometry channels in checkpoint RGB slots; actual coordinates+calculated PCA normals; no measured colours or pretrained colour efficacy claim",
-                           "teacher_adapter": "initial geometry adapter frozen for all feature labels", "sonata_config": sonata_config},
-              "rollout": {"second_step_loss": floats(second_losses), "direct_second_target_loss": floats(direct_losses), "future_truth_inputs": False, **rollout_cache_metadata,
-                          "full_recompute_length": recomputed_cache.get_seq_length(), "hidden_max_abs_difference": cache_difference,
-                          "hidden_rms_difference":cache_rms,"head_output_difference":cache_head_difference,
-                          "full_recompute_schedule":"empty cache; identical prefix chunks, each historical sensor suffix, then identical predicted append chunks",
-                          "cached_append_seconds": cache_seconds, "full_recompute_seconds": recompute_seconds,
-                          "sensor_pose_policy": "fixed sensor-frame grids; no future world-pose input or world-calibrated fusion; cutoff rig is immutable",
-                          "no_lm_head_or_generate": True},
-              "coarse_lidar": reconstruction_metrics,
-              "lidar_representation":{"dimensions":647,"components":{"Sonata":512,"geometry_statistics":7,"conditional_range_logit":64,"captured_return_marker":64},
-                                      "range_support_m":[0.,sensor_settings["Range"]],"range_code":"logit(metres/sensorRange); finite FP32 epsilon at range endpoints only; no-return ranges masked out of normalization/loss; conditional TRAIN prior in model latent inputs",
-                                      "loss":"equal average of separate TRAIN-normalized Sonata, geometry, conditional-distance and return-plane MSE; additional decoded physical range Huber and return BCE"},
-              "future_feature_metrics":{"first_step":feature_metrics(future,target_features[target_ticks[0]],masks[target_ticks[0]],current_features,masks[args.cutoff]),
-                                        "rollout_second_step":feature_metrics(future2,target_features[target_ticks[1]],masks[target_ticks[1]],current_features,masks[args.cutoff]),
-                                        "direct_second_target":feature_metrics(direct_future,target_features[target_ticks[1]],masks[target_ticks[1]],current_features,masks[args.cutoff])},
-              "typed_physical_metrics": {"initial_first_step": typed_metrics(index, first_rows), "trained_first_step": typed_metrics(index, first_predictions),
-                                         "rollout_second_step": typed_metrics(index, second_predictions), "direct_second_target": typed_metrics(index, direct_predictions)},
-              "saved_attention_layouts": SAVED_ATTENTION_LAYOUTS,
-              "peak_gpu_allocated_bytes": torch.cuda.max_memory_allocated(), "wall_seconds": time.perf_counter()-started,
-              "limitations": ["one sample training loss does not establish prediction accuracy or calibration", "depth distance semantics and RGB/LiDAR acquisition alignment remain unconfirmed",
-                              "class-ID segmentation is not instance identity", "coarse learned angular reconstruction is not fullscan Sonata inversion", "communication is controlled simulation, not measured radio telemetry",
-                              "observed_ue_world_cm is null for22actors per supplied frame; measured per-actor world transforms/bounds and instance-pixel masks are unavailable",
-                              "12corridors are sidecar-only logical regions and are not rasterized"]}
-    (args.output/"result.json").write_text(json.dumps(result, indent=2, allow_nan=False)+"\n")
-    (args.output/"predictions.json").write_text(json.dumps({"initial": first_rows, "first_step": first_predictions, "second_step": second_predictions, "direct_second_target": direct_predictions}, indent=2, allow_nan=False)+"\n")
-    np.savez_compressed(args.output/"future_features.npz", **{f"tick_{tick}_{m}_train_normalized":v.float().cpu().numpy() for tick,feature in ((target_ticks[0],future),(target_ticks[1],future2)) for m,v in feature.items()},
-                        tick_first_rgb_native_append=predicted_rgb.float().cpu().numpy())
-    bindings = {"rgb": rgb_bindings, "sensor_suffix": suffix_bindings,
-                "predicted_append":predicted_bindings,
-                "future_head_outputs":[{"modality":m,"tick":target_ticks[1],"role":"predicted_head_output_no_token_range","positions":positions.cpu().tolist()} for m,positions in layouts.items()],
-                "future_coordinate_policy":"predicted tick observer sensor-local regions on the fixed cutoff sensor layout; target poses are supervision only; independent modality/state forecasts do not establish world-grid fusion or physical instance visibility",
-                "semantic_token_spans": [{"kind": k[0], "identity": k[1], "start": v[0], "end": v[1]} for k, v in token_spans.items()],
-                "source_records": index.source_bindings,
-                "communication": [b for b in index.source_bindings if b.get("path") == str(args.communication)],
-                "frozen_numeric_scales": [vars(v) for v in index.scales.values()],
-                "opaque_identity_aliases": index.identity_aliases, "graph_nodes": index.graph_nodes,
-                "frozen_forecast_scales": [{"family":k[0],"component":k[1],**v} for k,v in index.forecast_scales.items()],
-                "frozen_feature_scales": {m: {"mean": x[0].cpu().tolist(), "std": x[1].cpu().tolist(), "present_count":x[2].cpu().tolist()} for m, x in scales.items()},
-                "future_layouts": {m: x.cpu().tolist() for m, x in layouts.items()}, "query_binding": "entity span + exact field declaration span + component + physical horizon",
-                "excluded_model_fields": sorted(MODEL_INPUT_EXCLUDED),
-                "semantic_projection": "complete causal worldtruth and prefix frame/entity semantics, excluding archive bookkeeping and three renderer hardcoded network defaults; authentic communication.* supplied separately; future-selected roster nodes excluded; source/evidence bookkeeping is sidecar; roundtrip applies to this retained projection"}
-    (args.output/"bindings.json").write_text(json.dumps(bindings, indent=2, allow_nan=False)+"\n")
-    (args.output/"semantic_input.txt").write_text(text)
-    torch.save({"trainable_state": trainables.state_dict(), "seed": args.seed, "steps": args.steps,
-                "loss_history": history, "initial_predictions": first_rows}, args.output/"head.pt")
-    print(dumps({"phase": "complete", "loss_before": history[0]["total"], "loss_after": float(final_losses["total"]),
-                 "cache_difference": cache_difference, "gpu_peak_bytes": result["peak_gpu_allocated_bytes"], "output": str(args.output)}), flush=True)
+        teacher_semantic_logits={tick:codecs.semantic.decode_tokens(prepared[tick].seg_codes.reshape(1,*codecs.grid)).detach()
+                                 for tick in historical}
+        teacher_semantic_rows={tick:codecs.semantic_rows(frames[tick].segmentation_class_ids)[None] for tick in historical}
+    sonata,sonata_config=mm.load_sonata(args.sonata,device)
+    projectors=mm.ModalityProjectors().to(device)
+    teacher_geometry=copy.deepcopy(projectors.geometry_adapter).requires_grad_(False).eval()
+    # Frozen encoder outputs (Qwen vision tower, codec teacher encodes) are
+    # cached once per capture before the training loop.  The LiDAR Sonata
+    # backbone is frozen too, but the trainable ``projectors.geometry_adapter``
+    # sits BEFORE it, so the Sonata features are rebuilt from the live adapter
+    # on every training step (see ``trainable_history``); only the heartbeat
+    # target supervision below uses the frozen adapter copy.
+    raw={}
+    with torch.no_grad():
+        for tick,frame in prepared.items():
+            lidar,_=mm.sonata_features(frame,sonata,teacher_geometry)
+            raw[tick]={"rgb":frame.rgb,"depth":frame.depth,"seg":frame.seg,"lidar":lidar.detach()}
+    # One normalization path, fitted only on the training window's captures.
+    feature_scales={name:fit_feature_scale(torch.cat([raw[t][name] for t in historical],0).float())
+                    for name in ("rgb","lidar")}
+    normalized={tick:normalize_features(values,feature_scales) for tick,values in raw.items()}
+    current=prepared[args.cutoff]
+    shape=current.image_grid_thw[0].tolist()
+    layouts={"rgb":mm.image_grid(shape[1]//2,shape[2]//2).to(device),
+             "depth":mm.image_grid(*codecs.grid).to(device),"seg":mm.image_grid(*codecs.grid).to(device),
+             "lidar":mm.angular_grid(mm.COARSE_EL,mm.COARSE_AZ).to(device)}
+    graph=TypedGraphEncoder(fit_observation_scales([index]),mode=args.input_mode).to(device)
+    attention=AddressQueryAttention().to(device)
+    typed=SharedDistributionHead().to(device)
+    future_head=mm.FutureEmbeddingHead({name:value.shape[-1] for name,value in normalized[args.cutoff].items()},
+                                      codebooks={"depth":codecs.depth_codebook_size,"seg":codecs.semantic_codebook_size}).to(device)
+    decoder=mm.DenseLidarDecoder(settings["Range"],512).to(device)
+    modules=nn.ModuleDict({"graph":graph,"query":attention,"typed":typed,"future":future_head,
+                           "projectors":projectors,"decoder":decoder,"codecs":codecs})
+    active=[parameter for parameter in modules.parameters() if parameter.requires_grad]
+    optimizer=torch.optim.AdamW(active,lr=args.lr)
+    query=device_tensors(query_tensors(index,train_targets[0]),device)
+    truth=device_tensors(labels(index,query),device)
+    teacher={tick:modality_data(normalized[tick],prepared[tick]) for tick in frames}
+    prior_ranges=current.ray_ranges
+    epsilon=torch.finfo(prior_ranges.dtype).eps
+    prior_probability=current.ray_hits.clamp(epsilon,1-epsilon)
+    transition=args.step*tick_seconds
+    args.output.mkdir(parents=True,exist_ok=True)
+    config={name:str(value) if isinstance(value,Path) else value for name,value in vars(args).items()}
+    history=[];gradients={};completed_steps=0
+    codec_adapter={"completed_steps":0,"planned_steps":args.codec_decoder_steps,"loss_history":[],"train_tick":args.cutoff,
+                   "learning_rate":args.codec_decoder_lr,"pixel_batch_size_per_plane":8192,
+                   "before":None,"after":None,"depth_affine_diagnostic":None,"depth_oracle_25step_mae_m":None,"depth_output_after":None,"elapsed_seconds":None,
+                   "scope":"UE decoder and depth output affine only; authentic TRAIN cutoff; frozen teacher/current codec logits and raw depth decode; no future frames"}
+    def save_head():
+        payload={"trained_parameters":active_parameter_state(modules),"state_scales":index.scales,
+                 "forecast_scales":index.forecast_scales,"graph_observation_scales":graph.observation_scales,
+                 "feature_scales":{name:{"mean":scale.mean.cpu(),"std":scale.std.cpu()} for name,scale in feature_scales.items()},
+                 "completed_steps":completed_steps,"planned_steps":args.steps,"loss_history":history,
+                 "source_config":config,"frozen_assets":{"qwen":str(args.model),"sonata":str(args.sonata),"codecs":str(args.codecs)}}
+        temporary=args.output/"head.pt.tmp"
+        with temporary.open("wb") as stream:
+            torch.save(payload,stream);stream.flush();os.fsync(stream.fileno())
+        os.replace(temporary,args.output/"head.pt")
+    def compile_features(ticks,graph_index,graph_module):
+        """Rebuild the trainable feature/prefix path for one training step.
+
+        Only the frozen Qwen vision-tower features and codec teacher encodes
+        (``normalized``) are cached; the LiDAR adapter -> frozen Sonata path,
+        the graph encoders, the modality projections and the reconstruction
+        losses are all rebuilt here so their autograd graph is never reused
+        across optimizer steps.
+        """
+        features={tick:dict(normalized[tick]) for tick in ticks}
+        for tick in ticks:
+            # geometry_adapter sits BEFORE the frozen Sonata backbone, so it
+            # must run on the trainable path or it never receives a gradient.
+            lidar,_=mm.sonata_features(prepared[tick],sonata,projectors.geometry_adapter)
+            features[tick]["lidar"]=feature_scales["lidar"].transform(lidar)
+        contexts,blocks=modality_inputs(projectors,features,prepared,ticks,layouts,graph_index,feature_scales,token_bindings)
+        structure=graph_module.encode_history(graph_index,contexts)
+        prefix=chronological_prefix(qwen,structure,blocks)
+        if prefix["embeddings"].shape[1]>qwen.config.text_config.max_position_embeddings:
+            raise ValueError("authentic complete multimodal prefix exceeds native Qwen context")
+        return features,contexts,structure,prefix
+    print(dumps({"phase":"training_launch","steps":args.steps,"tick_seconds":tick_seconds,
+                 "train_origin":args.cutoff,"heldout_origin":args.eval_cutoff,
+                 "train_target_ticks":train_targets,"heldout_target_ticks":eval_targets,
+                 "train_history_ticks":historical,"heldout_history_ticks":eval_historical,
+                 "frozen_encoder_cache":"Qwen vision tower and codec teacher encodes cached once per capture; LiDAR adapter+Sonata and graph/projector prefix rebuilt every step",
+                 "cache_rebuild_conditions":"new origin, new/changed inputs, or any parameter update that produces prefix embeddings"}),flush=True)
+    for step in range(completed_steps,args.steps):
+        optimizer.zero_grad(set_to_none=True);qwen.train();codecs.freeze_pretrained()
+        # Rebuild the trainable prefix and reconstruction losses every step.
+        history_features,history_contexts,structure,prefix=compile_features(historical,index,graph)
+        input_features=modality_data(history_features[args.cutoff],current)
+        hidden=qwen(inputs_embeds=prefix["embeddings"],position_ids=prefix["positions"],use_cache=False).last_hidden_state
+        output,context=typed_read(typed,attention,query,hidden,prefix)
+        future=future_head(context,layouts,transition,input_features,transition)
+        losses=forecast_loss(output,query,truth,future,teacher[train_targets[0]],prepared[train_targets[0]],decoder,prior_ranges,prior_probability,transition)
+        reconstruction=structure["reconstruction_losses"]
+        losses.update({"reconstruct_"+name:value for name,value in reconstruction.items() if name!="total"})
+        adaptations=codecs.adaptation_losses(frames[args.cutoff].depth_m,frames[args.cutoff].segmentation_class_ids)
+        adaptations["ue_teacher_code_adaptation"]=torch.stack([F.cross_entropy(codecs.ue_decoder(teacher_semantic_logits[tick]),teacher_semantic_rows[tick])
+                                                               for tick in historical]).mean()
+        losses.update(adaptations);losses["total"]=losses["total"]+reconstruction["total"]+sum(adaptations.values())
+        if not bool(torch.isfinite(losses["total"])):
+            raise FloatingPointError("authentic multimodal objective is non-finite")
+        losses["total"].backward();gradients=gradient_report(modules)
+        gradient_norm=nn.utils.clip_grad_norm_(active,args.grad_clip)
+        optimizer.step()
+        row={"step":step,**floats(losses),"gradient_norm_before_clip":float(gradient_norm),
+             "elapsed_seconds":time.perf_counter()-started,"peak_gpu_allocated_bytes":torch.cuda.max_memory_allocated()}
+        history.append(row);completed_steps=step+1
+        print(dumps({"phase":"optimizer","checkpoint_completed_steps":completed_steps,**row}),flush=True)
+        del hidden,output,future,losses,adaptations
+    # Snapshot the last training step's read-only prefix metadata so no training
+    # autograd graph is retained across the inference/decoder phases.
+    train_ledger=copy.deepcopy(structure["ledger"])
+    train_reconstruction=floats(structure["reconstruction_losses"])
+    train_prefix_bindings=copy.deepcopy(prefix["bindings"])
+    train_token_entities=list(prefix["token_entities"]);train_token_fields=list(prefix["token_fields"])
+    train_tokens=prefix["embeddings"].shape[1]
+    del prefix,structure,history_contexts,history_features
+    # Supplementary TRAIN-only decoder optimization keeps all core parameters fixed.
+    # The reconstruction losses were consumed by the last training backward; the
+    # snapshot above keeps only detached metadata for the result record.
+    adapter_start=time.perf_counter()
+    with torch.no_grad():
+        current_semantic=codecs.encode_seg(frames[args.cutoff].segmentation_class_ids)
+        current_logits=codecs.semantic.decode_tokens(current_semantic["codes"].reshape(1,*codecs.grid)).detach()
+        adapter_planes=(teacher_semantic_logits[args.cutoff],current_logits)
+        adapter_rows=teacher_semantic_rows[args.cutoff].reshape(-1)
+        adapter_features=tuple(plane[0].permute(1,2,0).reshape(-1,plane.shape[1]) for plane in adapter_planes)
+        def decoder_diagnostics():
+            diagnostics=[]
+            for plane in adapter_planes:
+                logits=codecs.ue_decoder(plane)
+                diagnostics.append({"ce":float(F.cross_entropy(logits,adapter_rows.reshape(1,224,224))),
+                                    "accuracy":float((logits.argmax(1).reshape(-1)==adapter_rows).float().mean())})
+            return dict(zip(("fixed_teacher_codes","current_codes"),diagnostics))
+        codec_adapter["before"]=decoder_diagnostics()
+        oracle=codecs.encode_depth(frames[args.cutoff].depth_m)
+        raw_depth_decode=codecs.depth.decode_tokens(oracle["codes"].reshape(1,*codecs.grid),timesteps=25,image_size=224,
+                                                   generator=torch.Generator(device="cpu").manual_seed(args.seed+args.cutoff)).detach()
+        oracle_depth=(codecs.depth_output(raw_depth_decode)[0,0]*oracle["normalization"]["std_m"]+oracle["normalization"]["mean_m"]).clamp_min(0.)
+        depth_mask=oracle["mask"][0,0]
+        depth_x=raw_depth_decode[0,0][depth_mask];depth_y=oracle["standardized"][0,0][depth_mask]
+        dx=depth_x.double();dy=depth_y.double()
+        slope=((dx-dx.mean())*(dy-dy.mean())).mean()/dx.var(unbiased=False);offset=dy.mean()-slope*dx.mean()
+        oracle_truth=F.interpolate(torch.tensor(np.array(frames[args.cutoff].depth_m,copy=True),device=device)[None,None],size=(224,224),mode="bilinear",align_corners=False)[0,0]
+        codec_adapter["depth_affine_diagnostic"]={"correlation":float(torch.corrcoef(torch.stack((dx,dy)))[0,1]),
+                "best_slope":float(slope),"best_offset":float(offset)}
+        codec_adapter["depth_oracle_25step_mae_m"]=float((oracle_depth-oracle_truth).abs()[depth_mask].mean())
+    adapter_parameters=[*codecs.ue_decoder.parameters(),*codecs.depth_output.parameters()]
+    adapter_optimizer=torch.optim.AdamW(adapter_parameters,lr=args.codec_decoder_lr)
+    for adapter_step in range(args.codec_decoder_steps):
+        adapter_optimizer.zero_grad(set_to_none=True)
+        indices=torch.randint(len(adapter_rows),(8192,),device=device)
+        adapter_loss=torch.stack([F.cross_entropy(F.linear(values[indices],codecs.ue_decoder.weight[:,:,0,0],codecs.ue_decoder.bias),adapter_rows[indices])
+                                  for values in adapter_features]).mean()
+        depth_indices=torch.randint(len(depth_x),(8192,),device=device)
+        depth_affine_loss=F.mse_loss(depth_x[depth_indices]*codecs.depth_output.weight.reshape(())+codecs.depth_output.bias.reshape(()),depth_y[depth_indices])
+        adapter_loss=adapter_loss+depth_affine_loss
+        adapter_loss.backward()
+        if not bool(torch.isfinite(adapter_loss)) or any(not bool(torch.isfinite(parameter.grad).all()) for parameter in adapter_parameters):
+            raise FloatingPointError("non-finite authentic TRAIN decoder optimization")
+        adapter_optimizer.step()
+        codec_adapter["completed_steps"]=adapter_step+1
+        codec_adapter["loss_history"].append(float(adapter_loss))
+    with torch.no_grad():
+        codec_adapter["after"]=decoder_diagnostics()
+        optimized_depth=(codecs.depth_output(raw_depth_decode)[0,0]*oracle["normalization"]["std_m"]+oracle["normalization"]["mean_m"]).clamp_min(0.)
+        codec_adapter["depth_output_after"]={"slope":float(codecs.depth_output.weight.reshape(())),"offset":float(codecs.depth_output.bias.reshape(())),
+                                           "resized_mae_m":float((optimized_depth-oracle_truth).abs()[depth_mask].mean())}
+    codec_adapter["elapsed_seconds"]=time.perf_counter()-adapter_start
+    print(dumps({"phase":"codec_adapter_complete","completed_steps":codec_adapter["completed_steps"]}),flush=True)
+    qwen.eval();codecs.freeze_pretrained()
+    def predict(graph_index,graph_module,attention_module,ticks,target_tick,rollout_tick,label):
+        with torch.no_grad():
+            features,contexts,structure_,prefix_=compile_features(ticks,graph_index,graph_module)
+            prefix_hidden,prefix_cache=cached_forward(qwen,prefix_,args.chunk)
+            target_query=device_tensors(query_tensors(graph_index,target_tick),device)
+            output,context=typed_read(typed,attention_module,target_query,prefix_hidden,prefix_)
+            rows,feedback=predictions(output,target_query)
+            feedback=complete_constant_feedback(feedback,graph_index,constant_targets,target_tick)
+            observer_pose=derived_observer_pose(feedback,graph_index,args.observer)
+            frame=prepared[graph_index.cutoff]
+            input_feat=modality_data(features[graph_index.cutoff],frame)
+            prior_r=frame.ray_ranges;prior_p=frame.ray_hits.clamp(epsilon,1-epsilon)
+            future=future_head(context,layouts,transition,input_feat,transition)
+            law=decoder.law_decode(future["lidar"],prior_r,prior_p,transition)
+            branch_args=copy.copy(args);branch_args.cutoff=graph_index.cutoff
+            metrics=evaluate_prediction(branch_args,label,target_tick,future,observer_pose,law,codecs,frames,prepared,frame,None)
+            anchor_rows,_=predictions(anchor_output(target_query,device),target_query)
+            rollout=None
+            if rollout_tick is not None:
+                next_ranges=law["expected_range_m"].clone();next_probability=law["return_probability"].clone()
+                predicted_features=feedback_features(future,codecs)
+                contexts_r,blocks_r=modality_inputs(projectors,{target_tick:predicted_features},{target_tick:frame},
+                                                    (target_tick,),layouts,graph_index,feature_scales,
+                                                    {target_tick:token_bindings[graph_index.cutoff]})
+                tau=transition;norm_features=frame.depth.new_zeros((1,32));norm_features[0,:2]=predicted_features["depth_normalization"]/200.
+                contexts_r[target_tick]["features"][-1]=projectors.project_graph("depth",norm_features,layouts["depth"].mean(0,keepdim=True),tau)[0]
+                blocks_r[tau][-1]=("depth",projectors.project("depth",norm_features,layouts["depth"].mean(0,keepdim=True),tau),None,[[args.observer]])
+                full=graph_module._encode(graph_index,((target_tick,feedback),),{**contexts,**contexts_r})
+                historical_slot_count=structure_["embeddings"].shape[1]
+                history_structure_difference=float((full["embeddings"][:,:historical_slot_count]-structure_["embeddings"]).abs().max())
+                append_count=full["append_lengths"][-1]
+                appended=dict(full)
+                appended["embeddings"]=full["embeddings"][:,-append_count:]
+                appended["times"]=full["times"][-append_count:]
+                appended["positions"]=full["positions"][:,:,-append_count:]
+                appended["token_entities"]=full["token_entities"][-append_count:]
+                appended["token_fields"]=full["token_fields"][-append_count:]
+                append=chronological_prefix(qwen,appended,blocks_r,token_start=prefix_["next_token"],rope_start=prefix_["next_rope"])
+                cache_start=time.perf_counter()
+                append_hidden,rollout_cache=cached_forward(qwen,append,args.chunk,copy.deepcopy(prefix_cache))
+                cache_seconds=time.perf_counter()-cache_start
+                combined={"token_entities":prefix_["token_entities"]+append["token_entities"],"token_fields":prefix_["token_fields"]+append["token_fields"]}
+                combined_hidden=torch.cat((prefix_hidden,append_hidden),dim=1)
+                second_query=device_tensors(query_tensors(graph_index,rollout_tick,rollout_values=feedback,cutoff=target_tick),device)
+                second,second_context=typed_read(typed,attention_module,second_query,combined_hidden,combined)
+                second_rows,second_feedback=predictions(second,second_query)
+                second_feedback=complete_constant_feedback(second_feedback,graph_index,constant_targets,rollout_tick)
+                second_pose=derived_observer_pose(second_feedback,graph_index,args.observer)
+                # The second step starts from the predicted tick-10 features, so
+                # the residual scale is one step while the horizon 2*tau is
+                # measured from the original origin (reviewer-confirmed).
+                second_future=future_head(second_context,layouts,2*transition,predicted_features,transition)
+                second_law=decoder.law_decode(second_future["lidar"],next_ranges,next_probability,transition)
+                second_metrics=evaluate_prediction(branch_args,label+"_rollout",rollout_tick,second_future,second_pose,second_law,codecs,frames,prepared,frame,None)
+                recompute_start=time.perf_counter()
+                full_hidden,new_cache=cached_forward(qwen,prefix_,args.chunk)
+                recomputed_tail,new_cache=cached_forward(qwen,append,args.chunk,new_cache)
+                recomputed,_=typed_read(typed,attention_module,second_query,torch.cat((full_hidden,recomputed_tail),1),combined)
+                cache_metrics={"historical_structure_prefix_max_abs":history_structure_difference,
+                               "same_prefix_hidden_max_abs":float((append_hidden-recomputed_tail).abs().max()),
+                               "same_prefix_hidden_rms":float((append_hidden.float()-recomputed_tail.float()).square().mean().sqrt()),
+                               "typed_parameters_max_abs":float((second["parameters"]-recomputed["parameters"]).abs().max()),
+                               "class_probability_max_abs":float((second["classes"].softmax(-1)-recomputed["classes"].softmax(-1)).abs().max()),
+                               "status_probability_max_abs":float((second["status"].softmax(-1)-recomputed["status"].softmax(-1)).abs().max()),
+                               "cached_append_seconds":cache_seconds,"same_boundary_full_recompute_seconds":time.perf_counter()-recompute_start,
+                               "origin_tick":graph_index.cutoff,"second_query_tau_s":sorted(set(second_query["features"][:,4].cpu().tolist())),
+                               "transition_seconds":transition,"cache_length":rollout_cache.get_seq_length(),
+                               "prefix_tokens":prefix_["embeddings"].shape[1],"appended_tokens":append["embeddings"].shape[1],
+                               "chunk_boundary_policy":"same original prefix chunks, then same each append chunks; no concatenation rechunking"}
+                rollout={"rows":second_rows,"metrics":second_metrics,"cache":cache_metrics,
+                         "anchor_rows":predictions(anchor_output(second_query,device),second_query)[0],
+                         "append":append}
+            return {"rows":rows,"metrics":metrics,"anchor_rows":anchor_rows,"prefix":prefix_,
+                    "structure":structure_,"prefix_tokens":prefix_["embeddings"].shape[1],"rollout":rollout}
+    # Training-fit numbers (the supervised tick) clearly labelled as such.
+    train_fit=predict(index,graph,attention,historical,train_targets[0],None,"training_fit")
+    # Held-out evaluation on a temporally disjoint origin whose targets were
+    # never supervised; the same fitted statistics are reused unchanged.
+    heldout=predict(eval_index,graph,attention,eval_historical,eval_targets[0],eval_targets[1],"heldout")
+    resource={"qwen_checkpointed_blocks":checkpointed_layers,"ray_chunk":decoder.ray_chunk,
+              "frozen_encoder_cache":"Qwen vision tower features and codec teacher encodes cached once per capture before optimization; LiDAR geometry_adapter+Sonata, graph encoders, modality projections and reconstruction losses rebuilt every optimizer step",
+              "cache_rebuild_conditions":["new origin","new/changed inputs","any parameter update that produces prefix embeddings"]}
+    entity_binding={"per_capture":{str(tick):{"roster_entities":len(association[tick]),
+                     "associated_entities":sum(1 for e in association[tick] if e["association_supported"]),
+                     "camera_supported":sum(1 for e in association[tick] if e["camera_region_supported"]),
+                     "lidar_supported":sum(1 for e in association[tick] if e["lidar_region_supported"]),
+                     "tokens_with_entity":{name:sum(1 for owners in token_bindings[tick][name] if len(owners)>1)
+                                           for name in ("rgb","depth","seg","lidar")},
+                     "token_count":{name:len(token_bindings[tick][name]) for name in ("rgb","depth","seg","lidar")}}
+                     for tick in all_ticks}}
+    def prefix_token_counts(binding_rows):
+        """Per-category Qwen token counts from the chronological prefix."""
+        counts={"structure":0,"modality":0,"rgb":0,"depth":0,"seg":0,"lidar":0,
+                "rgb_descriptor":0,"depth_descriptor":0,"seg_descriptor":0,"lidar_descriptor":0}
+        for row in binding_rows:
+            span=row["token_end"]-row["token_start"]
+            if row["kind"]=="structure":
+                counts["structure"]+=span
+            else:
+                counts["modality"]+=span
+                counts[row["modality"]]=counts.get(row["modality"],0)+span
+        return counts
+    structure_categories=("entity","state","relation","update","communication","global")
+    def qwen_token_counts(ledger,binding_rows,total):
+        counts={name:ledger[name] for name in structure_categories}
+        counts.update(prefix_token_counts(binding_rows));counts["total"]=total
+        return counts
+    static_reuse={"entity_static_slots_emitted_once_per_window":train_ledger["entity"],
+                  "new_entity_classifications":train_ledger["new_entity"],
+                  "rule":"each window entity emits its identity/roster static slot exactly once (first tick it appears, spec category 'entity'); later ticks reference the cached static node embedding in the graph without re-emitting a Qwen token",
+                  "relation_static_reuse":"unchanged relation bodies keep their cached role-port/predicate/evidence parts and are only re-dated per tick",
+                  "cached_frozen":"Qwen vision tower features and codec teacher encodes cached once per capture; graph/projector prefix and reconstruction losses rebuilt every optimizer step"}
+    token_counts={"training_prefix":qwen_token_counts(train_ledger,train_prefix_bindings,train_tokens),
+                  "heldout_prefix":qwen_token_counts(heldout["structure"]["ledger"],heldout["prefix"]["bindings"],
+                                                     heldout["prefix_tokens"]),
+                  "heldout_predicted_append":prefix_token_counts(heldout["rollout"]["append"]["bindings"]),
+                  "categories":"entity, state, relation, update, communication, global are structure tokens; modality rgb/depth/seg/lidar patch tokens per capture; *_descriptor is one calibrated sensor descriptor token per capture"}
+    result={"episode":args.episode,"origin_tick":args.cutoff,"eval_origin_tick":args.eval_cutoff,
+            "target_ticks":train_targets,"eval_target_ticks":eval_targets,"source_config":config,
+            "scope":"train on one authentic TRAIN window with >=2 history captures; evaluate on a temporally disjoint held-out origin; no held-out target was supervised",
+            "numerical_workflow":"sources compiled once; TRAIN-only fitted immutable scales reused by the held-out window; future frames supervision only",
+            "resource_assumptions":resource,"entity_observation_binding":entity_binding,
+            "token_counts":token_counts,"static_reuse":static_reuse,
+            "input":{"mode":args.input_mode,"history_s":args.history_s,"tick_seconds":tick_seconds,
+            "historical_capture_ticks":historical,"eval_historical_capture_ticks":eval_historical,
+            "structural_ledger":train_ledger,"prefix_tokens":train_tokens,
+            "qwen_tokens_by_category":{**{name:train_ledger[name] for name in structure_categories},
+                                       "modality":sum(row["token_end"]-row["token_start"] for row in train_prefix_bindings
+                                                      if row["kind"]=="modality")},
+            "eval_prefix_tokens":heldout["prefix_tokens"],
+            "query_count":len(query["addresses"]),"native_rgb_grid":shape,"native_rgb_positions":len(current.rgb),
+            "modal_feature_shapes":{name:list(value.shape) for name,value in raw[args.cutoff].items()},
+            "graph_identity_count":len(index.graph_nodes),"actor_count":len(index.entities),"excluded_fields":sorted(MODEL_INPUT_EXCLUDED)},
+            "training":{"steps":args.steps,"completed_steps":completed_steps,"loss_history":history,"participating_gradients":gradients,
+                        "qwen_frozen":True,"sonata_frozen":True,"codec_weights_frozen":True,"codec_adapters_trained":True,
+                        "supplemental_codec_decoder":codec_adapter,"reconstruction_losses":train_reconstruction},
+            "training_fit":{"typed_metrics":typed_metrics(index,train_fit["rows"],train_fit["anchor_rows"]),
+                            "multimodal_metrics":train_fit["metrics"],
+                            "note":"target tick is the supervised training target; these are training-fit numbers, not held-out prediction"},
+            "heldout":{"typed_metrics":typed_metrics(eval_index,heldout["rows"],heldout["anchor_rows"]),
+                       "rollout_typed_metrics":typed_metrics(eval_index,heldout["rollout"]["rows"],heldout["rollout"]["anchor_rows"]),
+                       "multimodal_metrics":heldout["metrics"],"rollout_multimodal_metrics":heldout["rollout"]["metrics"],
+                       "cache":heldout["rollout"]["cache"]},
+            "dense_lidar_probability_law":decoder.range_law,"codec":codecs.metadata,"sonata":sonata_config,
+            "peak_gpu_allocated_bytes":torch.cuda.max_memory_allocated(),"wall_seconds":time.perf_counter()-started,
+            "limitations":["future RGB is a learned embedding target, no future RGB pixel decoder",
+                           "class-ID segmentation has no instance identity; entity/observation binding uses a geometric consistency test",
+                           "one TRAIN window does not establish generalization or calibration across episodes",
+                           "point feedback does not propagate the full previous continuous uncertainty",
+                           "depth producer axial/radial semantics remain unconfirmed; metric raster reconstruction is evaluated directly",
+                           "conditional range categorical bin resolution is finite; per-ray no-return mask is separate"]}
+    save_head()
+    (args.output/"result.json").write_text(json.dumps(result,indent=2,allow_nan=False)+"\n")
+    (args.output/"source_config.json").write_text(json.dumps(config,indent=2,allow_nan=False)+"\n")
+    (args.output/"predictions.json").write_text(json.dumps({"training_fit":train_fit["rows"],
+        "training_fit_anchor_only":train_fit["anchor_rows"],"heldout":heldout["rows"],
+        "heldout_anchor_only":heldout["anchor_rows"],"heldout_rollout":heldout["rollout"]["rows"]},indent=2,allow_nan=False)+"\n")
+    append=heldout["rollout"]["append"]
+    bindings={"train_history":train_prefix_bindings,"train_token_entities":train_token_entities,
+              "train_token_fields":train_token_fields,"eval_history":heldout["prefix"]["bindings"],
+              "eval_token_entities":heldout["prefix"]["token_entities"],"eval_token_fields":heldout["prefix"]["token_fields"],
+              "heldout_predicted_append":append["bindings"],
+              "heldout_predicted_append_token_entities":append["token_entities"],
+              "heldout_predicted_append_token_fields":append["token_fields"],
+              "training_fit_target_tick":train_targets[0],"heldout_target_ticks":list(eval_targets),
+              "source_records":index.source_bindings,"identity_aliases":index.identity_aliases,"local_identities":index.local_identities,
+              "sensor_calibration":frames[args.cutoff].calibration.as_dict(),
+              "sensor_settings_source":f"{args.observations}/tick_{args.cutoff:06d}.npz#binding_json.lidar",
+              "calibrated_sensor_descriptors":{str(tick):prepared[tick].binding["calibrated_descriptors"] for tick in all_ticks},
+              "entity_observation_association":{str(tick):association[tick] for tick in all_ticks},
+              "token_observer_entity_ownership":{str(tick):token_bindings[tick] for tick in all_ticks},
+              "descriptor_observer_alias_encoding":"sin/cos of window-local identity ordinal; modality embedding is local sensor alias",
+              "source_config":config,"geometry_policy":"predicted pose plus cutoff mount; future calibrated pose used only for target metric"}
+    (args.output/"bindings.json").write_text(json.dumps(bindings,indent=2,allow_nan=False)+"\n")
+    print(dumps({"phase":"complete","output":str(args.output),"wall_seconds":result["wall_seconds"],
+                 "peak_gpu_allocated_bytes":result["peak_gpu_allocated_bytes"]}),flush=True)
     return result
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--canonical", type=Path, required=True); parser.add_argument("--communication", type=Path, required=True)
-    parser.add_argument("--model", type=Path, required=True); parser.add_argument("--observations", type=Path, required=True)
+    parser.add_argument("--canonical", type=Path, required=True)
+    parser.add_argument("--communication", type=Path, required=True)
+    parser.add_argument("--model", type=Path, required=True)
+    parser.add_argument("--observations", type=Path, required=True)
     parser.add_argument("--graph-base", type=Path, default=Path("aw_data/objective_semantic_truth/L4-1_v1__seed00/world_truth_graph_base.json"))
     parser.add_argument("--sonata", type=Path, default=Path("Dataset/world_model/models/sonata"))
-    parser.add_argument("--lidar-settings", type=Path, default=Path("Dataset/world_model/runs/capture/L4-1_v1/seed00/uav_view_000__u_inspect_l4_1_v1/lidar/tick_000250.json"))
+    parser.add_argument("--codecs", type=Path, default=Path("Dataset/world_model/models"))
     parser.add_argument("--output", type=Path, default=Path("Dataset/world_model/runs/prediction"))
-    parser.add_argument("--resume-head", type=Path, help="evaluate an existing trained head, preserving its measured training history")
-    parser.add_argument("--episode", default="L4-1_v1__seed00"); parser.add_argument("--observer", default="u_inspect_l4_1_v1")
-    parser.add_argument("--cutoff", type=int, default=5); parser.add_argument("--step", type=int, default=5)
-    parser.add_argument("--steps", type=int, default=8); parser.add_argument("--lr", type=float, default=5e-5)
+    parser.add_argument("--codec-decoder-steps",type=int,default=128)
+    parser.add_argument("--codec-decoder-lr",type=float,default=.01)
+    parser.add_argument("--episode", default="L4-1_v1__seed00")
+    parser.add_argument("--observer", default="u_inspect_l4_1_v1")
+    parser.add_argument("--cutoff", type=int, default=10)
+    parser.add_argument("--eval-cutoff", type=int, default=255)
+    parser.add_argument("--step", type=int, default=5)
+    parser.add_argument("--history-s", type=float, default=.5)
+    parser.add_argument("--input-mode", choices=("graph_full", "graph_summary", "record_ablation"), default="graph_full")
+    parser.add_argument("--steps", type=int, default=8)
+    parser.add_argument("--lr", type=float, default=5e-5)
     parser.add_argument("--grad-clip", type=float, default=1.)
-    parser.add_argument("--chunk", type=int, default=1024); parser.add_argument("--seed", type=int, default=20261007)
+    parser.add_argument("--chunk", type=int, default=1024)
+    parser.add_argument("--seed", type=int, default=20261007)
     run(parser.parse_args())
 
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    main()

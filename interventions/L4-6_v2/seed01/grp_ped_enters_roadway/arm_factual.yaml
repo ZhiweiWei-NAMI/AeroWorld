@@ -1,0 +1,47 @@
+schema: aeroworld_l4_window_config
+version: 1
+group_key: L4-6_v2/seed01/grp_ped_enters_roadway
+episode_id: L4-6_v2__seed01
+event_family: vehicle_pedestrian_conflict
+subject_class: pedestrian
+entity_ids:
+- ped_jaywalk_l4_6_v2
+- car_jaywalk_l4_6_v2
+predicate_ids:
+- safety.vehicle_pedestrian_conflict
+window:
+  start_tick: 210
+  fork_tick: 220
+  end_tick: 410
+  phase: after_state_sample_before_actions
+  intervention_order: source_actions_then_intervention
+sources:
+  scene: Dataset/scenarios/L4_agents/collision/L4-6_v2/scene_setup.json
+  script: Dataset/scenarios/L4_agents/collision/L4-6_v2/event_script.json
+  trajectories: aw_data/render_ready_episodes_capture_filtered/L4-6_v2__seed01/trajectories.jsonl
+  weather: aw_data/render_ready_episodes_capture_filtered/L4-6_v2__seed01/weather_meta.jsonl
+  roster: aw_data/render_ready_episodes_capture_filtered/L4-6_v2__seed01/global_entity_roster.json
+  event_realization: aw_data/render_ready_episodes_capture_filtered/L4-6_v2__seed01/event_realization.jsonl
+  predicate_transitions: aw_data/objective_semantic_truth/L4-6_v2__seed01/predicate_transitions.jsonl
+  event_outcomes: aw_data/objective_semantic_truth/L4-6_v2__seed01/event_outcomes.jsonl
+arm_id: arm_factual
+mode: factual_observation
+execution:
+  omit_action_ids: []
+  actions: []
+  trigger_rewrites: []
+expected:
+  target_event: occurs
+  rationale: 'Replay the current source: pedestrian entry, measured proximity, low-speed vehicle repositioning from rest, pedestrian retreat and conflict
+    clearance. The vehicle response is not deceleration and does not declare braking. The factual run is the only control source.'
+  falsified_if: measured fire ticks or state history disagree with the design experiment.json factual_measured_facts (six-decimal serialization tolerance)
+script: scripts/arms/L4-6_v2/seed01/grp_ped_enters_roadway/arm_factual.py
+output: arms/L4-6_v2/seed01/grp_ped_enters_roadway/arm_factual
+provenance:
+  experiment_ref: design/L4-6_v2/seed01/grp_ped_enters_roadway/experiment.json
+  parameter_sources:
+    factual_root: aw_data
+    event_script: Dataset/scenarios/L4_agents/collision/L4-6_v2/event_script.json
+    canonical_event_trace: aw_data/render_ready_episodes_capture_filtered/L4-6_v2__seed01/event_trace.jsonl
+    canonical_trajectories: aw_data/render_ready_episodes_capture_filtered/L4-6_v2__seed01/trajectories.jsonl
+    design_facts: design factual_measured_facts (three-seed measured, equal across seeds)

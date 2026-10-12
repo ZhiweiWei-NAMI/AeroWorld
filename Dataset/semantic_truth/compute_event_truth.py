@@ -14,7 +14,7 @@ from Dataset.semantic_simulation.compute_comm import (
     _build_predicate_rows, _simulation_common, load_compute_comm_profile,
     load_episode_inputs,
 )
-from Dataset.semantic_truth.provenance import canonical_json, without_integrity_metadata
+from Dataset.semantic_truth.provenance import canonical_json, open_objective_text, without_integrity_metadata
 
 REPO = Path(__file__).resolve().parents[2]
 PROFILE = REPO / "Dataset/semantic_rules/profiles/compute_comm_supplement_profile.json"
@@ -83,7 +83,8 @@ def publish(prepared: dict) -> dict:
     root = REPO / "aw_data/objective_semantic_truth" / episode
     for name, text in prepared["files"].items():
         temporary = root / (name + ".tmp")
-        temporary.write_text(text, encoding="utf-8")
+        with open_objective_text(temporary, artifact_name=name) as stream:
+            stream.write(text)
         temporary.replace(root / name)
     manifest = read_json(root / "manifest.json")
     manifest["business_event_truth"] = prepared["manifest_entry"]
