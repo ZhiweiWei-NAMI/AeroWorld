@@ -18,6 +18,8 @@ import numpy as np
 
 from Dataset.world_model.unified import schema as S
 
+LOSS_DEFINITION = "informative-first-change-v1"
+
 FINE = 8          # sub-intervals per coarse interval
 PER_SIGN = 64     # maximum intervals per sign
 
@@ -152,6 +154,15 @@ class AnswerSchema:
             self._intervals[key] = IntervalCode(eps, max(1, int(math.ceil(r / eps))))
         return self._intervals[key]
 
+    def domains(self, q):
+        """Prediction domains depend only on the task, never its future label."""
+        g = q["group"]
+        if g in ("position", "latency_ms", "cpu_utilization_pct"):
+            ic = self.interval(g, q.get("category"), q["horizon"], q["eps"])
+            return [ic] * (3 if g == "position" else 1)
+        return [{"predicate": self.boolean, "first_change": self.flip, "event": self.event,
+                 "scheduled": self.scheduled, "global_event": self.global_event}[g]]
+
     def query_domain(self, q):
         """(tree(s), target code(s) or None, compatible codes for censoring or None).
 
@@ -245,6 +256,10 @@ def out_of_support(q, answers: AnswerSchema):
 def encode_query(q, answers: AnswerSchema, vocab: Vocabulary, tokenizer, text_cache=None):
     """Token layout of one query in marginal or joint mode, or None when its label is undefined."""
     trees, codes, compatible = answers.query_domain(q)
+    # Fully censored labels constrain no mass and must not dilute other losses.
+    if q["group"] == "first_change" and codes is None and compatible is not None \
+            and set(compatible) == set(trees[0].leaves):
+        return None
     if codes == "out_of_support":
         return None
     if codes is None and compatible is None:

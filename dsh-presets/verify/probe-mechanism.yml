@@ -1,0 +1,74 @@
+# 机制探针 B：验证 @deepseek-ai/dsh-tool-subagent 的静态 agentOptions 是否真的把子智能体钉在
+# 指定的 provider/model/reasoningEffort 上（与 preset 里的角色行同插件、同字段、同 spawn 后端，
+# 只是挂在顶层，因为 headless runner 不会 join preset）。
+#
+#   dsh --profile ds41_flash --patch dsh-presets/verify/probe-mechanism.yml --json "<task>"
+#
+# 两个实例故意用不同 provider + 不同 model + 不同 effort：
+#   subagent_dev    → workbuddy    / glm-5.3-flashx           （父会话本身是 workbuddy/deepseek-v4.1-flash）
+#   subagent_review → openai-codex / gpt-6-astra (xhigh)
+# 父会话是 deepseek-v4.1-flash：子会话只要出现上面两条路由，就证明不是"继承父模型"。
+
+- insert:
+    - id: agent-team
+      name: '@deepseek-ai/dsh-experimental-agent-team'
+      config:
+        maxMembers: 8
+        maxTasks: 256
+        maxPendingMessagesPerMember: 64
+        maxMessageBytes: 65536
+        disposalTimeoutMs: 5000
+
+    - id: tool-agent-team
+      name: '@deepseek-ai/dsh-experimental-tool-agent-team'
+      config:
+        freshProvider: spawn
+        forkProvider: fork
+
+    - id: probe-dev
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent_dev
+        maxDepth: 1
+        agentOptions:
+          provider: workbuddy
+          model: glm-5.3-flashx
+
+    - id: probe-review
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent_review
+        maxDepth: 1
+        toolFilter:
+          deny:
+            - write
+            - edit
+        agentOptions:
+          provider: openai-codex
+          model: gpt-6-astra
+          reasoningEffort: xhigh
+
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      openai-codex:
+        displayName: OpenAI Codex (ChatGPT)
+        apiKeyEnv: CODEX_ACCESS_TOKEN
+        reasoning: high
+        models:
+          - id: gpt-6-astra
+            name: GPT-6-Astra
+            contextWindow: 500000
+            maxTokens: 128000
+            input: [text, image]
+            reasoningEfforts:
+              off: null
+              minimal: low
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max

@@ -12,7 +12,8 @@ the fixed block, the queries and the padding is the optional capacity shared by 
 separate text, observer or frame limit.  When every candidate fits, every candidate is kept.
 
 Text.  Background (window conventions, the queried predicates' definitions and thresholds, answer codes),
-captures oldest first (frame header, sensor tokens), entities (identity, origin lines, kept records by time),
+actions fixed at the origin (§8), captures oldest first (frame header, sensor tokens), entities (identity,
+origin lines, kept records by time),
 relations (definition, origin line, kept records), events, scheduled activations.  Kept groups are merged by
 owner, then time; repeated headings are not repeated; no free-form rewriting.  Token ids are the concatenation
 of per-line tokenizations, so position counts are exact.
@@ -31,7 +32,7 @@ TOTAL_BUDGET = 20000
 PAD_TO = 64                        # predictor.Predictor.PAD_TO
 NEWLINE = 198                      # "\n" in the Qwen3.5 tokenizer
 PAD_RESERVE = 2 * (PAD_TO - 1)     # worst-case padding of the context and of the joint sequence
-FIXED_VISUAL_SHARE = 0.4           # text-only selection stages: capacity of the fixed capture packet
+NO_ACTIONS_TEXT = "actions fixed at t=0\n  none supplied: no external actions or plans were given at the origin\n"
 
 BACKGROUND = (
     "world window: history 5.0 s sampled at 0.1 s; times t in s relative to the prediction origin (t=0); inputs "
@@ -98,6 +99,7 @@ class PreparedWindow:
         self.tok = tokenizer
         enc = lambda lines: tokenizer(list(lines), add_special_tokens=False)["input_ids"] if lines else []
         self._enc = enc
+        self.action_ids = enc([NO_ACTIONS_TEXT])[0]
         self.headings = dict(zip(window["headings"], enc(v+"\n" for v in window["headings"].values())))
         units = []
         for i, g in enumerate(window["groups"]):
@@ -250,8 +252,10 @@ class PreparedWindow:
         return self._background[key]
 
     def fixed_cost(self, query_ids):
+        """Mandatory context including the default origin-action block (RESEARCH_PLAN §6, §8)."""
         fixed, _ = self.fixed_keys(query_ids)
-        return (len(self.background_ids(query_ids)) + sum(len(self.headings[h]) for h in self.base_heads(query_ids))
+        return (len(self.background_ids(query_ids)) + len(self.action_ids)
+                + sum(len(self.headings[h]) for h in self.base_heads(query_ids))
                 + sum(len(self.units[k].ids) for k in fixed))
 
     def optional_budget(self, query_ids, n_query, total=TOTAL_BUDGET):
@@ -292,19 +296,21 @@ class PreparedWindow:
         return kept, used
 
     # ---- assembly --------------------------------------------------------------------------
-    def assemble(self, kept, query_ids):
-        """Token ids of the context (with capture placeholders) and position counts.
+    def assemble(self, kept, query_ids, actions_ids=None):
+        """Context and position counts, with the origin-action block after background (RESEARCH_PLAN §6, §8).
 
         Returns segments [("text", ids) | ("image", capture ref)] and counts: N_background, N_fixed (background,
-        identity headings, fixed origin lines), N_text (optional text), N_frame_text (images heading, frame
+        actions, identity headings, fixed origin lines), N_text (optional text), N_frame_text (images heading, frame
         headers and closing newlines), N_visual (sensor tokens).
         """
         fixed, _ = self.fixed_keys(query_ids)
         kept = set(kept) | fixed
         heads = self.base_heads(query_ids)
         bg = self.background_ids(query_ids)
-        segments = [("text", list(bg))]
-        counts = {"N_background": len(bg), "N_fixed": len(bg), "N_text": 0, "N_frame_text": 0, "N_visual": 0,
+        actions = self.action_ids if actions_ids is None else actions_ids
+        segments = [("text", list(bg)), ("text", list(actions))]
+        counts = {"N_background": len(bg), "N_fixed": len(bg) + len(actions), "N_text": 0,
+                  "N_frame_text": 0, "N_visual": 0,
                   "N_captures": 0}
         caps = sorted((self.units[k] for k in kept if self.units[k].kind == "capture"), key=lambda u: (u.tick, u.key))
         if caps:
@@ -410,14 +416,6 @@ def mixed_fill(pw: PreparedWindow, query_ids, budget, text_policy, visual_policy
             kept.append(u.key)
             used += c
             heads.add(u.head)
-    return kept, used
-
-
-def fixed_packet(pw: PreparedWindow, query_ids, budget):
-    """Captures held fixed across text-selection candidates in a text-only stage: geometric relevance order
-    within FIXED_VISUAL_SHARE of the optional budget."""
-    kept, used = pw.greedy_fill(_order(pw.candidates(query_ids, "visual"), "relevance"), int(FIXED_VISUAL_SHARE * budget),
-                                query_ids)
     return kept, used
 
 

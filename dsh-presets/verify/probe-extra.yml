@@ -1,0 +1,68 @@
+# 一次性验证 overlay（不改任何 profile 文件，只在本次启动时叠加）。
+# 用法：
+#   dsh --profile ds41_flash \
+#     --patch dsh-presets/verify/probe-extra.yml \
+#     --patch dsh-presets/team-mgmt/cordis.patch.yml \
+#     --json "<task>"
+#
+# 它做三件事：
+#   1) 插入 agent-preset-registry，并把 default 指向 team-mgmt —— 让本次启动真的会去组合这个 preset；
+#   2) 插入 Agent Teams 的协调层两行（服务 + 工具），与 preset 的角色工具同场共存；
+#   3) 给 llm-pi-ai 配上 openai-codex 路由（gpt-6.1-sol / gpt-6-astra），供 subagent_review/design/escalate 使用。
+
+- insert:
+    - id: agent-preset-registry
+      name: '@deepseek-ai/dsh-agent-preset-registry'
+      config:
+        default: team-mgmt
+
+    - id: agent-team
+      name: '@deepseek-ai/dsh-experimental-agent-team'
+      config:
+        maxMembers: 8
+        maxTasks: 256
+        maxPendingMessagesPerMember: 64
+        maxMessageBytes: 65536
+        disposalTimeoutMs: 5000
+
+    - id: tool-agent-team
+      name: '@deepseek-ai/dsh-experimental-tool-agent-team'
+      config:
+        freshProvider: spawn
+        forkProvider: fork
+
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      openai-codex:
+        displayName: OpenAI Codex (ChatGPT)
+        apiKeyEnv: CODEX_ACCESS_TOKEN
+        reasoning: high
+        models:
+          - id: gpt-6.1-sol
+            name: GPT-6.1-Sol
+            contextWindow: 500000
+            maxTokens: 128000
+            input: [text, image]
+            reasoningEfforts:
+              off: null
+              minimal: low
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max
+          - id: gpt-6-astra
+            name: GPT-6-Astra
+            contextWindow: 500000
+            maxTokens: 128000
+            input: [text, image]
+            reasoningEfforts:
+              off: null
+              minimal: low
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max

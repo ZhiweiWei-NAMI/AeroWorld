@@ -39,15 +39,21 @@ from Dataset.world_model.unified import schema as S
 from Dataset.world_model.unified.frame_cache import FOUR_MODAL
 
 def _stable_kernel_tuning():
-    """FLA's l2norm kernels re-autotune for every new row count (key includes NB = rows/2048,
-    ~30 s per new sequence length).  Tune once per feature size instead; numerics are unchanged."""
+    """Pin the accelerated l2norm configuration used by the frozen reward model.
+
+    Real identical-input repeats selected BT=128/warps=4 versus BT=32/warps=1
+    and returned different NLLs. Autotuning is not numerically invariant here.
+    Keep Triton acceleration, but do not let a timing race change RL rewards.
+    """
     try:
+        import triton
         from fla.modules import l2norm as fla_l2norm
     except ImportError:
         return
     for name in ("l2norm_fwd_kernel", "l2norm_bwd_kernel"):
         kernel = getattr(fla_l2norm, name, None)
         if kernel is not None and hasattr(kernel, "key_idx"):
+            kernel.configs = [triton.Config({'BT': 128}, num_warps=4)]
             kernel.key_idx = [kernel.arg_names.index("D")]
             if hasattr(kernel, "keys"):
                 kernel.keys = ["D"]

@@ -93,14 +93,6 @@ def formal_ticks(origin):
     return list(range(origin - S.HISTORY_TICKS, origin + 1, S.FORMAL_STEP))
 
 
-def last_at_or_before(samples, tick):
-    best = None
-    for t in range(tick, tick - S.HISTORY_TICKS - 1, -1):
-        if samples.get(t) is not None:
-            return t
-    return best
-
-
 def build_window(src, origin, visual=None, max_tuple_candidates=None):
     ticks, fticks = window_ticks(origin), formal_ticks(origin)
     start = ticks[0]
@@ -310,7 +302,8 @@ def build_queries(src, origin, al, rel_alias, present0):
                 # Residual of the stored values in quanta: |y - x0| < eps/2 is I0.
                 label = [int(round((pos[t][i] - pos[origin][i]) / S.POS_EPS)) for i in range(3)] if t in pos else None
                 queries.append({"group": "position", "entity": a, "category": cat, "horizon": h,
-                                "text": f"{a} position@+{h*S.TICK_S:.1f}s:", "residual": label, "eps": S.POS_EPS})
+                                "text": f"{a} position@+{h*S.TICK_S:.1f}s:", "reference": list(pos[origin]),
+                                "residual": label, "eps": S.POS_EPS})
         for fam, (source, name, eps) in S.NUMERIC_TARGETS.items():
             if source == "frame":
                 continue
@@ -322,7 +315,7 @@ def build_queries(src, origin, al, rel_alias, present0):
                 y = raw.get(origin + h)
                 queries.append({"group": fam, "entity": a, "category": cat, "horizon": h,
                                 "text": f"{a} {'link' if source == 'comm' else 'compute'} {S.short(name)}@+{h*S.TICK_S:.1f}s:",
-                                "residual": [int(round((y - x0) / eps))] if y is not None else None, "eps": eps})
+                                "reference": [x0], "residual": [int(round((y - x0) / eps))] if y is not None else None, "eps": eps})
     # Predicates: per-horizon state and first change.
     for tid, alias in rel_alias.items():
         rel = src.relations[tid]

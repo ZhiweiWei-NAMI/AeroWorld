@@ -1,28 +1,21 @@
-"""Training/evaluation items: window -> query set -> encoded queries -> kept evidence -> context (RESEARCH_PLAN §8-§9).
+"""Parent and ARM items under fixed TRAIN/DEV/TEST splits.
 
-Development uses a temporary profile-grouped holdout (configs/unified_splits.json); final models train on all
-210 parents.  Evidence = compacted text records and the four-modal captures of every observer in the history
-window.  The budget is the total predictor sequence (assemble.TOTAL_BUDGET = 20K positions); the query block
-and padding are reserved first, and text and captures share the rest.  Training reductions mix text and capture
-policies with a random visual share at several total budgets, so the predictor sees varied evidence sets.
+Text and captures share the capacity left after mandatory inputs and queries within the total budget.
 """
 from __future__ import annotations
 
 import functools
 import json
+import os
 import random
-
-import torch
-from torch.utils.data import IterableDataset, get_worker_info
 
 from Dataset.world_model.unified import assemble as A, codes as K, schema as S, visual as V, windows as W
 from Dataset.world_model.unified.build import load_source, parents
 
 SPLITS = S.ROOT/"Dataset/world_model/configs/unified_splits.json"
 ORIGINS = list(range(S.HISTORY_TICKS, S.LAST_TICK - 50 + 1, S.FORMAL_STEP))
-BUDGETS = (10000, 15000, A.TOTAL_BUDGET, A.TOTAL_BUDGET)      # total positions of training items (mandatory inputs ~5.5K)
-TEXT_POLICIES = ("random", "recency", "uniform_time", "change_point")
-POLICIES = A.POLICIES
+DEV_PROFILES = ("L1-3_v1", "L2-3_v2", "L2-4_v2", "L3-2_v2", "L4-10_v2", "L4-3_v1", "L4-4_v1",
+                "L4-5_v3", "L4-9_v1", "L5-1_v1", "L5-3_v1", "L6-2_v2", "L6-5_v1")
 JOINT_TAIL = ("first_change", "event", "global_event", "scheduled")
 
 
@@ -30,28 +23,54 @@ def profile(episode):
     return episode.rsplit("__", 1)[0]
 
 
-def make_splits(fraction=0.2, seed=20261011):
-    """Temporary development holdout: whole profiles, stratified by scenario family."""
+def template(episode):
+    """Scenario template shared by its profile versions (RESEARCH_PLAN §8)."""
+    return profile(episode).rsplit("_v", 1)[0]
+
+
+def make_splits():
+    """Keep the 13 DEV profiles; hold out TEST templates by family (RESEARCH_PLAN §8)."""
+    episodes = parents()
+    held = json.loads(SPLITS.read_text())["dev_profiles"] if SPLITS.exists() else list(DEV_PROFILES)
+    dev_templates = {template(e) for e in episodes if profile(e) in held}
     by_family = {}
-    for e in parents():
-        by_family.setdefault(W.family_of(e), set()).add(profile(e))
-    rng = random.Random(seed)
-    held = []
+    for e in episodes:
+        family = W.family_of(e)
+        by_family.setdefault("X" if family.startswith("X") else family, set()).add(template(e))
+    rng, test_templates = random.Random(20261012), []
     for fam in sorted(by_family):
-        profs = sorted(by_family[fam])
-        k = max(1, round(fraction * len(profs))) if len(profs) > 1 else 0
-        held += rng.sample(profs, k)
-    dev = sorted(e for e in parents() if profile(e) in held)
-    out = {"rule": "development holdout: whole profiles (all seeds), ~20% per scenario family; temporary, "
-                   "for settings only; final models train on all 210 parents",
-           "dev_profiles": sorted(held), "dev": dev, "fit": sorted(set(parents()) - set(dev))}
-    SPLITS.write_text(json.dumps(out, indent=1))
+        candidates = sorted(by_family[fam] - dev_templates)
+        k = max(1, round(0.2 * len(by_family[fam])))
+        test_templates += rng.sample(candidates, min(k, len(candidates)))
+    dev = sorted(e for e in episodes if profile(e) in held)
+    test = sorted(e for e in episodes if template(e) in test_templates)
+    out = {"rule": "fixed DEV profiles; TEST templates outside DEV, 20% per family (X pooled), seed 20261012; "
+                   "TRAIN contains the remaining parents; all seeds and arms follow their parent",
+           "dev_profiles": sorted(held), "test_templates": sorted(test_templates),
+           "train": sorted(set(episodes) - set(dev) - set(test)), "dev": dev, "test": test}
+    tmp = SPLITS.with_name(f".{SPLITS.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(out, indent=1))
+    tmp.replace(SPLITS)
+    splits.cache_clear()
     return out
 
 
 @functools.lru_cache(maxsize=1)
 def splits():
-    return json.loads(SPLITS.read_text()) if SPLITS.exists() else make_splits()
+    """Fixed three-way parent split; migrate the earlier profile-only file (RESEARCH_PLAN §8)."""
+    if SPLITS.exists():
+        out = json.loads(SPLITS.read_text())
+        if all(k in out for k in ("train", "dev", "test", "test_templates")) and "fit" not in out:
+            return out
+    return make_splits()
+
+
+def split_of(episode):
+    """A parent and all its ARM members belong to one split (RESEARCH_PLAN §8)."""
+    for name in ("train", "dev", "test"):
+        if episode in splits()[name]:
+            return name
+    raise ValueError(f"parent is absent from the split: {episode}")
 
 
 @functools.lru_cache(maxsize=8)
@@ -82,7 +101,7 @@ def query_reserve(enc, queries, qids):
         key = q["text"]
         if key not in enc.text_cache:
             enc.text_cache[key] = enc.tok("\n" + q["text"], add_special_tokens=False)["input_ids"]
-        trees = enc.answers.query_domain(q)[0]
+        trees = enc.answers.domains(q)
         n = len(enc.text_cache[key]) + sum(code_depth(t.tree if isinstance(t, K.IntervalCode) else t) for t in trees)
         joint += n
         marginal = max(marginal, n - 1 + (-(n - 1)) % 8)
@@ -154,6 +173,8 @@ class Encoder:
         """Kept set of a policy under the optional budget.  policy: a baseline name (assemble.POLICIES), or
         {"text": p, "visual": p, "share": f} for a mixed training reduction."""
         if isinstance(policy, dict):
+            if policy["share"] == 0:
+                return pw.greedy_fill(A.policy_order(pw, qids, policy["text"], rng, kinds="text"), budget, qids)
             return A.mixed_fill(pw, qids, budget, policy["text"], policy["visual"], policy["share"], rng)
         return A.select(pw, qids, budget, policy, rng)
 
@@ -238,42 +259,3 @@ def query_weights(groups, inclusion=None, weights=A.GROUP_WEIGHTS):
         mass[g] = mass.get(g, 0.) + 1. / p
     total = sum(weights.get(g, 1.) for g in mass)
     return [weights.get(g, 1.) * (1. / p) / mass[g] / total for g, p in zip(groups, inclusion)]
-
-
-class TrainStream(IterableDataset):
-    """Endless random training items from the fit pool: mixed text/capture reductions at several total budgets
-    (step 1), and with selector_items the selector's own choices mixed in (step 4)."""
-    def __init__(self, episodes, seed=0, rank=0, budgets=BUDGETS, text_policies=TEXT_POLICIES,
-                 visual_policies=A.VISUAL_POLICIES, images=True, selector_items=None, selector_prob=0.5):
-        self.episodes, self.seed, self.rank = list(episodes), seed, rank
-        self.budgets, self.text_policies, self.visual_policies, self.images = budgets, text_policies, visual_policies, images
-        self.selector_items, self.selector_prob = selector_items or [], selector_prob
-
-    def __iter__(self):
-        info = get_worker_info()
-        wid = info.id if info else 0
-        rng = random.Random((self.seed * 1000 + self.rank) * 100 + wid)
-        enc = Encoder()
-        while True:
-            if self.selector_items and rng.random() < self.selector_prob:
-                sel = rng.choice(self.selector_items)
-                try:
-                    yield {**enc.item(sel["episode"], sel["origin"], kept=sel["kept"], query_ids=sel["query_ids"],
-                                      budget=sel["budget"], images=self.images, inclusion=sel.get("inclusion")),
-                           "policy": "selector"}
-                except Exception as exc:
-                    print(json.dumps({"item_error": repr(exc)[:300], "episode": sel["episode"]}), flush=True)
-                continue
-            episode = rng.choice(self.episodes)
-            origin = rng.choice(ORIGINS)
-            budget = rng.choice(self.budgets)
-            policy = {"text": rng.choice(self.text_policies), "visual": rng.choice(self.visual_policies),
-                      "share": rng.uniform(0., 0.8)}
-            try:
-                yield enc.item(episode, origin, rng, budget, policy, images=self.images)
-            except Exception as exc:          # surfaced, never silently dropped
-                print(json.dumps({"item_error": repr(exc)[:300], "episode": episode, "origin": origin}), flush=True)
-
-
-def collate(items):
-    return items
